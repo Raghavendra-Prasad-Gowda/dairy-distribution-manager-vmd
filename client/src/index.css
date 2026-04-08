@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ddm-teal:       #0d9488;
+    --ddm-teal-dark:  #0f766e;
+    --ddm-amber:      #f59e0b;
+    --ddm-bg:         #f8fafc;
+    --ddm-white:      #ffffff;
+    --ddm-sidebar:    #0f766e;
+  }
+
+  body {
+    @apply bg-[#f8fafc] text-gray-900 font-sans;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer utilities {
+  /* Brand gradient — sidebar + login bg */
+  .ddm-gradient {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 60%, #065f46 100%);
+  }
+
+  /* Standard card */
+  .ddm-card {
+    @apply bg-white border border-gray-100 rounded-xl shadow-sm;
+  }
+
+  /* Balance badges */
+  .badge-red {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700;
+  }
+  .badge-green {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700;
+  }
+  .badge-amber {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700;
+  }
+
+  /* Missing price warning */
+  .price-missing {
+    @apply bg-amber-50 border border-amber-300 rounded;
+  }
+}
+
+/* ── Animations used by success/error overlays ────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.8) translateY(20px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Print styles (same as existing app) ─────────────────────────────────── */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  aside, nav, #top-nav-bar, .print\:hidden,
+  [class*="lg\:hidden"][class*="fixed"] {
+    display: none !important;
+  }
+
+  .lg\:ml-64 { margin-left: 0 !important; }
+
+  .overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  [class*="max-h-"] { max-height: none !important; }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  th, td { border: 1px solid #d1d5db !important; }
+  tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+
+  .shadow-md, .shadow-sm, .shadow-lg { box-shadow: none !important; }
+  .rounded-2xl, .rounded-xl { border-radius: 0 !important; }
+
+  @page {
+    margin: 10mm;
+    size: landscape;
+  }
+}

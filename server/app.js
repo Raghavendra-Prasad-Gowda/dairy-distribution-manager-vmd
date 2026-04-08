@@ -1,0 +1,126 @@
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+
+const logger = require('./config/logger');
+const AppError = require('./utils/AppError');
+
+// ─── Route imports ────────────────────────────────────────────────────────────
+const authRoutes                = require('./routes/auth');
+const brandsRoutes              = require('./routes/brands');
+const productsRoutes            = require('./routes/products');
+const stockReceiptsRoutes       = require('./routes/stockReceipts');
+const dairyBalanceRoutes        = require('./routes/dairyBalance');
+const dairyPaymentsRoutes       = require('./routes/dairyPayments');
+const salespeopleRoutes         = require('./routes/salespeople');
+const salespersonPricesRoutes   = require('./routes/salespersonPrices');
+const dispatchesRoutes          = require('./routes/dispatches');
+const salespersonBalanceRoutes  = require('./routes/salespersonBalance');
+const salespersonPaymentsRoutes = require('./routes/salespersonPayments');
+const reportsRoutes             = require('./routes/reports');
+const { authenticate }          = require('./middleware/auth');
+
+const app = express();
+
+// Trust proxy is required when running behind Render/Vercel/Nginx
+app.set('trust proxy', 1);
+
+// ─── 1. Security headers ─────────────────────────────────────────────────────
+app.use(helmet());
+
+// ─── 2. CORS ─────────────────────────────────────────────────────────────────
+const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',');
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+}));
+
+// ─── 3. HTTP logging ─────────────────────────────────────────────────────────
+app.use(morgan('combined', {
+  stream: { write: (msg) => logger.http(msg.trim()) },
+}));
+
+// ─── 4. Global rate limiter ──────────────────────────────────────────────────
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests, please try again after 15 minutes',
+}));
+
+// ─── 5. Strict auth rate limiter ─────────────────────────────────────────────
+app.use('/api/v1/auth/login', rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: 'Too many login attempts, please try again after an hour',
+}));
+
+// ─── 6. Cookie parser ────────────────────────────────────────────────────────
+app.use(cookieParser());
+
+// ─── 7. Body parser ──────────────────────────────────────────────────────────
+app.use(express.json());
+
+// ─── Health check ─────────────────────────────────────────────────────────────
+app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+// ─── Public routes ───────────────────────────────────────────────────────────
+app.use('/api/v1/auth', authRoutes);
+
+// ─── Protected routes (all require authenticate) ─────────────────────────────
+app.use('/api/v1', authenticate);
+app.use('/api/v1/brands',               brandsRoutes);
+app.use('/api/v1/products',             productsRoutes);
+app.use('/api/v1/stock-receipts',       stockReceiptsRoutes);
+app.use('/api/v1/dairy-balance',        dairyBalanceRoutes);
+app.use('/api/v1/dairy-payments',       dairyPaymentsRoutes);
+app.use('/api/v1/salespeople',          salespeopleRoutes);
+app.use('/api/v1/salespeople',          salespersonPricesRoutes);
+app.use('/api/v1/dispatches',           dispatchesRoutes);
+app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
+app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
+app.use('/api/v1/reports',              reportsRoutes);
+
+// ─── Global error handler ─────────────────────────────────────────────────────
+// Must be the last middleware
+app.use((err, req, res, next) => {
+  const isDev = process.env.NODE_ENV === 'development';
+
+  // Prisma known error codes
+  if (err.code === 'P2002') {
+    return res.status(400).json({ success: false, error: 'A record with those values already exists', code: 'DUPLICATE' });
+  }
+  if (err.code === 'P2025') {
+    return res.status(404).json({ success: false, error: 'Record not found', code: 'NOT_FOUND' });
+  }
+  if (err.code === 'P2003') {
+    return res.status(400).json({ success: false, error: 'Cannot delete: this record has associated data', code: 'FK_CONSTRAINT' });
+  }
+
+  // Operational errors (AppError)
+  if (err.isOperational) {
+    return res.status(err.statusCode).json({
+      success: false,
+      error: err.message,
+      ...(isDev && { stack: err.stack }),
+    });
+  }
+
+  // Unexpected errors — log internally, return generic message
+  logger.error('Unexpected error', { error: err.message, stack: err.stack });
+  res.status(500).json({
+    success: false,
+    error: 'An unexpected error occurred. Please try again.',
+    ...(isDev && { stack: err.stack }),
+  });
+});
+
+module.exports = app;

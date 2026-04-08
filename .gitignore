@@ -1,0 +1,26 @@
+# dependency folders
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# build outputs
+client/dist/
+client/.vite/
+
+# environment files — never commit secrets
+.env
+client/.env
+server/.env
+
+# logs
+server/logs/
+*.log
+
+# Prisma generated client (rebuilt on deploy)
+server/node_modules/.prisma/
+
+# macOS
+.DS_Store
+
+# editor
+.vscode/

@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Brands ───────────────────────────────────────────────────────────────────
+
+model Brand {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  products      Product[]
+  stockReceipts StockReceipt[]
+  dairyBalances DairyBalance[]
+  dairyPayments DairyPayment[]
+
+  @@map("brands")
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
+
+model Product {
+  id         Int      @id @default(autoincrement())
+  brandId    Int      @map("brand_id")
+  name       String
+  dairyPrice Decimal  @default(0) @db.Decimal(10, 2) @map("dairy_price")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  brand             Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  stockReceipts     StockReceipt[]
+  salespersonPrices SalespersonPrice[]
+  dispatchItems     StockDispatchItem[]
+
+  @@unique([brandId, name])
+  @@map("products")
+}
+
+// ─── Stock Receipts ───────────────────────────────────────────────────────────
+
+model StockReceipt {
+  id          Int      @id @default(autoincrement())
+  brandId     Int      @map("brand_id")
+  productId   Int      @map("product_id")
+  receiptDate DateTime @db.Date @map("receipt_date")
+  quantity    Decimal  @default(0) @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2) @map("unit_price")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  brand   Brand   @relation(fields: [brandId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([productId, receiptDate])
+  @@map("stock_receipts")
+}
+
+// ─── Dairy Balance ────────────────────────────────────────────────────────────
+
+model DairyBalance {
+  id             Int      @id @default(autoincrement())
+  brandId        Int      @map("brand_id")
+  balanceDate    DateTime @db.Date @map("balance_date")
+  openingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("opening_balance")
+  stockValue     Decimal  @default(0) @db.Decimal(10, 2) @map("stock_value")
+  amountPaid     Decimal  @default(0) @db.Decimal(10, 2) @map("amount_paid")
+  closingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("closing_balance")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  brand Brand @relation(fields: [brandId], references: [id])
+
+  @@unique([brandId, balanceDate])
+  @@map("dairy_balances")
+}
+
+// ─── Dairy Payments ───────────────────────────────────────────────────────────
+
+model DairyPayment {
+  id          Int      @id @default(autoincrement())
+  brandId     Int      @map("brand_id")
+  paymentDate DateTime @db.Date @map("payment_date")
+  amount      Decimal  @db.Decimal(10, 2)
+  paymentMode String?  @map("payment_mode")
+  reference   String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  brand Brand @relation(fields: [brandId], references: [id])
+
+  @@map("dairy_payments")
+}
+
+// ─── Salespeople ──────────────────────────────────────────────────────────────
+
+model Salesperson {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  route     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  prices     SalespersonPrice[]
+  dispatches StockDispatch[]
+  balances   SalespersonBalance[]
+  payments   SalespersonPayment[]
+
+  @@map("salespeople")
+}
+
+// ─── Salesperson Prices ───────────────────────────────────────────────────────
+
+model SalespersonPrice {
+  id            Int      @id @default(autoincrement())
+  salespersonId Int      @map("salesperson_id")
+  productId     Int      @map("product_id")
+  sellingPrice  Decimal  @db.Decimal(10, 2) @map("selling_price")
+  effectiveFrom DateTime @db.Date @default(now()) @map("effective_from")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  salesperson Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([salespersonId, productId, effectiveFrom])
+  @@map("salesperson_prices")
+}
+
+// ─── Stock Dispatches ─────────────────────────────────────────────────────────
+
+model StockDispatch {
+  id            Int      @id @default(autoincrement())
+  salespersonId Int      @map("salesperson_id")
+  dispatchDate  DateTime @db.Date @map("dispatch_date")
+  totalAmount   Decimal  @default(0) @db.Decimal(10, 2) @map("total_amount")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  salesperson Salesperson         @relation(fields: [salespersonId], references: [id])
+  items       StockDispatchItem[]
+
+  @@unique([salespersonId, dispatchDate])
+  @@map("stock_dispatches")
+}
+
+model StockDispatchItem {
+  id          Int     @id @default(autoincrement())
+  dispatchId  Int     @map("dispatch_id")
+  productId   Int     @map("product_id")
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(10, 2) @map("unit_price")
+  totalAmount Decimal @db.Decimal(10, 2) @map("total_amount")
+
+  dispatch StockDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id])
+
+  @@map("stock_dispatch_items")
+}
+
+// ─── Salesperson Balance ──────────────────────────────────────────────────────
+
+model SalespersonBalance {
+  id             Int      @id @default(autoincrement())
+  salespersonId  Int      @map("salesperson_id")
+  balanceDate    DateTime @db.Date @map("balance_date")
+  openingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("opening_balance")
+  stockGiven     Decimal  @default(0) @db.Decimal(10, 2) @map("stock_given")
+  amountPaid     Decimal  @default(0) @db.Decimal(10, 2) @map("amount_paid")
+  closingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("closing_balance")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  salesperson Salesperson @relation(fields: [salespersonId], references: [id])
+
+  @@unique([salespersonId, balanceDate])
+  @@map("salesperson_balances")
+}
+
+// ─── Salesperson Payments ─────────────────────────────────────────────────────
+
+model SalespersonPayment {
+  id            Int      @id @default(autoincrement())
+  salespersonId Int      @map("salesperson_id")
+  paymentDate   DateTime @db.Date @map("payment_date")
+  amount        Decimal  @db.Decimal(10, 2)
+  paymentMode   String?  @map("payment_mode")
+  reference     String?
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  salesperson Salesperson @relation(fields: [salespersonId], references: [id])
+
+  @@map("salesperson_payments")
+}
+
+// ─── App Settings ─────────────────────────────────────────────────────────────
+
+model AppSettings {
+  id           Int      @id @default(autoincrement())
+  businessName String   @default("Vikas Milk Dairy") @map("business_name")
+  username     String   @default("admin")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}

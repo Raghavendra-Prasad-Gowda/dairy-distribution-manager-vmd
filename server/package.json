@@ -1,0 +1,37 @@
+{
+  "name": "dairy-distribution-manager-server",
+  "version": "1.0.0",
+  "description": "Dairy Distribution Manager — Backend API",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "build": "npx prisma generate",
+    "deploy": "npx prisma migrate deploy",
+    "start:prod": "npm run deploy && node index.js",
+    "postinstall": "npx prisma generate",
+    "seed": "node prisma/seed.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.16.3",
+    "prisma": "^5.22.0",
+    "winston": "^3.17.0",
+    "zod": "^3.24.2"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}
