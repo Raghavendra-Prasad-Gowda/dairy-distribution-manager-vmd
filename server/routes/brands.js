@@ -1,7 +1,6 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
-const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 
 const router = express.Router();

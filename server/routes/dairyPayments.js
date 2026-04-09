@@ -23,7 +23,7 @@ router.post('/', asyncHandler(async (req, res) => {
 router.get('/', asyncHandler(async (req, res) => {
   const { brandId, from, to } = req.query;
   const where = {};
-  if (brandId) where.brandId = parseInt(brandId, 10);
+  if (brandId) where.brandId = parseId(brandId, 'Brand ID');
   if (from || to) {
     where.paymentDate = {};
     if (from) where.paymentDate.gte = new Date(from);

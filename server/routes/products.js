@@ -1,7 +1,6 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
-const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 
 const router = express.Router();
@@ -9,7 +8,7 @@ const router = express.Router();
 // GET /products?brandId=
 router.get('/', asyncHandler(async (req, res) => {
   const where = { isActive: true };
-  if (req.query.brandId) where.brandId = parseInt(req.query.brandId, 10);
+  if (req.query.brandId) where.brandId = parseId(req.query.brandId, 'Brand ID');
   if (req.query.all === 'true') delete where.isActive;
   const products = await prisma.product.findMany({
     where,

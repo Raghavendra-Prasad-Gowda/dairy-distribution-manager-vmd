@@ -23,7 +23,7 @@ router.post('/', asyncHandler(async (req, res) => {
 router.get('/', asyncHandler(async (req, res) => {
   const { salespersonId, from, to } = req.query;
   const where = {};
-  if (salespersonId) where.salespersonId = parseInt(salespersonId, 10);
+  if (salespersonId) where.salespersonId = parseId(salespersonId, 'Salesperson ID');
   if (from || to) {
     where.paymentDate = {};
     if (from) where.paymentDate.gte = new Date(from);

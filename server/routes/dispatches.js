@@ -13,7 +13,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const { date, salespersonId } = req.query;
   const where = {};
   if (date) where.dispatchDate = new Date(date);
-  if (salespersonId) where.salespersonId = parseInt(salespersonId, 10);
+  if (salespersonId) where.salespersonId = parseId(salespersonId, 'Salesperson ID');
 
   const dispatches = await prisma.stockDispatch.findMany({
     where,
@@ -92,27 +92,26 @@ router.post('/', asyncHandler(async (req, res) => {
 
   let dispatch;
   if (existing) {
-    // Update: delete old items, reinsert
-    await prisma.$transaction([
-      prisma.stockDispatchItem.deleteMany({ where: { dispatchId: existing.id } }),
-      prisma.stockDispatch.update({
+    // Update: delete old items, reinsert, and re-fetch — all in one atomic transaction
+    dispatch = await prisma.$transaction(async (tx) => {
+      await tx.stockDispatchItem.deleteMany({ where: { dispatchId: existing.id } });
+      await tx.stockDispatch.update({
         where: { id: existing.id },
         data: { totalAmount, notes: data.notes ?? null },
-      }),
-    ]);
-    // Insert new items
-    await prisma.stockDispatchItem.createMany({
-      data: data.items.map((item) => ({
-        dispatchId:  existing.id,
-        productId:   item.productId,
-        quantity:    item.quantity,
-        unitPrice:   item.unitPrice,
-        totalAmount: item.quantity * item.unitPrice,
-      })),
-    });
-    dispatch = await prisma.stockDispatch.findUnique({
-      where: { id: existing.id },
-      include: { items: true },
+      });
+      await tx.stockDispatchItem.createMany({
+        data: data.items.map((item) => ({
+          dispatchId:  existing.id,
+          productId:   item.productId,
+          quantity:    item.quantity,
+          unitPrice:   item.unitPrice,
+          totalAmount: item.quantity * item.unitPrice,
+        })),
+      });
+      return tx.stockDispatch.findUnique({
+        where: { id: existing.id },
+        include: { items: true },
+      });
     });
   } else {
     // Create new dispatch with items

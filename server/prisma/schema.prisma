@@ -57,6 +57,7 @@ model StockReceipt {
   product Product @relation(fields: [productId], references: [id])
 
   @@unique([productId, receiptDate])
+  @@index([brandId, receiptDate])
   @@map("stock_receipts")
 }
 
@@ -92,6 +93,7 @@ model DairyPayment {
 
   brand Brand @relation(fields: [brandId], references: [id])
 
+  @@index([brandId, paymentDate])
   @@map("dairy_payments")
 }
 
@@ -158,6 +160,8 @@ model StockDispatchItem {
   dispatch StockDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
   product  Product       @relation(fields: [productId], references: [id])
 
+  @@index([dispatchId])
+  @@index([productId])
   @@map("stock_dispatch_items")
 }
 
@@ -193,6 +197,7 @@ model SalespersonPayment {
 
   salesperson Salesperson @relation(fields: [salespersonId], references: [id])
 
+  @@index([salespersonId, paymentDate])
   @@map("salesperson_payments")
 }
 

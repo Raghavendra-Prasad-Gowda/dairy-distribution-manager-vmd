@@ -1,6 +1,6 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
-const { validate, schemas } = require('../utils/validate');
+const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
@@ -13,7 +13,7 @@ router.get('/', asyncHandler(async (req, res) => {
   if (!date) throw new AppError('date query param is required', 400);
 
   const where = { receiptDate: new Date(date) };
-  if (brandId) where.brandId = parseInt(brandId, 10);
+  if (brandId) where.brandId = parseId(brandId, 'Brand ID');
 
   const receipts = await prisma.stockReceipt.findMany({
     where,

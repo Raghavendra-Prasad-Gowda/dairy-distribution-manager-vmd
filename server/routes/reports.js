@@ -11,47 +11,64 @@ router.get('/dairy-statement', asyncHandler(async (req, res) => {
   const { brandId, from, to } = req.query;
   if (!brandId || !from || !to) throw new AppError('brandId, from, and to are required', 400);
 
-  const balances = await prisma.dairyBalance.findMany({
-    where: {
-      brandId: parseInt(brandId, 10),
-      balanceDate: { gte: new Date(from), lte: new Date(to) },
-    },
-    include: { brand: { select: { name: true } } },
-    orderBy: { balanceDate: 'asc' },
-  });
+  const id = parseId(brandId, 'Brand ID');
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
 
-  // For each balance row, attach product receipts (expandable detail)
-  const rows = await Promise.all(
-    balances.map(async (b) => {
-      const receipts = await prisma.stockReceipt.findMany({
-        where: { brandId: b.brandId, receiptDate: b.balanceDate },
-        include: { product: { select: { name: true } } },
-        orderBy: { productId: 'asc' },
-      });
-      const payments = await prisma.dairyPayment.findMany({
-        where: { brandId: b.brandId, paymentDate: b.balanceDate },
-        orderBy: { createdAt: 'asc' },
-      });
-      return {
-        date:           b.balanceDate,
-        openingBalance: Number(b.openingBalance),
-        stockValue:     Number(b.stockValue),
-        amountPaid:     Number(b.amountPaid),
-        closingBalance: Number(b.closingBalance),
-        receipts:       receipts.map((r) => ({
-          productName: r.product.name,
-          quantity:    Number(r.quantity),
-          unitPrice:   Number(r.unitPrice),
-          amount:      Number(r.quantity) * Number(r.unitPrice),
-        })),
-        payments: payments.map((p) => ({
-          amount: Number(p.amount),
-          mode:   p.paymentMode,
-          ref:    p.reference,
-        })),
-      };
-    })
-  );
+  const [balances, allReceipts, allPayments] = await Promise.all([
+    prisma.dairyBalance.findMany({
+      where: { brandId: id, balanceDate: { gte: fromDate, lte: toDate } },
+      include: { brand: { select: { name: true } } },
+      orderBy: { balanceDate: 'asc' },
+    }),
+    prisma.stockReceipt.findMany({
+      where: { brandId: id, receiptDate: { gte: fromDate, lte: toDate } },
+      include: { product: { select: { name: true } } },
+      orderBy: { productId: 'asc' },
+    }),
+    prisma.dairyPayment.findMany({
+      where: { brandId: id, paymentDate: { gte: fromDate, lte: toDate } },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
+
+  // Group receipts and payments by date key for O(1) lookup
+  const receiptsByDate = new Map();
+  for (const r of allReceipts) {
+    const key = r.receiptDate.toISOString();
+    if (!receiptsByDate.has(key)) receiptsByDate.set(key, []);
+    receiptsByDate.get(key).push(r);
+  }
+  const paymentsByDate = new Map();
+  for (const p of allPayments) {
+    const key = p.paymentDate.toISOString();
+    if (!paymentsByDate.has(key)) paymentsByDate.set(key, []);
+    paymentsByDate.get(key).push(p);
+  }
+
+  const rows = balances.map((b) => {
+    const key = b.balanceDate.toISOString();
+    const receipts = receiptsByDate.get(key) ?? [];
+    const payments = paymentsByDate.get(key) ?? [];
+    return {
+      date:           b.balanceDate,
+      openingBalance: Number(b.openingBalance),
+      stockValue:     Number(b.stockValue),
+      amountPaid:     Number(b.amountPaid),
+      closingBalance: Number(b.closingBalance),
+      receipts: receipts.map((r) => ({
+        productName: r.product.name,
+        quantity:    Number(r.quantity),
+        unitPrice:   Number(r.unitPrice),
+        amount:      Number(r.quantity) * Number(r.unitPrice),
+      })),
+      payments: payments.map((p) => ({
+        amount: Number(p.amount),
+        mode:   p.paymentMode,
+        ref:    p.reference,
+      })),
+    };
+  });
 
   res.json({ success: true, data: rows });
 }));
@@ -61,53 +78,69 @@ router.get('/salesperson-statement', asyncHandler(async (req, res) => {
   const { salespersonId, from, to } = req.query;
   if (!salespersonId || !from || !to) throw new AppError('salespersonId, from, and to are required', 400);
 
-  const spId = parseInt(salespersonId, 10);
-  const balances = await prisma.salespersonBalance.findMany({
-    where: {
-      salespersonId: spId,
-      balanceDate: { gte: new Date(from), lte: new Date(to) },
-    },
-    orderBy: { balanceDate: 'asc' },
-  });
+  const spId = parseId(salespersonId, 'Salesperson ID');
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
 
-  const rows = await Promise.all(
-    balances.map(async (b) => {
-      const dispatch = await prisma.stockDispatch.findUnique({
-        where: { salespersonId_dispatchDate: { salespersonId: spId, dispatchDate: b.balanceDate } },
-        include: {
-          items: {
-            include: {
-              product: {
-                include: { brand: { select: { name: true } } },
-              },
+  const [balances, allDispatches, allPayments] = await Promise.all([
+    prisma.salespersonBalance.findMany({
+      where: { salespersonId: spId, balanceDate: { gte: fromDate, lte: toDate } },
+      orderBy: { balanceDate: 'asc' },
+    }),
+    prisma.stockDispatch.findMany({
+      where: { salespersonId: spId, dispatchDate: { gte: fromDate, lte: toDate } },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: { brand: { select: { name: true } } },
             },
           },
         },
-      });
-      const payments = await prisma.salespersonPayment.findMany({
-        where: { salespersonId: spId, paymentDate: b.balanceDate },
-      });
-      return {
-        date:           b.balanceDate,
-        openingBalance: Number(b.openingBalance),
-        stockGiven:     Number(b.stockGiven),
-        amountPaid:     Number(b.amountPaid),
-        closingBalance: Number(b.closingBalance),
-        items:          dispatch?.items.map((i) => ({
-          brandName:   i.product.brand.name,
-          productName: i.product.name,
-          quantity:    Number(i.quantity),
-          unitPrice:   Number(i.unitPrice),
-          totalAmount: Number(i.totalAmount),
-        })) ?? [],
-        payments: payments.map((p) => ({
-          amount: Number(p.amount),
-          mode:   p.paymentMode,
-          ref:    p.reference,
-        })),
-      };
-    })
-  );
+      },
+    }),
+    prisma.salespersonPayment.findMany({
+      where: { salespersonId: spId, paymentDate: { gte: fromDate, lte: toDate } },
+    }),
+  ]);
+
+  // Index dispatches and payments by date key for O(1) lookup
+  const dispatchByDate = new Map();
+  for (const d of allDispatches) {
+    dispatchByDate.set(d.dispatchDate.toISOString(), d);
+  }
+  const paymentsByDate = new Map();
+  for (const p of allPayments) {
+    const key = p.paymentDate.toISOString();
+    if (!paymentsByDate.has(key)) paymentsByDate.set(key, []);
+    paymentsByDate.get(key).push(p);
+  }
+
+  const rows = balances.map((b) => {
+    const key = b.balanceDate.toISOString();
+    const dispatch = dispatchByDate.get(key);
+    const payments = paymentsByDate.get(key) ?? [];
+    return {
+      date:           b.balanceDate,
+      openingBalance: Number(b.openingBalance),
+      stockGiven:     Number(b.stockGiven),
+      amountPaid:     Number(b.amountPaid),
+      closingBalance: Number(b.closingBalance),
+      items: dispatch?.items.map((i) => ({
+        brandName:   i.product.brand.name,
+        productName: i.product.name,
+        quantity:    Number(i.quantity),
+        unitPrice:   Number(i.unitPrice),
+        totalAmount: Number(i.totalAmount),
+      })) ?? [],
+      payments: payments.map((p) => ({
+        amount: Number(p.amount),
+        mode:   p.paymentMode,
+        ref:    p.reference,
+      })),
+    };
+  });
+
   res.json({ success: true, data: rows });
 }));
 
@@ -170,30 +203,36 @@ router.get('/stock-summary', asyncHandler(async (req, res) => {
 
 // GET /reports/outstanding — current closing balance for all brands + salespeople
 router.get('/outstanding', asyncHandler(async (req, res) => {
-  const brands = await prisma.brand.findMany({ orderBy: { name: 'asc' } });
-  const salespeople = await prisma.salesperson.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  // Use `distinct` to fetch one row per brand/salesperson — the latest balance date
+  const [dairyBalances, spBalances] = await Promise.all([
+    prisma.dairyBalance.findMany({
+      orderBy: { balanceDate: 'desc' },
+      distinct: ['brandId'],
+      include: { brand: { select: { id: true, name: true } } },
+    }),
+    prisma.salespersonBalance.findMany({
+      where: { salesperson: { isActive: true } },
+      orderBy: { balanceDate: 'desc' },
+      distinct: ['salespersonId'],
+      include: { salesperson: { select: { id: true, name: true } } },
+    }),
+  ]);
 
-  const dairyOutstanding = await Promise.all(
-    brands.map(async (b) => {
-      const latest = await prisma.dairyBalance.findFirst({
-        where: { brandId: b.id },
-        orderBy: { balanceDate: 'desc' },
-      });
-      return { brandId: b.id, brandName: b.name, outstanding: Number(latest?.closingBalance ?? 0) };
-    })
-  );
-
-  const salespersonOutstanding = await Promise.all(
-    salespeople.map(async (sp) => {
-      const latest = await prisma.salespersonBalance.findFirst({
-        where: { salespersonId: sp.id },
-        orderBy: { balanceDate: 'desc' },
-      });
-      return { salespersonId: sp.id, salespersonName: sp.name, outstanding: Number(latest?.closingBalance ?? 0) };
-    })
-  );
-
-  res.json({ success: true, data: { dairy: dairyOutstanding, salespeople: salespersonOutstanding } });
+  res.json({
+    success: true,
+    data: {
+      dairy: dairyBalances.map((b) => ({
+        brandId:     b.brand.id,
+        brandName:   b.brand.name,
+        outstanding: Number(b.closingBalance),
+      })),
+      salespeople: spBalances.map((b) => ({
+        salespersonId:   b.salesperson.id,
+        salespersonName: b.salesperson.name,
+        outstanding:     Number(b.closingBalance),
+      })),
+    },
+  });
 }));
 
 module.exports = router;
