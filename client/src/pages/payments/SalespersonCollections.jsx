@@ -16,7 +16,9 @@ export default function SalespersonCollections() {
   const today = getIndiaDate();
 
   useEffect(() => {
-    api.get('/salespeople').then((r) => setSalespeople(r.data.data));
+    api.get('/salespeople')
+      .then((r) => setSalespeople(r.data.data))
+      .catch(() => setNotif({ message: 'Failed to load salespeople', type: 'error' }));
   }, []);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function SalespersonCollections() {
   const handlePayment = async (formData) => {
     setSaving(true);
     try {
-      await api.post('/salesperson-payments', { ...formData, salespersonId: parseInt(selectedSp) });
+      await api.post('/salesperson-payments', { ...formData, salespersonId: Number(selectedSp) });
       notify('Collection recorded successfully');
       fetchAll();
     } catch (e) {

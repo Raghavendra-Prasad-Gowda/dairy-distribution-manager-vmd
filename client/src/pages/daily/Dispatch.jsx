@@ -1,22 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Truck, AlertCircle, Save, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Truck, XCircle } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
+import SaveOverlay from '../../components/SaveOverlay';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
-
-function SaveOverlay({ status, onClose }) {
-  if (!status) return null;
-  const isOk = status === 'success';
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4" style={{ animation: 'popIn 0.25s ease' }}>
-        {isOk ? <CheckCircle className="w-16 h-16 text-green-500" /> : <XCircle className="w-16 h-16 text-red-500" />}
-        <p className="text-lg font-bold">{isOk ? 'Dispatch Saved!' : 'Save Failed'}</p>
-        <button onClick={onClose} className="px-6 py-2 bg-gray-100 rounded-xl text-sm font-medium">Close</button>
-      </div>
-    </div>
-  );
-}
 
 export default function Dispatch() {
   const [date, setDate]               = useState(getIndiaDate());
@@ -30,22 +17,28 @@ export default function Dispatch() {
   const [error, setError]             = useState('');
 
   useEffect(() => {
-    api.get('/salespeople').then((r) => setSalespeople(r.data.data));
+    api.get('/salespeople')
+      .then((r) => setSalespeople(r.data.data))
+      .catch(() => setError('Failed to load salespeople'));
   }, []);
 
   useEffect(() => {
     if (!date) return;
-    api.get(`/stock-receipts/availability?date=${date}`).then((r) => setAvail(r.data.data));
+    api.get(`/stock-receipts/availability?date=${date}`)
+      .then((r) => setAvail(r.data.data))
+      .catch(() => setError('Failed to load stock availability'));
   }, [date]);
 
   useEffect(() => {
     if (!selectedSp) return;
-    api.get(`/salespeople/${selectedSp}/prices`).then((r) => {
-      const map = {};
-      r.data.data.forEach((p) => { map[p.productId] = p.sellingPrice; });
-      setPrices(map);
-      setRows({});
-    });
+    api.get(`/salespeople/${selectedSp}/prices`)
+      .then((r) => {
+        const map = {};
+        r.data.data.forEach((p) => { map[p.productId] = p.sellingPrice; });
+        setPrices(map);
+        setRows({});
+      })
+      .catch(() => setError('Failed to load prices for selected salesperson'));
   }, [selectedSp]);
 
   const handleChange = (productId, qty) => {
@@ -67,7 +60,7 @@ export default function Dispatch() {
       if (!items.length) { setError('Enter at least one quantity'); setLoading(false); return; }
 
       await api.post('/dispatches', {
-        salespersonId: parseInt(selectedSp),
+        salespersonId: Number(selectedSp),
         dispatchDate:  date,
         items,
       });
@@ -85,7 +78,7 @@ export default function Dispatch() {
 
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
-      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} />
+      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Dispatch Saved!" />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div><h1 className="text-2xl font-bold text-gray-900">Stock Dispatch</h1><p className="text-gray-500 text-sm">Allocate stock to salespeople</p></div>
         <DateSelector date={date} onChange={setDate} />

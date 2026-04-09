@@ -27,12 +27,14 @@ export default function SalespeopleSetup() {
     Promise.all([
       api.get('/salespeople?all=true'),
       api.get('/brands'),
-    ]).then(([spRes, brandRes]) => {
-      setSalespeople(spRes.data.data);
-      const b = brandRes.data.data;
-      setBrands(b);
-      if (b.length) setActive(b[0].id);
-    });
+    ])
+      .then(([spRes, brandRes]) => {
+        setSalespeople(spRes.data.data);
+        const b = brandRes.data.data;
+        setBrands(b);
+        if (b.length) setActive(b[0].id);
+      })
+      .catch(() => notify('Failed to load data', 'error'));
   }, []);
 
   useEffect(() => {

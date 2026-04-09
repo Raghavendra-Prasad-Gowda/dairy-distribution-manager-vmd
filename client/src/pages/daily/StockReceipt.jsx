@@ -1,26 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Save, CheckCircle, XCircle, Loader2, Info } from 'lucide-react';
+import { Save, XCircle, Loader2, Info } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import BrandTabs from '../../components/BrandTabs';
+import SaveOverlay from '../../components/SaveOverlay';
 import { getIndiaDate } from '../../utils/dateUtils';
 import api from '../../api/axios';
-
-// Overlay for save result
-function SaveOverlay({ status, onClose }) {
-  if (!status) return null;
-  const isSuccess = status === 'success';
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4 min-w-[240px]" style={{ animation: 'popIn 0.25s ease' }}>
-        {isSuccess
-          ? <CheckCircle className="w-16 h-16 text-green-500" style={{ animation: 'scaleIn 0.3s ease' }} />
-          : <XCircle    className="w-16 h-16 text-red-500"   style={{ animation: 'scaleIn 0.3s ease' }} />}
-        <p className="text-lg font-bold text-gray-900">{isSuccess ? 'Saved!' : 'Save Failed'}</p>
-        <button onClick={onClose} className="mt-2 px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium transition">Close</button>
-      </div>
-    </div>
-  );
-}
 
 export default function StockReceipt() {
   const [date, setDate]           = useState(getIndiaDate());
@@ -34,11 +18,9 @@ export default function StockReceipt() {
 
   // Load brands once
   useEffect(() => {
-    api.get('/brands').then((r) => {
-      const b = r.data.data;
-      setBrands(b);
-      if (b.length) setActive(b[0].id);
-    });
+    api.get('/brands')
+      .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .catch(() => setError('Failed to load brands'));
   }, []);
 
   // Load products + existing receipts when brand/date changes

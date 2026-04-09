@@ -17,11 +17,9 @@ export default function DairyPayments() {
   const today = getIndiaDate();
 
   useEffect(() => {
-    api.get('/brands').then((r) => {
-      const b = r.data.data;
-      setBrands(b);
-      if (b.length) setActive(b[0].id);
-    });
+    api.get('/brands')
+      .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .catch(() => setNotif({ message: 'Failed to load brands', type: 'error' }));
   }, []);
 
   useEffect(() => {
