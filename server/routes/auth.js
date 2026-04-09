@@ -30,11 +30,15 @@ router.post('/login', asyncHandler(async (req, res) => {
     { expiresIn: JWT_EXPIRES_IN }
   );
 
+  // Any env except 'development' is treated as a deployed environment
+  // requiring secure cross-origin cookies (covers 'production', 'testing', 'staging', etc.)
+  const isDeployed = process.env.NODE_ENV !== 'development';
+
   // Set httpOnly cookie
   res.cookie('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: isDeployed,
+    sameSite: isDeployed ? 'none' : 'lax',
     maxAge: JWT_EXPIRES_IN * 1000,
   });
 
