@@ -69,7 +69,8 @@ app.use(cookieParser());
 // ─── 7. Body parser ──────────────────────────────────────────────────────────
 app.use(express.json());
 
-// ─── Health check ─────────────────────────────────────────────────────────────
+// ─── Root & Health check ──────────────────────────────────────────────────────
+app.get('/', (req, res) => res.json({ name: 'Dairy Distribution Manager API', status: 'ok' }));
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
 // ─── Public routes ───────────────────────────────────────────────────────────
