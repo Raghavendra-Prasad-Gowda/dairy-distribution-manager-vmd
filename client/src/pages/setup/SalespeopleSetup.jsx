@@ -130,9 +130,9 @@ export default function SalespeopleSetup() {
         </form>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Salesperson list */}
-        <div className="lg:col-span-1">
+        <div className="md:col-span-1">
           <div className="ddm-card overflow-hidden">
             <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
               <Users size={15} className="text-teal-600" />
@@ -159,7 +159,7 @@ export default function SalespeopleSetup() {
         </div>
 
         {/* Price editor */}
-        <div className="lg:col-span-3">
+        <div className="md:col-span-3">
           {!selectedSp ? (
             <div className="ddm-card flex items-center justify-center h-64 text-gray-400 text-sm">
               Select a salesperson to configure their prices
@@ -185,10 +185,15 @@ export default function SalespeopleSetup() {
               {brands.length > 0 && <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={(id) => { setActive(id); setEdited({}); }} />}
 
               <div className="ddm-card overflow-hidden">
-                <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 grid grid-cols-12 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                {/* Desktop header */}
+                <div className="hidden sm:grid sm:grid-cols-12 bg-gray-50 border-b border-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                   <div className="col-span-7">Product</div>
                   <div className="col-span-3 text-right">Current Price</div>
                   <div className="col-span-2 text-right">New Price</div>
+                </div>
+                {/* Mobile header */}
+                <div className="sm:hidden bg-gray-50 border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Set selling prices
                 </div>
 
                 {loading ? (
@@ -200,24 +205,49 @@ export default function SalespeopleSetup() {
                     const hasPrice = p.sellingPrice !== null;
                     const isDirty  = editedPrices[p.productId] !== undefined;
                     return (
-                      <div key={p.productId} className={`px-4 py-2.5 grid grid-cols-12 gap-2 items-center border-b border-gray-50 ${!hasPrice ? 'bg-amber-50' : 'hover:bg-gray-50'} transition`}>
-                        <div className="col-span-7 text-sm font-medium text-gray-800 flex items-center gap-2">
-                          {p.productName}
-                          {!hasPrice && <span className="badge-amber">No price</span>}
-                        </div>
-                        <div className="col-span-3 text-right text-sm text-gray-500">
-                          {hasPrice ? `₹${p.sellingPrice}` : <span className="text-amber-600 font-medium">Not set</span>}
-                        </div>
-                        <div className="col-span-2">
+                      <div key={p.productId} className={`border-b border-gray-50 ${!hasPrice ? 'bg-amber-50' : 'hover:bg-gray-50'} transition`}>
+                        {/* Mobile layout */}
+                        <div className="sm:hidden px-4 py-3">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                              {p.productName}
+                              {!hasPrice && <span className="badge-amber">No price</span>}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {hasPrice ? `Current: ₹${p.sellingPrice}` : <span className="text-amber-600 font-medium">Not set</span>}
+                            </div>
+                          </div>
                           <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
                             <input
                               type="number" step="0.01" min="0"
                               value={editedPrices[p.productId] ?? ''}
                               onChange={(e) => handlePriceChange(p.productId, e.target.value)}
                               placeholder={p.sellingPrice ?? '0.00'}
-                              className={`w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white ${isDirty ? 'border-teal-400' : 'border-gray-200'}`}
+                              className={`w-full pl-7 pr-3 py-2.5 border rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white ${isDirty ? 'border-teal-400' : 'border-gray-200'}`}
                             />
+                          </div>
+                        </div>
+                        {/* Desktop layout */}
+                        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-4 py-2.5">
+                          <div className="col-span-7 text-sm font-medium text-gray-800 flex items-center gap-2">
+                            {p.productName}
+                            {!hasPrice && <span className="badge-amber">No price</span>}
+                          </div>
+                          <div className="col-span-3 text-right text-sm text-gray-500">
+                            {hasPrice ? `₹${p.sellingPrice}` : <span className="text-amber-600 font-medium">Not set</span>}
+                          </div>
+                          <div className="col-span-2">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={editedPrices[p.productId] ?? ''}
+                                onChange={(e) => handlePriceChange(p.productId, e.target.value)}
+                                placeholder={p.sellingPrice ?? '0.00'}
+                                className={`w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white ${isDirty ? 'border-teal-400' : 'border-gray-200'}`}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

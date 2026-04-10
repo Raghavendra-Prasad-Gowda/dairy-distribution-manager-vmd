@@ -92,9 +92,9 @@ export default function DairyPayments() {
       {loading ? (
         <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left: balance + form */}
-          <div className="lg:col-span-1 space-y-4">
+          <div className="md:col-span-1 space-y-4">
             {balance && (
               <BalanceSummaryCard
                 brandName={activeBrand?.name ?? ''}
@@ -115,7 +115,7 @@ export default function DairyPayments() {
           </div>
 
           {/* Right: payment history */}
-          <div className="lg:col-span-2">
+          <div className="md:col-span-2">
             <div className="ddm-card overflow-hidden">
               <div className="bg-gray-50 border-b border-gray-100 px-4 py-3">
                 <h3 className="font-bold text-gray-800 text-sm">Payment History</h3>
@@ -123,32 +123,34 @@ export default function DairyPayments() {
               {payments.length === 0 ? (
                 <div className="text-center py-12 text-gray-400 text-sm">No payments recorded yet</div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Mode</th>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Ref</th>
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {payments.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-700">{new Date(p.paymentDate).toLocaleDateString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-green-700">{formatCurrency(p.amount)}</td>
-                        <td className="px-4 py-3 text-gray-500">{p.paymentMode || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 truncate max-w-[120px]">{p.reference || '—'}</td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[380px]">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Mode</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Ref</th>
+                        <th className="px-4 py-3" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {payments.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-700">{new Date(p.paymentDate).toLocaleDateString('en-IN')}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-green-700">{formatCurrency(p.amount)}</td>
+                          <td className="px-4 py-3 text-gray-500">{p.paymentMode || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 truncate max-w-[120px]">{p.reference || '—'}</td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

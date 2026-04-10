@@ -62,28 +62,30 @@ export default function StockSummary() {
             {data.receipts.length === 0 ? (
               <div className="text-center py-8 text-gray-400 text-sm">No receipts for this date</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Brand</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Product</th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">Qty</th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">Price</th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.receipts.map((r, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-500">{r.brandName}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{r.productName}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{r.quantity}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">₹{r.unitPrice}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-700">{formatCurrency(r.amount)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[420px]">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Brand</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Product</th>
+                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Qty</th>
+                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Price</th>
+                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {data.receipts.map((r, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-500">{r.brandName}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{r.productName}</td>
+                        <td className="px-4 py-3 text-right text-gray-700">{r.quantity}</td>
+                        <td className="px-4 py-3 text-right text-gray-500">₹{r.unitPrice}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-blue-700">{formatCurrency(r.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
@@ -96,26 +98,28 @@ export default function StockSummary() {
             {data.dispatches.length === 0 ? (
               <div className="text-center py-8 text-gray-400 text-sm">No dispatches for this date</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Salesperson</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Items</th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.dispatches.map((d, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-gray-800 align-top">{d.salespersonName}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
-                        {d.items.map((item, j) => <div key={j}>{item.brandName} {item.productName} × {item.quantity}</div>)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-indigo-700">{formatCurrency(d.totalAmount)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[360px]">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Salesperson</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Items</th>
+                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {data.dispatches.map((d, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold text-gray-800 align-top">{d.salespersonName}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">
+                          {d.items.map((item, j) => <div key={j}>{item.brandName} {item.productName} × {item.quantity}</div>)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-indigo-700">{formatCurrency(d.totalAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

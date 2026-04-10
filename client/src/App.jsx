@@ -1,8 +1,9 @@
-import { Component } from 'react';
+import { Component, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import { Loader2 } from 'lucide-react';
 
 class ErrorBoundary extends Component {
   state = { hasError: false };
@@ -28,17 +29,25 @@ class ErrorBoundary extends Component {
   }
 }
 
-// Lazy-loaded pages (improves initial load)
-import Dashboard            from './pages/Dashboard';
-import StockReceipt         from './pages/daily/StockReceipt';
-import Dispatch             from './pages/daily/Dispatch';
-import DairyPayments        from './pages/payments/DairyPayments';
-import SalespersonCollections from './pages/payments/SalespersonCollections';
-import DairyStatement       from './pages/reports/DairyStatement';
-import SalespersonStatement from './pages/reports/SalespersonStatement';
-import StockSummary         from './pages/reports/StockSummary';
-import ProductsSetup        from './pages/setup/ProductsSetup';
-import SalespeopleSetup     from './pages/setup/SalespeopleSetup';
+// Lazy-loaded pages (code-split per route for faster initial load)
+const Dashboard            = lazy(() => import('./pages/Dashboard'));
+const StockReceipt         = lazy(() => import('./pages/daily/StockReceipt'));
+const Dispatch             = lazy(() => import('./pages/daily/Dispatch'));
+const DairyPayments        = lazy(() => import('./pages/payments/DairyPayments'));
+const SalespersonCollections = lazy(() => import('./pages/payments/SalespersonCollections'));
+const DairyStatement       = lazy(() => import('./pages/reports/DairyStatement'));
+const SalespersonStatement = lazy(() => import('./pages/reports/SalespersonStatement'));
+const StockSummary         = lazy(() => import('./pages/reports/StockSummary'));
+const ProductsSetup        = lazy(() => import('./pages/setup/ProductsSetup'));
+const SalespeopleSetup     = lazy(() => import('./pages/setup/SalespeopleSetup'));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-7 h-7 text-teal-600 animate-spin" />
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -58,17 +67,37 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
-        <Route path="daily/receipt"           element={<StockReceipt />} />
-        <Route path="daily/dispatch"          element={<Dispatch />} />
-        <Route path="payments/dairy"          element={<DairyPayments />} />
-        <Route path="payments/salespeople"    element={<SalespersonCollections />} />
-        <Route path="reports/dairy"           element={<DairyStatement />} />
-        <Route path="reports/salespeople"     element={<SalespersonStatement />} />
-        <Route path="reports/stock"           element={<StockSummary />} />
-        <Route path="setup/products"          element={<ProductsSetup />} />
-        <Route path="setup/salespeople"       element={<SalespeopleSetup />} />
-        <Route path="*"                       element={<Navigate to="/" replace />} />
+        <Route index element={
+          <Suspense fallback={<PageLoader />}><Dashboard /></Suspense>
+        } />
+        <Route path="daily/receipt" element={
+          <Suspense fallback={<PageLoader />}><StockReceipt /></Suspense>
+        } />
+        <Route path="daily/dispatch" element={
+          <Suspense fallback={<PageLoader />}><Dispatch /></Suspense>
+        } />
+        <Route path="payments/dairy" element={
+          <Suspense fallback={<PageLoader />}><DairyPayments /></Suspense>
+        } />
+        <Route path="payments/salespeople" element={
+          <Suspense fallback={<PageLoader />}><SalespersonCollections /></Suspense>
+        } />
+        <Route path="reports/dairy" element={
+          <Suspense fallback={<PageLoader />}><DairyStatement /></Suspense>
+        } />
+        <Route path="reports/salespeople" element={
+          <Suspense fallback={<PageLoader />}><SalespersonStatement /></Suspense>
+        } />
+        <Route path="reports/stock" element={
+          <Suspense fallback={<PageLoader />}><StockSummary /></Suspense>
+        } />
+        <Route path="setup/products" element={
+          <Suspense fallback={<PageLoader />}><ProductsSetup /></Suspense>
+        } />
+        <Route path="setup/salespeople" element={
+          <Suspense fallback={<PageLoader />}><SalespeopleSetup /></Suspense>
+        } />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );

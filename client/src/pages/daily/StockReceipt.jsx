@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Save, XCircle, Loader2, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Save, XCircle, Loader2 } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import BrandTabs from '../../components/BrandTabs';
 import SaveOverlay from '../../components/SaveOverlay';
@@ -7,14 +7,14 @@ import { getIndiaDate } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function StockReceipt() {
-  const [date, setDate]           = useState(getIndiaDate());
-  const [brands, setBrands]       = useState([]);
-  const [activeBrandId, setActive]= useState(null);
-  const [products, setProducts]   = useState([]);
-  const [rows, setRows]           = useState({});    // { [productId]: { quantity, unitPrice } }
-  const [loading, setLoading]     = useState(false);
+  const [date, setDate]             = useState(getIndiaDate());
+  const [brands, setBrands]         = useState([]);
+  const [activeBrandId, setActive]  = useState(null);
+  const [products, setProducts]     = useState([]);
+  const [rows, setRows]             = useState({});   // { [productId]: { quantity, unitPrice } }
+  const [loading, setLoading]       = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'success' | 'error'
-  const [error, setError]         = useState('');
+  const [error, setError]           = useState('');
 
   // Load brands once
   useEffect(() => {
@@ -33,7 +33,6 @@ export default function StockReceipt() {
     ]).then(([prodRes, receiptRes]) => {
       const prods = prodRes.data.data;
       setProducts(prods);
-      // Pre-fill rows from receipts
       const map = {};
       for (const p of prods) map[p.id] = { quantity: '', unitPrice: Number(p.dairyPrice) };
       for (const r of receiptRes.data.data) {
@@ -51,7 +50,6 @@ export default function StockReceipt() {
     setLoading(true);
     setError('');
     try {
-      // Filter rows with quantity > 0
       const items = products
         .filter((p) => rows[p.id]?.quantity && parseFloat(rows[p.id].quantity) > 0)
         .map((p) => ({
@@ -107,12 +105,17 @@ export default function StockReceipt() {
       )}
 
       <div className="ddm-card overflow-hidden">
-        {/* Table header */}
-        <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 grid grid-cols-12 gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+        {/* ── Desktop header (hidden on mobile) ─────────────────────────── */}
+        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 bg-gray-50 border-b border-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
           <div className="col-span-5">Product</div>
           <div className="col-span-3 text-right">Dairy Price (₹)</div>
           <div className="col-span-2 text-right">Quantity</div>
           <div className="col-span-2 text-right">Amount</div>
+        </div>
+
+        {/* ── Mobile header ─────────────────────────────────────────────── */}
+        <div className="sm:hidden bg-gray-50 border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {activeBrand?.name} — Enter quantities received
         </div>
 
         {loading ? (
@@ -120,7 +123,7 @@ export default function StockReceipt() {
             <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 text-sm">
             No active products for {activeBrand?.name}. Add products in Setup.
           </div>
         ) : (
@@ -129,35 +132,71 @@ export default function StockReceipt() {
               const qty    = parseFloat(rows[p.id]?.quantity) || 0;
               const price  = parseFloat(rows[p.id]?.unitPrice) || 0;
               const amount = qty * price;
+
               return (
-                <div
-                  key={p.id}
-                  className="px-4 py-2.5 grid grid-cols-12 gap-2 items-center border-b border-gray-50 hover:bg-gray-50 transition"
-                >
-                  <div className="col-span-5 font-medium text-gray-800 text-sm">{p.name}</div>
-                  <div className="col-span-3">
-                    <input
-                      type="number"
-                      value={rows[p.id]?.unitPrice ?? ''}
-                      onChange={(e) => handleChange(p.id, 'unitPrice', e.target.value)}
-                      step="0.01"
-                      min="0"
-                      className="w-full text-right px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                    />
+                <div key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                  {/* ── Mobile layout: stacked ───────────────────────── */}
+                  <div className="sm:hidden px-4 py-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-800 text-sm">{p.name}</span>
+                      <span className="text-sm font-semibold text-gray-700">
+                        {amount > 0 ? `₹${amount.toFixed(2)}` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">Price (₹)</label>
+                        <input
+                          type="number"
+                          value={rows[p.id]?.unitPrice ?? ''}
+                          onChange={(e) => handleChange(p.id, 'unitPrice', e.target.value)}
+                          step="0.01"
+                          min="0"
+                          className="w-full text-right px-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          value={rows[p.id]?.quantity ?? ''}
+                          onChange={(e) => handleChange(p.id, 'quantity', e.target.value)}
+                          step="0.5"
+                          min="0"
+                          placeholder="0"
+                          className="w-full text-right px-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-span-2">
-                    <input
-                      type="number"
-                      value={rows[p.id]?.quantity ?? ''}
-                      onChange={(e) => handleChange(p.id, 'quantity', e.target.value)}
-                      step="0.5"
-                      min="0"
-                      placeholder="0"
-                      className="w-full text-right px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                    />
-                  </div>
-                  <div className="col-span-2 text-right text-sm font-medium text-gray-700">
-                    {amount > 0 ? `₹${amount.toFixed(2)}` : '—'}
+
+                  {/* ── Desktop layout: grid ──────────────────────────── */}
+                  <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-4 py-2.5">
+                    <div className="col-span-5 font-medium text-gray-800 text-sm">{p.name}</div>
+                    <div className="col-span-3">
+                      <input
+                        type="number"
+                        value={rows[p.id]?.unitPrice ?? ''}
+                        onChange={(e) => handleChange(p.id, 'unitPrice', e.target.value)}
+                        step="0.01"
+                        min="0"
+                        className="w-full text-right px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <input
+                        type="number"
+                        value={rows[p.id]?.quantity ?? ''}
+                        onChange={(e) => handleChange(p.id, 'quantity', e.target.value)}
+                        step="0.5"
+                        min="0"
+                        placeholder="0"
+                        className="w-full text-right px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-2 text-right text-sm font-medium text-gray-700">
+                      {amount > 0 ? `₹${amount.toFixed(2)}` : '—'}
+                    </div>
                   </div>
                 </div>
               );
@@ -174,7 +213,6 @@ export default function StockReceipt() {
         )}
       </div>
 
-      {/* Save button */}
       <div className="flex justify-end">
         <button
           onClick={handleSave}

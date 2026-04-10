@@ -18,7 +18,7 @@ export default function SalespersonCollections() {
   useEffect(() => {
     api.get('/salespeople')
       .then((r) => setSalespeople(r.data.data))
-      .catch(() => setNotif({ message: 'Failed to load salespeople', type: 'error' }));
+      .catch(() => notify('Failed to load salespeople', 'error'));
   }, []);
 
   useEffect(() => {
@@ -35,6 +35,8 @@ export default function SalespersonCollections() {
       ]);
       setBalance(balRes.data.data);
       setPayments(pmtRes.data.data);
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
@@ -71,21 +73,23 @@ export default function SalespersonCollections() {
 
   const activeSp = salespeople.find((s) => String(s.id) === String(selectedSp));
 
-  // Build a fake "balance summary card" using salesperson balance shape
   const balCard = balance
     ? {
         brandName: activeSp?.name ?? '',
-        opening: balance.openingBalance,
+        opening:    balance.openingBalance,
         stockValue: balance.stockGiven,
-        paid: balance.amountPaid,
-        closing: balance.closingBalance,
+        paid:       balance.amountPaid,
+        closing:    balance.closingBalance,
       }
     : null;
 
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`} style={{ animation: 'popIn 0.25s ease' }}>
+        <div
+          className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
+          style={{ animation: 'popIn 0.25s ease' }}
+        >
           {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
           {notification.message}
         </div>
@@ -108,11 +112,15 @@ export default function SalespersonCollections() {
         </select>
       </div>
 
-      {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+        </div>
+      )}
 
       {!loading && selectedSp && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-1 space-y-4">
             {balCard && (
               <div className="ddm-card p-5">
                 <div className="font-bold text-gray-900 mb-4 text-sm">{activeSp?.name} — Today's Balance</div>
@@ -120,7 +128,7 @@ export default function SalespersonCollections() {
                   {[
                     { label: 'Opening',     val: balCard.opening,    color: 'text-gray-700' },
                     { label: 'Stock Given', val: balCard.stockValue,  color: 'text-blue-600' },
-                    { label: 'Collected',   val: balCard.paid,       color: 'text-green-600' },
+                    { label: 'Collected',   val: balCard.paid,        color: 'text-green-600' },
                   ].map(({ label, val, color }) => (
                     <div key={label} className="flex justify-between items-center text-gray-500">
                       <span>{label}</span>
@@ -130,18 +138,24 @@ export default function SalespersonCollections() {
                   <div className="h-px bg-gray-100" />
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-gray-900">Due</span>
-                    <span className={`text-lg font-bold ${balCard.closing > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(balCard.closing)}</span>
+                    <span className={`text-lg font-bold ${balCard.closing > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {formatCurrency(balCard.closing)}
+                    </span>
                   </div>
                 </div>
               </div>
             )}
             <div className="ddm-card p-4">
               <h3 className="font-bold text-gray-800 mb-4 text-sm">Record Collection</h3>
-              <PaymentForm onSubmit={handlePayment} closingBalance={balance?.closingBalance ?? 0} loading={saving} />
+              <PaymentForm
+                onSubmit={handlePayment}
+                closingBalance={balance?.closingBalance ?? 0}
+                loading={saving}
+              />
             </div>
           </div>
 
-          <div className="lg:col-span-2">
+          <div className="md:col-span-2">
             <div className="ddm-card overflow-hidden">
               <div className="bg-gray-50 border-b border-gray-100 px-4 py-3">
                 <h3 className="font-bold text-gray-800 text-sm">Collection History</h3>
@@ -149,32 +163,41 @@ export default function SalespersonCollections() {
               {payments.length === 0 ? (
                 <div className="text-center py-12 text-gray-400 text-sm">No collections recorded</div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                      <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Mode</th>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Ref</th>
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {payments.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-700">{new Date(p.paymentDate).toLocaleDateString('en-IN')}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-green-700">{formatCurrency(p.amount)}</td>
-                        <td className="px-4 py-3 text-gray-500">{p.paymentMode || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 truncate max-w-[120px]">{p.reference || '—'}</td>
-                        <td className="px-4 py-3">
-                          <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[380px]">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Mode</th>
+                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Ref</th>
+                        <th className="px-4 py-3" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {payments.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-700">
+                            {new Date(p.paymentDate).toLocaleDateString('en-IN')}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-green-700">
+                            {formatCurrency(p.amount)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{p.paymentMode || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 truncate max-w-[120px]">{p.reference || '—'}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleDelete(p.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

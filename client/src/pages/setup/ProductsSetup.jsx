@@ -127,11 +127,14 @@ export default function ProductsSetup() {
       )}
 
       <div className="ddm-card overflow-hidden">
-        <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 grid grid-cols-12 gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 bg-gray-50 border-b border-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
           <div className="col-span-5">Product Name</div>
           <div className="col-span-3 text-right">Dairy Price (₹)</div>
           <div className="col-span-2 text-center">Status</div>
           <div className="col-span-2 text-right">Actions</div>
+        </div>
+        <div className="sm:hidden bg-gray-50 border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Products
         </div>
 
         {loading ? (
@@ -142,37 +145,71 @@ export default function ProductsSetup() {
           products.map((p) => {
             const isDirty = edits[p.id] !== undefined;
             return (
-              <div key={p.id} className={`px-4 py-3 grid grid-cols-12 gap-2 items-center border-b border-gray-50 ${!p.isActive ? 'opacity-50' : 'hover:bg-gray-50'} transition`}>
-                <div className="col-span-5">
-                  <input
-                    value={edits[p.id]?.name ?? p.name}
-                    onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
-                    disabled={!p.isActive}
-                    className="w-full font-medium text-gray-800 text-sm bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div className="col-span-3 flex justify-end">
-                  <div className="relative w-24">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+              <div key={p.id} className={`border-b border-gray-50 ${!p.isActive ? 'opacity-50' : 'hover:bg-gray-50'} transition`}>
+                {/* ── Mobile layout ──────────────────────────────── */}
+                <div className="sm:hidden px-4 py-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <input
-                      type="number" step="0.01" min="0" disabled={!p.isActive}
-                      value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
-                      onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
-                      className="w-full pl-6 pr-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      value={edits[p.id]?.name ?? p.name}
+                      onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
+                      disabled={!p.isActive}
+                      className="flex-1 font-medium text-gray-800 text-sm bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
                     />
+                    <button onClick={() => toggleActive(p)} className="text-gray-400 hover:text-teal-600 transition flex-shrink-0">
+                      {p.isActive ? <ToggleRight size={22} className="text-teal-600" /> : <ToggleLeft size={22} />}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                      <input
+                        type="number" step="0.01" min="0" disabled={!p.isActive}
+                        value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
+                        onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
+                        className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    {isDirty && (
+                      <button onClick={() => handleSave(p)} disabled={saving === p.id} className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg transition font-medium">
+                        {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />} Save
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="col-span-2 flex justify-center">
-                  <button onClick={() => toggleActive(p)} className="text-gray-400 hover:text-teal-600 transition">
-                    {p.isActive ? <ToggleRight size={22} className="text-teal-600" /> : <ToggleLeft size={22} />}
-                  </button>
-                </div>
-                <div className="col-span-2 flex justify-end">
-                  {isDirty && (
-                    <button onClick={() => handleSave(p)} disabled={saving === p.id} className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg transition font-medium">
-                      {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />} Save
+
+                {/* ── Desktop layout ─────────────────────────────── */}
+                <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-4 py-3">
+                  <div className="col-span-5">
+                    <input
+                      value={edits[p.id]?.name ?? p.name}
+                      onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
+                      disabled={!p.isActive}
+                      className="w-full font-medium text-gray-800 text-sm bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="col-span-3 flex justify-end">
+                    <div className="relative w-24">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                      <input
+                        type="number" step="0.01" min="0" disabled={!p.isActive}
+                        value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
+                        onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
+                        className="w-full pl-6 pr-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-span-2 flex justify-center">
+                    <button onClick={() => toggleActive(p)} className="text-gray-400 hover:text-teal-600 transition">
+                      {p.isActive ? <ToggleRight size={22} className="text-teal-600" /> : <ToggleLeft size={22} />}
                     </button>
-                  )}
+                  </div>
+                  <div className="col-span-2 flex justify-end">
+                    {isDirty && (
+                      <button onClick={() => handleSave(p)} disabled={saving === p.id} className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg transition font-medium">
+                        {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />} Save
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

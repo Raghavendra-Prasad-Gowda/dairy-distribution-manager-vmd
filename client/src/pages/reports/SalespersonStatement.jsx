@@ -115,26 +115,28 @@ export default function SalespersonStatement() {
         {loading ? (
           <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Opening</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Stock Given</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Collected</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Outstanding</th>
-                <th className="px-4 py-3 w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {!selectedSp
-                ? <tr><td colSpan={6} className="text-center py-12 text-gray-400">Select a salesperson to view their statement</td></tr>
-                : rows.length === 0
-                ? <tr><td colSpan={6} className="text-center py-12 text-gray-400">No data for this period</td></tr>
-                : rows.map((row, i) => <ExpandableRow key={i} row={row} />)
-              }
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Opening</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Stock Given</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Collected</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Outstanding</th>
+                  <th className="px-4 py-3 w-8" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {!selectedSp
+                  ? <tr><td colSpan={6} className="text-center py-12 text-gray-400">Select a salesperson to view their statement</td></tr>
+                  : rows.length === 0
+                  ? <tr><td colSpan={6} className="text-center py-12 text-gray-400">No data for this period</td></tr>
+                  : rows.map((row, i) => <ExpandableRow key={i} row={row} />)
+                }
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
