@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Plus, Save, Loader2, CheckCircle, XCircle, Pencil, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Save, Loader2, ToggleLeft, ToggleRight, Info } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
+import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 export default function ProductsSetup() {
-  const [brands, setBrands]         = useState([]);
-  const [activeBrandId, setActive]  = useState(null);
-  const [products, setProducts]     = useState([]);
-  const [edits, setEdits]           = useState({});   // { [productId]: { name, dairyPrice } }
-  const [loading, setLoading]       = useState(false);
-  const [saving, setSaving]         = useState(null); // productId being saved
-  const [notification, setNotif]    = useState(null);
-  const [showAdd, setShowAdd]       = useState(false);
-  const [newProduct, setNewProd]    = useState({ name: '', dairyPrice: '' });
+  const { notify } = useNotification();
+  const [brands, setBrands]        = useState([]);
+  const [activeBrandId, setActive] = useState(null);
+  const [products, setProducts]    = useState([]);
+  const [edits, setEdits]          = useState({});   // { [productId]: { name, dairyPrice } }
+  const [loading, setLoading]      = useState(false);
+  const [saving, setSaving]        = useState(null); // productId being saved
+  const [showAdd, setShowAdd]      = useState(false);
+  const [newProduct, setNewProd]   = useState({ name: '', dairyPrice: '' });
 
   useEffect(() => {
     api.get('/brands')
@@ -38,11 +39,6 @@ export default function ProductsSetup() {
     }
   }
 
-  const notify = (message, type = 'success') => {
-    setNotif({ message, type });
-    setTimeout(() => setNotif(null), 4000);
-  };
-
   const handleEdit = (id, field, value) => {
     setEdits((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [field]: value } }));
   };
@@ -55,7 +51,7 @@ export default function ProductsSetup() {
         name:       payload.name       ?? product.name,
         dairyPrice: parseFloat(payload.dairyPrice ?? product.dairyPrice) || 0,
       });
-      notify('Product updated');
+      notify('Product updated', 'success');
       fetchProducts();
     } catch (e) {
       notify(e.response?.data?.error ?? 'Update failed', 'error');
@@ -67,10 +63,10 @@ export default function ProductsSetup() {
   const toggleActive = async (product) => {
     try {
       await api.put(`/products/${product.id}`, { isActive: !product.isActive });
-      notify(`Product ${product.isActive ? 'deactivated' : 'activated'}`);
+      notify(`Product ${product.isActive ? 'deactivated' : 'activated'}`, 'success');
       fetchProducts();
     } catch {
-      notify('Failed to update', 'error');
+      notify('Failed to update status', 'error');
     }
   };
 
@@ -82,7 +78,7 @@ export default function ProductsSetup() {
         name:       newProduct.name,
         dairyPrice: parseFloat(newProduct.dairyPrice) || 0,
       });
-      notify('Product added');
+      notify('Product added', 'success');
       setNewProd({ name: '', dairyPrice: '' });
       setShowAdd(false);
       fetchProducts();
@@ -94,127 +90,172 @@ export default function ProductsSetup() {
   const activeBrand = brands.find((b) => b.id === activeBrandId);
 
   return (
-    <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`} style={{ animation: 'popIn 0.25s ease' }}>
-          {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-          {notification.message}
-        </div>
-      )}
+    <div className="p-5 md:p-6 max-w-4xl mx-auto space-y-5">
 
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Products & Pricing</h1><p className="text-gray-500 text-sm">Manage products and dairy purchase prices</p></div>
-        <button onClick={() => setShowAdd(!showAdd)} className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition">
+      {/* ── Page header ────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Products & Pricing</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Manage products and dairy purchase prices</p>
+        </div>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="ddm-btn-primary flex-shrink-0"
+        >
           <Plus size={15} /> Add Product
         </button>
       </div>
 
-      {brands.length > 0 && <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />}
+      {/* ── Rate master notice ─────────────────────────────────────── */}
+      <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-xs">
+        <Info size={13} className="flex-shrink-0 mt-0.5" />
+        <span>
+          <strong>Rate Master:</strong> Dairy purchase prices configured here are used automatically
+          when recording stock receipts. Prices cannot be overridden on any other page.
+        </span>
+      </div>
 
-      {/* Add product form */}
+      {brands.length > 0 && (
+        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={(id) => { setActive(id); setEdits({}); }} />
+      )}
+
+      {/* ── Add product form ───────────────────────────────────────── */}
       {showAdd && (
         <form onSubmit={handleAddProduct} className="ddm-card p-4 flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Product Name</label>
-            <input value={newProduct.name} onChange={(e) => setNewProd((p) => ({ ...p, name: e.target.value }))} required placeholder={`e.g. HM`}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50" />
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Product Name
+            </label>
+            <input
+              value={newProduct.name}
+              onChange={(e) => setNewProd((p) => ({ ...p, name: e.target.value }))}
+              required
+              placeholder="e.g. Homogenised Milk"
+              className="ddm-input"
+            />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Dairy Price (₹)</label>
-            <input type="number" step="0.01" min="0" value={newProduct.dairyPrice} onChange={(e) => setNewProd((p) => ({ ...p, dairyPrice: e.target.value }))} placeholder="0.00"
-              className="w-28 px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50" />
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Dairy Price (₹)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={newProduct.dairyPrice}
+                onChange={(e) => setNewProd((p) => ({ ...p, dairyPrice: e.target.value }))}
+                placeholder="0.00"
+                className="w-28 pl-7 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white tabular-nums"
+              />
+            </div>
           </div>
-          <button type="submit" className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm">
+          <button type="submit" className="ddm-btn-primary">
             <Plus size={14} /> Add to {activeBrand?.name}
           </button>
-          <button type="button" onClick={() => setShowAdd(false)} className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button
+            type="button"
+            onClick={() => setShowAdd(false)}
+            className="ddm-btn-secondary"
+          >
+            Cancel
+          </button>
         </form>
       )}
 
+      {/* ── Products table ─────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
-        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 bg-gray-50 border-b border-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-          <div className="col-span-5">Product Name</div>
-          <div className="col-span-3 text-right">Dairy Price (₹)</div>
-          <div className="col-span-2 text-center">Status</div>
-          <div className="col-span-2 text-right">Actions</div>
-        </div>
-        <div className="sm:hidden bg-gray-50 border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          Products
+        {/* Table header */}
+        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-4 py-2.5">
+          {['Product Name', 'Dairy Price (₹)', 'Status', 'Save'].map((h, i) => (
+            <div
+              key={i}
+              className={`${
+                i === 0 ? 'col-span-5' :
+                i === 1 ? 'col-span-3 text-right' :
+                i === 2 ? 'col-span-2 text-center' :
+                'col-span-2 text-right'
+              } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
+            >
+              {h}
+            </div>
+          ))}
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+          </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">No products yet. Add your first product.</div>
+          <div className="text-center py-12 text-slate-400 text-sm">
+            No products yet. Add your first product above.
+          </div>
         ) : (
           products.map((p) => {
             const isDirty = edits[p.id] !== undefined;
             return (
-              <div key={p.id} className={`border-b border-gray-50 ${!p.isActive ? 'opacity-50' : 'hover:bg-gray-50'} transition`}>
-                {/* ── Mobile layout ──────────────────────────────── */}
-                <div className="sm:hidden px-4 py-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
+              <div
+                key={p.id}
+                className={`grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 transition-colors last:border-0 ${
+                  !p.isActive ? 'opacity-40' : isDirty ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'
+                }`}
+              >
+                {/* Product name — editable */}
+                <div className="col-span-5">
+                  <input
+                    value={edits[p.id]?.name ?? p.name}
+                    onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
+                    disabled={!p.isActive}
+                    className="w-full text-sm font-medium text-slate-800 bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                {/* Dairy price — editable (master rate) */}
+                <div className="col-span-3 flex justify-end">
+                  <div className="relative w-24">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
                     <input
-                      value={edits[p.id]?.name ?? p.name}
-                      onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
+                      type="number"
+                      step="0.01"
+                      min="0"
                       disabled={!p.isActive}
-                      className="flex-1 font-medium text-gray-800 text-sm bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
+                      value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
+                      onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
+                      className="w-full pl-6 pr-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
                     />
-                    <button onClick={() => toggleActive(p)} className="text-gray-400 hover:text-teal-600 transition flex-shrink-0">
-                      {p.isActive ? <ToggleRight size={22} className="text-teal-600" /> : <ToggleLeft size={22} />}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-                      <input
-                        type="number" step="0.01" min="0" disabled={!p.isActive}
-                        value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
-                        onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
-                        className="w-full pl-6 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    {isDirty && (
-                      <button onClick={() => handleSave(p)} disabled={saving === p.id} className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg transition font-medium">
-                        {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />} Save
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                {/* ── Desktop layout ─────────────────────────────── */}
-                <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-4 py-3">
-                  <div className="col-span-5">
-                    <input
-                      value={edits[p.id]?.name ?? p.name}
-                      onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
-                      disabled={!p.isActive}
-                      className="w-full font-medium text-gray-800 text-sm bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div className="col-span-3 flex justify-end">
-                    <div className="relative w-24">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-                      <input
-                        type="number" step="0.01" min="0" disabled={!p.isActive}
-                        value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
-                        onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
-                        className="w-full pl-6 pr-2 py-1.5 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-2 flex justify-center">
-                    <button onClick={() => toggleActive(p)} className="text-gray-400 hover:text-teal-600 transition">
-                      {p.isActive ? <ToggleRight size={22} className="text-teal-600" /> : <ToggleLeft size={22} />}
+                {/* Status toggle */}
+                <div className="col-span-2 flex justify-center">
+                  <button
+                    onClick={() => toggleActive(p)}
+                    className="text-slate-400 hover:text-teal-600 transition"
+                    title={p.isActive ? 'Deactivate' : 'Activate'}
+                  >
+                    {p.isActive
+                      ? <ToggleRight size={22} className="text-teal-600" />
+                      : <ToggleLeft size={22} />
+                    }
+                  </button>
+                </div>
+
+                {/* Save button — shows only when dirty */}
+                <div className="col-span-2 flex justify-end">
+                  {isDirty && (
+                    <button
+                      onClick={() => handleSave(p)}
+                      disabled={saving === p.id}
+                      className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg transition font-medium"
+                    >
+                      {saving === p.id
+                        ? <Loader2 className="animate-spin" size={12} />
+                        : <Save size={12} />
+                      }
+                      Save
                     </button>
-                  </div>
-                  <div className="col-span-2 flex justify-end">
-                    {isDirty && (
-                      <button onClick={() => handleSave(p)} disabled={saving === p.id} className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg transition font-medium">
-                        {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />} Save
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             );

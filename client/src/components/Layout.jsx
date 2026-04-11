@@ -172,47 +172,47 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-[#f8fafc]">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 flex-shrink-0">
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar — visible on iPad (md: = 768px) and wider */}
+      <aside className="hidden md:flex flex-col w-60 flex-shrink-0 shadow-sm">
         <Sidebar />
       </aside>
 
-      {/* Mobile overlay */}
+      {/* Phone overlay backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Phone slide-out drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col lg:hidden transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 w-60 flex flex-col md:hidden transition-transform duration-300 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <Sidebar setMobileOpen={setMobileOpen} />
       </aside>
 
-      {/* Main area */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile topbar */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 shadow-sm">
+        {/* Phone topbar — hidden on iPad+ */}
+        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
           <button
             onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+            className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition"
           >
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
             <Milk className="text-teal-600" size={18} />
-            <span className="font-bold text-gray-900 text-sm">Dairy Distribution</span>
+            <span className="font-bold text-slate-900 text-sm">Dairy Distribution</span>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-slate-50">
           <Outlet />
         </main>
       </div>

@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Trash2, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import BalanceSummaryCard from '../../components/BalanceSummaryCard';
+import { Trash2, Loader2 } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
+import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function SalespersonCollections() {
+  const { notify } = useNotification();
   const [salespeople, setSalespeople] = useState([]);
-  const [selectedSp, setSelectedSp]   = useState('');
-  const [balance, setBalance]         = useState(null);
-  const [payments, setPayments]       = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [saving, setSaving]           = useState(false);
-  const [notification, setNotif]      = useState(null);
+  const [selectedSp, setSelectedSp]  = useState('');
+  const [balance, setBalance]        = useState(null);
+  const [payments, setPayments]      = useState([]);
+  const [loading, setLoading]        = useState(false);
+  const [saving, setSaving]          = useState(false);
   const today = getIndiaDate();
 
   useEffect(() => {
@@ -42,16 +42,11 @@ export default function SalespersonCollections() {
     }
   }
 
-  const notify = (message, type = 'success') => {
-    setNotif({ message, type });
-    setTimeout(() => setNotif(null), 4000);
-  };
-
   const handlePayment = async (formData) => {
     setSaving(true);
     try {
       await api.post('/salesperson-payments', { ...formData, salespersonId: Number(selectedSp) });
-      notify('Collection recorded successfully');
+      notify('Collection recorded successfully', 'success');
       fetchAll();
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to record collection', 'error');
@@ -64,7 +59,7 @@ export default function SalespersonCollections() {
     if (!window.confirm('Delete this collection record?')) return;
     try {
       await api.delete(`/salesperson-payments/${id}`);
-      notify('Record deleted');
+      notify('Record deleted', 'success');
       fetchAll();
     } catch {
       notify('Failed to delete', 'error');
@@ -73,42 +68,31 @@ export default function SalespersonCollections() {
 
   const activeSp = salespeople.find((s) => String(s.id) === String(selectedSp));
 
-  const balCard = balance
-    ? {
-        brandName: activeSp?.name ?? '',
-        opening:    balance.openingBalance,
-        stockValue: balance.stockGiven,
-        paid:       balance.amountPaid,
-        closing:    balance.closingBalance,
-      }
-    : null;
-
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
-      {notification && (
-        <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}
-          style={{ animation: 'popIn 0.25s ease' }}
-        >
-          {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-          {notification.message}
-        </div>
-      )}
+    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-5">
 
+      {/* ── Page header ────────────────────────────────────────────── */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Salesperson Collections</h1>
-        <p className="text-gray-500 text-sm">Record cash/UPI collected from salespeople</p>
+        <h1 className="text-xl font-bold text-slate-900">Salesperson Collections</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Record cash / UPI collected from salespeople</p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Select Salesperson</label>
+      {/* ── Salesperson selector ─────────────────────────────────────── */}
+      <div className="ddm-card p-4">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          Select Salesperson
+        </label>
         <select
           value={selectedSp}
           onChange={(e) => setSelectedSp(e.target.value)}
-          className="w-full sm:w-72 px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+          className="w-full sm:w-72 ddm-input"
         >
           <option value="">Choose salesperson…</option>
-          {salespeople.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+          {salespeople.map((sp) => (
+            <option key={sp.id} value={sp.id}>
+              {sp.name}{sp.route ? ` — ${sp.route}` : ''}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -119,34 +103,49 @@ export default function SalespersonCollections() {
       )}
 
       {!loading && selectedSp && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+          {/* ── Left: balance + form ───────────────────────────────── */}
           <div className="md:col-span-1 space-y-4">
-            {balCard && (
-              <div className="ddm-card p-5">
-                <div className="font-bold text-gray-900 mb-4 text-sm">{activeSp?.name} — Today's Balance</div>
-                <div className="space-y-2.5 text-sm">
-                  {[
-                    { label: 'Opening',     val: balCard.opening,    color: 'text-gray-700' },
-                    { label: 'Stock Given', val: balCard.stockValue,  color: 'text-blue-600' },
-                    { label: 'Collected',   val: balCard.paid,        color: 'text-green-600' },
-                  ].map(({ label, val, color }) => (
-                    <div key={label} className="flex justify-between items-center text-gray-500">
-                      <span>{label}</span>
-                      <span className={`font-medium ${color}`}>{formatCurrency(val)}</span>
-                    </div>
-                  ))}
-                  <div className="h-px bg-gray-100" />
+            {balance && (
+              <div className={`ddm-card p-4 border-l-4 ${balance.closingBalance > 0 ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {activeSp?.name}
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${balance.closingBalance > 0 ? 'badge-red' : 'badge-green'}`}>
+                    {balance.closingBalance > 0 ? 'Outstanding' : 'Clear'}
+                  </span>
+                </div>
+                <div className="space-y-1.5 text-xs text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Opening</span>
+                    <span className="tabular-nums text-slate-700">{formatCurrency(balance.openingBalance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Stock Given</span>
+                    <span className="tabular-nums text-blue-600">+{formatCurrency(balance.stockGiven)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Collected</span>
+                    <span className="tabular-nums text-emerald-600">
+                      {balance.amountPaid > 0 ? '−' : ''}{formatCurrency(balance.amountPaid)}
+                    </span>
+                  </div>
+                  <div className="h-px bg-slate-100 my-1" />
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-gray-900">Due</span>
-                    <span className={`text-lg font-bold ${balCard.closing > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatCurrency(balCard.closing)}
+                    <span className="font-semibold text-slate-800">Due</span>
+                    <span className={`text-base font-bold tabular-nums ${balance.closingBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {formatCurrency(balance.closingBalance)}
                     </span>
                   </div>
                 </div>
               </div>
             )}
             <div className="ddm-card p-4">
-              <h3 className="font-bold text-gray-800 mb-4 text-sm">Record Collection</h3>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+                Record Collection
+              </h3>
               <PaymentForm
                 onSubmit={handlePayment}
                 closingBalance={balance?.closingBalance ?? 0}
@@ -155,49 +154,66 @@ export default function SalespersonCollections() {
             </div>
           </div>
 
+          {/* ── Right: collection history ──────────────────────────── */}
           <div className="md:col-span-2">
             <div className="ddm-card overflow-hidden">
-              <div className="bg-gray-50 border-b border-gray-100 px-4 py-3">
-                <h3 className="font-bold text-gray-800 text-sm">Collection History</h3>
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3">
+                <h3 className="font-bold text-slate-800 text-sm">Collection History</h3>
               </div>
+
               {payments.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">No collections recorded</div>
+                <div className="text-center py-12 text-slate-400 text-sm">No collections recorded</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[380px]">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
-                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Mode</th>
-                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Ref</th>
-                        <th className="px-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {payments.map((p) => (
-                        <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-700">
-                            {new Date(p.paymentDate).toLocaleDateString('en-IN')}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-green-700">
-                            {formatCurrency(p.amount)}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500">{p.paymentMode || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500 truncate max-w-[120px]">{p.reference || '—'}</td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => handleDelete(p.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  {/* Table header */}
+                  <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-4 py-2.5">
+                    {['Date', 'Amount', 'Mode', 'Ref', ''].map((h, i) => (
+                      <div
+                        key={i}
+                        className={`${
+                          i === 0 ? 'col-span-3' :
+                          i === 1 ? 'col-span-3 text-right' :
+                          i === 2 ? 'col-span-3 pl-2' :
+                          i === 3 ? 'col-span-2' :
+                          'col-span-1'
+                        } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
+                      >
+                        {h}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rows */}
+                  {payments.map((p) => (
+                    <div
+                      key={p.id}
+                      className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0"
+                    >
+                      <div className="col-span-3 text-xs text-slate-600 tabular-nums">
+                        {new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </div>
+                      <div className="col-span-3 text-right text-sm font-semibold text-emerald-700 tabular-nums">
+                        {formatCurrency(p.amount)}
+                      </div>
+                      <div className="col-span-3 pl-2">
+                        <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-medium">
+                          {p.paymentMode || 'Cash'}
+                        </span>
+                      </div>
+                      <div className="col-span-2 text-xs text-slate-400 truncate">
+                        {p.reference || '—'}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>

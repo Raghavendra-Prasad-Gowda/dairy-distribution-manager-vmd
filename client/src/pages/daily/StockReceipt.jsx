@@ -1,123 +1,109 @@
 import { useState, useEffect } from 'react';
-import { Save, XCircle, Loader2 } from 'lucide-react';
+import { Save, Loader2, Info } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import BrandTabs from '../../components/BrandTabs';
 import SaveOverlay from '../../components/SaveOverlay';
-import { getIndiaDate } from '../../utils/dateUtils';
+import { useNotification } from '../../context/NotificationContext';
+import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function StockReceipt() {
+  const { notify } = useNotification();
   const [date, setDate]             = useState(getIndiaDate());
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
   const [products, setProducts]     = useState([]);
-  const [rows, setRows]             = useState({});   // { [productId]: { quantity, unitPrice } }
+  const [quantities, setQuantities] = useState({});   // { [productId]: string }
   const [loading, setLoading]       = useState(false);
+  const [saving, setSaving]         = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'success' | 'error'
-  const [error, setError]           = useState('');
 
   // Load brands once
   useEffect(() => {
     api.get('/brands')
-      .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
-      .catch(() => setError('Failed to load brands'));
+      .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .catch(() => notify('Failed to load brands', 'error'));
   }, []);
 
-  // Load products + existing receipts when brand/date changes
+  // Load products + existing receipts when brand or date changes
   useEffect(() => {
     if (!activeBrandId) return;
     setLoading(true);
     Promise.all([
       api.get(`/products?brandId=${activeBrandId}`),
       api.get(`/stock-receipts?date=${date}&brandId=${activeBrandId}`),
-    ]).then(([prodRes, receiptRes]) => {
-      const prods = prodRes.data.data;
-      setProducts(prods);
-      const map = {};
-      for (const p of prods) map[p.id] = { quantity: '', unitPrice: Number(p.dairyPrice) };
-      for (const r of receiptRes.data.data) {
-        map[r.productId] = { quantity: String(r.quantity), unitPrice: Number(r.unitPrice) };
-      }
-      setRows(map);
-    }).catch((e) => {
-      setError(e.response?.data?.error ?? 'Failed to load products');
-    }).finally(() => setLoading(false));
+    ])
+      .then(([prodRes, receiptRes]) => {
+        const prods = prodRes.data.data;
+        setProducts(prods);
+        // Seed qty map: blank by default, filled in from existing receipts
+        const qty = {};
+        for (const p of prods) qty[p.id] = '';
+        for (const r of receiptRes.data.data) qty[r.productId] = String(r.quantity);
+        setQuantities(qty);
+      })
+      .catch(() => notify('Failed to load products', 'error'))
+      .finally(() => setLoading(false));
   }, [activeBrandId, date]);
 
-  const handleChange = (productId, field, value) => {
-    setRows((prev) => ({ ...prev, [productId]: { ...prev[productId], [field]: value } }));
-  };
-
   const handleSave = async () => {
-    setLoading(true);
-    setError('');
+    const items = products
+      .filter(p => quantities[p.id] && parseFloat(quantities[p.id]) > 0)
+      .map(p => ({
+        productId: p.id,
+        quantity:  parseFloat(quantities[p.id]),
+        unitPrice: Number(p.dairyPrice),   // ← price comes from setup, never user input
+      }));
+
+    if (!items.length) {
+      notify('Enter at least one quantity before saving.', 'warning');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const items = products
-        .filter((p) => rows[p.id]?.quantity && parseFloat(rows[p.id].quantity) > 0)
-        .map((p) => ({
-          productId: p.id,
-          quantity:  parseFloat(rows[p.id].quantity),
-          unitPrice: parseFloat(rows[p.id].unitPrice) || 0,
-        }));
-
-      if (!items.length) {
-        setError('Enter at least one quantity to save.');
-        setLoading(false);
-        return;
-      }
-
       await api.post('/stock-receipts/bulk', { brandId: activeBrandId, date, items });
       setSaveStatus('success');
     } catch (e) {
-      setError(e.response?.data?.error ?? 'Save failed. Please try again.');
-      setSaveStatus('error');
+      notify(e.response?.data?.error ?? 'Save failed. Please try again.', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const totalAmount = products.reduce((s, p) => {
-    const q = parseFloat(rows[p.id]?.quantity) || 0;
-    const u = parseFloat(rows[p.id]?.unitPrice) || 0;
-    return s + q * u;
+  const totalAmount = products.reduce((sum, p) => {
+    const q = parseFloat(quantities[p.id]) || 0;
+    return sum + q * Number(p.dairyPrice);
   }, 0);
 
-  const activeBrand = brands.find((b) => b.id === activeBrandId);
+  const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
+  const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
-      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} />
+    <div className="p-5 md:p-6 max-w-3xl mx-auto space-y-5">
+      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Receipt Saved!" />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* ── Page header ─────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Stock Receipt</h1>
-          <p className="text-gray-500 text-sm">Enter quantities received from dairy</p>
+          <h1 className="text-xl font-bold text-slate-900">Stock Receipt</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Enter quantities received from the dairy</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
 
       {brands.length > 0 && (
-        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
+        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => { setActive(id); }} />
       )}
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          <XCircle size={15} /> {error}
-        </div>
-      )}
-
+      {/* ── Product table ────────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
-        {/* ── Desktop header (hidden on mobile) ─────────────────────────── */}
-        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 bg-gray-50 border-b border-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-          <div className="col-span-5">Product</div>
-          <div className="col-span-3 text-right">Dairy Price (₹)</div>
-          <div className="col-span-2 text-right">Quantity</div>
-          <div className="col-span-2 text-right">Amount</div>
-        </div>
-
-        {/* ── Mobile header ─────────────────────────────────────────────── */}
-        <div className="sm:hidden bg-gray-50 border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          {activeBrand?.name} — Enter quantities received
+        {/* Table header */}
+        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
+          <div className="col-span-5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
+          <div className="col-span-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</div>
+          <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
+          <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
         </div>
 
         {loading ? (
@@ -125,104 +111,78 @@ export default function StockReceipt() {
             <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">
-            No active products for {activeBrand?.name}. Add products in Setup.
+          <div className="text-center py-12 text-slate-400 text-sm">
+            No active products for {activeBrand?.name}. Add them in Setup → Products &amp; Pricing.
           </div>
         ) : (
           <>
-            {products.map((p) => {
-              const qty    = parseFloat(rows[p.id]?.quantity) || 0;
-              const price  = parseFloat(rows[p.id]?.unitPrice) || 0;
-              const amount = qty * price;
-
+            {products.map(p => {
+              const qty    = parseFloat(quantities[p.id]) || 0;
+              const amount = qty * Number(p.dairyPrice);
+              const filled = qty > 0;
               return (
-                <div key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                  {/* ── Mobile layout: stacked ───────────────────────── */}
-                  <div className="sm:hidden px-4 py-3">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium text-gray-800 text-sm">{p.name}</span>
-                      <span className="text-sm font-semibold text-gray-700">
-                        {amount > 0 ? `₹${amount.toFixed(2)}` : '—'}
-                      </span>
-                    </div>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-500 mb-1">Price (₹)</label>
-                        <input
-                          type="number"
-                          value={rows[p.id]?.unitPrice ?? ''}
-                          onChange={(e) => handleChange(p.id, 'unitPrice', e.target.value)}
-                          step="0.01"
-                          min="0"
-                          className="w-full text-right px-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-500 mb-1">Quantity</label>
-                        <input
-                          type="number"
-                          value={rows[p.id]?.quantity ?? ''}
-                          onChange={(e) => handleChange(p.id, 'quantity', e.target.value)}
-                          step="0.5"
-                          min="0"
-                          placeholder="0"
-                          className="w-full text-right px-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                        />
-                      </div>
-                    </div>
+                <div
+                  key={p.id}
+                  className={`grid grid-cols-12 items-center px-5 py-3 border-b border-slate-100 transition-colors ${
+                    filled ? 'bg-teal-50/50' : 'hover:bg-slate-50/60'
+                  }`}
+                >
+                  {/* Product name */}
+                  <div className="col-span-5 text-sm font-medium text-slate-800">{p.name}</div>
+
+                  {/* Rate — read-only */}
+                  <div className="col-span-3 text-right text-sm text-slate-500 tabular-nums">
+                    ₹{Number(p.dairyPrice).toFixed(2)}
                   </div>
 
-                  {/* ── Desktop layout: grid ──────────────────────────── */}
-                  <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-4 py-2.5">
-                    <div className="col-span-5 font-medium text-gray-800 text-sm">{p.name}</div>
-                    <div className="col-span-3">
-                      <input
-                        type="number"
-                        value={rows[p.id]?.unitPrice ?? ''}
-                        onChange={(e) => handleChange(p.id, 'unitPrice', e.target.value)}
-                        step="0.01"
-                        min="0"
-                        className="w-full text-right px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={rows[p.id]?.quantity ?? ''}
-                        onChange={(e) => handleChange(p.id, 'quantity', e.target.value)}
-                        step="0.5"
-                        min="0"
-                        placeholder="0"
-                        className="w-full text-right px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-2 text-right text-sm font-medium text-gray-700">
-                      {amount > 0 ? `₹${amount.toFixed(2)}` : '—'}
-                    </div>
+                  {/* Quantity input */}
+                  <div className="col-span-2 flex justify-end">
+                    <input
+                      type="number"
+                      value={quantities[p.id] ?? ''}
+                      onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      step="0.5"
+                      min="0"
+                      placeholder="0"
+                      className="w-20 text-right px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white tabular-nums"
+                    />
+                  </div>
+
+                  {/* Computed amount */}
+                  <div className={`col-span-2 text-right text-sm tabular-nums font-medium ${filled ? 'text-teal-700' : 'text-slate-300'}`}>
+                    {filled ? `₹${amount.toFixed(2)}` : '—'}
                   </div>
                 </div>
               );
             })}
 
-            {/* Total row */}
-            <div className="px-4 py-3 grid grid-cols-12 gap-2 bg-teal-50 border-t border-teal-100">
-              <div className="col-span-10 text-right text-sm font-bold text-teal-800">Total</div>
-              <div className="col-span-2 text-right text-sm font-bold text-teal-800">
-                ₹{totalAmount.toFixed(2)}
+            {/* Totals footer */}
+            <div className="grid grid-cols-12 items-center px-5 py-3.5 bg-slate-50 border-t border-slate-200">
+              <div className="col-span-7 text-xs text-slate-500">
+                {filledCount > 0 ? `${filledCount} of ${products.length} products filled` : `${products.length} products`}
+              </div>
+              <div className="col-span-3 text-right text-sm font-bold text-slate-700">Total</div>
+              <div className="col-span-2 text-right text-sm font-bold text-teal-700 tabular-nums">
+                {formatCurrency(totalAmount)}
               </div>
             </div>
           </>
         )}
       </div>
 
-      <div className="flex justify-end">
+      {/* ── Footer actions ───────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+          <Info size={12} />
+          Rates are configured in <span className="font-medium text-slate-600">Setup → Products &amp; Pricing</span>
+        </p>
         <button
           onClick={handleSave}
-          disabled={loading}
-          className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-semibold px-6 py-3 rounded-xl transition text-sm"
+          disabled={saving || loading}
+          className="ddm-btn-primary"
         >
-          {loading ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-          {loading ? 'Saving…' : 'Save Receipt'}
+          {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+          {saving ? 'Saving…' : 'Save Receipt'}
         </button>
       </div>
     </div>

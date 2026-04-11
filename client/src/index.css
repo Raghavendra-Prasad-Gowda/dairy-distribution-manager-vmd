@@ -26,12 +26,23 @@
 @layer utilities {
   /* Brand gradient — sidebar + login bg */
   .ddm-gradient {
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 60%, #065f46 100%);
+    background: linear-gradient(160deg, #0d9488 0%, #0f766e 55%, #065f46 100%);
   }
 
   /* Standard card */
   .ddm-card {
-    @apply bg-white border border-gray-100 rounded-xl shadow-sm;
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+  }
+
+  /* Premium table utilities */
+  .ddm-table-header {
+    @apply grid bg-slate-50 border-b border-slate-200 px-5 py-3;
+  }
+  .ddm-th {
+    @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
+  }
+  .ddm-table-row {
+    @apply grid items-center px-5 py-3 border-b border-slate-100 hover:bg-slate-50/70 transition-colors;
   }
 
   /* Balance badges */
@@ -45,24 +56,58 @@
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700;
   }
 
-  /* Missing price warning */
+  /* Missing price warning row */
   .price-missing {
-    @apply bg-amber-50 border border-amber-300 rounded;
+    @apply bg-amber-50/60;
+  }
+
+  /* Standard form input */
+  .ddm-input {
+    @apply w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white
+           focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
+           placeholder:text-slate-300;
+  }
+
+  /* Primary action button */
+  .ddm-btn-primary {
+    @apply flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300
+           text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm shadow-sm;
+  }
+
+  /* Secondary button */
+  .ddm-btn-secondary {
+    @apply flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50
+           text-slate-700 font-medium px-4 py-2.5 rounded-xl transition text-sm;
+  }
+
+  /* Section label inside a card */
+  .ddm-section-label {
+    @apply px-5 py-2 bg-slate-50 border-y border-slate-100 text-xs font-bold
+           text-slate-400 uppercase tracking-widest;
+  }
+
+  /* Stat value */
+  .ddm-stat-value {
+    @apply text-2xl font-bold text-slate-900 tabular-nums leading-none;
   }
 }
 
-/* ── Animations used by success/error overlays ────────────────────────────── */
+/* ── Animations ───────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 @keyframes popIn {
-  from { opacity: 0; transform: scale(0.8) translateY(20px); }
-  to   { opacity: 1; transform: scale(1)   translateY(0); }
+  from { opacity: 0; transform: scale(0.85) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
 }
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0); }
   to   { opacity: 1; transform: scale(1); }
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
 }
 
 /* ── Print styles (same as existing app) ─────────────────────────────────── */

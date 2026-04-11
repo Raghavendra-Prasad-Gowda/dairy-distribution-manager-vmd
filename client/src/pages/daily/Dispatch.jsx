@@ -1,85 +1,81 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Truck, XCircle } from 'lucide-react';
+import { Loader2, Truck, Info } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import SaveOverlay from '../../components/SaveOverlay';
+import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function Dispatch() {
+  const { notify } = useNotification();
   const [date, setDate]               = useState(getIndiaDate());
   const [salespeople, setSalespeople] = useState([]);
   const [selectedSp, setSelectedSp]   = useState('');
   const [availability, setAvail]      = useState([]);
-  const [prices, setPrices]           = useState({});
-  const [rows, setRows]               = useState({});
+  const [prices, setPrices]           = useState({});   // { [productId]: sellingPrice }
+  const [quantities, setQuantities]   = useState({});   // { [productId]: string }
   const [loading, setLoading]         = useState(false);
+  const [saving, setSaving]           = useState(false);
   const [saveStatus, setSaveStatus]   = useState(null);
-  const [error, setError]             = useState('');
 
   // Load active salespeople once
   useEffect(() => {
     api.get('/salespeople')
-      .then((r) => setSalespeople(r.data.data))
-      .catch(() => setError('Failed to load salespeople'));
+      .then(r => setSalespeople(r.data.data))
+      .catch(() => notify('Failed to load salespeople', 'error'));
   }, []);
 
   // Reload stock availability when date changes
   useEffect(() => {
     if (!date) return;
     api.get(`/stock-receipts/availability?date=${date}`)
-      .then((r) => setAvail(r.data.data))
-      .catch(() => setError('Failed to load stock availability'));
+      .then(r => setAvail(r.data.data))
+      .catch(() => notify('Failed to load stock availability', 'error'));
   }, [date]);
 
-  // Load selling prices when salesperson changes
+  // Load selling prices for selected salesperson (read-only — set in Setup)
   useEffect(() => {
     if (!selectedSp) return;
     setPrices({});
     api.get(`/salespeople/${selectedSp}/prices`)
-      .then((r) => {
+      .then(r => {
         const map = {};
-        r.data.data.forEach((p) => { map[p.productId] = p.sellingPrice; });
+        r.data.data.forEach(p => { map[p.productId] = p.sellingPrice; });
         setPrices(map);
       })
-      .catch(() => setError('Failed to load prices for selected salesperson'));
+      .catch(() => notify('Failed to load prices for salesperson', 'error'));
   }, [selectedSp]);
 
-  // Pre-fill rows from any existing dispatch for this salesperson+date
+  // Pre-fill quantities from any existing dispatch for this salesperson + date
   useEffect(() => {
     if (!selectedSp || !date) return;
-    setRows({});
+    setQuantities({});
     api.get(`/dispatches?salespersonId=${selectedSp}&date=${date}`)
-      .then((r) => {
+      .then(r => {
         if (r.data.data.length > 0) {
-          const existing = r.data.data[0];
           const loaded = {};
-          existing.items.forEach((item) => {
+          r.data.data[0].items.forEach(item => {
             loaded[item.productId] = String(item.quantity);
           });
-          setRows(loaded);
+          setQuantities(loaded);
         }
       })
-      .catch(() => {}); // silently ignore — blank rows is fine fallback
+      .catch(() => {}); // silent fallback — blank rows is fine
   }, [selectedSp, date]);
 
-  const handleChange = (productId, qty) => {
-    setRows((prev) => ({ ...prev, [productId]: qty }));
-  };
-
   const handleSave = async () => {
-    setLoading(true);
-    setError('');
+    const items = availability
+      .filter(p => quantities[p.productId] && parseFloat(quantities[p.productId]) > 0)
+      .map(p => ({
+        productId: p.productId,
+        quantity:  parseFloat(quantities[p.productId]),
+        unitPrice: prices[p.productId] ?? 0,   // ← price from Setup, never user input
+      }));
+
+    if (!items.length) { notify('Enter at least one quantity.', 'warning'); return; }
+
+    setSaving(true);
     try {
-      const items = availability
-        .filter((p) => rows[p.productId] && parseFloat(rows[p.productId]) > 0)
-        .map((p) => ({
-          productId: p.productId,
-          quantity:  parseFloat(rows[p.productId]),
-          unitPrice: prices[p.productId] ?? 0,
-        }));
-
-      if (!items.length) { setError('Enter at least one quantity'); setLoading(false); return; }
-
       await api.post('/dispatches', {
         salespersonId: Number(selectedSp),
         dispatchDate:  date,
@@ -87,146 +83,136 @@ export default function Dispatch() {
       });
       setSaveStatus('success');
     } catch (e) {
-      setError(e.response?.data?.error ?? 'Save failed');
-      setSaveStatus('error');
-    } finally { setLoading(false); }
+      notify(e.response?.data?.error ?? 'Save failed.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const totalAmount = availability.reduce((s, p) => {
-    const q = parseFloat(rows[p.productId]) || 0;
-    return s + q * (prices[p.productId] ?? 0);
-  }, 0);
+  // Only show products that have received stock today OR an existing qty entered
+  const visibleProducts = availability.filter(p => p.received > 0 || quantities[p.productId]);
 
-  // Group products by brand for a clearer dispatch view
-  const visibleProducts = availability.filter((p) => p.received > 0 || rows[p.productId]);
+  // Group by brand for cleaner view
   const brandGroups = visibleProducts.reduce((acc, p) => {
     if (!acc[p.brandName]) acc[p.brandName] = [];
     acc[p.brandName].push(p);
     return acc;
   }, {});
 
+  const totalAmount = visibleProducts.reduce((s, p) => {
+    const q = parseFloat(quantities[p.productId]) || 0;
+    return s + q * (prices[p.productId] ?? 0);
+  }, 0);
+
+  const activeSp = salespeople.find(s => String(s.id) === String(selectedSp));
+
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-5 md:p-6 max-w-3xl mx-auto space-y-5">
       <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Dispatch Saved!" />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* ── Page header ─────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Stock Dispatch</h1>
-          <p className="text-gray-500 text-sm">Allocate stock to salespeople</p>
+          <h1 className="text-xl font-bold text-slate-900">Stock Dispatch</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Allocate stock to salespeople</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Salesperson</label>
-          <select
-            value={selectedSp}
-            onChange={(e) => setSelectedSp(e.target.value)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-          >
-            <option value="">Select salesperson…</option>
-            {salespeople.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-          </select>
-        </div>
+      {/* ── Salesperson selector ─────────────────────────────────────── */}
+      <div className="ddm-card p-4">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          Select Salesperson
+        </label>
+        <select
+          value={selectedSp}
+          onChange={e => setSelectedSp(e.target.value)}
+          className="w-full sm:w-72 ddm-input"
+        >
+          <option value="">Choose salesperson…</option>
+          {salespeople.map(sp => (
+            <option key={sp.id} value={sp.id}>{sp.name}{sp.route ? ` — ${sp.route}` : ''}</option>
+          ))}
+        </select>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          <XCircle size={15} /> {error}
-        </div>
-      )}
-
+      {/* ── Dispatch table ───────────────────────────────────────────── */}
       {selectedSp && (
         <div className="ddm-card overflow-hidden">
-          {/* ── Desktop table header (hidden on mobile) ─────────────────── */}
-          <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 bg-gray-50 border-b border-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-            <div className="col-span-4">Product</div>
-            <div className="col-span-2 text-right">Brand</div>
-            <div className="col-span-2 text-right">Available</div>
-            <div className="col-span-2 text-right">Price (₹)</div>
-            <div className="col-span-2 text-right">Qty</div>
-          </div>
-
-          {/* ── Mobile table header ──────────────────────────────────────── */}
-          <div className="sm:hidden bg-gray-50 border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Enter dispatch quantities
+          {/* Table header */}
+          <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
+            <div className="col-span-5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
+            <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Avail</div>
+            <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</div>
+            <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
+            <div className="col-span-1 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amt</div>
           </div>
 
           {Object.keys(brandGroups).length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">
-              No stock received for this date. Enter stock receipts first.
+            <div className="text-center py-12 text-slate-400 text-sm">
+              No stock received for this date yet. Enter Stock Receipt first.
             </div>
           ) : (
             Object.entries(brandGroups).map(([brandName, products]) => (
               <div key={brandName}>
-                {/* Brand group header */}
-                <div className="px-4 py-2 bg-gray-50 border-y border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                {/* Brand group label */}
+                <div className="px-5 py-2 bg-slate-50 border-y border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-widest">
                   {brandName}
                 </div>
 
-                {products.map((p) => {
-                  const qty       = parseFloat(rows[p.productId]) || 0;
-                  const price     = prices[p.productId];
-                  const isMissing = price === undefined || price === null;
-                  const isOver    = qty > p.available;
+                {products.map(p => {
+                  const qty      = parseFloat(quantities[p.productId]) || 0;
+                  const price    = prices[p.productId];
+                  const missing  = price === undefined || price === null;
+                  const over     = qty > p.available;
+                  const amount   = qty * (price ?? 0);
 
                   return (
-                    <div key={p.productId}>
-                      {/* ── Mobile layout ─────────────────────────────── */}
-                      <div className={`sm:hidden px-4 py-3 border-b border-gray-50 ${isMissing ? 'price-missing' : ''}`}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="font-medium text-gray-800 text-sm">{p.productName}</div>
-                          <div className="text-right flex-shrink-0 ml-2">
-                            <div className={`text-xs font-semibold ${p.available <= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                              Avail: {p.available}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {isMissing
-                                ? <span className="badge-amber">No price</span>
-                                : `₹${price}`}
-                            </div>
-                          </div>
-                        </div>
-                        <input
-                          type="number"
-                          value={rows[p.productId] ?? ''}
-                          onChange={(e) => handleChange(p.productId, e.target.value)}
-                          step="0.5"
-                          min="0"
-                          disabled={isMissing || p.available <= 0}
-                          placeholder={isMissing ? 'Set price first' : '0'}
-                          className={`w-full text-right px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${isOver ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}
-                        />
-                        {isOver && (
-                          <p className="text-xs text-red-500 mt-1">Exceeds available ({p.available})</p>
-                        )}
+                    <div
+                      key={p.productId}
+                      className={`grid grid-cols-12 items-center px-5 py-2.5 border-b border-slate-100 transition-colors ${
+                        missing ? 'bg-amber-50/60' : qty > 0 ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'
+                      }`}
+                    >
+                      {/* Product name */}
+                      <div className="col-span-5 text-sm font-medium text-slate-800">{p.productName}</div>
+
+                      {/* Available qty */}
+                      <div className={`col-span-2 text-right text-sm tabular-nums font-medium ${
+                        p.available <= 0 ? 'text-red-500' : 'text-slate-600'
+                      }`}>
+                        {p.available}
                       </div>
 
-                      {/* ── Desktop layout ────────────────────────────── */}
-                      <div
-                        className={`hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-4 py-2.5 border-b border-gray-50 transition ${isMissing ? 'price-missing' : 'hover:bg-gray-50'}`}
-                      >
-                        <div className="col-span-4 text-sm font-medium text-gray-800">{p.productName}</div>
-                        <div className="col-span-2 text-right text-xs text-gray-500">{p.brandName}</div>
-                        <div className={`col-span-2 text-right text-sm font-semibold ${p.available <= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                          {p.available}
-                        </div>
-                        <div className="col-span-2 text-right text-sm">
-                          {isMissing ? <span className="badge-amber">No price</span> : `₹${price}`}
-                        </div>
-                        <div className="col-span-2">
-                          <input
-                            type="number"
-                            value={rows[p.productId] ?? ''}
-                            onChange={(e) => handleChange(p.productId, e.target.value)}
-                            step="0.5"
-                            min="0"
-                            disabled={isMissing || p.available <= 0}
-                            placeholder="0"
-                            className={`w-full text-right px-2 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-gray-100 ${isOver ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}
-                          />
-                        </div>
+                      {/* Selling price — read-only */}
+                      <div className="col-span-2 text-right text-sm tabular-nums text-slate-500">
+                        {missing
+                          ? <span className="badge-amber text-[10px] px-1.5">No rate</span>
+                          : `₹${price}`
+                        }
+                      </div>
+
+                      {/* Qty input */}
+                      <div className="col-span-2 flex justify-end">
+                        <input
+                          type="number"
+                          value={quantities[p.productId] ?? ''}
+                          onChange={e => setQuantities(prev => ({ ...prev, [p.productId]: e.target.value }))}
+                          step="0.5"
+                          min="0"
+                          disabled={missing || p.available <= 0}
+                          placeholder={missing ? '—' : '0'}
+                          className={`w-16 text-right px-2 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
+                            over ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
+                          }`}
+                        />
+                      </div>
+
+                      {/* Computed amount */}
+                      <div className={`col-span-1 text-right text-xs tabular-nums font-medium ${
+                        qty > 0 ? 'text-teal-700' : 'text-slate-300'
+                      }`}>
+                        {qty > 0 ? `₹${amount.toFixed(0)}` : '—'}
                       </div>
                     </div>
                   );
@@ -235,22 +221,30 @@ export default function Dispatch() {
             ))
           )}
 
-          <div className="px-4 py-3 bg-teal-50 border-t border-teal-100 flex justify-between items-center">
-            <span className="text-sm font-bold text-teal-800">Total</span>
-            <span className="text-sm font-bold text-teal-800">{formatCurrency(totalAmount)}</span>
-          </div>
+          {/* Totals footer */}
+          {Object.keys(brandGroups).length > 0 && (
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-t border-slate-200">
+              <span className="text-sm font-bold text-slate-700">Total Dispatch</span>
+              <span className="text-sm font-bold text-teal-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+            </div>
+          )}
         </div>
       )}
 
+      {/* ── Footer actions ───────────────────────────────────────────── */}
       {selectedSp && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-slate-400 flex items-center gap-1.5">
+            <Info size={12} />
+            Selling rates set in <span className="font-medium text-slate-600">Setup → Salespeople &amp; Rates</span>
+          </p>
           <button
             onClick={handleSave}
-            disabled={loading}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-semibold px-6 py-3 rounded-xl transition text-sm"
+            disabled={saving}
+            className="ddm-btn-primary"
           >
-            {loading ? <Loader2 className="animate-spin" size={16} /> : <Truck size={16} />}
-            {loading ? 'Saving…' : 'Save Dispatch'}
+            {saving ? <Loader2 className="animate-spin" size={15} /> : <Truck size={15} />}
+            {saving ? 'Saving…' : 'Save Dispatch'}
           </button>
         </div>
       )}

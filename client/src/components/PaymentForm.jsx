@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, DollarSign } from 'lucide-react';
+import { Loader2, CreditCard } from 'lucide-react';
 import { PAYMENT_MODES } from '../utils/constants';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 
@@ -9,7 +9,6 @@ export default function PaymentForm({ onSubmit, closingBalance = 0, loading = fa
     paymentDate: getIndiaDate(),
     paymentMode: 'Cash',
     reference:   '',
-    notes:       '',
   });
 
   const handleChange = (e) => {
@@ -28,11 +27,13 @@ export default function PaymentForm({ onSubmit, closingBalance = 0, loading = fa
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       {/* Amount row */}
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Amount (₹)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₹</span>
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          Amount (₹)
+        </label>
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">₹</span>
             <input
               type="number"
               name="amount"
@@ -42,40 +43,40 @@ export default function PaymentForm({ onSubmit, closingBalance = 0, loading = fa
               step="0.01"
               min="0.01"
               required
-              className="w-full pl-8 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50"
+              className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white tabular-nums"
             />
           </div>
+          {closingBalance > 0 && (
+            <button
+              type="button"
+              onClick={handlePayFull}
+              className="px-2.5 py-2 text-[11px] font-semibold bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition whitespace-nowrap"
+            >
+              Full ({formatCurrency(closingBalance)})
+            </button>
+          )}
         </div>
-        {closingBalance > 0 && (
-          <button
-            type="button"
-            onClick={handlePayFull}
-            className="px-3 py-2.5 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition whitespace-nowrap"
-          >
-            Pay Full ({formatCurrency(closingBalance)})
-          </button>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Date</label>
           <input
             type="date"
             name="paymentDate"
             value={form.paymentDate}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Mode</label>
           <select
             name="paymentMode"
             value={form.paymentMode}
             onChange={handleChange}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
           >
             {PAYMENT_MODES.map((m) => <option key={m}>{m}</option>)}
           </select>
@@ -83,23 +84,25 @@ export default function PaymentForm({ onSubmit, closingBalance = 0, loading = fa
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Reference / Notes</label>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          Reference / Notes
+        </label>
         <input
           type="text"
           name="reference"
           value={form.reference}
           onChange={handleChange}
           placeholder="Transaction no., cheque no., etc."
-          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50"
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
         />
       </div>
 
       <button
         type="submit"
         disabled={loading || !form.amount}
-        className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white font-semibold py-2.5 rounded-xl transition text-sm"
+        className="ddm-btn-primary w-full justify-center"
       >
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign size={15} />}
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard size={15} />}
         {loading ? 'Recording…' : 'Record Payment'}
       </button>
     </form>

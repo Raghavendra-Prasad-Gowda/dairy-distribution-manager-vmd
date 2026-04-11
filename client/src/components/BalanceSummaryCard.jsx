@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, DollarSign, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { formatCurrency } from '../utils/dateUtils';
 import { BRAND_COLORS } from '../utils/constants';
 import { Link } from 'react-router-dom';
@@ -6,39 +6,38 @@ import { Link } from 'react-router-dom';
 export default function BalanceSummaryCard({ brandName, opening, stockValue, paid, closing, payLink }) {
   const colors = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
-  const isPaid  = closing <= 0;
 
   return (
-    <div className={`ddm-card p-5 border-2 ${isOwing ? 'border-red-100' : 'border-green-100'}`}>
+    <div className={`ddm-card p-4 border-l-4 ${isOwing ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
       {/* Brand header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className={`w-3 h-3 rounded-full ${colors.dot}`} />
-          <span className="font-bold text-gray-900">{brandName}</span>
+          <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
+          <span className="font-bold text-slate-800 text-sm">{brandName}</span>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isOwing ? 'badge-red' : 'badge-green'}`}>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOwing ? 'badge-red' : 'badge-green'}`}>
           {isOwing ? 'Outstanding' : 'Clear'}
         </span>
       </div>
 
       {/* Rows */}
-      <div className="space-y-2.5 text-sm">
-        <div className="flex justify-between items-center text-gray-500">
+      <div className="space-y-1.5 text-xs text-slate-500">
+        <div className="flex justify-between">
           <span>Opening</span>
-          <span className="font-medium text-gray-700">{formatCurrency(opening)}</span>
+          <span className="tabular-nums text-slate-700">{formatCurrency(opening)}</span>
         </div>
-        <div className="flex justify-between items-center text-gray-500">
+        <div className="flex justify-between">
           <span>Stock Value</span>
-          <span className="font-medium text-blue-600">+{formatCurrency(stockValue)}</span>
+          <span className="tabular-nums text-blue-600">+{formatCurrency(stockValue)}</span>
         </div>
-        <div className="flex justify-between items-center text-gray-500">
+        <div className="flex justify-between">
           <span>Paid</span>
-          <span className="font-medium text-green-600">{paid > 0 ? '−' : ''}{formatCurrency(paid)}</span>
+          <span className="tabular-nums text-emerald-600">{paid > 0 ? '−' : ''}{formatCurrency(paid)}</span>
         </div>
-        <div className="h-px bg-gray-100" />
+        <div className="h-px bg-slate-100 my-1" />
         <div className="flex justify-between items-center">
-          <span className="font-semibold text-gray-900">Closing</span>
-          <span className={`text-lg font-bold ${isOwing ? 'text-red-600' : 'text-green-600'}`}>
+          <span className="font-semibold text-slate-800">Closing</span>
+          <span className={`text-base font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
             {formatCurrency(closing)}
           </span>
         </div>

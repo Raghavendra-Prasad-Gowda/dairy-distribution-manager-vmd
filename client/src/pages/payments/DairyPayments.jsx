@@ -1,25 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Trash2, Loader2 } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BalanceSummaryCard from '../../components/BalanceSummaryCard';
 import PaymentForm from '../../components/PaymentForm';
+import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function DairyPayments() {
-  const [brands, setBrands]         = useState([]);
-  const [activeBrandId, setActive]  = useState(null);
-  const [balance, setBalance]       = useState(null);
-  const [payments, setPayments]     = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [saving, setSaving]         = useState(false);
-  const [notification, setNotif]    = useState(null); // { message, type }
+  const { notify } = useNotification();
+  const [brands, setBrands]        = useState([]);
+  const [activeBrandId, setActive] = useState(null);
+  const [balance, setBalance]      = useState(null);
+  const [payments, setPayments]    = useState([]);
+  const [loading, setLoading]      = useState(false);
+  const [saving, setSaving]        = useState(false);
   const today = getIndiaDate();
 
   useEffect(() => {
     api.get('/brands')
       .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
-      .catch(() => setNotif({ message: 'Failed to load brands', type: 'error' }));
+      .catch(() => notify('Failed to load brands', 'error'));
   }, []);
 
   useEffect(() => {
@@ -36,6 +37,8 @@ export default function DairyPayments() {
       ]);
       setBalance(balRes.data.data);
       setPayments(pmtRes.data.data);
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
@@ -45,13 +48,12 @@ export default function DairyPayments() {
     setSaving(true);
     try {
       await api.post('/dairy-payments', { ...formData, brandId: activeBrandId });
-      setNotif({ message: 'Payment recorded successfully', type: 'success' });
+      notify('Payment recorded successfully', 'success');
       fetchAll();
     } catch (e) {
-      setNotif({ message: e.response?.data?.error ?? 'Failed to record payment', type: 'error' });
+      notify(e.response?.data?.error ?? 'Failed to record payment', 'error');
     } finally {
       setSaving(false);
-      setTimeout(() => setNotif(null), 4000);
     }
   };
 
@@ -59,30 +61,22 @@ export default function DairyPayments() {
     if (!window.confirm('Delete this payment?')) return;
     try {
       await api.delete(`/dairy-payments/${id}`);
-      setNotif({ message: 'Payment deleted', type: 'success' });
+      notify('Payment deleted', 'success');
       fetchAll();
-    } catch (e) {
-      setNotif({ message: 'Failed to delete payment', type: 'error' });
-    } finally {
-      setTimeout(() => setNotif(null), 4000);
+    } catch {
+      notify('Failed to delete payment', 'error');
     }
   };
 
   const activeBrand = brands.find((b) => b.id === activeBrandId);
 
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
-      {/* Notification toast */}
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`} style={{ animation: 'popIn 0.25s ease' }}>
-          {notification.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-          {notification.message}
-        </div>
-      )}
+    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-5">
 
+      {/* ── Page header ────────────────────────────────────────────── */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dairy Payments</h1>
-        <p className="text-gray-500 text-sm">Record payments to dairy suppliers</p>
+        <h1 className="text-xl font-bold text-slate-900">Dairy Payments</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Record payments to dairy suppliers</p>
       </div>
 
       {brands.length > 0 && (
@@ -90,10 +84,13 @@ export default function DairyPayments() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-teal-600 animate-spin" /></div>
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left: balance + form */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+          {/* ── Left: balance + form ───────────────────────────────── */}
           <div className="md:col-span-1 space-y-4">
             {balance && (
               <BalanceSummaryCard
@@ -105,7 +102,9 @@ export default function DairyPayments() {
               />
             )}
             <div className="ddm-card p-4">
-              <h3 className="font-bold text-gray-800 mb-4 text-sm">Record Payment</h3>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+                Record Payment
+              </h3>
               <PaymentForm
                 onSubmit={handlePayment}
                 closingBalance={balance?.closingBalance ?? 0}
@@ -114,43 +113,66 @@ export default function DairyPayments() {
             </div>
           </div>
 
-          {/* Right: payment history */}
+          {/* ── Right: payment history ─────────────────────────────── */}
           <div className="md:col-span-2">
             <div className="ddm-card overflow-hidden">
-              <div className="bg-gray-50 border-b border-gray-100 px-4 py-3">
-                <h3 className="font-bold text-gray-800 text-sm">Payment History</h3>
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3">
+                <h3 className="font-bold text-slate-800 text-sm">Payment History</h3>
               </div>
+
               {payments.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">No payments recorded yet</div>
+                <div className="text-center py-12 text-slate-400 text-sm">No payments recorded yet</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[380px]">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                        <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
-                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Mode</th>
-                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Ref</th>
-                        <th className="px-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {payments.map((p) => (
-                        <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-700">{new Date(p.paymentDate).toLocaleDateString('en-IN')}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-green-700">{formatCurrency(p.amount)}</td>
-                          <td className="px-4 py-3 text-gray-500">{p.paymentMode || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500 truncate max-w-[120px]">{p.reference || '—'}</td>
-                          <td className="px-4 py-3">
-                            <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  {/* Table header */}
+                  <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-4 py-2.5">
+                    {['Date', 'Amount', 'Mode', 'Ref', ''].map((h, i) => (
+                      <div
+                        key={i}
+                        className={`${
+                          i === 0 ? 'col-span-3' :
+                          i === 1 ? 'col-span-3 text-right' :
+                          i === 2 ? 'col-span-3 pl-2' :
+                          i === 3 ? 'col-span-2' :
+                          'col-span-1'
+                        } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
+                      >
+                        {h}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rows */}
+                  {payments.map((p) => (
+                    <div
+                      key={p.id}
+                      className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0"
+                    >
+                      <div className="col-span-3 text-xs text-slate-600 tabular-nums">
+                        {new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </div>
+                      <div className="col-span-3 text-right text-sm font-semibold text-emerald-700 tabular-nums">
+                        {formatCurrency(p.amount)}
+                      </div>
+                      <div className="col-span-3 pl-2">
+                        <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-medium">
+                          {p.paymentMode || 'Cash'}
+                        </span>
+                      </div>
+                      <div className="col-span-2 text-xs text-slate-400 truncate">
+                        {p.reference || '—'}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>
