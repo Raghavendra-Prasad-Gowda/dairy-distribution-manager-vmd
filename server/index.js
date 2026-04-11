@@ -7,12 +7,20 @@ const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, async () => {
   logger.info(`Dairy Distribution Manager API running on port ${PORT}`);
 
-  // Seed admin on startup (idempotent)
+  // Seed foundation data on startup (idempotent — brands, products, admin)
   try {
-    const { seedAdmin } = require('./scripts/seed-admin');
-    await seedAdmin();
+    const { seedFoundationData } = require('./prisma/seed');
+    await seedFoundationData();
   } catch (error) {
-    logger.warn('Warning: Failed to seed admin account', { message: error.message });
+    logger.warn('Warning: Failed to seed foundation data', { message: error.message });
+  }
+
+  // Seed demo data on startup (idempotent — salespeople, prices)
+  try {
+    const { seedDemoData } = require('./scripts/seed-demo-data');
+    await seedDemoData();
+  } catch (error) {
+    logger.warn('Warning: Failed to seed demo data', { message: error.message });
   }
 });
 

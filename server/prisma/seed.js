@@ -1,11 +1,24 @@
+'use strict';
+
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 
-const prisma = new PrismaClient();
+// Support being called from index.js (shared client) or standalone (own client)
+let _ownClient = null;
+function getClient(externalClient) {
+  if (externalClient) return externalClient;
+  if (!_ownClient) _ownClient = new PrismaClient();
+  return _ownClient;
+}
 const BCRYPT_ROUNDS = 10;
 
-async function main() {
-  console.log('🌱 Seeding database...');
+/**
+ * Idempotent — creates brands, products, and admin account if they don't exist.
+ * Safe to call on every deployment startup.
+ */
+async function seedFoundationData(externalPrisma) {
+  const prisma = getClient(externalPrisma);
+  console.log('🌱 Seeding foundation data (brands, products, admin)...');
 
   // ─── Brands ───────────────────────────────────────────────────────────────
   const nandini = await prisma.brand.upsert({
@@ -76,9 +89,16 @@ async function main() {
   console.log(`✅ Seeded: 3 brands, ${nandiniProducts.length + jerseyProducts.length + gowardhanProducts.length} products`);
 }
 
-main()
-  .catch((e) => {
-    console.error('Seed failed:', e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+module.exports = { seedFoundationData };
+
+// Allow running standalone: node prisma/seed.js
+if (require.main === module) {
+  seedFoundationData()
+    .catch((e) => {
+      console.error('Seed failed:', e);
+      process.exit(1);
+    })
+    .finally(() => {
+      if (_ownClient) _ownClient.$disconnect();
+    });
+}

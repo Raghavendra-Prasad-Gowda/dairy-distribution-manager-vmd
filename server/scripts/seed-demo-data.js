@@ -16,7 +16,14 @@
 'use strict';
 
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+// Support being called from index.js (shared client) or standalone (own client)
+let _ownClient = null;
+function getClient(externalClient) {
+  if (externalClient) return externalClient;
+  if (!_ownClient) _ownClient = new PrismaClient();
+  return _ownClient;
+}
 
 // ─── Dairy purchase prices (what the client pays the dairy) ──────────────────
 //
@@ -154,7 +161,8 @@ function sellingPrice(dairyPrice, spName, productName) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-async function main() {
+async function seedDemoData(externalPrisma) {
+  const prisma = getClient(externalPrisma);
   console.log('\n🌱  Demo data seeder — Vikas Milk Dairy\n');
 
   // 1. Load all brands
@@ -248,9 +256,16 @@ async function main() {
   console.log('\n   You can now log in and start entering daily stock receipts.\n');
 }
 
-main()
-  .catch((e) => {
-    console.error('\n❌  Seeder failed:', e.message);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+module.exports = { seedDemoData };
+
+// Allow running standalone: node scripts/seed-demo-data.js
+if (require.main === module) {
+  seedDemoData()
+    .catch((e) => {
+      console.error('\n❌  Seeder failed:', e.message);
+      process.exit(1);
+    })
+    .finally(() => {
+      if (_ownClient) _ownClient.$disconnect();
+    });
+}
