@@ -39,6 +39,8 @@ export default function StockReceipt() {
         map[r.productId] = { quantity: String(r.quantity), unitPrice: Number(r.unitPrice) };
       }
       setRows(map);
+    }).catch((e) => {
+      setError(e.response?.data?.error ?? 'Failed to load products');
     }).finally(() => setLoading(false));
   }, [activeBrandId, date]);
 

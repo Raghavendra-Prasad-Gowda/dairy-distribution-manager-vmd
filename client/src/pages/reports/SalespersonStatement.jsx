@@ -61,7 +61,11 @@ export default function SalespersonStatement() {
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
 
-  useEffect(() => { api.get('/salespeople').then((r) => setSalespeople(r.data.data)); }, []);
+  useEffect(() => {
+    api.get('/salespeople')
+      .then((r) => setSalespeople(r.data.data))
+      .catch(() => setError('Failed to load salespeople'));
+  }, []);
   useEffect(() => { if (selectedSp) fetchReport(); }, [selectedSp, from, to]);
 
   async function fetchReport() {

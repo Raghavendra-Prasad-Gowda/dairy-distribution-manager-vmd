@@ -68,7 +68,9 @@ export default function DairyStatement() {
   const [error, setError]           = useState('');
 
   useEffect(() => {
-    api.get('/brands').then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); });
+    api.get('/brands')
+      .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .catch(() => setError('Failed to load brands'));
   }, []);
 
   useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, from, to]);

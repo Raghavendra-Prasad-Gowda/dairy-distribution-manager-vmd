@@ -168,8 +168,7 @@ async function seedDemoData(externalPrisma) {
   // 1. Load all brands
   const brands = await prisma.brand.findMany({ include: { products: true } });
   if (brands.length === 0) {
-    console.error('❌  No brands found. Run `npm run seed` first to create brands and products.');
-    process.exit(1);
+    throw new Error('No brands found — foundation data not yet seeded. Skipping demo seed.');
   }
 
   const brandMap = Object.fromEntries(brands.map((b) => [b.name, b]));

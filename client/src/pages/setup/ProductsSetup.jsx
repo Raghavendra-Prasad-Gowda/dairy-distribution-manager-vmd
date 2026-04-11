@@ -27,10 +27,15 @@ export default function ProductsSetup() {
 
   async function fetchProducts() {
     setLoading(true);
-    const r = await api.get(`/products?brandId=${activeBrandId}&all=true`);
-    setProducts(r.data.data);
-    setEdits({});
-    setLoading(false);
+    try {
+      const r = await api.get(`/products?brandId=${activeBrandId}&all=true`);
+      setProducts(r.data.data);
+      setEdits({});
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load products', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const notify = (message, type = 'success') => {

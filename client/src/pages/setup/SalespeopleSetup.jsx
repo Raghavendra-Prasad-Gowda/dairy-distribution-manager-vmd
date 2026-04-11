@@ -44,10 +44,15 @@ export default function SalespeopleSetup() {
 
   async function fetchPrices() {
     setLoading(true);
-    const r = await api.get(`/salespeople/${selectedSp.id}/prices`);
-    setPrices(r.data.data);
-    setEdited({});
-    setLoading(false);
+    try {
+      const r = await api.get(`/salespeople/${selectedSp.id}/prices`);
+      setPrices(r.data.data);
+      setEdited({});
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load prices', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const filteredPrices = prices.filter((p) => p.brandId === activeBrandId);
