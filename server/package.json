@@ -10,7 +10,8 @@
     "deploy": "npx prisma migrate deploy",
     "start:prod": "npm run deploy && node index.js",
     "postinstall": "npx prisma generate",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "seed:demo": "node scripts/seed-demo-data.js"
   },
   "keywords": [],
   "author": "",
