@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Truck, CreditCard, AlertCircle, Loader2, ArrowRight, TrendingUp } from 'lucide-react';
+import { Package, Truck, CreditCard, AlertCircle, Loader2, ArrowRight, Users } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { BRAND_COLORS } from '../utils/constants';
 import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
+
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 function DairyCard({ brandName, opening, stockValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
@@ -22,9 +28,18 @@ function DairyCard({ brandName, opening, stockValue, paid, closing }) {
         </span>
       </div>
       <div className="space-y-1.5 text-xs text-slate-500">
-        <div className="flex justify-between"><span>Opening</span><span className="tabular-nums text-slate-700">{formatCurrency(opening)}</span></div>
-        <div className="flex justify-between"><span>Stock Value</span><span className="tabular-nums text-blue-600">+{formatCurrency(stockValue)}</span></div>
-        <div className="flex justify-between"><span>Paid</span><span className="tabular-nums text-emerald-600">{paid > 0 ? '−' : ''}{formatCurrency(paid)}</span></div>
+        <div className="flex justify-between">
+          <span>Opening</span>
+          <span className="tabular-nums text-slate-700">{formatCurrency(opening)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Stock Value</span>
+          <span className="tabular-nums text-blue-600">+{formatCurrency(stockValue)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Paid</span>
+          <span className="tabular-nums text-emerald-600">{paid > 0 ? '−' : ''}{formatCurrency(paid)}</span>
+        </div>
         <div className="h-px bg-slate-100 my-1" />
         <div className="flex justify-between items-center">
           <span className="font-semibold text-slate-800">Closing</span>
@@ -66,15 +81,22 @@ export default function Dashboard() {
 
   const totalDairyOwing = dairyBalances.reduce((s, b) => s + Math.max(0, b.closingBalance), 0);
   const totalSpOwing    = spBalances.reduce((s, b) => s + Math.max(0, b.closingBalance), 0);
+  const spCleared       = spBalances.filter(b => (b.closingBalance ?? 0) <= 0).length;
+  const spPending       = spBalances.length - spCleared;
+
+  const topOwing = [...spBalances]
+    .filter(b => (b.closingBalance ?? 0) > 0)
+    .sort((a, b) => (b.closingBalance ?? 0) - (a.closingBalance ?? 0))
+    .slice(0, 3);
 
   return (
-    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-7">
 
-      {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* ── Page header ─────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Vikas Milk Dairy — Daily Overview</p>
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-slate-500 text-sm mt-1">Vikas Milk Dairy — Daily Overview</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
@@ -99,7 +121,8 @@ export default function Dashboard() {
                 <span className="badge-red">{formatCurrency(totalDairyOwing)} outstanding</span>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 1 col → 2 col on sm/md (iPad) → 3 col on lg+ */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {dairyBalances.map(b => (
                 <DairyCard
                   key={b.brandId}
@@ -111,7 +134,7 @@ export default function Dashboard() {
                 />
               ))}
               {dairyBalances.length === 0 && (
-                <div className="col-span-3 ddm-card p-6 text-center text-slate-400 text-sm">
+                <div className="col-span-full ddm-card p-6 text-center text-slate-400 text-sm">
                   No dairy brands configured. Go to Setup → Products &amp; Pricing.
                 </div>
               )}
@@ -123,7 +146,7 @@ export default function Dashboard() {
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">Quick Actions</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { to: '/daily/receipt',   icon: Package,    label: 'Enter Stock Receipt', sub: 'Record today\'s delivery',      color: 'bg-blue-500' },
+                { to: '/daily/receipt',   icon: Package,    label: 'Enter Stock Receipt', sub: "Record today's delivery",      color: 'bg-blue-500' },
                 { to: '/daily/dispatch',  icon: Truck,      label: 'Create Dispatch',      sub: 'Allocate stock to salespeople', color: 'bg-indigo-500' },
                 { to: '/payments/dairy',  icon: CreditCard, label: 'Record Payment',       sub: 'Pay dairy supplier',           color: 'bg-teal-600' },
               ].map(({ to, icon: Icon, label, sub, color }) => (
@@ -145,55 +168,79 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* ── Salesperson Outstanding ─────────────────────────────── */}
+          {/* ── Salesperson Outstanding Summary ─────────────────────── */}
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Salesperson Outstanding</h2>
-              {totalSpOwing > 0 && (
-                <span className="badge-red">{formatCurrency(totalSpOwing)} total</span>
-              )}
+              <Link
+                to="/salesperson-outstanding"
+                className="flex items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors"
+              >
+                View All <ArrowRight size={12} />
+              </Link>
             </div>
 
-            <div className="ddm-card overflow-hidden">
-              {/* Table header */}
-              <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-4 py-2.5">
-                {['Salesperson', 'Opening', 'Given', 'Paid', 'Due', ''].map((h, i) => (
-                  <div key={i} className={`${
-                    i === 0 ? 'col-span-4' : i === 4 ? 'col-span-2' : i === 5 ? 'col-span-1' : 'col-span-1'
-                  } ${i > 0 && i < 5 ? 'text-right' : ''} text-xs font-semibold text-slate-500 uppercase tracking-wider`}>
-                    {h}
-                  </div>
-                ))}
-              </div>
-
+            <div className="ddm-card p-5">
               {spBalances.length === 0 ? (
-                <div className="text-center py-10 text-slate-400 text-sm">
+                <p className="text-center text-slate-400 text-sm py-4">
                   No salespeople configured. Go to Setup → Salespeople &amp; Rates.
-                </div>
+                </p>
               ) : (
-                spBalances.map(sp => {
-                  const closing = sp.closingBalance ?? 0;
-                  const badgeCls = closing === 0 ? 'badge-green' : closing < 500 ? 'badge-amber' : 'badge-red';
-                  return (
-                    <div key={sp.salespersonId} className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0">
-                      <div className="col-span-4">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{sp.salespersonName}</p>
-                        {sp.route && <p className="text-xs text-slate-400">{sp.route}</p>}
+                <>
+                  {/* Totals row */}
+                  <div className="flex items-start justify-between mb-5">
+                    <div>
+                      <p className="text-3xl font-bold tabular-nums text-red-600">{formatCurrency(totalSpOwing)}</p>
+                      <p className="text-sm text-slate-500 mt-1">total outstanding balance</p>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        <span className="text-sm font-semibold text-slate-700">{spPending} pending</span>
                       </div>
-                      <div className="col-span-1 text-right text-xs text-slate-500 tabular-nums">{formatCurrency(sp.openingBalance)}</div>
-                      <div className="col-span-1 text-right text-xs text-blue-600 tabular-nums">{formatCurrency(sp.stockGiven)}</div>
-                      <div className="col-span-1 text-right text-xs text-emerald-600 tabular-nums">{formatCurrency(sp.amountPaid)}</div>
-                      <div className="col-span-4 flex justify-end">
-                        <span className={badgeCls}>{formatCurrency(closing)}</span>
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <Link to="/payments/salespeople" className="text-teal-600 hover:text-teal-700 transition">
-                          <ArrowRight size={13} />
-                        </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <span className="text-sm text-emerald-600">{spCleared} cleared</span>
                       </div>
                     </div>
-                  );
-                })
+                  </div>
+
+                  {/* Top owing salespeople */}
+                  {topOwing.length > 0 && (
+                    <div className="space-y-1 mb-4">
+                      {topOwing.map(sp => {
+                        const pct = Math.min(100, ((sp.closingBalance ?? 0) / Math.max(1, totalSpOwing)) * 100);
+                        return (
+                          <div key={sp.salespersonId} className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
+                            <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-600 flex-shrink-0">
+                              {getInitials(sp.salespersonName)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline justify-between mb-1">
+                                <span className="text-sm font-semibold text-slate-700 truncate">{sp.salespersonName}</span>
+                                <span className="text-sm font-bold text-red-600 tabular-nums ml-2 flex-shrink-0">
+                                  {formatCurrency(sp.closingBalance ?? 0)}
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <Link
+                    to="/salesperson-outstanding"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-sm font-semibold text-slate-600 transition-colors"
+                  >
+                    <Users size={14} />
+                    View All Balances
+                    <ArrowRight size={13} />
+                  </Link>
+                </>
               )}
             </div>
           </section>

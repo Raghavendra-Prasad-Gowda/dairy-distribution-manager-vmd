@@ -29,13 +29,13 @@ export default function StockSummary() {
   const netAvailable    = totalReceived - totalDispatched;
 
   return (
-    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
       {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Stock Summary</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Daily stock received vs dispatched</p>
+          <h1 className="text-2xl font-bold text-slate-900">Stock Summary</h1>
+          <p className="text-slate-500 text-sm mt-1">Daily stock received vs dispatched</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
@@ -54,7 +54,7 @@ export default function StockSummary() {
         <div className="space-y-5">
 
           {/* ── Summary stat cards ─────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               {
                 label: 'Total Received',

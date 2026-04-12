@@ -8,8 +8,9 @@ import {
 } from 'lucide-react';
 
 const NAV = [
-  { to: '/',                  icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/daily/receipt',     icon: Package,          label: 'Stock Receipt' },
+  { to: '/',                         icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/salesperson-outstanding',  icon: Users,            label: 'SP Outstanding' },
+  { to: '/daily/receipt',            icon: Package,          label: 'Stock Receipt' },
   { to: '/daily/dispatch',    icon: Truck,             label: 'Dispatch' },
   {
     label: 'Payments',

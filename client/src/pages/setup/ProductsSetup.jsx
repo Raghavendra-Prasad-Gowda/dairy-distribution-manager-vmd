@@ -90,13 +90,13 @@ export default function ProductsSetup() {
   const activeBrand = brands.find((b) => b.id === activeBrandId);
 
   return (
-    <div className="p-5 md:p-6 max-w-4xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-6">
 
       {/* ── Page header ────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Products & Pricing</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Manage products and dairy purchase prices</p>
+          <h1 className="text-2xl font-bold text-slate-900">Products &amp; Pricing</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage products and dairy purchase prices</p>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
@@ -121,7 +121,7 @@ export default function ProductsSetup() {
 
       {/* ── Add product form ───────────────────────────────────────── */}
       {showAdd && (
-        <form onSubmit={handleAddProduct} className="ddm-card p-4 flex flex-wrap gap-3 items-end">
+        <form onSubmit={handleAddProduct} className="ddm-card p-5 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[180px]">
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
               Product Name
@@ -167,20 +167,11 @@ export default function ProductsSetup() {
       {/* ── Products table ─────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-4 py-2.5">
-          {['Product Name', 'Dairy Price (₹)', 'Status', 'Save'].map((h, i) => (
-            <div
-              key={i}
-              className={`${
-                i === 0 ? 'col-span-5' :
-                i === 1 ? 'col-span-3 text-right' :
-                i === 2 ? 'col-span-2 text-center' :
-                'col-span-2 text-right'
-              } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
-            >
-              {h}
-            </div>
-          ))}
+        <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200">
+          <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Name</div>
+          <div className="w-32 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Dairy Price</div>
+          <div className="w-16 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
+          <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Save</div>
         </div>
 
         {loading ? (
@@ -197,22 +188,22 @@ export default function ProductsSetup() {
             return (
               <div
                 key={p.id}
-                className={`grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 transition-colors last:border-0 ${
+                className={`flex items-center px-5 py-3.5 border-b border-slate-100 transition-colors last:border-0 ${
                   !p.isActive ? 'opacity-40' : isDirty ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'
                 }`}
               >
                 {/* Product name — editable */}
-                <div className="col-span-5">
+                <div className="flex-1 min-w-0 pr-4">
                   <input
                     value={edits[p.id]?.name ?? p.name}
                     onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
                     disabled={!p.isActive}
-                    className="w-full text-sm font-medium text-slate-800 bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none px-0 py-0.5 disabled:cursor-not-allowed"
+                    className="w-full text-sm font-semibold text-slate-800 bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none py-0.5 disabled:cursor-not-allowed"
                   />
                 </div>
 
                 {/* Dairy price — editable (master rate) */}
-                <div className="col-span-3 flex justify-end">
+                <div className="w-32 flex justify-end">
                   <div className="relative w-24">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
                     <input
@@ -222,13 +213,13 @@ export default function ProductsSetup() {
                       disabled={!p.isActive}
                       value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
                       onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
-                      className="w-full pl-6 pr-2 py-1.5 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
+                      className="w-full pl-6 pr-2 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
                     />
                   </div>
                 </div>
 
                 {/* Status toggle */}
-                <div className="col-span-2 flex justify-center">
+                <div className="w-16 flex justify-center">
                   <button
                     onClick={() => toggleActive(p)}
                     className="text-slate-400 hover:text-teal-600 transition"
@@ -242,17 +233,14 @@ export default function ProductsSetup() {
                 </div>
 
                 {/* Save button — shows only when dirty */}
-                <div className="col-span-2 flex justify-end">
+                <div className="w-16 flex justify-end">
                   {isDirty && (
                     <button
                       onClick={() => handleSave(p)}
                       disabled={saving === p.id}
-                      className="flex items-center gap-1.5 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg transition font-medium"
+                      className="flex items-center gap-1 text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg transition font-semibold"
                     >
-                      {saving === p.id
-                        ? <Loader2 className="animate-spin" size={12} />
-                        : <Save size={12} />
-                      }
+                      {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
                       Save
                     </button>
                   )}

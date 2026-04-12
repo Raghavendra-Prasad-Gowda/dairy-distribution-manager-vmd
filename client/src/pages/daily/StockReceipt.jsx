@@ -80,14 +80,14 @@ export default function StockReceipt() {
   const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
-    <div className="p-5 md:p-6 max-w-3xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-2xl mx-auto space-y-6">
       <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Receipt Saved!" />
 
       {/* ── Page header ─────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Stock Receipt</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Enter quantities received from the dairy</p>
+          <h1 className="text-2xl font-bold text-slate-900">Stock Receipt</h1>
+          <p className="text-slate-500 text-sm mt-1">Enter quantities received from the dairy</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
@@ -99,11 +99,11 @@ export default function StockReceipt() {
       {/* ── Product table ────────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-5 py-3">
-          <div className="col-span-5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
-          <div className="col-span-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</div>
-          <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
-          <div className="col-span-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
+        <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200">
+          <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
+          <div className="w-24 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Rate</div>
+          <div className="w-28 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
+          <div className="w-28 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
         </div>
 
         {loading ? (
@@ -123,20 +123,20 @@ export default function StockReceipt() {
               return (
                 <div
                   key={p.id}
-                  className={`grid grid-cols-12 items-center px-5 py-3 border-b border-slate-100 transition-colors ${
+                  className={`flex items-center px-5 py-4 border-b border-slate-100 transition-colors ${
                     filled ? 'bg-teal-50/50' : 'hover:bg-slate-50/60'
                   }`}
                 >
                   {/* Product name */}
-                  <div className="col-span-5 text-sm font-medium text-slate-800">{p.name}</div>
+                  <div className="flex-1 min-w-0 text-sm font-semibold text-slate-800">{p.name}</div>
 
                   {/* Rate — read-only */}
-                  <div className="col-span-3 text-right text-sm text-slate-500 tabular-nums">
+                  <div className="w-24 text-right text-sm text-slate-500 tabular-nums">
                     ₹{Number(p.dairyPrice).toFixed(2)}
                   </div>
 
                   {/* Quantity input */}
-                  <div className="col-span-2 flex justify-end">
+                  <div className="w-28 flex justify-center">
                     <input
                       type="number"
                       value={quantities[p.id] ?? ''}
@@ -144,25 +144,26 @@ export default function StockReceipt() {
                       step="0.5"
                       min="0"
                       placeholder="0"
-                      className="w-20 text-right px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white tabular-nums"
+                      className="w-20 text-center px-2 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white tabular-nums"
                     />
                   </div>
 
                   {/* Computed amount */}
-                  <div className={`col-span-2 text-right text-sm tabular-nums font-medium ${filled ? 'text-teal-700' : 'text-slate-300'}`}>
-                    {filled ? `₹${amount.toFixed(2)}` : '—'}
+                  <div className={`w-28 text-right text-sm tabular-nums font-semibold ${filled ? 'text-teal-700' : 'text-slate-300'}`}>
+                    {filled ? formatCurrency(amount) : '—'}
                   </div>
                 </div>
               );
             })}
 
             {/* Totals footer */}
-            <div className="grid grid-cols-12 items-center px-5 py-3.5 bg-slate-50 border-t border-slate-200">
-              <div className="col-span-7 text-xs text-slate-500">
+            <div className="flex items-center px-5 py-4 bg-slate-50 border-t border-slate-200">
+              <div className="flex-1 text-xs text-slate-500">
                 {filledCount > 0 ? `${filledCount} of ${products.length} products filled` : `${products.length} products`}
               </div>
-              <div className="col-span-3 text-right text-sm font-bold text-slate-700">Total</div>
-              <div className="col-span-2 text-right text-sm font-bold text-teal-700 tabular-nums">
+              <div className="w-24" />
+              <div className="w-28 text-center text-sm font-bold text-slate-600">Total</div>
+              <div className="w-28 text-right text-base font-bold text-teal-700 tabular-nums">
                 {formatCurrency(totalAmount)}
               </div>
             </div>
@@ -171,7 +172,7 @@ export default function StockReceipt() {
       </div>
 
       {/* ── Footer actions ───────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 pb-2">
         <p className="text-xs text-slate-400 flex items-center gap-1.5">
           <Info size={12} />
           Rates are configured in <span className="font-medium text-slate-600">Setup → Products &amp; Pricing</span>

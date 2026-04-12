@@ -19,7 +19,7 @@ export default function DairyPayments() {
 
   useEffect(() => {
     api.get('/brands')
-      .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
   }, []);
 
@@ -68,15 +68,15 @@ export default function DairyPayments() {
     }
   };
 
-  const activeBrand = brands.find((b) => b.id === activeBrandId);
+  const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
-    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
-      {/* ── Page header ────────────────────────────────────────────── */}
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Dairy Payments</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Record payments to dairy suppliers</p>
+        <h1 className="text-2xl font-bold text-slate-900">Dairy Payments</h1>
+        <p className="text-slate-500 text-sm mt-1">Record payments to dairy suppliers</p>
       </div>
 
       {brands.length > 0 && (
@@ -88,10 +88,13 @@ export default function DairyPayments() {
           <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        /* On iPad: stacked. On desktop (lg+): sidebar layout */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-          {/* ── Left: balance + form ───────────────────────────────── */}
-          <div className="md:col-span-1 space-y-4">
+          {/* ── Left: balance card + form ──────────────────────────── */}
+          <div className="lg:col-span-1 space-y-4">
+
+            {/* 1. Brand money details */}
             {balance && (
               <BalanceSummaryCard
                 brandName={activeBrand?.name ?? ''}
@@ -101,8 +104,10 @@ export default function DairyPayments() {
                 closing={balance.closingBalance}
               />
             )}
-            <div className="ddm-card p-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+
+            {/* 2. Record payment */}
+            <div className="ddm-card p-5">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
                 Record Payment
               </h3>
               <PaymentForm
@@ -114,58 +119,48 @@ export default function DairyPayments() {
           </div>
 
           {/* ── Right: payment history ─────────────────────────────── */}
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
             <div className="ddm-card overflow-hidden">
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3">
+              <div className="bg-slate-50 border-b border-slate-200 px-5 py-3.5">
                 <h3 className="font-bold text-slate-800 text-sm">Payment History</h3>
               </div>
 
               {payments.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-sm">No payments recorded yet</div>
+                <div className="text-center py-14 text-slate-400 text-sm">No payments recorded yet</div>
               ) : (
                 <>
-                  {/* Table header */}
-                  <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-4 py-2.5">
-                    {['Date', 'Amount', 'Mode', 'Ref', ''].map((h, i) => (
-                      <div
-                        key={i}
-                        className={`${
-                          i === 0 ? 'col-span-3' :
-                          i === 1 ? 'col-span-3 text-right' :
-                          i === 2 ? 'col-span-3 pl-2' :
-                          i === 3 ? 'col-span-2' :
-                          'col-span-1'
-                        } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
-                      >
-                        {h}
-                      </div>
-                    ))}
+                  {/* History table header */}
+                  <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-100">
+                    <div className="w-24 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</div>
+                    <div className="flex-1 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
+                    <div className="w-24 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Mode</div>
+                    <div className="w-32 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">Reference</div>
+                    <div className="w-8" />
                   </div>
 
-                  {/* Rows */}
-                  {payments.map((p) => (
+                  {payments.map(p => (
                     <div
                       key={p.id}
-                      className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0"
+                      className="flex items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0"
                     >
-                      <div className="col-span-3 text-xs text-slate-600 tabular-nums">
+                      <div className="w-24 text-sm text-slate-600 tabular-nums">
                         {new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                       </div>
-                      <div className="col-span-3 text-right text-sm font-semibold text-emerald-700 tabular-nums">
+                      <div className="flex-1 text-right text-sm font-bold text-emerald-700 tabular-nums">
                         {formatCurrency(p.amount)}
                       </div>
-                      <div className="col-span-3 pl-2">
-                        <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-medium">
+                      <div className="w-24 flex justify-center">
+                        <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
                           {p.paymentMode || 'Cash'}
                         </span>
                       </div>
-                      <div className="col-span-2 text-xs text-slate-400 truncate">
+                      <div className="w-32 text-xs text-slate-400 truncate hidden sm:block">
                         {p.reference || '—'}
                       </div>
-                      <div className="col-span-1 flex justify-end">
+                      <div className="w-8 flex justify-end">
                         <button
                           onClick={() => handleDelete(p.id)}
-                          className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                         >
                           <Trash2 size={13} />
                         </button>

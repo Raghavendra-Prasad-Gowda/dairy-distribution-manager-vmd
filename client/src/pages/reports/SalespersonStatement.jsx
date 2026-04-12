@@ -110,13 +110,13 @@ export default function SalespersonStatement() {
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 
   return (
-    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
       {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Salesperson Statement</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Account statement per salesperson</p>
+          <h1 className="text-2xl font-bold text-slate-900">Salesperson Statement</h1>
+          <p className="text-slate-500 text-sm mt-1">Account statement per salesperson</p>
         </div>
         {rows.length > 0 && (
           <button

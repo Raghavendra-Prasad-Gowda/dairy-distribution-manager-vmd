@@ -17,7 +17,7 @@ export default function SalespersonCollections() {
 
   useEffect(() => {
     api.get('/salespeople')
-      .then((r) => setSalespeople(r.data.data))
+      .then(r => setSalespeople(r.data.data))
       .catch(() => notify('Failed to load salespeople', 'error'));
   }, []);
 
@@ -66,29 +66,29 @@ export default function SalespersonCollections() {
     }
   };
 
-  const activeSp = salespeople.find((s) => String(s.id) === String(selectedSp));
+  const activeSp = salespeople.find(s => String(s.id) === String(selectedSp));
 
   return (
-    <div className="p-5 md:p-6 max-w-5xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
-      {/* ── Page header ────────────────────────────────────────────── */}
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Salesperson Collections</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Record cash / UPI collected from salespeople</p>
+        <h1 className="text-2xl font-bold text-slate-900">Salesperson Collections</h1>
+        <p className="text-slate-500 text-sm mt-1">Record cash / UPI collected from salespeople</p>
       </div>
 
-      {/* ── Salesperson selector ─────────────────────────────────────── */}
+      {/* Salesperson selector */}
       <div className="ddm-card p-4">
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
           Select Salesperson
         </label>
         <select
           value={selectedSp}
-          onChange={(e) => setSelectedSp(e.target.value)}
-          className="w-full sm:w-72 ddm-input"
+          onChange={e => setSelectedSp(e.target.value)}
+          className="w-full ddm-input"
         >
           <option value="">Choose salesperson…</option>
-          {salespeople.map((sp) => (
+          {salespeople.map(sp => (
             <option key={sp.id} value={sp.id}>
               {sp.name}{sp.route ? ` — ${sp.route}` : ''}
             </option>
@@ -103,30 +103,31 @@ export default function SalespersonCollections() {
       )}
 
       {!loading && selectedSp && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        /* On iPad: stacked. On desktop (lg+): sidebar layout */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
           {/* ── Left: balance + form ───────────────────────────────── */}
-          <div className="md:col-span-1 space-y-4">
+          <div className="lg:col-span-1 space-y-4">
+
+            {/* 1. Person's balance details */}
             {balance && (
-              <div className={`ddm-card p-4 border-l-4 ${balance.closingBalance > 0 ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    {activeSp?.name}
-                  </span>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${balance.closingBalance > 0 ? 'badge-red' : 'badge-green'}`}>
+              <div className={`ddm-card p-5 border-l-4 ${balance.closingBalance > 0 ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="font-bold text-slate-800">{activeSp?.name}</span>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${balance.closingBalance > 0 ? 'badge-red' : 'badge-green'}`}>
                     {balance.closingBalance > 0 ? 'Outstanding' : 'Clear'}
                   </span>
                 </div>
-                <div className="space-y-1.5 text-xs text-slate-500">
-                  <div className="flex justify-between">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-slate-500">
                     <span>Opening</span>
                     <span className="tabular-nums text-slate-700">{formatCurrency(balance.openingBalance)}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between text-slate-500">
                     <span>Stock Given</span>
                     <span className="tabular-nums text-blue-600">+{formatCurrency(balance.stockGiven)}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between text-slate-500">
                     <span>Collected</span>
                     <span className="tabular-nums text-emerald-600">
                       {balance.amountPaid > 0 ? '−' : ''}{formatCurrency(balance.amountPaid)}
@@ -134,16 +135,18 @@ export default function SalespersonCollections() {
                   </div>
                   <div className="h-px bg-slate-100 my-1" />
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Due</span>
-                    <span className={`text-base font-bold tabular-nums ${balance.closingBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <span className="font-bold text-slate-800">Due</span>
+                    <span className={`text-lg font-bold tabular-nums ${balance.closingBalance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       {formatCurrency(balance.closingBalance)}
                     </span>
                   </div>
                 </div>
               </div>
             )}
-            <div className="ddm-card p-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+
+            {/* 2. Record collection */}
+            <div className="ddm-card p-5">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
                 Record Collection
               </h3>
               <PaymentForm
@@ -155,58 +158,48 @@ export default function SalespersonCollections() {
           </div>
 
           {/* ── Right: collection history ──────────────────────────── */}
-          <div className="md:col-span-2">
+          <div className="lg:col-span-2">
             <div className="ddm-card overflow-hidden">
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-3">
+              <div className="bg-slate-50 border-b border-slate-200 px-5 py-3.5">
                 <h3 className="font-bold text-slate-800 text-sm">Collection History</h3>
               </div>
 
               {payments.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-sm">No collections recorded</div>
+                <div className="text-center py-14 text-slate-400 text-sm">No collections recorded yet</div>
               ) : (
                 <>
-                  {/* Table header */}
-                  <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-4 py-2.5">
-                    {['Date', 'Amount', 'Mode', 'Ref', ''].map((h, i) => (
-                      <div
-                        key={i}
-                        className={`${
-                          i === 0 ? 'col-span-3' :
-                          i === 1 ? 'col-span-3 text-right' :
-                          i === 2 ? 'col-span-3 pl-2' :
-                          i === 3 ? 'col-span-2' :
-                          'col-span-1'
-                        } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
-                      >
-                        {h}
-                      </div>
-                    ))}
+                  {/* History table header */}
+                  <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-100">
+                    <div className="w-24 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</div>
+                    <div className="flex-1 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
+                    <div className="w-24 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Mode</div>
+                    <div className="w-32 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:block">Reference</div>
+                    <div className="w-8" />
                   </div>
 
-                  {/* Rows */}
-                  {payments.map((p) => (
+                  {payments.map(p => (
                     <div
                       key={p.id}
-                      className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0"
+                      className="flex items-center px-5 py-3.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0"
                     >
-                      <div className="col-span-3 text-xs text-slate-600 tabular-nums">
+                      <div className="w-24 text-sm text-slate-600 tabular-nums">
                         {new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                       </div>
-                      <div className="col-span-3 text-right text-sm font-semibold text-emerald-700 tabular-nums">
+                      <div className="flex-1 text-right text-sm font-bold text-emerald-700 tabular-nums">
                         {formatCurrency(p.amount)}
                       </div>
-                      <div className="col-span-3 pl-2">
-                        <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-medium">
+                      <div className="w-24 flex justify-center">
+                        <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
                           {p.paymentMode || 'Cash'}
                         </span>
                       </div>
-                      <div className="col-span-2 text-xs text-slate-400 truncate">
+                      <div className="w-32 text-xs text-slate-400 truncate hidden sm:block">
                         {p.reference || '—'}
                       </div>
-                      <div className="col-span-1 flex justify-end">
+                      <div className="w-8 flex justify-end">
                         <button
                           onClick={() => handleDelete(p.id)}
-                          className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                         >
                           <Trash2 size={13} />
                         </button>

@@ -39,6 +39,7 @@ const SalespersonCollections = lazy(() => import('./pages/payments/SalespersonCo
 const DairyStatement         = lazy(() => import('./pages/reports/DairyStatement'));
 const SalespersonStatement   = lazy(() => import('./pages/reports/SalespersonStatement'));
 const StockSummary           = lazy(() => import('./pages/reports/StockSummary'));
+const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
 
@@ -68,6 +69,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+        <Route path="salesperson-outstanding" element={<Suspense fallback={<PageLoader />}><SalespersonOutstanding /></Suspense>} />
         <Route path="daily/receipt"        element={<Suspense fallback={<PageLoader />}><StockReceipt /></Suspense>} />
         <Route path="daily/dispatch"       element={<Suspense fallback={<PageLoader />}><Dispatch /></Suspense>} />
         <Route path="payments/dairy"       element={<Suspense fallback={<PageLoader />}><DairyPayments /></Suspense>} />
