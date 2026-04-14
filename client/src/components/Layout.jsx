@@ -159,30 +159,25 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      {/* iPad sidebar — icon-only (md), hidden on mobile, hidden on lg+ */}
-      <aside className="hidden md:flex lg:hidden flex-col w-14 flex-shrink-0">
-        <Sidebar compact={true} />
-      </aside>
-
       {/* Desktop sidebar — full labels (lg+) */}
       <aside className="hidden lg:flex flex-col w-56 flex-shrink-0">
         <Sidebar compact={false} />
       </aside>
 
-      {/* Mobile backdrop */}
+      {/* Mobile + iPad backdrop */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Mobile slide-out drawer */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-56 flex flex-col md:hidden transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Mobile + iPad slide-out drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col lg:hidden transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar compact={false} setMobileOpen={setMobileOpen} />
       </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile topbar */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
+        {/* Mobile + iPad topbar */}
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
           <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
             <Menu size={20} />
           </button>
