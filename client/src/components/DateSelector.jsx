@@ -1,39 +1,43 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { getPrevDate, getNextDate, getIndiaDate } from '../utils/dateUtils';
 
-function formatDateDisplay(dateStr) {
+function fmtCompact(dateStr) {
   if (!dateStr) return '';
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  // e.g. "Mon, 14 Apr"
+  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export default function DateSelector({ date, onChange, showNavigation = true }) {
-  const today = getIndiaDate();
+  const today   = getIndiaDate();
   const isToday = date === today;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       {showNavigation && (
         <button
           onClick={() => onChange(getPrevDate(date))}
-          className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition"
+          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition"
           title="Previous day"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={17} />
         </button>
       )}
 
-      <label className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2.5 min-w-[200px] justify-center cursor-pointer hover:border-indigo-300 transition">
-        <span className="text-sm font-medium text-slate-700 select-none">
-          {formatDateDisplay(date)}
+      {/* Clickable date label — wraps hidden native input */}
+      <label className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 cursor-pointer transition select-none group">
+        <Calendar size={14} className="text-slate-400 group-hover:text-indigo-500 transition flex-shrink-0" />
+        <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+          {fmtCompact(date)}
         </span>
         <input
           type="date"
           value={date}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={e => e.target.value && onChange(e.target.value)}
           max={today}
-          className="absolute inset-0 opacity-0 cursor-pointer w-full"
+          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+          tabIndex={-1}
         />
       </label>
 
@@ -41,17 +45,17 @@ export default function DateSelector({ date, onChange, showNavigation = true }) 
         <button
           onClick={() => onChange(getNextDate(date))}
           disabled={isToday}
-          className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition"
           title="Next day"
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={17} />
         </button>
       )}
 
       {!isToday && (
         <button
           onClick={() => onChange(today)}
-          className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition"
+          className="ml-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition whitespace-nowrap"
         >
           Today
         </button>

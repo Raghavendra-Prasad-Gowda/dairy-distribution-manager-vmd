@@ -10,16 +10,24 @@ export function getIndiaDate() {
 
 /** Returns the date N days before the given date (default: 1 day before today) */
 export function getPrevDate(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d - 1); // local calendar arithmetic, no UTC conversion
+  return _fmt(date);
 }
 
 /** Returns the date N days after the given date */
 export function getNextDate(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d + 1); // local calendar arithmetic, no UTC conversion
+  return _fmt(date);
+}
+
+function _fmt(d) {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 /** Returns yesterday's date in India timezone as YYYY-MM-DD */
