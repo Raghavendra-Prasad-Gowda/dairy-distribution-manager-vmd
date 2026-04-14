@@ -187,7 +187,7 @@ export default function SalespeopleSetup() {
                 value={effectiveFrom}
                 onChange={e => setEffFrom(e.target.value)}
                 max={getIndiaDate()}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
               />
             </div>
             <button
@@ -215,7 +215,7 @@ export default function SalespeopleSetup() {
 
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 text-teal-600 animate-spin" />
+                <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
               </div>
             ) : filteredPrices.length === 0 ? (
               <div className="text-center py-10 text-slate-400 text-sm">No products for this brand</div>
@@ -227,7 +227,7 @@ export default function SalespeopleSetup() {
                   <div
                     key={p.productId}
                     className={`flex items-center px-5 py-4 border-b border-slate-100 transition-colors last:border-0 ${
-                      !hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'
+                      !hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-indigo-50/40' : 'hover:bg-slate-50/60'
                     }`}
                   >
                     <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -250,8 +250,8 @@ export default function SalespeopleSetup() {
                           value={editedPrices[p.productId] ?? ''}
                           onChange={e => handlePriceChange(p.productId, e.target.value)}
                           placeholder={p.sellingPrice ?? '0.00'}
-                          className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white tabular-nums ${
-                            isDirty ? 'border-teal-400' : 'border-slate-200'
+                          className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white tabular-nums ${
+                            isDirty ? 'border-indigo-400' : 'border-slate-200'
                           }`}
                         />
                       </div>

@@ -137,7 +137,7 @@ export default function SalespersonStatement() {
           <select
             value={selectedSp}
             onChange={(e) => setSelectedSp(e.target.value)}
-            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
           >
             <option value="">Select…</option>
             {salespeople.map((sp) => (
@@ -156,7 +156,7 @@ export default function SalespersonStatement() {
               value={val}
               onChange={(e) => setter(e.target.value)}
               max={getIndiaDate()}
-              className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+              className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
             />
           </div>
         ))}
@@ -197,7 +197,7 @@ export default function SalespersonStatement() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+            <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
           </div>
         ) : !selectedSp ? (
           <div className="text-center py-12 text-slate-400 text-sm">

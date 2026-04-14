@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Truck, CreditCard, AlertCircle, Loader2, ArrowRight, Users } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
+import BalanceLedger from '../components/BalanceLedger';
+import StatusBadge from '../components/StatusBadge';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { BRAND_COLORS } from '../utils/constants';
 import { useNotification } from '../context/NotificationContext';
@@ -13,40 +15,29 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function DairyCard({ brandName, opening, stockValue, paid, closing }) {
+function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
+
   return (
-    <div className={`ddm-card p-4 border-l-4 ${isOwing ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
-      <div className="flex items-center justify-between mb-3">
+    <div className={`ddm-card overflow-hidden border-l-4 ${isOwing ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
           <span className="font-bold text-slate-800 text-sm">{brandName}</span>
         </div>
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOwing ? 'badge-red' : 'badge-green'}`}>
-          {isOwing ? 'Outstanding' : 'Clear'}
-        </span>
+        <StatusBadge status={isOwing ? 'outstanding' : 'cleared'} />
       </div>
-      <div className="space-y-1.5 text-xs text-slate-500">
-        <div className="flex justify-between">
-          <span>Opening</span>
-          <span className="tabular-nums text-slate-700">{formatCurrency(opening)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Stock Value</span>
-          <span className="tabular-nums text-blue-600">+{formatCurrency(stockValue)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Paid</span>
-          <span className="tabular-nums text-emerald-600">{paid > 0 ? '−' : ''}{formatCurrency(paid)}</span>
-        </div>
-        <div className="h-px bg-slate-100 my-1" />
-        <div className="flex justify-between items-center">
-          <span className="font-semibold text-slate-800">Closing</span>
-          <span className={`text-base font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-            {formatCurrency(closing)}
-          </span>
-        </div>
+      <div className="px-4 pb-4">
+        <BalanceLedger opening={opening} stockValue={stockValue} paid={paid} closing={closing} compact />
+        {isOwing && (
+          <Link
+            to="/payments/dairy"
+            className="mt-3 flex items-center justify-center gap-1.5 w-full bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 rounded-lg transition"
+          >
+            Pay Now <ArrowRight size={12} />
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -87,16 +78,16 @@ export default function Dashboard() {
   const topOwing = [...spBalances]
     .filter(b => (b.closingBalance ?? 0) > 0)
     .sort((a, b) => (b.closingBalance ?? 0) - (a.closingBalance ?? 0))
-    .slice(0, 3);
+    .slice(0, 5);
 
   return (
-    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-7">
+    <div className="p-5 md:p-7 max-w-5xl mx-auto space-y-7">
 
-      {/* ── Page header ─────────────────────────────────────────────── */}
+      {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-1">Vikas Milk Dairy — Daily Overview</p>
+          <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Vikas Milk Dairy — Daily Overview</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
@@ -109,22 +100,21 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-7 h-7 text-teal-600 animate-spin" />
+          <Loader2 className="w-7 h-7 text-indigo-600 animate-spin" />
         </div>
       ) : (
         <>
-          {/* ── Dairy Payables ──────────────────────────────────────── */}
+          {/* Dairy Payables */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Dairy Payables</h2>
+              <h2 className="ddm-section-label">Dairy Payables</h2>
               {totalDairyOwing > 0 && (
                 <span className="badge-red">{formatCurrency(totalDairyOwing)} outstanding</span>
               )}
             </div>
-            {/* 1 col → 2 col on sm/md (iPad) → 3 col on lg+ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {dairyBalances.map(b => (
-                <DairyCard
+                <DairyPayableCard
                   key={b.brandId}
                   brandName={b.brandName}
                   opening={b.openingBalance}
@@ -141,14 +131,14 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* ── Quick Actions ───────────────────────────────────────── */}
+          {/* Quick Actions */}
           <section>
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">Quick Actions</h2>
+            <h2 className="ddm-section-label mb-3">Quick Actions</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { to: '/daily/receipt',   icon: Package,    label: 'Enter Stock Receipt', sub: "Record today's delivery",      color: 'bg-blue-500' },
-                { to: '/daily/dispatch',  icon: Truck,      label: 'Create Dispatch',      sub: 'Allocate stock to salespeople', color: 'bg-indigo-500' },
-                { to: '/payments/dairy',  icon: CreditCard, label: 'Record Payment',       sub: 'Pay dairy supplier',           color: 'bg-teal-600' },
+                { to: '/daily/receipt',   icon: Package,    label: 'Enter Stock Receipt', sub: "Record today's delivery",       color: 'bg-sky-500' },
+                { to: '/daily/dispatch',  icon: Truck,      label: 'Create Dispatch',      sub: 'Allocate stock to salespeople', color: 'bg-indigo-600' },
+                { to: '/payments/dairy',  icon: CreditCard, label: 'Dairy Payments',       sub: 'Pay dairy supplier',            color: 'bg-emerald-600' },
               ].map(({ to, icon: Icon, label, sub, color }) => (
                 <Link
                   key={to}
@@ -159,22 +149,22 @@ export default function Dashboard() {
                     <Icon className="text-white" size={18} />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-slate-800 group-hover:text-teal-700 transition-colors">{label}</p>
+                    <p className="font-semibold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors">{label}</p>
                     <p className="text-xs text-slate-400 truncate">{sub}</p>
                   </div>
-                  <ArrowRight size={14} className="text-slate-300 group-hover:text-teal-500 transition-colors flex-shrink-0" />
+                  <ArrowRight size={14} className="text-slate-300 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
                 </Link>
               ))}
             </div>
           </section>
 
-          {/* ── Salesperson Outstanding Summary ─────────────────────── */}
+          {/* Salesperson Outstanding Summary */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Salesperson Outstanding</h2>
+              <h2 className="ddm-section-label">Salesperson Outstanding</h2>
               <Link
                 to="/salesperson-outstanding"
-                className="flex items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors"
+                className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
               >
                 View All <ArrowRight size={12} />
               </Link>
@@ -191,7 +181,7 @@ export default function Dashboard() {
                   <div className="flex items-start justify-between mb-5">
                     <div>
                       <p className="text-3xl font-bold tabular-nums text-red-600">{formatCurrency(totalSpOwing)}</p>
-                      <p className="text-sm text-slate-500 mt-1">total outstanding balance</p>
+                      <p className="text-sm text-slate-500 mt-1">total outstanding</p>
                     </div>
                     <div className="text-right space-y-1">
                       <div className="flex items-center justify-end gap-2">
@@ -205,7 +195,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Top owing salespeople */}
+                  {/* Top owing */}
                   {topOwing.length > 0 && (
                     <div className="space-y-1 mb-4">
                       {topOwing.map(sp => {

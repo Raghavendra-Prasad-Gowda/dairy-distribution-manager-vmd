@@ -154,7 +154,7 @@ export default function SalespersonOutstanding() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-7 h-7 text-teal-600 animate-spin" />
+          <Loader2 className="w-7 h-7 text-indigo-600 animate-spin" />
         </div>
       ) : balances.length === 0 ? (
         <div className="ddm-card p-12 text-center text-slate-400 text-sm">

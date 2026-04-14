@@ -6,16 +6,15 @@
 
 @layer base {
   :root {
-    --ddm-teal:       #0d9488;
-    --ddm-teal-dark:  #0f766e;
-    --ddm-amber:      #f59e0b;
-    --ddm-bg:         #f8fafc;
-    --ddm-white:      #ffffff;
-    --ddm-sidebar:    #0f766e;
+    --ddm-indigo:      #4338ca;
+    --ddm-indigo-dark: #3730a3;
+    --ddm-bg:          #f8fafc;
+    --ddm-white:       #ffffff;
+    --ddm-sidebar:     #3730a3;
   }
 
   body {
-    @apply bg-[#f8fafc] text-gray-900 font-sans;
+    @apply bg-slate-50 text-slate-900 font-sans;
   }
 
   * {
@@ -24,17 +23,42 @@
 }
 
 @layer utilities {
-  /* Brand gradient — sidebar + login bg */
+  /* Sidebar gradient — indigo */
   .ddm-gradient {
-    background: linear-gradient(160deg, #0d9488 0%, #0f766e 55%, #065f46 100%);
+    background: linear-gradient(180deg, #3730a3 0%, #312e81 100%);
   }
 
   /* Standard card */
   .ddm-card {
-    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+    @apply bg-white border border-slate-100 rounded-xl shadow-sm;
   }
 
-  /* Premium table utilities */
+  /* Primary action button */
+  .ddm-btn-primary {
+    @apply flex items-center gap-2 bg-indigo-700 hover:bg-indigo-800 disabled:bg-indigo-300
+           text-white font-semibold px-4 py-2.5 rounded-lg transition text-sm shadow-sm;
+  }
+
+  /* Ghost / secondary button */
+  .ddm-btn-ghost {
+    @apply flex items-center gap-2 bg-transparent border border-slate-200 hover:bg-slate-50
+           text-slate-700 font-medium px-4 py-2.5 rounded-lg transition text-sm;
+  }
+
+  /* Secondary button (alias) */
+  .ddm-btn-secondary {
+    @apply flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50
+           text-slate-700 font-medium px-4 py-2.5 rounded-lg transition text-sm;
+  }
+
+  /* Standard form input */
+  .ddm-input {
+    @apply w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white
+           focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent
+           placeholder:text-slate-300;
+  }
+
+  /* Table utilities */
   .ddm-table-header {
     @apply grid bg-slate-50 border-b border-slate-200 px-5 py-3;
   }
@@ -42,7 +66,25 @@
     @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
   }
   .ddm-table-row {
-    @apply grid items-center px-5 py-3 border-b border-slate-100 hover:bg-slate-50/70 transition-colors;
+    @apply grid items-center px-5 py-3 border-b border-slate-100 hover:bg-slate-50/60 transition-colors;
+  }
+
+  /* Section label inside a card */
+  .ddm-section-label {
+    @apply text-xs font-bold uppercase tracking-wider text-slate-400;
+  }
+
+  /* Stat value */
+  .ddm-stat-value {
+    @apply text-2xl font-bold text-slate-900 tabular-nums leading-none;
+  }
+
+  /* Amount helpers */
+  .ddm-amount-red {
+    @apply text-red-600 font-bold tabular-nums;
+  }
+  .ddm-amount-green {
+    @apply text-emerald-600 font-bold tabular-nums;
   }
 
   /* Balance badges */
@@ -50,7 +92,7 @@
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700;
   }
   .badge-green {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700;
   }
   .badge-amber {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700;
@@ -59,36 +101,6 @@
   /* Missing price warning row */
   .price-missing {
     @apply bg-amber-50/60;
-  }
-
-  /* Standard form input */
-  .ddm-input {
-    @apply w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white
-           focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
-           placeholder:text-slate-300;
-  }
-
-  /* Primary action button */
-  .ddm-btn-primary {
-    @apply flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300
-           text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm shadow-sm;
-  }
-
-  /* Secondary button */
-  .ddm-btn-secondary {
-    @apply flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50
-           text-slate-700 font-medium px-4 py-2.5 rounded-xl transition text-sm;
-  }
-
-  /* Section label inside a card */
-  .ddm-section-label {
-    @apply px-5 py-2 bg-slate-50 border-y border-slate-100 text-xs font-bold
-           text-slate-400 uppercase tracking-widest;
-  }
-
-  /* Stat value */
-  .ddm-stat-value {
-    @apply text-2xl font-bold text-slate-900 tabular-nums leading-none;
   }
 }
 
@@ -110,7 +122,7 @@
   to   { opacity: 1; transform: translateX(0)    scale(1); }
 }
 
-/* ── Print styles (same as existing app) ─────────────────────────────────── */
+/* ── Print styles ─────────────────────────────────────────────────────────── */
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;

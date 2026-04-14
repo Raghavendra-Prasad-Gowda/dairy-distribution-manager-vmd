@@ -18,7 +18,7 @@ class ErrorBoundary extends Component {
             <p className="text-slate-500 text-sm mb-6">An unexpected error occurred. Please refresh the page.</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl text-sm transition"
+              className="px-6 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold rounded-xl text-sm transition"
             >
               Reload Page
             </button>
@@ -46,7 +46,7 @@ const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup
 function PageLoader() {
   return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-7 h-7 text-teal-600 animate-spin" />
+      <Loader2 className="w-7 h-7 text-indigo-600 animate-spin" />
     </div>
   );
 }

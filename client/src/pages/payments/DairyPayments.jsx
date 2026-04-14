@@ -85,7 +85,7 @@ export default function DairyPayments() {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
         </div>
       ) : (
         /* On iPad: stacked. On desktop (lg+): sidebar layout */

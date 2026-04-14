@@ -1,16 +1,29 @@
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ArrowRightCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/dateUtils';
 import { BRAND_COLORS } from '../utils/constants';
 import { Link } from 'react-router-dom';
+
+function LedgerBox({ label, value, valueClass = 'text-slate-800', prefix = '' }) {
+  return (
+    <div className="flex flex-col items-center min-w-0">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 whitespace-nowrap">
+        {label}
+      </span>
+      <span className={`text-base font-bold tabular-nums leading-none ${valueClass}`}>
+        {prefix}{formatCurrency(value)}
+      </span>
+    </div>
+  );
+}
 
 export default function BalanceSummaryCard({ brandName, opening, stockValue, paid, closing, payLink }) {
   const colors = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
 
   return (
-    <div className={`ddm-card p-4 border-l-4 ${isOwing ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
+    <div className={`ddm-card overflow-hidden border-l-4 ${isOwing ? 'border-l-red-400' : 'border-l-emerald-400'}`}>
       {/* Brand header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
           <span className="font-bold text-slate-800 text-sm">{brandName}</span>
@@ -20,37 +33,31 @@ export default function BalanceSummaryCard({ brandName, opening, stockValue, pai
         </span>
       </div>
 
-      {/* Rows */}
-      <div className="space-y-1.5 text-xs text-slate-500">
-        <div className="flex justify-between">
-          <span>Opening</span>
-          <span className="tabular-nums text-slate-700">{formatCurrency(opening)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Stock Value</span>
-          <span className="tabular-nums text-blue-600">+{formatCurrency(stockValue)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Paid</span>
-          <span className="tabular-nums text-emerald-600">{paid > 0 ? '−' : ''}{formatCurrency(paid)}</span>
-        </div>
-        <div className="h-px bg-slate-100 my-1" />
-        <div className="flex justify-between items-center">
-          <span className="font-semibold text-slate-800">Closing</span>
-          <span className={`text-base font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-            {formatCurrency(closing)}
-          </span>
-        </div>
+      {/* Horizontal ledger flow */}
+      <div className="flex items-center gap-1 px-4 pb-3 overflow-x-auto">
+        <LedgerBox label="Opening" value={opening} />
+        <span className="text-slate-300 text-lg font-light flex-shrink-0 px-0.5">+</span>
+        <LedgerBox label="Stock" value={stockValue} valueClass="text-blue-600" />
+        <span className="text-slate-300 text-lg font-light flex-shrink-0 px-0.5">−</span>
+        <LedgerBox label="Paid" value={paid} valueClass="text-emerald-600" />
+        <span className="text-slate-300 text-lg font-light flex-shrink-0 px-0.5">=</span>
+        <LedgerBox
+          label={isOwing ? 'You Owe' : 'Settled'}
+          value={Math.abs(closing)}
+          valueClass={isOwing ? 'text-red-600 text-lg' : 'text-emerald-600 text-lg'}
+        />
       </div>
 
       {/* Pay now link */}
       {isOwing && payLink && (
-        <Link
-          to={payLink}
-          className="mt-4 flex items-center justify-center gap-1.5 w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold py-2.5 rounded-xl transition"
-        >
-          Pay Now <ArrowRight size={14} />
-        </Link>
+        <div className="px-4 pb-3">
+          <Link
+            to={payLink}
+            className="flex items-center justify-center gap-1.5 w-full bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-semibold py-2.5 rounded-lg transition"
+          >
+            Pay Now <ArrowRight size={14} />
+          </Link>
+        </div>
       )}
     </div>
   );

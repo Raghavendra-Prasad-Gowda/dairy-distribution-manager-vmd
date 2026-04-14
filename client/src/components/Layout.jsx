@@ -3,99 +3,62 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, Package, Truck, CreditCard, Users,
-  BarChart2, Settings, LogOut, Menu, X, ChevronDown, ChevronRight,
-  ClipboardList, FileText, Warehouse
+  BarChart2, Settings, LogOut, Menu, X,
+  ClipboardList, FileText, Warehouse, UserCheck
 } from 'lucide-react';
 
-const NAV = [
-  { to: '/',                         icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/salesperson-outstanding',  icon: Users,            label: 'SP Outstanding' },
-  { to: '/daily/receipt',            icon: Package,          label: 'Stock Receipt' },
-  { to: '/daily/dispatch',    icon: Truck,             label: 'Dispatch' },
+const NAV_SECTIONS = [
   {
-    label: 'Payments',
-    icon:  CreditCard,
-    children: [
-      { to: '/payments/dairy',         label: 'Dairy Payments' },
-      { to: '/payments/salespeople',   label: 'Collections' },
+    label: 'OPERATIONS',
+    items: [
+      { to: '/',               icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/daily/receipt',  icon: Package,         label: 'Stock Receipt' },
+      { to: '/daily/dispatch', icon: Truck,           label: 'Dispatch' },
     ],
   },
   {
-    label: 'Reports',
-    icon:  BarChart2,
-    children: [
-      { to: '/reports/dairy',        label: 'Dairy Statement' },
-      { to: '/reports/salespeople',  label: 'Salesperson Statement' },
-      { to: '/reports/stock',        label: 'Stock Summary' },
+    label: 'PAYMENTS',
+    items: [
+      { to: '/payments/dairy',       icon: CreditCard, label: 'Dairy Payments' },
+      { to: '/payments/salespeople', icon: Users,      label: 'Collections' },
     ],
   },
   {
-    label: 'Setup',
-    icon:  Settings,
-    children: [
-      { to: '/setup/products',    label: 'Products & Pricing' },
-      { to: '/setup/salespeople', label: 'Salespeople & Rates' },
+    label: 'REPORTS',
+    items: [
+      { to: '/reports/dairy',       icon: FileText,   label: 'Dairy Statement' },
+      { to: '/reports/salespeople', icon: ClipboardList, label: 'SP Statement' },
+      { to: '/reports/stock',       icon: Warehouse,  label: 'Stock Summary' },
+    ],
+  },
+  {
+    label: 'SETUP',
+    items: [
+      { to: '/setup/products',      icon: Package,    label: 'Products & Pricing' },
+      { to: '/setup/salespeople',   icon: UserCheck,  label: 'Salespeople & Rates' },
+      { to: '/salesperson-outstanding', icon: BarChart2, label: 'SP Outstanding' },
     ],
   },
 ];
 
-function NavItem({ item, collapsed, setMobileOpen }) {
-  const [open, setOpen] = useState(false);
+function SidebarLink({ item, setMobileOpen }) {
   const Icon = item.icon;
-
-  // Leaf link
-  if (item.to) {
-    return (
-      <NavLink
-        to={item.to}
-        end={item.to === '/'}
-        onClick={() => setMobileOpen && setMobileOpen(false)}
-        className={({ isActive }) =>
-          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-            isActive
-              ? 'bg-white/20 text-white shadow-sm'
-              : 'text-white/75 hover:bg-white/10 hover:text-white'
-          }`
-        }
-      >
-        <Icon className="w-4.5 h-4.5 flex-shrink-0" size={18} />
-        <span>{item.label}</span>
-      </NavLink>
-    );
-  }
-
-  // Group with children
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/75 hover:bg-white/10 hover:text-white transition-all duration-150"
-      >
-        <Icon size={18} className="flex-shrink-0" />
-        <span className="flex-1 text-left">{item.label}</span>
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-      </button>
-      {open && (
-        <div className="ml-6 mt-1 space-y-0.5 border-l border-white/20 pl-3">
-          {item.children.map((child) => (
-            <NavLink
-              key={child.to}
-              to={child.to}
-              onClick={() => setMobileOpen && setMobileOpen(false)}
-              className={({ isActive }) =>
-                `block px-2 py-2 rounded-lg text-sm transition-all duration-150 ${
-                  isActive
-                    ? 'bg-white/20 text-white font-semibold'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
-                }`
-              }
-            >
-              {child.label}
-            </NavLink>
-          ))}
-        </div>
-      )}
-    </div>
+    <NavLink
+      to={item.to}
+      end={item.to === '/'}
+      onClick={() => setMobileOpen && setMobileOpen(false)}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+          isActive
+            ? 'bg-white/15 text-white'
+            : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+        }`
+      }
+    >
+      <Icon size={17} className="flex-shrink-0" />
+      <span>{item.label}</span>
+    </NavLink>
   );
 }
 
@@ -112,32 +75,51 @@ function Sidebar({ setMobileOpen }) {
   return (
     <div className="flex flex-col h-full ddm-gradient">
       {/* Logo */}
-      <div className="px-4 py-6 border-b border-white/20">
+      <div className="px-4 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
-            <Milk className="text-white" size={20} />
+          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <Milk className="text-white" size={18} />
           </div>
           <div>
-            <p className="text-white font-bold leading-tight text-sm">Dairy Distribution</p>
-            <p className="text-teal-100 text-xs leading-tight">Vikas Milk Dairy</p>
+            <p className="text-white font-bold text-sm leading-tight">Vikas Milk Dairy</p>
+            <p className="text-indigo-300 text-xs leading-tight">Distribution Manager</p>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {NAV.map((item) => (
-          <NavItem key={item.label} item={item} setMobileOpen={setMobileOpen} />
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label}>
+            <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+              {section.label}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map((item) => (
+                <SidebarLink key={item.to} item={item} setMobileOpen={setMobileOpen} />
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
-      {/* Logout */}
-      <div className="px-3 py-4 border-t border-white/20">
+      {/* User + Sign Out */}
+      <div className="px-3 py-4 border-t border-white/10 space-y-2">
+        {user && (
+          <div className="flex items-center gap-2 px-3 py-2">
+            <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-bold">
+                {user.username?.[0]?.toUpperCase() ?? 'U'}
+              </span>
+            </div>
+            <span className="text-indigo-200 text-xs font-medium truncate">{user.username}</span>
+          </div>
+        )}
         <button
           onClick={() => setShowLogoutConfirm(true)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-all"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-indigo-300 hover:bg-white/10 hover:text-white transition-all"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
           <span>Sign Out</span>
         </button>
       </div>
@@ -146,12 +128,12 @@ function Sidebar({ setMobileOpen }) {
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" style={{ animation: 'fadeIn 0.2s ease' }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 mx-4 w-full max-w-sm" style={{ animation: 'popIn 0.25s ease' }}>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Sign out?</h3>
-            <p className="text-gray-500 text-sm mb-6">You'll need your password to access the dashboard again.</p>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Sign out?</h3>
+            <p className="text-slate-500 text-sm mb-6">You'll need your password to access the dashboard again.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 border border-gray-200 text-gray-700 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition text-sm"
+                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
               >
                 Cancel
               </button>
@@ -174,12 +156,12 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      {/* Sidebar — visible on iPad (md: = 768px) and wider */}
-      <aside className="hidden md:flex flex-col w-60 flex-shrink-0 shadow-sm">
+      {/* Sidebar — always visible on md+ (768px = iPad) */}
+      <aside className="hidden md:flex flex-col w-56 flex-shrink-0">
         <Sidebar />
       </aside>
 
-      {/* Phone overlay backdrop */}
+      {/* Mobile backdrop */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -187,9 +169,9 @@ export default function Layout() {
         />
       )}
 
-      {/* Phone slide-out drawer */}
+      {/* Mobile slide-out drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 flex flex-col md:hidden transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 w-56 flex flex-col md:hidden transition-transform duration-300 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -198,7 +180,7 @@ export default function Layout() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Phone topbar — hidden on iPad+ */}
+        {/* Mobile topbar */}
         <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
           <button
             onClick={() => setMobileOpen(true)}
@@ -207,8 +189,8 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <Milk className="text-teal-600" size={18} />
-            <span className="font-bold text-slate-900 text-sm">Dairy Distribution</span>
+            <Milk className="text-indigo-600" size={18} />
+            <span className="font-bold text-slate-900 text-sm">Vikas Milk Dairy</span>
           </div>
         </header>
 

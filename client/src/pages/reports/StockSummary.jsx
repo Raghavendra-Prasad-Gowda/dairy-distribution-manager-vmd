@@ -48,7 +48,7 @@ export default function StockSummary() {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
         </div>
       ) : data ? (
         <div className="space-y-5">
