@@ -2,49 +2,52 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Milk, LayoutDashboard, Package, Truck, CreditCard, Users,
+  Milk, LayoutDashboard, Package, Truck, CreditCard,
   BarChart2, Settings, LogOut, Menu,
-  ClipboardList, FileText, Warehouse, UserCheck
+  ClipboardList, FileText, Warehouse, UserCheck, Tag, Wallet
 } from 'lucide-react';
 
-const NAV_SECTIONS = [
+const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
+
+const MODULES = [
   {
-    label: 'OPERATIONS',
+    key: 'dairy',
+    label: 'DAIRY MODULE',
+    headerClass: 'text-indigo-300',
+    badgeClass: 'bg-indigo-500/20 text-indigo-300',
     items: [
-      { to: '/',               icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/daily/receipt',  icon: Package,         label: 'Stock Receipt' },
-      { to: '/daily/dispatch', icon: Truck,           label: 'Dispatch' },
+      { to: '/dairy/stock/nandini',   icon: Package,    label: 'Nandini Stock' },
+      { to: '/dairy/stock/jersey',    icon: Package,    label: 'Jersey Stock' },
+      { to: '/dairy/stock/gowardhan', icon: Package,    label: 'Gowardhan Stock' },
+      { to: '/dairy/setup/products',  icon: Settings,   label: 'Product Setup' },
+      { to: '/dairy/setup/prices',    icon: Tag,        label: 'Price Setup' },
+      { to: '/dairy/payments',        icon: CreditCard, label: 'Dairy Payments' },
     ],
   },
   {
-    label: 'PAYMENTS',
+    key: 'salesman',
+    label: 'SALESMAN MODULE',
+    headerClass: 'text-purple-300',
+    badgeClass: 'bg-purple-500/20 text-purple-300',
     items: [
-      { to: '/payments/dairy',       icon: CreditCard, label: 'Dairy Payments' },
-      { to: '/payments/salespeople', icon: Users,      label: 'Collections' },
+      { to: '/salesman/dispatch', icon: Truck,     label: 'Stock Dispatch' },
+      { to: '/salesman/setup',    icon: UserCheck, label: 'Price Setup' },
+      { to: '/salesman/payments', icon: Wallet,    label: 'Payments' },
     ],
   },
   {
+    key: 'reports',
     label: 'REPORTS',
+    headerClass: 'text-indigo-400',
     items: [
       { to: '/reports/dairy',       icon: FileText,      label: 'Dairy Statement' },
       { to: '/reports/salespeople', icon: ClipboardList, label: 'SP Statement' },
       { to: '/reports/stock',       icon: Warehouse,     label: 'Stock Summary' },
-    ],
-  },
-  {
-    label: 'SETUP',
-    items: [
-      { to: '/setup/products',          icon: Settings,   label: 'Products & Pricing' },
-      { to: '/setup/salespeople',       icon: UserCheck,  label: 'Salespeople & Rates' },
-      { to: '/salesperson-outstanding', icon: BarChart2,  label: 'SP Outstanding' },
+      { to: '/salesperson-outstanding', icon: BarChart2, label: 'SP Outstanding' },
     ],
   },
 ];
 
-/**
- * compact=true  → icon-only (iPad md breakpoint)
- * compact=false → icon + label (lg+ breakpoint / mobile drawer)
- */
 function SidebarLink({ item, compact, setMobileOpen }) {
   const Icon = item.icon;
   return (
@@ -66,6 +69,23 @@ function SidebarLink({ item, compact, setMobileOpen }) {
       <Icon size={18} className="flex-shrink-0" />
       {!compact && <span className="text-sm font-medium">{item.label}</span>}
     </NavLink>
+  );
+}
+
+function ModuleHeader({ module, compact }) {
+  if (compact) return <div className="h-px bg-white/10 mx-1 mb-2" />;
+  const isModule = module.key !== 'reports';
+  return (
+    <div className={`flex items-center gap-2 px-2 mb-1.5 ${isModule ? 'mt-1' : ''}`}>
+      <p className={`text-[10px] font-bold uppercase tracking-widest ${module.headerClass}`}>
+        {module.label}
+      </p>
+      {isModule && module.badgeClass && (
+        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${module.badgeClass}`}>
+          M{module.key === 'dairy' ? '1' : '2'}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -98,17 +118,25 @@ function Sidebar({ compact = false, setMobileOpen }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 space-y-5 px-2">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.label}>
-            {!compact && (
-              <p className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400">
-                {section.label}
-              </p>
-            )}
-            {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
+      <nav className="flex-1 overflow-y-auto py-3 space-y-4 px-2">
+
+        {/* Dashboard — standalone */}
+        <div>
+          {!compact && (
+            <p className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+              OVERVIEW
+            </p>
+          )}
+          {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
+          <SidebarLink item={DASHBOARD_ITEM} compact={compact} setMobileOpen={setMobileOpen} />
+        </div>
+
+        {/* Module + Report sections */}
+        {MODULES.map((module) => (
+          <div key={module.key}>
+            <ModuleHeader module={module} compact={compact} />
             <div className="space-y-0.5">
-              {section.items.map((item) => (
+              {module.items.map((item) => (
                 <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
               ))}
             </div>
@@ -117,7 +145,7 @@ function Sidebar({ compact = false, setMobileOpen }) {
       </nav>
 
       {/* User + Sign Out */}
-      <div className={`border-t border-white/10 py-3 space-y-1 px-2 ${compact ? '' : ''}`}>
+      <div className="border-t border-white/10 py-3 space-y-1 px-2">
         {!compact && user && (
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">

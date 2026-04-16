@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { Save, Loader2, CheckCircle, Search } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import SaveOverlay from '../../components/SaveOverlay';
@@ -9,6 +10,7 @@ import api from '../../api/axios';
 
 export default function StockReceipt() {
   const { notify } = useNotification();
+  const { brandName } = useParams();
   const [date, setDate]             = useState(getIndiaDate());
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
@@ -24,9 +26,18 @@ export default function StockReceipt() {
 
   useEffect(() => {
     api.get('/brands')
-      .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .then(r => {
+        const b = r.data.data;
+        setBrands(b);
+        if (b.length) {
+          const matched = brandName
+            ? b.find(br => br.name.toLowerCase() === brandName.toLowerCase())
+            : null;
+          setActive(matched ? matched.id : b[0].id);
+        }
+      })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [brandName]);
 
   useEffect(() => {
     if (!date) return;
@@ -116,7 +127,9 @@ export default function StockReceipt() {
       {/* Page header */}
       <div className="flex items-center justify-between gap-3 px-5 md:px-6 pt-4 pb-3 border-b border-slate-200 bg-white">
         <div>
-          <h1 className="text-lg font-bold text-slate-900">Stock Receipt</h1>
+          <h1 className="text-lg font-bold text-slate-900">
+            {activeBrand ? `${activeBrand.name} — Stock Receipt` : 'Stock Receipt'}
+          </h1>
           <p className="text-slate-400 text-xs">Enter quantities received from the dairy</p>
         </div>
         <DateSelector date={date} onChange={d => { setDate(d); setBrandData({}); }} />

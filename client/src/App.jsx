@@ -42,6 +42,7 @@ const StockSummary           = lazy(() => import('./pages/reports/StockSummary')
 const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
+const DairyPriceSetup        = lazy(() => import('./pages/dairy/PriceSetup'));
 
 function PageLoader() {
   return (
@@ -56,6 +57,8 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+const S = (Page) => <Suspense fallback={<PageLoader />}><Page /></Suspense>;
+
 function AppRoutes() {
   return (
     <Routes>
@@ -68,17 +71,34 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-        <Route path="salesperson-outstanding" element={<Suspense fallback={<PageLoader />}><SalespersonOutstanding /></Suspense>} />
-        <Route path="daily/receipt"        element={<Suspense fallback={<PageLoader />}><StockReceipt /></Suspense>} />
-        <Route path="daily/dispatch"       element={<Suspense fallback={<PageLoader />}><Dispatch /></Suspense>} />
-        <Route path="payments/dairy"       element={<Suspense fallback={<PageLoader />}><DairyPayments /></Suspense>} />
-        <Route path="payments/salespeople" element={<Suspense fallback={<PageLoader />}><SalespersonCollections /></Suspense>} />
-        <Route path="reports/dairy"        element={<Suspense fallback={<PageLoader />}><DairyStatement /></Suspense>} />
-        <Route path="reports/salespeople"  element={<Suspense fallback={<PageLoader />}><SalespersonStatement /></Suspense>} />
-        <Route path="reports/stock"        element={<Suspense fallback={<PageLoader />}><StockSummary /></Suspense>} />
-        <Route path="setup/products"       element={<Suspense fallback={<PageLoader />}><ProductsSetup /></Suspense>} />
-        <Route path="setup/salespeople"    element={<Suspense fallback={<PageLoader />}><SalespeopleSetup /></Suspense>} />
+        {/* Dashboard */}
+        <Route index element={S(Dashboard)} />
+
+        {/* ── DAIRY MODULE ── */}
+        <Route path="dairy/stock/:brandName" element={S(StockReceipt)} />
+        <Route path="dairy/payments"         element={S(DairyPayments)} />
+        <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
+        <Route path="dairy/setup/prices"     element={S(DairyPriceSetup)} />
+
+        {/* ── SALESMAN MODULE ── */}
+        <Route path="salesman/dispatch"  element={S(Dispatch)} />
+        <Route path="salesman/payments"  element={S(SalespersonCollections)} />
+        <Route path="salesman/setup"     element={S(SalespeopleSetup)} />
+
+        {/* ── REPORTS ── */}
+        <Route path="reports/dairy"          element={S(DairyStatement)} />
+        <Route path="reports/salespeople"    element={S(SalespersonStatement)} />
+        <Route path="reports/stock"          element={S(StockSummary)} />
+        <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
+
+        {/* Legacy redirects — old URLs still work */}
+        <Route path="daily/receipt"        element={<Navigate to="/dairy/stock/nandini" replace />} />
+        <Route path="daily/dispatch"       element={<Navigate to="/salesman/dispatch" replace />} />
+        <Route path="payments/dairy"       element={<Navigate to="/dairy/payments" replace />} />
+        <Route path="payments/salespeople" element={<Navigate to="/salesman/payments" replace />} />
+        <Route path="setup/products"       element={<Navigate to="/dairy/setup/products" replace />} />
+        <Route path="setup/salespeople"    element={<Navigate to="/salesman/setup" replace />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

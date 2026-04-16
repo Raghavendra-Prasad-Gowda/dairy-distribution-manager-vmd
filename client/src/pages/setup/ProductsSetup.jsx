@@ -9,7 +9,7 @@ export default function ProductsSetup() {
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
   const [products, setProducts]    = useState([]);
-  const [edits, setEdits]          = useState({});   // { [productId]: { name, dairyPrice } }
+  const [edits, setEdits]          = useState({});   // { [productId]: { name } }
   const [loading, setLoading]      = useState(false);
   const [saving, setSaving]        = useState(null); // productId being saved
   const [showAdd, setShowAdd]      = useState(false);
@@ -48,8 +48,8 @@ export default function ProductsSetup() {
     try {
       const payload = edits[product.id] ?? {};
       await api.put(`/products/${product.id}`, {
-        name:       payload.name       ?? product.name,
-        dairyPrice: parseFloat(payload.dairyPrice ?? product.dairyPrice) || 0,
+        name:       payload.name ?? product.name,
+        dairyPrice: Number(product.dairyPrice),
       });
       notify('Product updated', 'success');
       fetchProducts();
@@ -95,8 +95,8 @@ export default function ProductsSetup() {
       {/* ── Page header ────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Products &amp; Pricing</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage products and dairy purchase prices</p>
+          <h1 className="text-2xl font-bold text-slate-900">Product Setup</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage products per dairy brand</p>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
@@ -106,12 +106,11 @@ export default function ProductsSetup() {
         </button>
       </div>
 
-      {/* ── Rate master notice ─────────────────────────────────────── */}
+      {/* ── Notice ─────────────────────────────────────────────────── */}
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-xs">
         <Info size={13} className="flex-shrink-0 mt-0.5" />
         <span>
-          <strong>Rate Master:</strong> Dairy purchase prices configured here are used automatically
-          when recording stock receipts. Prices cannot be overridden on any other page.
+          Use <strong>Dairy → Price Setup</strong> to configure dairy purchase prices for each product.
         </span>
       </div>
 
@@ -169,7 +168,6 @@ export default function ProductsSetup() {
         {/* Table header */}
         <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200">
           <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Name</div>
-          <div className="w-32 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Dairy Price</div>
           <div className="w-16 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
           <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Save</div>
         </div>
@@ -200,22 +198,6 @@ export default function ProductsSetup() {
                     disabled={!p.isActive}
                     className="w-full text-sm font-semibold text-slate-800 bg-transparent border-b border-transparent focus:border-indigo-400 focus:outline-none py-0.5 disabled:cursor-not-allowed"
                   />
-                </div>
-
-                {/* Dairy price — editable (master rate) */}
-                <div className="w-32 flex justify-end">
-                  <div className="relative w-24">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      disabled={!p.isActive}
-                      value={edits[p.id]?.dairyPrice ?? p.dairyPrice}
-                      onChange={(e) => handleEdit(p.id, 'dairyPrice', e.target.value)}
-                      className="w-full pl-6 pr-2 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
-                    />
-                  </div>
                 </div>
 
                 {/* Status toggle */}
