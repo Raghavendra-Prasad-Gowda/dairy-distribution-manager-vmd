@@ -118,8 +118,8 @@ export default function DairyStatement() {
       {/* ── Page header ────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dairy Statement</h1>
-          <p className="text-slate-500 text-sm mt-1">Account statement per dairy brand</p>
+          <h1 className="text-xl font-bold text-slate-900">Dairy Statement</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Account statement per dairy brand</p>
         </div>
         {rows.length > 0 && (
           <button
@@ -167,7 +167,7 @@ export default function DairyStatement() {
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-4 py-2.5">
+        <div className="grid grid-cols-12 bg-blue-700 px-4 py-3">
           {['Date', 'Opening', 'Stock', 'Paid', 'Closing', ''].map((h, i) => (
             <div
               key={i}
@@ -178,7 +178,7 @@ export default function DairyStatement() {
                 i === 3 ? 'col-span-2 text-right' :
                 i === 4 ? 'col-span-2 text-right' :
                 'col-span-1'
-              } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
+              } text-xs font-bold text-white uppercase tracking-wider`}
             >
               {h}
             </div>

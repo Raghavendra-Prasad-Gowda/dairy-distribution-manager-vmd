@@ -57,8 +57,8 @@ export default function DairyPriceSetup() {
   return (
     <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dairy Price Setup</h1>
-        <p className="text-slate-500 text-sm mt-1">Set dairy purchase prices per product per brand</p>
+        <h1 className="text-xl font-bold text-slate-900">Dairy Price Setup</h1>
+        <p className="text-slate-400 text-sm mt-0.5">Set dairy purchase prices per product per brand</p>
       </div>
 
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-xs">
@@ -78,10 +78,10 @@ export default function DairyPriceSetup() {
       )}
 
       <div className="ddm-card overflow-hidden">
-        <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200">
-          <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
-          <div className="w-40 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Dairy Price (₹)</div>
-          <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Save</div>
+        <div className="flex items-center px-5 py-3 bg-blue-700">
+          <div className="flex-1 text-xs font-bold text-white uppercase tracking-wider">Product</div>
+          <div className="w-40 text-right text-xs font-bold text-white uppercase tracking-wider">Dairy Price (₹)</div>
+          <div className="w-16 text-right text-xs font-bold text-white uppercase tracking-wider">Save</div>
         </div>
 
         {loading ? (

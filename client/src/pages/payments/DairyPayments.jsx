@@ -171,7 +171,7 @@ export default function DairyPayments() {
       {/* Page header */}
       <div className="px-5 md:px-7 pt-5 pb-4 border-b border-slate-200 bg-white">
         <h1 className="text-xl font-bold text-slate-900">Dairy Payments</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Record payments to dairy suppliers</p>
+        <p className="text-slate-400 text-sm mt-0.5">Record payments to dairy suppliers</p>
       </div>
 
       {/* Brand tabs */}
@@ -223,8 +223,8 @@ export default function DairyPayments() {
                 <div className="ddm-card overflow-hidden">
 
                   {/* Header + filter toggle */}
-                  <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-200">
-                    <h3 className="font-bold text-slate-800 text-sm">
+                  <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-slate-200">
+                    <h3 className="font-bold text-slate-900 text-sm">
                       Payment History
                       {filteredPayments.length !== payments.length && (
                         <span className="ml-2 text-xs font-normal text-slate-400">
@@ -297,18 +297,18 @@ export default function DairyPayments() {
                   ) : (
                     <>
                       {/* Table header */}
-                      <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                        <div className="col-span-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</div>
-                        <div className="col-span-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Amount</div>
-                        <div className="col-span-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mode</div>
-                        <div className="col-span-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-2">Reference</div>
+                      <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-blue-700">
+                        <div className="col-span-2 text-[10px] font-bold text-white uppercase tracking-wider">Date</div>
+                        <div className="col-span-3 text-right text-[10px] font-bold text-white uppercase tracking-wider">Amount</div>
+                        <div className="col-span-2 text-center text-[10px] font-bold text-white uppercase tracking-wider">Mode</div>
+                        <div className="col-span-3 text-[10px] font-bold text-white uppercase tracking-wider pl-2">Reference</div>
                         <div className="col-span-2" />
                       </div>
 
                       {filteredPayments.map((p, idx) => (
                         <div
                           key={p.id}
-                          className={`grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/80 transition-colors last:border-0 ${idx % 2 === 0 ? '' : 'bg-slate-50/30'}`}
+                          className="grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 hover:bg-blue-50/40 transition-colors last:border-0"
                         >
                           <div className="col-span-2 text-xs font-semibold text-slate-600 tabular-nums">
                             {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}

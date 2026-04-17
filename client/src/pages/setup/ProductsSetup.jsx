@@ -95,8 +95,8 @@ export default function ProductsSetup() {
       {/* ── Page header ────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Product Setup</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage products per dairy brand</p>
+          <h1 className="text-xl font-bold text-slate-900">Product Setup</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Manage products per dairy brand</p>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
@@ -166,10 +166,10 @@ export default function ProductsSetup() {
       {/* ── Products table ─────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200">
-          <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Name</div>
-          <div className="w-16 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
-          <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Save</div>
+        <div className="flex items-center px-5 py-3 bg-blue-700">
+          <div className="flex-1 text-xs font-bold text-white uppercase tracking-wider">Product Name</div>
+          <div className="w-16 text-center text-xs font-bold text-white uppercase tracking-wider">Active</div>
+          <div className="w-16 text-right text-xs font-bold text-white uppercase tracking-wider">Save</div>
         </div>
 
         {loading ? (

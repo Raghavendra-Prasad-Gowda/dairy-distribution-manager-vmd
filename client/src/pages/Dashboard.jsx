@@ -60,7 +60,7 @@ function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
         <div className="px-3 py-2.5 border-t border-slate-100">
           <Link
             to="/dairy/payments"
-            className="flex items-center justify-center gap-1.5 w-full bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 rounded-lg transition"
+            className="flex items-center justify-center gap-1.5 w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-xl transition"
           >
             Pay Now <ArrowRight size={12} />
           </Link>
@@ -113,8 +113,8 @@ export default function Dashboard() {
       {/* ── Header: title + date nav ───────────────────────── */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-slate-900 leading-tight">Dashboard</h1>
-          <p className="text-slate-400 text-xs mt-0.5">Vikas Milk Dairy</p>
+          <h1 className="text-xl font-bold text-slate-900 leading-tight">Dashboard</h1>
+          <p className="text-slate-400 text-xs mt-0.5">Vikas Milk Dairy · Distribution Manager</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
@@ -133,22 +133,22 @@ export default function Dashboard() {
         <>
           {/* ── 1. Quick Actions ────────────────────────────── */}
           <section>
-            <p className="ddm-section-label mb-2">Quick Actions</p>
+            <p className="ddm-section-label mb-2.5">Quick Actions</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-sky-500' },
-                { to: '/salesman/dispatch',   icon: Truck,      label: 'Dispatch',       color: 'bg-indigo-600' },
-                { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments', color: 'bg-emerald-600' },
+                { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-blue-600' },
+                { to: '/salesman/dispatch',   icon: Truck,      label: 'Dispatch',      color: 'bg-indigo-600' },
+                { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments',color: 'bg-emerald-600' },
               ].map(({ to, icon: Icon, label, color }) => (
                 <Link
                   key={to}
                   to={to}
-                  className="ddm-card p-3 md:p-4 flex flex-col items-center gap-2 hover:shadow-md transition-shadow group text-center"
+                  className="ddm-card p-3 md:p-4 flex flex-col items-center gap-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all group text-center"
                 >
-                  <span className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className="text-white" size={18} />
+                  <span className={`w-11 h-11 rounded-2xl ${color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                    <Icon className="text-white" size={19} />
                   </span>
-                  <p className="font-semibold text-xs md:text-sm text-slate-800 group-hover:text-indigo-700 transition-colors leading-tight">
+                  <p className="font-semibold text-xs md:text-sm text-slate-700 group-hover:text-blue-700 transition-colors leading-tight">
                     {label}
                   </p>
                 </Link>

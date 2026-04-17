@@ -34,8 +34,8 @@ export default function StockSummary() {
       {/* ── Page header ────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Stock Summary</h1>
-          <p className="text-slate-500 text-sm mt-1">Daily stock received vs dispatched</p>
+          <h1 className="text-xl font-bold text-slate-900">Stock Summary</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Daily stock received vs dispatched</p>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
@@ -56,38 +56,23 @@ export default function StockSummary() {
           {/* ── Summary stat cards ─────────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              {
-                label: 'Total Received',
-                val:   totalReceived,
-                color: 'text-blue-700',
-                bg:    'bg-blue-50',
-                dot:   'bg-blue-500',
-                icon:  Package,
-              },
-              {
-                label: 'Total Dispatched',
-                val:   totalDispatched,
-                color: 'text-indigo-700',
-                bg:    'bg-indigo-50',
-                dot:   'bg-indigo-500',
-                icon:  Truck,
-              },
+              { label: 'Total Received',   val: totalReceived,   color: 'text-blue-700',    bg: 'bg-blue-600',    icon: Package },
+              { label: 'Total Dispatched', val: totalDispatched, color: 'text-indigo-700',  bg: 'bg-indigo-600',  icon: Truck },
               {
                 label: 'Net Available',
                 val:   netAvailable,
                 color: netAvailable >= 0 ? 'text-emerald-700' : 'text-red-700',
-                bg:    netAvailable >= 0 ? 'bg-emerald-50' : 'bg-red-50',
-                dot:   netAvailable >= 0 ? 'bg-emerald-500' : 'bg-red-500',
+                bg:    netAvailable >= 0 ? 'bg-emerald-600' : 'bg-red-600',
                 icon:  Package,
               },
-            ].map(({ label, val, color, bg, dot, icon: Icon }) => (
-              <div key={label} className={`ddm-card p-4 flex items-center gap-3`}>
-                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={color} size={18} />
+            ].map(({ label, val, color, bg, icon: Icon }) => (
+              <div key={label} className="ddm-card p-5 flex items-center gap-4">
+                <div className={`w-11 h-11 rounded-2xl ${bg} flex items-center justify-center flex-shrink-0`}>
+                  <Icon className="text-white" size={20} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-medium">{label}</p>
-                  <p className={`text-lg font-bold tabular-nums ${color}`}>{formatCurrency(val)}</p>
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
+                  <p className={`text-xl font-bold tabular-nums mt-0.5 ${color}`}>{formatCurrency(val)}</p>
                 </div>
               </div>
             ))}
@@ -95,16 +80,16 @@ export default function StockSummary() {
 
           {/* ── Receipts table ─────────────────────────────────────── */}
           <div className="ddm-card overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center gap-2">
+            <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
               <Package size={14} className="text-blue-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Stock Received</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Stock Received</h3>
             </div>
 
             {data.receipts.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
             ) : (
               <>
-                <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-4 py-2.5">
+                <div className="grid grid-cols-12 bg-blue-700 px-4 py-3">
                   {['Brand', 'Product', 'Qty', 'Price', 'Amount'].map((h, i) => (
                     <div
                       key={i}
@@ -114,7 +99,7 @@ export default function StockSummary() {
                         i === 2 ? 'col-span-1 text-right' :
                         i === 3 ? 'col-span-2 text-right' :
                         'col-span-2 text-right'
-                      } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
+                      } text-xs font-bold text-white uppercase tracking-wider`}
                     >
                       {h}
                     </div>
@@ -135,16 +120,16 @@ export default function StockSummary() {
 
           {/* ── Dispatches table ───────────────────────────────────── */}
           <div className="ddm-card overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center gap-2">
+            <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
               <Truck size={14} className="text-indigo-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Dispatched to Salespeople</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Dispatched to Salespeople</h3>
             </div>
 
             {data.dispatches.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-sm">No dispatches for this date</div>
             ) : (
               <>
-                <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-4 py-2.5">
+                <div className="grid grid-cols-12 bg-blue-700 px-4 py-3">
                   {['Salesperson', 'Items Dispatched', 'Total'].map((h, i) => (
                     <div
                       key={i}
@@ -152,7 +137,7 @@ export default function StockSummary() {
                         i === 0 ? 'col-span-4' :
                         i === 1 ? 'col-span-6' :
                         'col-span-2 text-right'
-                      } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
+                      } text-xs font-bold text-white uppercase tracking-wider`}
                     >
                       {h}
                     </div>

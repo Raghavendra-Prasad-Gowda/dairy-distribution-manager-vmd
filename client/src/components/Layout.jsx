@@ -44,16 +44,16 @@ function SidebarLink({ item, compact, setMobileOpen }) {
       onClick={() => setMobileOpen && setMobileOpen(false)}
       title={item.label}
       className={({ isActive }) =>
-        `flex items-center rounded-lg transition-all duration-150 ${
-          compact ? 'justify-center p-3' : 'gap-3 px-3 py-2'
+        `flex items-center rounded-xl transition-all duration-150 ${
+          compact ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'
         } ${
           isActive
-            ? 'bg-white/15 text-white'
+            ? 'bg-white/20 text-white shadow-sm'
             : 'text-indigo-200 hover:bg-white/10 hover:text-white'
         }`
       }
     >
-      <Icon size={18} className="flex-shrink-0" />
+      <Icon size={17} className="flex-shrink-0" />
       {!compact && <span className="text-sm font-medium">{item.label}</span>}
     </NavLink>
   );
@@ -105,12 +105,12 @@ function Sidebar({ compact = false, setMobileOpen }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 space-y-4 px-2">
+      <nav className="flex-1 overflow-y-auto py-4 space-y-5 px-2">
 
         {/* Dashboard — standalone */}
         <div>
           {!compact && (
-            <p className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+            <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-indigo-300/70">
               OVERVIEW
             </p>
           )}
@@ -122,7 +122,7 @@ function Sidebar({ compact = false, setMobileOpen }) {
         {MODULES.map((module) => (
           <div key={module.key}>
             <ModuleHeader module={module} compact={compact} />
-            <div className="space-y-0.5">
+            <div className="space-y-0.5 mt-1">
               {module.items.map((item) => (
                 <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
               ))}
@@ -173,7 +173,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-100">
       {/* Desktop sidebar — full labels (lg+) */}
       <aside className="hidden lg:flex flex-col w-56 flex-shrink-0">
         <Sidebar compact={false} />
@@ -202,7 +202,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-slate-50">
+        <main className="flex-1 overflow-y-auto bg-slate-100">
           <Outlet />
         </main>
       </div>

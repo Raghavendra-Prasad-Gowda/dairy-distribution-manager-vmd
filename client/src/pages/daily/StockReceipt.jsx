@@ -108,14 +108,18 @@ export default function StockReceipt() {
       <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Receipt Saved!" />
 
       {/* Page header */}
-      <div className="flex items-center justify-between gap-3 px-5 md:px-6 pt-4 pb-3 border-b border-slate-200 bg-white">
-        <div className="flex items-center gap-2.5">
-          {colors && <span className={`w-3 h-3 rounded-full flex-shrink-0 ${colors.dot}`} />}
+      <div className="flex items-center justify-between gap-3 px-5 md:px-6 pt-5 pb-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center gap-3">
+          {colors && (
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${colors.bg} border ${colors.border}`}>
+              <span className={`w-3 h-3 rounded-full ${colors.dot}`} />
+            </div>
+          )}
           <div>
             <h1 className="text-lg font-bold text-slate-900">
-              {activeBrand ? `${activeBrand.name} — Stock Receipt` : 'Stock Receipt'}
+              {activeBrand ? `${activeBrand.name} Stock Receipt` : 'Stock Receipt'}
             </h1>
-            <p className="text-slate-400 text-xs">Enter quantities received from the dairy</p>
+            <p className="text-slate-400 text-xs mt-0.5">Enter quantities received from the dairy</p>
           </div>
         </div>
         <DateSelector date={date} onChange={setDate} />
@@ -123,44 +127,45 @@ export default function StockReceipt() {
 
       {/* Balance summary bar — horizontally scrollable on small screens */}
       {activeBrand && (
-        <div className={`overflow-x-auto border-b border-slate-200 ${colors?.bg ?? 'bg-slate-50'}`}>
-          <div className="flex items-center gap-5 px-5 md:px-6 py-2.5 min-w-max">
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Opening</p>
-              <p className="text-sm font-bold tabular-nums text-slate-700">{formatCurrency(balance.opening)}</p>
-            </div>
-            <span className="text-slate-300">+</span>
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stock</p>
-              <p className="text-sm font-bold tabular-nums text-blue-600">{formatCurrency(balance.stockValue)}</p>
-            </div>
-            <span className="text-slate-300">−</span>
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paid</p>
-              <p className="text-sm font-bold tabular-nums text-emerald-600">{formatCurrency(balance.paid)}</p>
-            </div>
-            <span className="text-slate-300">=</span>
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{isOwing ? 'You Owe' : 'Settled'}</p>
-              <p className={`text-sm font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-                {formatCurrency(Math.abs(balance.closing))}
-              </p>
+        <div className="overflow-x-auto border-b border-slate-200 bg-white">
+          <div className="flex items-center gap-0 px-5 md:px-6 min-w-max divide-x divide-slate-100">
+            {[
+              { label: 'Opening', value: balance.opening,    color: 'text-slate-700' },
+              { label: 'Stock',   value: balance.stockValue, color: 'text-blue-600',    prefix: '+' },
+              { label: 'Paid',    value: balance.paid,       color: 'text-emerald-600', prefix: '−' },
+              { label: isOwing ? 'You Owe' : 'Settled',
+                value: Math.abs(balance.closing),
+                color: isOwing ? 'text-red-600 font-extrabold' : 'text-emerald-600 font-extrabold',
+                prefix: '=', highlight: true },
+            ].map(({ label, value, color, prefix, highlight }) => (
+              <div key={label} className={`flex items-center gap-3 px-4 py-3 ${highlight ? 'bg-slate-50' : ''}`}>
+                {prefix && <span className="text-slate-300 font-bold text-base">{prefix}</span>}
+                <div className="text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{label}</p>
+                  <p className={`text-sm font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
+                </div>
+              </div>
+            ))}
+            <div className="px-4 py-3 flex items-center">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                {isOwing ? 'Outstanding' : 'Cleared'}
+              </span>
             </div>
           </div>
         </div>
       )}
 
       {/* Product table */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+      <div className="flex-1 flex flex-col overflow-hidden bg-slate-100">
         <div className="flex-1 overflow-auto bg-white">
           <div className="min-w-[360px]">
 
           {/* Column headers */}
-          <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-            <div className="col-span-5 text-xs font-bold text-slate-500 uppercase tracking-wider">Product</div>
-            <div className="col-span-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</div>
-            <div className="col-span-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Qty</div>
-            <div className="col-span-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</div>
+          <div className="grid grid-cols-12 items-center px-4 py-3 bg-blue-700 sticky top-0 z-10">
+            <div className="col-span-5 text-xs font-bold text-white uppercase tracking-wider">Product</div>
+            <div className="col-span-2 text-right text-xs font-bold text-white uppercase tracking-wider">Rate</div>
+            <div className="col-span-3 text-center text-xs font-bold text-white uppercase tracking-wider">Qty</div>
+            <div className="col-span-2 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</div>
           </div>
 
           {loading ? (
@@ -182,10 +187,10 @@ export default function StockReceipt() {
               return (
                 <div
                   key={p.id}
-                  className={`grid grid-cols-12 items-center px-4 border-b border-slate-100 transition-colors ${
+                  className={`grid grid-cols-12 items-center px-4 border-b border-slate-100 transition-colors py-3 ${
                     filled
-                      ? 'bg-indigo-50/50 py-3'
-                      : idx % 2 === 0 ? 'bg-white py-3 hover:bg-slate-50/70' : 'bg-slate-50/40 py-3 hover:bg-slate-100/60'
+                      ? 'bg-blue-50/60'
+                      : 'bg-white hover:bg-slate-50'
                   }`}
                 >
                   <div className="col-span-5 min-w-0">
@@ -206,16 +211,16 @@ export default function StockReceipt() {
                       step="0.5"
                       min="0"
                       placeholder="0"
-                      className={`w-20 text-center px-2 py-1.5 border rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent tabular-nums transition ${
+                      className={`w-20 text-center px-2 py-1.5 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent tabular-nums transition ${
                         filled
-                          ? 'border-indigo-300 bg-white text-indigo-700 shadow-sm'
+                          ? 'border-blue-300 bg-white text-blue-700 shadow-sm'
                           : 'border-slate-200 bg-white text-slate-700'
                       }`}
                     />
                   </div>
                   <div className="col-span-2 text-right">
                     {filled ? (
-                      <span className="text-sm font-bold text-indigo-700 tabular-nums">{formatCurrency(amount)}</span>
+                      <span className="text-sm font-bold text-blue-700 tabular-nums">{formatCurrency(amount)}</span>
                     ) : (
                       <span className="text-slate-300 text-sm">—</span>
                     )}
@@ -229,16 +234,16 @@ export default function StockReceipt() {
 
         {/* Footer */}
         {!loading && products.length > 0 && (
-          <div className="border-t border-slate-200 bg-white px-5 py-3 flex items-center gap-4">
+          <div className="border-t border-slate-200 bg-white px-5 py-3.5 flex items-center gap-4">
             <p className="text-xs text-slate-400 flex-1">
               {filledCount > 0
-                ? `${filledCount} of ${products.length} filled`
+                ? <><span className="font-semibold text-blue-600">{filledCount}</span> of {products.length} filled</>
                 : `${products.length} products`}
-              {' · '}Rates from Setup
+              <span className="text-slate-300 mx-1.5">·</span>Rates from Setup
             </p>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xs text-slate-500">Total</span>
-              <span className="text-lg font-bold text-indigo-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+              <span className="text-xs text-slate-400 font-medium">Total</span>
+              <span className="text-xl font-bold text-blue-700 tabular-nums">{formatCurrency(totalAmount)}</span>
             </div>
             <button onClick={handleSave} disabled={saving || loading} className="ddm-btn-primary">
               {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
