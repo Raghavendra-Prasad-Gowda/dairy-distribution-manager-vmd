@@ -135,11 +135,29 @@ export default function Dispatch() {
         <DateSelector date={date} onChange={setDate} />
       </div>
 
+      {/* ── Mobile: salesperson dropdown (replaces left panel) ── */}
+      <div className="lg:hidden px-4 py-3 bg-white border-b border-slate-200">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          Salesperson
+        </label>
+        <select
+          value={selectedSpId ?? ''}
+          onChange={e => { setSelectedSp(Number(e.target.value)); setQuantities({}); }}
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        >
+          {salespeople.map(sp => (
+            <option key={sp.id} value={sp.id}>
+              {savedSps.has(sp.id) ? '✓ ' : ''}{sp.name}{sp.route ? ` — ${sp.route}` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Split panel */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left panel — salesperson list */}
-        <div className="w-56 md:w-64 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col">
+        {/* Left panel — desktop only */}
+        <div className="hidden lg:flex lg:flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
           {/* Search */}
           <div className="p-3 border-b border-slate-100">
             <div className="relative">
@@ -223,14 +241,14 @@ export default function Dispatch() {
               )}
 
               {/* Product table */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="bg-white">
-                  <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200 sticky top-0">
+              <div className="flex-1 overflow-auto">
+                <div className="min-w-[480px] bg-white">
+                  <div className="flex items-center px-4 py-3 bg-slate-50 border-b border-slate-200 sticky top-0">
                     <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
-                    <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Avail</div>
-                    <div className="w-20 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</div>
-                    <div className="w-28 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
-                    <div className="w-24 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
+                    <div className="w-14 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Avail</div>
+                    <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</div>
+                    <div className="w-24 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
+                    <div className="w-20 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
                   </div>
 
                   {allVisible.length === 0 ? (
@@ -252,24 +270,24 @@ export default function Dispatch() {
                       return (
                         <div
                           key={p.productId}
-                          className={`flex items-center px-5 py-3.5 border-b border-slate-100 transition-colors ${
+                          className={`flex items-center px-4 py-3 border-b border-slate-100 transition-colors ${
                             missing ? 'bg-amber-50/60' : qty > 0 ? 'bg-indigo-50/30' : 'hover:bg-slate-50/60'
                           }`}
                         >
-                          <div className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">{p.productName}</div>
+                          <div className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate pr-2">{p.productName}</div>
 
-                          <div className={`w-16 text-right text-sm tabular-nums font-medium ${p.available <= 0 ? 'text-red-500' : 'text-slate-600'}`}>
+                          <div className={`w-14 text-right text-sm tabular-nums font-medium ${p.available <= 0 ? 'text-red-500' : 'text-slate-600'}`}>
                             {p.available}
                           </div>
 
-                          <div className="w-20 text-right text-sm tabular-nums text-slate-500">
+                          <div className="w-16 text-right text-sm tabular-nums text-slate-500">
                             {missing
-                              ? <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">No rate</span>
+                              ? <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">—</span>
                               : `₹${price}`
                             }
                           </div>
 
-                          <div className="w-28 flex justify-center">
+                          <div className="w-24 flex justify-center">
                             <input
                               ref={el => { inputRefs.current[p.productId] = el; }}
                               type="number"
@@ -280,13 +298,13 @@ export default function Dispatch() {
                               min="0"
                               disabled={missing || p.available <= 0}
                               placeholder={missing ? '—' : '0'}
-                              className={`w-20 text-center px-2 py-2 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
+                              className={`w-16 text-center px-1.5 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
                                 over ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
                               }`}
                             />
                           </div>
 
-                          <div className={`w-24 text-right text-sm tabular-nums font-semibold ${qty > 0 ? 'text-indigo-700' : 'text-slate-300'}`}>
+                          <div className={`w-20 text-right text-sm tabular-nums font-semibold ${qty > 0 ? 'text-indigo-700' : 'text-slate-300'}`}>
                             {qty > 0 ? formatCurrency(amount) : '—'}
                           </div>
                         </div>
@@ -297,19 +315,22 @@ export default function Dispatch() {
               </div>
 
               {/* Footer */}
-              <div className="border-t border-slate-200 bg-white px-5 py-3 flex items-center gap-4">
-                <p className="text-xs text-slate-400 flex items-center gap-1.5 flex-1">
-                  <Info size={12} />
-                  {filledCount > 0 ? `${filledCount} items · ` : ''} Rates from Setup → Salespeople
+              <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center flex-wrap gap-3">
+                <p className="text-xs text-slate-400 flex items-center gap-1.5 flex-1 min-w-0">
+                  <Info size={12} className="flex-shrink-0" />
+                  <span className="truncate">{filledCount > 0 ? `${filledCount} items · ` : ''}Rates from Setup</span>
                 </p>
-                <div className="text-right">
-                  <span className="text-xs text-slate-500 mr-2">Total</span>
-                  <span className="text-base font-bold text-indigo-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+                <div className="flex items-center gap-3 ml-auto">
+                  <div className="text-right">
+                    <span className="text-xs text-slate-500 mr-1.5">Total</span>
+                    <span className="text-base font-bold text-indigo-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+                  </div>
+                  <button onClick={handleSave} disabled={saving} className="ddm-btn-primary whitespace-nowrap">
+                    {saving ? <Loader2 className="animate-spin" size={15} /> : <Truck size={15} />}
+                    <span className="hidden sm:inline">{saving ? 'Saving…' : `Save ${selectedSp?.name?.split(' ')[0] ?? ''}'s Dispatch`}</span>
+                    <span className="sm:hidden">{saving ? 'Saving…' : 'Save'}</span>
+                  </button>
                 </div>
-                <button onClick={handleSave} disabled={saving} className="ddm-btn-primary">
-                  {saving ? <Loader2 className="animate-spin" size={15} /> : <Truck size={15} />}
-                  {saving ? 'Saving…' : `Save ${selectedSp?.name?.split(' ')[0] ?? ''}'s Dispatch`}
-                </button>
               </div>
             </>
           )}

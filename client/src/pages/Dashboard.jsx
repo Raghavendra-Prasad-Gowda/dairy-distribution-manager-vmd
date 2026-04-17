@@ -59,7 +59,7 @@ function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
       {isOwing && (
         <div className="px-3 py-2.5 border-t border-slate-100">
           <Link
-            to="/payments/dairy"
+            to="/dairy/payments"
             className="flex items-center justify-center gap-1.5 w-full bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 rounded-lg transition"
           >
             Pay Now <ArrowRight size={12} />
@@ -136,9 +136,9 @@ export default function Dashboard() {
             <p className="ddm-section-label mb-2">Quick Actions</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { to: '/daily/receipt',  icon: Package,    label: 'Stock Receipt',  color: 'bg-sky-500' },
-                { to: '/daily/dispatch', icon: Truck,      label: 'Dispatch',        color: 'bg-indigo-600' },
-                { to: '/payments/dairy', icon: CreditCard, label: 'Dairy Payments',  color: 'bg-emerald-600' },
+                { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-sky-500' },
+                { to: '/salesman/dispatch',   icon: Truck,      label: 'Dispatch',       color: 'bg-indigo-600' },
+                { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments', color: 'bg-emerald-600' },
               ].map(({ to, icon: Icon, label, color }) => (
                 <Link
                   key={to}

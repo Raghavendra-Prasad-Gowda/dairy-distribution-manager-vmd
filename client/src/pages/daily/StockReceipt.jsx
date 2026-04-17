@@ -121,36 +121,39 @@ export default function StockReceipt() {
         <DateSelector date={date} onChange={setDate} />
       </div>
 
-      {/* Balance summary bar */}
+      {/* Balance summary bar — horizontally scrollable on small screens */}
       {activeBrand && (
-        <div className={`flex items-center gap-6 px-5 md:px-6 py-2.5 border-b border-slate-200 ${colors?.bg ?? 'bg-slate-50'}`}>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Opening</p>
-            <p className="text-sm font-bold tabular-nums text-slate-700">{formatCurrency(balance.opening)}</p>
-          </div>
-          <span className="text-slate-300">+</span>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stock</p>
-            <p className="text-sm font-bold tabular-nums text-blue-600">{formatCurrency(balance.stockValue)}</p>
-          </div>
-          <span className="text-slate-300">−</span>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paid</p>
-            <p className="text-sm font-bold tabular-nums text-emerald-600">{formatCurrency(balance.paid)}</p>
-          </div>
-          <span className="text-slate-300">=</span>
-          <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{isOwing ? 'You Owe' : 'Settled'}</p>
-            <p className={`text-sm font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-              {formatCurrency(Math.abs(balance.closing))}
-            </p>
+        <div className={`overflow-x-auto border-b border-slate-200 ${colors?.bg ?? 'bg-slate-50'}`}>
+          <div className="flex items-center gap-5 px-5 md:px-6 py-2.5 min-w-max">
+            <div className="text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Opening</p>
+              <p className="text-sm font-bold tabular-nums text-slate-700">{formatCurrency(balance.opening)}</p>
+            </div>
+            <span className="text-slate-300">+</span>
+            <div className="text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stock</p>
+              <p className="text-sm font-bold tabular-nums text-blue-600">{formatCurrency(balance.stockValue)}</p>
+            </div>
+            <span className="text-slate-300">−</span>
+            <div className="text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paid</p>
+              <p className="text-sm font-bold tabular-nums text-emerald-600">{formatCurrency(balance.paid)}</p>
+            </div>
+            <span className="text-slate-300">=</span>
+            <div className="text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{isOwing ? 'You Owe' : 'Settled'}</p>
+              <p className={`text-sm font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+                {formatCurrency(Math.abs(balance.closing))}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* Product table */}
       <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-auto bg-white">
+          <div className="min-w-[360px]">
 
           {/* Column headers */}
           <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
@@ -221,6 +224,7 @@ export default function StockReceipt() {
               );
             })
           )}
+          </div>{/* end min-w wrapper */}
         </div>
 
         {/* Footer */}
