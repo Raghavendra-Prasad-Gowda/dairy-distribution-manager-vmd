@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, Package } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import SaveOverlay from '../../components/SaveOverlay';
 import { useNotification } from '../../context/NotificationContext';
@@ -11,17 +11,16 @@ import api from '../../api/axios';
 export default function StockReceipt() {
   const { notify } = useNotification();
   const { brandName } = useParams();
-  const [date, setDate]             = useState(getIndiaDate());
+  const [date, setDate]               = useState(getIndiaDate());
   const [activeBrand, setActiveBrand] = useState(null);
-  const [products, setProducts]     = useState([]);
-  const [quantities, setQuantities] = useState({});
-  const [balance, setBalance]       = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
-  const [loading, setLoading]       = useState(false);
-  const [saving, setSaving]         = useState(false);
-  const [saveStatus, setSaveStatus] = useState(null);
+  const [products, setProducts]       = useState([]);
+  const [quantities, setQuantities]   = useState({});
+  const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
+  const [loading, setLoading]         = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [saveStatus, setSaveStatus]   = useState(null);
   const inputRefs = useRef({});
 
-  // Resolve brand from URL param
   useEffect(() => {
     api.get('/brands')
       .then(r => {
@@ -34,7 +33,6 @@ export default function StockReceipt() {
       .catch(() => notify('Failed to load brands', 'error'));
   }, [brandName]);
 
-  // Fetch balance for the active brand + date
   useEffect(() => {
     if (!activeBrand) return;
     api.get(`/dairy-balance?date=${date}`)
@@ -48,7 +46,6 @@ export default function StockReceipt() {
       .catch(() => {});
   }, [activeBrand, date]);
 
-  // Fetch products + existing receipts
   useEffect(() => {
     if (!activeBrand) return;
     setLoading(true);
@@ -107,147 +104,210 @@ export default function StockReceipt() {
     <div className="flex flex-col h-full">
       <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Receipt Saved!" />
 
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-3 px-5 md:px-6 pt-5 pb-4 border-b border-slate-200 bg-white">
+      {/* ── Page header ─────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-4 border-b border-slate-200 bg-white">
         <div className="flex items-center gap-3">
           {colors && (
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${colors.bg} border ${colors.border}`}>
-              <span className={`w-3 h-3 rounded-full ${colors.dot}`} />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${colors.bg} border ${colors.border}`}>
+              <Package size={18} className={colors.text} />
             </div>
           )}
           <div>
-            <h1 className="text-lg font-bold text-slate-900">
+            <h1 className="text-base font-bold text-slate-900 leading-tight">
               {activeBrand ? `${activeBrand.name} Stock Receipt` : 'Stock Receipt'}
             </h1>
-            <p className="text-slate-400 text-xs mt-0.5">Enter quantities received from the dairy</p>
+            <p className="text-slate-400 text-xs mt-0.5">Enter quantities received from dairy</p>
           </div>
         </div>
         <DateSelector date={date} onChange={setDate} />
       </div>
 
-      {/* Balance summary bar — horizontally scrollable on small screens */}
+      {/* ── Balance summary bar ──────────────────────────────── */}
       {activeBrand && (
-        <div className="overflow-x-auto border-b border-slate-200 bg-white">
-          <div className="flex items-center gap-0 px-5 md:px-6 min-w-max divide-x divide-slate-100">
+        <div className="overflow-x-auto bg-white border-b border-slate-200">
+          <div className="flex min-w-max">
             {[
-              { label: 'Opening', value: balance.opening,    color: 'text-slate-700' },
-              { label: 'Stock',   value: balance.stockValue, color: 'text-blue-600',    prefix: '+' },
-              { label: 'Paid',    value: balance.paid,       color: 'text-emerald-600', prefix: '−' },
-              { label: isOwing ? 'You Owe' : 'Settled',
+              { label: 'Opening Balance', value: balance.opening,    color: 'text-slate-700',   sub: null },
+              { label: 'Stock Added',     value: balance.stockValue, color: 'text-blue-600',    sub: '+' },
+              { label: 'Paid',            value: balance.paid,       color: 'text-emerald-600', sub: '−' },
+              {
+                label: isOwing ? 'You Owe' : 'Settled',
                 value: Math.abs(balance.closing),
-                color: isOwing ? 'text-red-600 font-extrabold' : 'text-emerald-600 font-extrabold',
-                prefix: '=', highlight: true },
-            ].map(({ label, value, color, prefix, highlight }) => (
-              <div key={label} className={`flex items-center gap-3 px-4 py-3 ${highlight ? 'bg-slate-50' : ''}`}>
-                {prefix && <span className="text-slate-300 font-bold text-base">{prefix}</span>}
-                <div className="text-center">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{label}</p>
-                  <p className={`text-sm font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
+                color: isOwing ? 'text-red-600' : 'text-emerald-600',
+                sub: '=',
+                highlight: true,
+              },
+            ].map(({ label, value, color, sub, highlight }) => (
+              <div
+                key={label}
+                className={`flex items-center gap-2.5 px-5 py-3.5 border-r border-slate-100 last:border-r-0 ${highlight ? (isOwing ? 'bg-red-50' : 'bg-emerald-50') : ''}`}
+              >
+                {sub && (
+                  <span className="text-slate-300 font-semibold text-sm w-3 text-center flex-shrink-0">{sub}</span>
+                )}
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 leading-none mb-1">{label}</p>
+                  <p className={`text-sm font-bold tabular-nums leading-none ${color}`}>{formatCurrency(value)}</p>
                 </div>
+                {highlight && (
+                  <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {isOwing ? 'DUE' : 'CLEAR'}
+                  </span>
+                )}
               </div>
             ))}
-            <div className="px-4 py-3 flex items-center">
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                {isOwing ? 'Outstanding' : 'Cleared'}
-              </span>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Product table */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-slate-100">
-        <div className="flex-1 overflow-auto bg-white">
-          <div className="min-w-[360px]">
+      {/* ── Product table ────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto">
+          <table className="w-full border-collapse" style={{ minWidth: 340 }}>
 
-          {/* Column headers */}
-          <div className="grid grid-cols-12 items-center px-4 py-3 bg-blue-700 sticky top-0 z-10">
-            <div className="col-span-5 text-xs font-bold text-white uppercase tracking-wider">Product</div>
-            <div className="col-span-2 text-right text-xs font-bold text-white uppercase tracking-wider">Rate</div>
-            <div className="col-span-3 text-center text-xs font-bold text-white uppercase tracking-wider">Qty</div>
-            <div className="col-span-2 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</div>
-          </div>
+            {/* Header */}
+            <thead>
+              <tr className="bg-blue-700">
+                <th className="text-left px-4 py-3 text-xs font-bold text-white uppercase tracking-wider w-[46%]">
+                  Product
+                </th>
+                <th className="text-right px-3 py-3 text-xs font-bold text-white uppercase tracking-wider w-[18%]">
+                  Rate
+                </th>
+                <th className="text-center px-3 py-3 text-xs font-bold text-white uppercase tracking-wider w-[20%]">
+                  Qty
+                </th>
+                <th className="text-right px-4 py-3 text-xs font-bold text-white uppercase tracking-wider w-[16%]">
+                  Amount
+                </th>
+              </tr>
+            </thead>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
-            </div>
-          ) : !activeBrand ? (
-            <div className="text-center py-12 text-slate-400 text-sm">Brand not found.</div>
-          ) : products.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-sm">
-              No active products for {activeBrand.name}. Add them in Dairy → Product Setup.
-            </div>
-          ) : (
-            products.map((p, idx) => {
-              const qty    = parseFloat(quantities[p.id]) || 0;
-              const amount = qty * Number(p.dairyPrice);
-              const filled = qty > 0;
+            {/* Body */}
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-20">
+                    <Loader2 className="w-7 h-7 text-blue-600 animate-spin mx-auto" />
+                  </td>
+                </tr>
+              ) : !activeBrand ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-16 text-slate-400 text-sm">Brand not found.</td>
+                </tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-16 text-slate-400 text-sm px-4">
+                    No active products for {activeBrand.name}.<br />
+                    <span className="text-xs">Add them in Dairy → Product Setup.</span>
+                  </td>
+                </tr>
+              ) : (
+                products.map((p, idx) => {
+                  const qty    = parseFloat(quantities[p.id]) || 0;
+                  const amount = qty * Number(p.dairyPrice);
+                  const filled = qty > 0;
 
-              return (
-                <div
-                  key={p.id}
-                  className={`grid grid-cols-12 items-center px-4 border-b border-slate-100 transition-colors py-3 ${
-                    filled
-                      ? 'bg-blue-50/60'
-                      : 'bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="col-span-5 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${filled ? 'text-indigo-800' : 'text-slate-800'}`}>
-                      {p.name}
-                    </p>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-xs text-slate-400 tabular-nums">₹{Number(p.dairyPrice).toFixed(2)}</span>
-                  </div>
-                  <div className="col-span-3 flex justify-center">
-                    <input
-                      ref={el => { inputRefs.current[p.id] = el; }}
-                      type="number"
-                      value={quantities[p.id] ?? ''}
-                      onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                      onKeyDown={e => handleKeyDown(e, p.id)}
-                      step="0.5"
-                      min="0"
-                      placeholder="0"
-                      className={`w-20 text-center px-2 py-1.5 border rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent tabular-nums transition ${
-                        filled
-                          ? 'border-blue-300 bg-white text-blue-700 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-700'
+                  return (
+                    <tr
+                      key={p.id}
+                      className={`border-b border-slate-100 transition-colors ${
+                        filled ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/50 hover:bg-slate-100/60'
                       }`}
-                    />
-                  </div>
-                  <div className="col-span-2 text-right">
-                    {filled ? (
-                      <span className="text-sm font-bold text-blue-700 tabular-nums">{formatCurrency(amount)}</span>
-                    ) : (
-                      <span className="text-slate-300 text-sm">—</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-          </div>{/* end min-w wrapper */}
+                    >
+                      {/* Product name */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          {filled && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                          )}
+                          <span className={`text-sm font-semibold leading-tight ${filled ? 'text-blue-800' : 'text-slate-800'}`}>
+                            {p.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Rate */}
+                      <td className="px-3 py-3.5 text-right">
+                        <span className={`text-xs tabular-nums font-medium ${filled ? 'text-slate-500' : 'text-slate-400'}`}>
+                          ₹{Number(p.dairyPrice).toFixed(2)}
+                        </span>
+                      </td>
+
+                      {/* Qty input */}
+                      <td className="px-3 py-2.5 text-center">
+                        <input
+                          ref={el => { inputRefs.current[p.id] = el; }}
+                          type="number"
+                          inputMode="decimal"
+                          value={quantities[p.id] ?? ''}
+                          onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          onKeyDown={e => handleKeyDown(e, p.id)}
+                          step="0.5"
+                          min="0"
+                          placeholder="—"
+                          className={`w-full text-center px-2 py-2.5 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent tabular-nums transition-all ${
+                            filled
+                              ? 'border-blue-400 bg-white text-blue-700 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-600 placeholder:text-slate-300'
+                          }`}
+                          style={{ minWidth: 56 }}
+                        />
+                      </td>
+
+                      {/* Amount */}
+                      <td className="px-4 py-3.5 text-right">
+                        {filled ? (
+                          <span className="text-sm font-bold text-blue-700 tabular-nums">{formatCurrency(amount)}</span>
+                        ) : (
+                          <span className="text-slate-200 text-lg leading-none">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* Footer */}
+        {/* ── Footer ─────────────────────────────────────────── */}
         {!loading && products.length > 0 && (
-          <div className="border-t border-slate-200 bg-white px-5 py-3.5 flex items-center gap-4">
-            <p className="text-xs text-slate-400 flex-1">
-              {filledCount > 0
-                ? <><span className="font-semibold text-blue-600">{filledCount}</span> of {products.length} filled</>
-                : `${products.length} products`}
-              <span className="text-slate-300 mx-1.5">·</span>Rates from Setup
-            </p>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xs text-slate-400 font-medium">Total</span>
-              <span className="text-xl font-bold text-blue-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+          <div className="border-t border-slate-200 bg-white px-4 md:px-6 py-3 flex items-center gap-4 flex-wrap">
+
+            {/* Fill progress */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex gap-0.5">
+                {products.slice(0, 12).map(p => (
+                  <span
+                    key={p.id}
+                    className={`block h-1.5 w-2.5 rounded-full transition-colors ${
+                      (parseFloat(quantities[p.id]) || 0) > 0 ? 'bg-blue-500' : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-slate-400 whitespace-nowrap">
+                {filledCount > 0
+                  ? <><b className="text-blue-600">{filledCount}</b>/{products.length} filled</>
+                  : `${products.length} products`}
+              </span>
             </div>
-            <button onClick={handleSave} disabled={saving || loading} className="ddm-btn-primary">
+
+            {/* Total */}
+            <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-4 py-2 border border-blue-100">
+              <span className="text-xs text-blue-500 font-semibold uppercase tracking-wide">Total</span>
+              <span className="text-lg font-bold text-blue-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+            </div>
+
+            {/* Save button */}
+            <button
+              onClick={handleSave}
+              disabled={saving || loading || filledCount === 0}
+              className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm"
+            >
               {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
-              {saving ? 'Saving…' : `Save ${activeBrand?.name ?? ''}`}
+              {saving ? 'Saving…' : 'Save Receipt'}
             </button>
           </div>
         )}
