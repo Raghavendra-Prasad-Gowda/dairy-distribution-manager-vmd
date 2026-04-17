@@ -3,8 +3,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, Package, CreditCard,
-  BarChart2, Settings, LogOut, Menu,
-  ClipboardList, FileText, Warehouse, Tag
+  Settings, LogOut, Menu,
+  FileText, Warehouse, Tag
 } from 'lucide-react';
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
@@ -29,10 +29,8 @@ const MODULES = [
     label: 'REPORTS',
     headerClass: 'text-indigo-400',
     items: [
-      { to: '/reports/dairy',       icon: FileText,      label: 'Dairy Statement' },
-      { to: '/reports/salespeople', icon: ClipboardList, label: 'SP Statement' },
-      { to: '/reports/stock',       icon: Warehouse,     label: 'Stock Summary' },
-      { to: '/salesperson-outstanding', icon: BarChart2, label: 'SP Outstanding' },
+      { to: '/reports/dairy', icon: FileText, label: 'Dairy Statement' },
+      { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
     ],
   },
 ];
