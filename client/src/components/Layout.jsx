@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, Package, CreditCard,
-  Settings, LogOut, Menu,
+  BarChart2, Settings, LogOut, Menu,
   ClipboardList, FileText, Warehouse, Tag
 } from 'lucide-react';
 
