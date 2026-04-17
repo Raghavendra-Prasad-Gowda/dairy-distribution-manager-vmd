@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Milk, LayoutDashboard, Package, Truck, CreditCard,
-  BarChart2, Settings, LogOut, Menu,
-  ClipboardList, FileText, Warehouse, UserCheck, Tag, Wallet
+  Milk, LayoutDashboard, Package, CreditCard,
+  Settings, LogOut, Menu,
+  ClipboardList, FileText, Warehouse, Tag
 } from 'lucide-react';
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
@@ -22,17 +22,6 @@ const MODULES = [
       { to: '/dairy/setup/products',  icon: Settings,   label: 'Product Setup' },
       { to: '/dairy/setup/prices',    icon: Tag,        label: 'Price Setup' },
       { to: '/dairy/payments',        icon: CreditCard, label: 'Dairy Payments' },
-    ],
-  },
-  {
-    key: 'salesman',
-    label: 'SALESMAN MODULE',
-    headerClass: 'text-purple-300',
-    badgeClass: 'bg-purple-500/20 text-purple-300',
-    items: [
-      { to: '/salesman/dispatch', icon: Truck,     label: 'Stock Dispatch' },
-      { to: '/salesman/setup',    icon: UserCheck, label: 'Price Setup' },
-      { to: '/salesman/payments', icon: Wallet,    label: 'Payments' },
     ],
   },
   {
