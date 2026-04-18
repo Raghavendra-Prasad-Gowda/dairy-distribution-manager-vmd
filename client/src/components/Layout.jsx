@@ -2,35 +2,48 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Milk, LayoutDashboard, Package, CreditCard,
+  Milk, LayoutDashboard, CreditCard,
   Settings, LogOut, Menu,
   FileText, Warehouse, Tag
 } from 'lucide-react';
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
 
-const MODULES = [
+const NAV = [
   {
     key: 'dairy',
     label: 'DAIRY MODULE',
     headerClass: 'text-emerald-300',
-    badgeClass: 'bg-emerald-500/20 text-emerald-300',
-    items: [
-      { to: '/dairy/stock/nandini',   icon: Package,    label: 'Nandini Stock' },
-      { to: '/dairy/stock/jersey',    icon: Package,    label: 'Jersey Stock' },
-      { to: '/dairy/stock/gowardhan', icon: Package,    label: 'Gowardhan Stock' },
-      { to: '/dairy/setup/products',  icon: Settings,   label: 'Product Setup' },
-      { to: '/dairy/setup/prices',    icon: Tag,        label: 'Price Setup' },
-      { to: '/dairy/payments',        icon: CreditCard, label: 'Dairy Payments' },
+    groups: [
+      {
+        label: 'BRANDS',
+        items: [
+          { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
+          { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
+          { to: '/dairy/stock/gowardhan', dot: 'bg-violet-400', label: 'Gowardhan' },
+        ],
+      },
+      {
+        label: 'MANAGE',
+        items: [
+          { to: '/dairy/setup/products', icon: Settings,   label: 'Products' },
+          { to: '/dairy/setup/prices',   icon: Tag,        label: 'Price Setup' },
+          { to: '/dairy/payments',       icon: CreditCard, label: 'Payments' },
+        ],
+      },
     ],
   },
   {
     key: 'reports',
     label: 'REPORTS',
     headerClass: 'text-emerald-400',
-    items: [
-      { to: '/reports/dairy', icon: FileText, label: 'Dairy Statement' },
-      { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
+    groups: [
+      {
+        items: [
+          { to: '/reports/dairy', icon: FileText,  label: 'Dairy Statement' },
+          { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
+        ],
+      },
     ],
   },
 ];
@@ -45,7 +58,7 @@ function SidebarLink({ item, compact, setMobileOpen }) {
       title={item.label}
       className={({ isActive }) =>
         `flex items-center rounded-xl transition-all duration-150 ${
-          compact ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'
+          compact ? 'justify-center p-3' : 'gap-3 px-3 py-2'
         } ${
           isActive
             ? 'bg-white/20 text-white shadow-sm'
@@ -53,20 +66,12 @@ function SidebarLink({ item, compact, setMobileOpen }) {
         }`
       }
     >
-      <Icon size={17} className="flex-shrink-0" />
+      {item.dot
+        ? <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${item.dot}`} />
+        : Icon && <Icon size={16} className="flex-shrink-0" />
+      }
       {!compact && <span className="text-sm font-medium">{item.label}</span>}
     </NavLink>
-  );
-}
-
-function ModuleHeader({ module, compact }) {
-  if (compact) return <div className="h-px bg-white/10 mx-1 mb-2" />;
-  return (
-    <div className="flex items-center gap-2 px-2 mb-1.5">
-      <p className={`text-[10px] font-bold uppercase tracking-widest ${module.headerClass}`}>
-        {module.label}
-      </p>
-    </div>
   );
 }
 
@@ -107,12 +112,28 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest }) {
         </div>
 
         {/* Module + Report sections */}
-        {MODULES.map((module) => (
+        {NAV.map((module) => (
           <div key={module.key}>
-            <ModuleHeader module={module} compact={compact} />
-            <div className="space-y-0.5 mt-1">
-              {module.items.map((item) => (
-                <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
+            {!compact && (
+              <p className={`px-2 mb-2 text-[10px] font-bold uppercase tracking-widest ${module.headerClass}`}>
+                {module.label}
+              </p>
+            )}
+            {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
+            <div className="space-y-3">
+              {module.groups.map((group, gi) => (
+                <div key={gi}>
+                  {!compact && group.label && (
+                    <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-white/30">
+                      {group.label}
+                    </p>
+                  )}
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => (
+                      <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
