@@ -133,14 +133,6 @@ function Sidebar({ compact = false, setMobileOpen }) {
 
       {/* User + Sign Out */}
       <div className="border-t border-white/10 py-3 space-y-1 px-2">
-        {!compact && user && (
-          <div className="flex items-center gap-2 px-3 py-2">
-            <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs font-bold">{user.businessName?.[0]?.toUpperCase() ?? 'U'}</span>
-            </div>
-            <span className="text-indigo-200 text-xs font-medium truncate">{user.businessName}</span>
-          </div>
-        )}
         <button
           onClick={() => setShowLogoutConfirm(true)}
           title="Sign Out"
