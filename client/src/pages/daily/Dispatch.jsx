@@ -243,7 +243,7 @@ export default function Dispatch() {
               {/* Product table */}
               <div className="flex-1 overflow-auto">
                 <div className="min-w-[480px] bg-white">
-                  <div className="flex items-center px-4 py-3 bg-slate-50 border-b border-slate-200 sticky top-0">
+                  <div className="flex items-center px-4 py-3 bg-white border-b border-slate-200 sticky top-0">
                     <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
                     <div className="w-14 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Avail</div>
                     <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</div>

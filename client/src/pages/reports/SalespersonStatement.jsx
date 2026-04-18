@@ -177,7 +177,7 @@ export default function SalespersonStatement() {
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-4 py-2.5">
+        <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-2.5">
           {['Date', 'Opening', 'Given', 'Collected', 'Due', ''].map((h, i) => (
             <div
               key={i}

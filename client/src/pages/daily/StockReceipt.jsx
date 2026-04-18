@@ -167,17 +167,17 @@ export default function StockReceipt() {
 
             {/* Header */}
             <thead>
-              <tr className="bg-blue-700">
-                <th className="text-left px-4 py-3 text-xs font-bold text-white uppercase tracking-wider w-[46%]">
+              <tr className="bg-white border-b border-slate-200">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[46%]">
                   Product
                 </th>
-                <th className="text-right px-3 py-3 text-xs font-bold text-white uppercase tracking-wider w-[18%]">
+                <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[18%]">
                   Rate
                 </th>
-                <th className="text-center px-3 py-3 text-xs font-bold text-white uppercase tracking-wider w-[20%]">
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[20%]">
                   Qty
                 </th>
-                <th className="text-right px-4 py-3 text-xs font-bold text-white uppercase tracking-wider w-[16%]">
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[16%]">
                   Amount
                 </th>
               </tr>

@@ -166,10 +166,10 @@ export default function ProductsSetup() {
       {/* ── Products table ─────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="flex items-center px-5 py-3 bg-blue-700">
-          <div className="flex-1 text-xs font-bold text-white uppercase tracking-wider">Product Name</div>
-          <div className="w-16 text-center text-xs font-bold text-white uppercase tracking-wider">Active</div>
-          <div className="w-16 text-right text-xs font-bold text-white uppercase tracking-wider">Save</div>
+        <div className="flex items-center px-5 py-3 bg-white border-b border-slate-200">
+          <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Name</div>
+          <div className="w-16 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Active</div>
+          <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Save</div>
         </div>
 
         {loading ? (

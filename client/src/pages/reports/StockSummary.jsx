@@ -89,7 +89,7 @@ export default function StockSummary() {
               <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
             ) : (
               <>
-                <div className="grid grid-cols-12 bg-blue-700 px-4 py-3">
+                <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-3">
                   {['Brand', 'Product', 'Qty', 'Price', 'Amount'].map((h, i) => (
                     <div
                       key={i}
@@ -99,7 +99,7 @@ export default function StockSummary() {
                         i === 2 ? 'col-span-1 text-right' :
                         i === 3 ? 'col-span-2 text-right' :
                         'col-span-2 text-right'
-                      } text-xs font-bold text-white uppercase tracking-wider`}
+                      } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
                     >
                       {h}
                     </div>
@@ -129,7 +129,7 @@ export default function StockSummary() {
               <div className="text-center py-8 text-slate-400 text-sm">No dispatches for this date</div>
             ) : (
               <>
-                <div className="grid grid-cols-12 bg-blue-700 px-4 py-3">
+                <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-3">
                   {['Salesperson', 'Items Dispatched', 'Total'].map((h, i) => (
                     <div
                       key={i}
@@ -137,7 +137,7 @@ export default function StockSummary() {
                         i === 0 ? 'col-span-4' :
                         i === 1 ? 'col-span-6' :
                         'col-span-2 text-right'
-                      } text-xs font-bold text-white uppercase tracking-wider`}
+                      } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
                     >
                       {h}
                     </div>

@@ -297,18 +297,18 @@ export default function DairyPayments() {
                   ) : (
                     <>
                       {/* Table header */}
-                      <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-blue-700">
-                        <div className="col-span-2 text-[10px] font-bold text-white uppercase tracking-wider">Date</div>
-                        <div className="col-span-3 text-right text-[10px] font-bold text-white uppercase tracking-wider">Amount</div>
-                        <div className="col-span-2 text-center text-[10px] font-bold text-white uppercase tracking-wider">Mode</div>
-                        <div className="col-span-3 text-[10px] font-bold text-white uppercase tracking-wider pl-2">Reference</div>
+                      <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-white border-b border-slate-200">
+                        <div className="col-span-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date</div>
+                        <div className="col-span-3 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
+                        <div className="col-span-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Mode</div>
+                        <div className="col-span-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider pl-2">Reference</div>
                         <div className="col-span-2" />
                       </div>
 
                       {filteredPayments.map((p, idx) => (
                         <div
                           key={p.id}
-                          className="grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 hover:bg-blue-50/40 transition-colors last:border-0"
+                          className="grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/80 transition-colors last:border-0"
                         >
                           <div className="col-span-2 text-xs font-semibold text-slate-600 tabular-nums">
                             {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}

@@ -207,7 +207,7 @@ export default function SalespeopleSetup() {
           {/* Prices table */}
           <div className="ddm-card overflow-hidden">
             {/* Header */}
-            <div className="flex items-center px-5 py-3 bg-slate-50 border-b border-slate-200">
+            <div className="flex items-center px-5 py-3 bg-white border-b border-slate-200">
               <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
               <div className="w-32 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Price</div>
               <div className="w-32 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">New Price</div>

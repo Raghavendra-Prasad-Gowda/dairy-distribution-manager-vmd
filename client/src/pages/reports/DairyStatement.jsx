@@ -167,7 +167,7 @@ export default function DairyStatement() {
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-12 bg-blue-700 px-4 py-3">
+        <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-3">
           {['Date', 'Opening', 'Stock', 'Paid', 'Closing', ''].map((h, i) => (
             <div
               key={i}
@@ -178,7 +178,7 @@ export default function DairyStatement() {
                 i === 3 ? 'col-span-2 text-right' :
                 i === 4 ? 'col-span-2 text-right' :
                 'col-span-1'
-              } text-xs font-bold text-white uppercase tracking-wider`}
+              } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
             >
               {h}
             </div>

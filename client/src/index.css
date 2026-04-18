@@ -59,13 +59,13 @@
 
   /* ── Table utilities ────────────────────────────────────── */
   .ddm-table-header {
-    @apply grid bg-blue-700 px-5 py-3;
+    @apply grid bg-white border-b border-slate-200 px-5 py-3;
   }
   .ddm-th {
-    @apply text-xs font-bold text-white uppercase tracking-wider;
+    @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
   }
   .ddm-table-row {
-    @apply grid items-center px-5 py-3 border-b border-slate-100 hover:bg-blue-50/40 transition-colors;
+    @apply grid items-center px-5 py-3 border-b border-slate-100 hover:bg-slate-50/80 transition-colors;
   }
 
   /* Section label inside a page / card */
