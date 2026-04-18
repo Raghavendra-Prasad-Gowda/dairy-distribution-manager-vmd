@@ -57,6 +57,7 @@ const SalespersonStatement   = lazy(() => import('./pages/reports/SalespersonSta
 const StockSummary           = lazy(() => import('./pages/reports/StockSummary'));
 const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
+const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
 const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
 const DairyPriceSetup        = lazy(() => import('./pages/dairy/PriceSetup'));
 
@@ -93,6 +94,7 @@ function AppRoutes() {
         {/* ── DAIRY MODULE ── */}
         <Route path="dairy/stock/:brandName" element={S(StockReceipt)} />
         <Route path="dairy/payments"         element={S(DairyPayments)} />
+        <Route path="dairy/setup/categories" element={S(CategorySetup)} />
         <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
         <Route path="dairy/setup/prices"     element={S(DairyPriceSetup)} />
 

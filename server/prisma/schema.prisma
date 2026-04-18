@@ -16,6 +16,7 @@ model Brand {
   createdAt DateTime @default(now()) @map("created_at")
 
   products      Product[]
+  categories    Category[]
   stockReceipts StockReceipt[]
   dairyBalances DairyBalance[]
   dairyPayments DairyPayment[]
@@ -42,6 +43,20 @@ model Product {
 
   @@unique([brandId, name])
   @@map("products")
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  brandId   Int      @map("brand_id")
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([brandId, name])
+  @@map("categories")
 }
 
 // ─── Stock Receipts ───────────────────────────────────────────────────────────

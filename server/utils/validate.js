@@ -22,6 +22,12 @@ const schemas = {
     name: z.string().min(1, 'Brand name is required'),
   }),
 
+  // Categories
+  createCategory: z.object({
+    brandId: z.number().int().positive('Brand ID is required'),
+    name:    z.string().min(1, 'Category name is required'),
+  }),
+
   // Products
   createProduct: z.object({
     brandId:    z.number().int().positive('Brand ID is required'),
