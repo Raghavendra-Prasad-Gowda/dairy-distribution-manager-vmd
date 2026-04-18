@@ -231,10 +231,11 @@ export default function StockReceipt() {
 
           {/* Table header */}
           <div className="grid items-center bg-slate-50 border-b border-slate-200 px-4 py-2.5"
-               style={{ gridTemplateColumns: '1fr 64px 88px 88px' }}>
+               style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr' }}>
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product</div>
             <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</div>
-            <div className="text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Qty</div>
+            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Qty (Litres)</div>
+            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</div>
             <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</div>
           </div>
 
@@ -270,27 +271,22 @@ export default function StockReceipt() {
                     <div
                       key={p.id}
                       className="grid items-center px-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
-                      style={{ gridTemplateColumns: '1fr 64px 88px 88px', minHeight: 52 }}
+                      style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', minHeight: 52 }}
                     >
                       {/* Product name */}
                       <div className="py-3 pr-2">
                         <p className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</p>
-                        {usesLitres && filled && (
-                          <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
-                            {crates.toFixed(2)} crates
-                          </p>
-                        )}
                       </div>
 
                       {/* Rate */}
                       <div className="text-right py-3">
                         <span className="text-xs tabular-nums text-slate-500">
-                          {Number(p.dairyPrice).toFixed(2)}
+                          ₹{Number(p.dairyPrice).toFixed(2)}
                         </span>
                       </div>
 
-                      {/* Qty input */}
-                      <div className="flex flex-col items-center gap-0.5 py-2">
+                      {/* Qty input (litres) */}
+                      <div className="flex justify-end py-2">
                         <input
                           ref={el => { inputRefs.current[p.id] = el; }}
                           type="number"
@@ -303,9 +299,13 @@ export default function StockReceipt() {
                           placeholder="0"
                           className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
                         />
-                        {usesLitres && (
-                          <span className="text-[9px] text-slate-400 font-medium">litres</span>
-                        )}
+                      </div>
+
+                      {/* Crates */}
+                      <div className="text-right py-3">
+                        <span className={`text-xs tabular-nums ${filled ? 'text-slate-600' : 'text-slate-300'}`}>
+                          {filled ? (usesLitres ? crates.toFixed(2) : inputVal.toFixed(2)) : '—'}
+                        </span>
                       </div>
 
                       {/* Amount */}

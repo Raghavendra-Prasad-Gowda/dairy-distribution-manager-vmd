@@ -238,7 +238,7 @@ export default function CategorySetup() {
                 />
               </div>
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={closeModal} className="ddm-btn-secondary flex-1">Cancel</button>
+                <button type="button" onClick={closeModal} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl transition">Cancel</button>
                 <button type="submit" disabled={submitting || !formName.trim()} className="ddm-btn-primary flex-1">
                   {editingCat ? 'Save Changes' : 'Add Category'}
                 </button>

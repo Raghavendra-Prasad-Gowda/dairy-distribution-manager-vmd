@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, Info, Search, X } from 'lucide-react';
+import { Edit2, Trash2, Info, Search, Loader2, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -12,11 +13,14 @@ export default function DairyPriceSetup() {
   const [brands, setBrands]       = useState([]);
   const [activeBrandId, setActive] = useState(null);
   const [products, setProducts]   = useState([]);
-  const [edits, setEdits]         = useState({});
   const [loading, setLoading]     = useState(false);
-  const [saving, setSaving]       = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch]       = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [priceForm, setPriceForm] = useState('');
+  const [confirmation, setConfirmation] = useState({ isOpen: false });
 
   useEffect(() => {
     api.get('/brands')
@@ -28,7 +32,6 @@ export default function DairyPriceSetup() {
     if (!activeBrandId) return;
     fetchProducts();
     setSearch('');
-    setEdits({});
     setCurrentPage(1);
   }, [activeBrandId]);
 
@@ -37,9 +40,8 @@ export default function DairyPriceSetup() {
   async function fetchProducts() {
     setLoading(true);
     try {
-      const r = await api.get(`/products?brandId=${activeBrandId}&all=true`);
+      const r = await api.get(`/products?brandId=${activeBrandId}`);
       setProducts(r.data.data);
-      setEdits({});
     } catch {
       notify('Failed to load products', 'error');
     } finally {
@@ -47,20 +49,52 @@ export default function DairyPriceSetup() {
     }
   }
 
-  const handleSave = async (product) => {
-    if (edits[product.id] === undefined) return;
-    setSaving(product.id);
+  const openEdit = (p) => {
+    setEditingProduct(p);
+    setPriceForm(Number(p.dairyPrice).toFixed(2));
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => { setIsModalOpen(false); setEditingProduct(null); };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
     try {
-      await api.put(`/products/${product.id}`, {
-        name:       product.name,
-        dairyPrice: parseFloat(edits[product.id]) || 0,
+      await api.put(`/products/${editingProduct.id}`, {
+        name:       editingProduct.name,
+        dairyPrice: parseFloat(priceForm) || 0,
       });
       notify('Price updated', 'success');
+      closeModal();
       fetchProducts();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Update failed', 'error');
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Update failed', 'error');
     } finally {
-      setSaving(null);
+      setSubmitting(false);
+    }
+  };
+
+  const confirmDelete = (p) => {
+    setConfirmation({
+      isOpen: true,
+      title: 'Delete Product',
+      message: `Delete "${p.name}"? It will be removed from daily operations but historical data is kept.`,
+      action: () => archiveProduct(p),
+      isDanger: true,
+    });
+  };
+
+  const archiveProduct = async (p) => {
+    setSubmitting(true);
+    try {
+      await api.put(`/products/${p.id}`, { isActive: false });
+      notify('Product deleted', 'success');
+      fetchProducts();
+    } catch {
+      notify('Failed to delete', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -110,6 +144,15 @@ export default function DairyPriceSetup() {
 
   return (
     <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-5">
+
+      {submitting && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Processing…</p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div>
@@ -162,9 +205,9 @@ export default function DairyPriceSetup() {
             <thead className="bg-emerald-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Dairy Price (₹)</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Save</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
@@ -185,53 +228,30 @@ export default function DairyPriceSetup() {
               ) : (
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
-                    {/* Category header row */}
                     <tr className="bg-slate-100 border-l-4 border-emerald-500">
                       <td colSpan={4} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
-                    {items.map(p => {
-                      const isDirty = edits[p.id] !== undefined;
-                      return (
-                        <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${!p.isActive ? 'opacity-50' : ''}`}>
-                          <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`inline-flex px-2.5 py-0.5 text-xs font-semibold rounded-full ${p.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                              {p.isActive ? 'Active' : 'Archived'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end">
-                              <div className="relative w-32">
-                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                <input
-                                  type="number" step="0.01" min="0"
-                                  disabled={!p.isActive}
-                                  value={edits[p.id] ?? Number(p.dairyPrice).toFixed(2)}
-                                  onChange={e => setEdits(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                  className="w-full pl-6 pr-2 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
-                                />
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            {isDirty ? (
-                              <button
-                                onClick={() => handleSave(p)}
-                                disabled={saving === p.id}
-                                className="inline-flex items-center gap-1 text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg transition font-semibold disabled:opacity-60"
-                              >
-                                {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
-                                Save
-                              </button>
-                            ) : (
-                              <span className="text-xs text-slate-300 font-medium">Saved</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {items.map(p => (
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
+                        <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
+                          ₹{Number(p.dairyPrice).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex items-center justify-center gap-3">
+                            <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit Price">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => confirmDelete(p)} className="text-red-500 hover:text-red-700 transition-colors" title="Delete">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </React.Fragment>
                 ))
               )}
@@ -239,6 +259,61 @@ export default function DairyPriceSetup() {
           </table>
         </div>
       </div>
+
+      {/* Edit Price Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Edit Price</h3>
+              <button onClick={closeModal} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Product</label>
+                <p className="text-sm font-semibold text-slate-800">{editingProduct?.name}</p>
+                {editingProduct?.category && (
+                  <p className="text-xs text-slate-400 mt-0.5">{editingProduct.category}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Dairy Price (₹) <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                  <input
+                    autoFocus
+                    type="number" step="0.01" min="0" required
+                    value={priceForm}
+                    onChange={e => setPriceForm(e.target.value)}
+                    placeholder="0.00"
+                    className="ddm-input pl-7 text-right tabular-nums"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={closeModal} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl transition">Cancel</button>
+                <button type="submit" disabled={submitting} className="ddm-btn-primary flex-1">
+                  Save Price
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <ConfirmationModal
+        isOpen={confirmation.isOpen}
+        onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
+        onConfirm={confirmation.action}
+        title={confirmation.title}
+        message={confirmation.message}
+        isDanger={confirmation.isDanger}
+        confirmText="Delete"
+      />
     </div>
   );
 }

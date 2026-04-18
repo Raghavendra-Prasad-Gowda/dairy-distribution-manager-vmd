@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Loader2, X, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Loader2, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -43,7 +43,7 @@ export default function ProductsSetup() {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        api.get(`/products?brandId=${activeBrandId}&all=true`),
+        api.get(`/products?brandId=${activeBrandId}`),
         api.get(`/categories?brandId=${activeBrandId}`),
       ]);
       setProducts(prodRes.data.data);
@@ -74,7 +74,6 @@ export default function ProductsSetup() {
 
   const totalFiltered = filteredGrouped.reduce((s, [, arr]) => s + arr.length, 0);
 
-  // category-aware pages: keep each category group together
   const pages = useMemo(() => {
     const result = [];
     let page = [];
@@ -134,27 +133,27 @@ export default function ProductsSetup() {
     }
   };
 
-  const toggleActive = async (p) => {
+  const confirmDelete = (p) => {
+    setConfirmation({
+      isOpen: true,
+      title: 'Delete Product',
+      message: `Delete "${p.name}"? It will be removed from daily operations but historical data is kept.`,
+      action: () => archiveProduct(p),
+      isDanger: true,
+    });
+  };
+
+  const archiveProduct = async (p) => {
     setSubmitting(true);
     try {
-      await api.put(`/products/${p.id}`, { isActive: !p.isActive });
-      notify(`Product ${p.isActive ? 'deactivated' : 'activated'}`, 'success');
+      await api.put(`/products/${p.id}`, { isActive: false });
+      notify('Product deleted', 'success');
       fetchAll();
     } catch {
-      notify('Failed to update', 'error');
+      notify('Failed to delete', 'error');
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const confirmArchive = (p) => {
-    setConfirmation({
-      isOpen: true,
-      title: 'Archive Product',
-      message: `Archive "${p.name}"? It will be hidden from daily operations but historical data is kept.`,
-      action: () => toggleActive(p),
-      isDanger: true,
-    });
   };
 
   const activeBrand = brands.find(b => b.id === activeBrandId);
@@ -220,55 +219,42 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">ml / Crate</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={4} className="px-6 py-16 text-center">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
               ) : (
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
-                    {/* Category header row */}
                     <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={4} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
                     {items.map(p => (
-                      <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${!p.isActive ? 'opacity-50' : ''}`}>
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center tabular-nums">{p.mlPerCrate ?? '—'}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex px-2.5 py-0.5 text-xs font-semibold rounded-full ${p.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                            {p.isActive ? 'Active' : 'Archived'}
-                          </span>
-                        </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center gap-3">
                             <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => p.isActive ? confirmArchive(p) : toggleActive(p)}
-                              className={`transition-colors ${p.isActive ? 'text-red-500 hover:text-red-700' : 'text-emerald-500 hover:text-emerald-700'}`}
-                              title={p.isActive ? 'Archive' : 'Restore'}
-                            >
-                              {p.isActive
-                                ? <ToggleRight className="w-5 h-5" />
-                                : <ToggleLeft className="w-5 h-5" />}
+                            <button onClick={() => confirmDelete(p)} className="text-red-500 hover:text-red-700 transition-colors" title="Delete">
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -347,7 +333,7 @@ export default function ProductsSetup() {
                 </div>
               </div>
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={closeModal} className="ddm-btn-secondary flex-1">Cancel</button>
+                <button type="button" onClick={closeModal} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl transition">Cancel</button>
                 <button type="submit" disabled={submitting} className="ddm-btn-primary flex-1">
                   {editingProduct ? 'Save Changes' : 'Add Product'}
                 </button>
@@ -364,7 +350,7 @@ export default function ProductsSetup() {
         title={confirmation.title}
         message={confirmation.message}
         isDanger={confirmation.isDanger}
-        confirmText="Archive"
+        confirmText="Delete"
       />
     </div>
   );
