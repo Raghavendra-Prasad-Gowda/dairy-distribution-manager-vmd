@@ -1,17 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Truck, CreditCard, AlertCircle, Loader2, ArrowRight, Users } from 'lucide-react';
+import { Package, Truck, CreditCard, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { BRAND_COLORS } from '../utils/constants';
 import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
-
-function getInitials(name) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 /** Premium dairy payable card — brand-colored header, large owe amount, breakdown row */
 function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
@@ -74,7 +68,6 @@ export default function Dashboard() {
   const { notify } = useNotification();
   const [date, setDate]           = useState(getIndiaDate());
   const [dairyBalances, setDairy] = useState([]);
-  const [spBalances, setSp]       = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
 
@@ -84,12 +77,8 @@ export default function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      const [dairyRes, spRes] = await Promise.all([
-        api.get(`/dairy-balance?date=${date}`),
-        api.get(`/salesperson-balance?date=${date}`),
-      ]);
+      const dairyRes = await api.get(`/dairy-balance?date=${date}`);
       setDairy(dairyRes.data.data?.brands ?? []);
-      setSp(spRes.data.data ?? []);
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load dashboard data');
     } finally {
@@ -98,14 +87,6 @@ export default function Dashboard() {
   }
 
   const totalDairyOwing = dairyBalances.reduce((s, b) => s + Math.max(0, b.closingBalance), 0);
-  const totalSpOwing    = spBalances.reduce((s, b) => s + Math.max(0, b.closingBalance), 0);
-  const spCleared       = spBalances.filter(b => (b.closingBalance ?? 0) <= 0).length;
-  const spPending       = spBalances.length - spCleared;
-
-  const topOwing = [...spBalances]
-    .filter(b => (b.closingBalance ?? 0) > 0)
-    .sort((a, b) => (b.closingBalance ?? 0) - (a.closingBalance ?? 0))
-    .slice(0, 5);
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
@@ -185,78 +166,6 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* ── 3. Salesperson Outstanding ───────────────────── */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <p className="ddm-section-label">Salesperson Outstanding</p>
-              <Link
-                to="/salesperson-outstanding"
-                className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
-              >
-                View All <ArrowRight size={12} />
-              </Link>
-            </div>
-
-            <div className="ddm-card p-4">
-              {spBalances.length === 0 ? (
-                <p className="text-center text-slate-400 text-sm py-4">No salespeople configured.</p>
-              ) : (
-                <>
-                  {/* Summary */}
-                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                    <div>
-                      <p className="text-2xl font-bold tabular-nums text-red-600">{formatCurrency(totalSpOwing)}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">total outstanding</p>
-                    </div>
-                    <div className="flex gap-4">
-                      <div className="text-center">
-                        <p className="text-lg font-bold text-amber-600">{spPending}</p>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Pending</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-lg font-bold text-emerald-600">{spCleared}</p>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Cleared</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top owing */}
-                  {topOwing.length > 0 && (
-                    <div className="space-y-2 mb-3">
-                      {topOwing.map(sp => {
-                        const pct = Math.min(100, ((sp.closingBalance ?? 0) / Math.max(1, totalSpOwing)) * 100);
-                        return (
-                          <div key={sp.salespersonId} className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-600 flex-shrink-0">
-                              {getInitials(sp.salespersonName)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-baseline justify-between mb-1">
-                                <span className="text-sm font-semibold text-slate-700 truncate">{sp.salespersonName}</span>
-                                <span className="text-sm font-bold text-red-600 tabular-nums ml-2 flex-shrink-0">
-                                  {formatCurrency(sp.closingBalance ?? 0)}
-                                </span>
-                              </div>
-                              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <Link
-                    to="/salesperson-outstanding"
-                    className="flex items-center justify-center gap-2 w-full py-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-600 transition-colors"
-                  >
-                    <Users size={13} /> View All Balances <ArrowRight size={12} />
-                  </Link>
-                </>
-              )}
-            </div>
-          </section>
         </>
       )}
     </div>

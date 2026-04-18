@@ -76,13 +76,7 @@ function ModuleHeader({ module, compact }) {
   );
 }
 
-function Sidebar({ compact = false, setMobileOpen }) {
-  const { logout, user } = useAuth();
-  const navigate = useNavigate();
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  const handleLogout = () => { logout(); navigate('/login'); };
-
+function Sidebar({ compact = false, setMobileOpen, onLogoutRequest }) {
   return (
     <div className="flex flex-col h-full ddm-gradient">
       {/* Logo */}
@@ -134,7 +128,7 @@ function Sidebar({ compact = false, setMobileOpen }) {
       {/* User + Sign Out */}
       <div className="border-t border-white/10 py-3 space-y-1 px-2">
         <button
-          onClick={() => setShowLogoutConfirm(true)}
+          onClick={onLogoutRequest}
           title="Sign Out"
           className={`w-full flex items-center rounded-lg text-emerald-300 hover:bg-white/10 hover:text-white transition-all ${
             compact ? 'justify-center p-3' : 'gap-3 px-3 py-2'
@@ -144,9 +138,38 @@ function Sidebar({ compact = false, setMobileOpen }) {
           {!compact && <span className="text-sm font-medium">Sign Out</span>}
         </button>
       </div>
+    </div>
+  );
+}
 
+export default function Layout() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  return (
+    <div className="flex h-screen bg-slate-100">
+      {/* Desktop sidebar — full labels (lg+) */}
+      <aside className="hidden lg:flex flex-col w-56 flex-shrink-0">
+        <Sidebar compact={false} onLogoutRequest={() => setShowLogoutConfirm(true)} />
+      </aside>
+
+      {/* Mobile + iPad backdrop */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* Mobile + iPad slide-out drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col lg:hidden transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <Sidebar compact={false} setMobileOpen={setMobileOpen} onLogoutRequest={() => { setMobileOpen(false); setShowLogoutConfirm(true); }} />
+      </aside>
+
+      {/* Sign out confirmation modal — rendered at root level to avoid transform clipping */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" style={{ animation: 'fadeIn 0.2s ease' }}>
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center" style={{ animation: 'fadeIn 0.2s ease' }}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 mx-4 w-full max-w-sm" style={{ animation: 'popIn 0.25s ease' }}>
             <h3 className="text-lg font-bold text-slate-900 mb-2">Sign out?</h3>
             <p className="text-slate-500 text-sm mb-6">You'll need your password to access the dashboard again.</p>
@@ -157,29 +180,6 @@ function Sidebar({ compact = false, setMobileOpen }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-export default function Layout() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  return (
-    <div className="flex h-screen bg-slate-100">
-      {/* Desktop sidebar — full labels (lg+) */}
-      <aside className="hidden lg:flex flex-col w-56 flex-shrink-0">
-        <Sidebar compact={false} />
-      </aside>
-
-      {/* Mobile + iPad backdrop */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
-      )}
-
-      {/* Mobile + iPad slide-out drawer */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col lg:hidden transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <Sidebar compact={false} setMobileOpen={setMobileOpen} />
-      </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
