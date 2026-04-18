@@ -61,17 +61,11 @@ function SidebarLink({ item, compact, setMobileOpen }) {
 
 function ModuleHeader({ module, compact }) {
   if (compact) return <div className="h-px bg-white/10 mx-1 mb-2" />;
-  const isModule = module.key !== 'reports';
   return (
-    <div className={`flex items-center gap-2 px-2 mb-1.5 ${isModule ? 'mt-1' : ''}`}>
+    <div className="flex items-center gap-2 px-2 mb-1.5">
       <p className={`text-[10px] font-bold uppercase tracking-widest ${module.headerClass}`}>
         {module.label}
       </p>
-      {isModule && module.badgeClass && (
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${module.badgeClass}`}>
-          M{module.key === 'dairy' ? '1' : '2'}
-        </span>
-      )}
     </div>
   );
 }
