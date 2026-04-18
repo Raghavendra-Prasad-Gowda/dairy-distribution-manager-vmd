@@ -256,24 +256,7 @@ export default function StockReceipt() {
       {/* ── Footer / Save bar ──────────────────────────────── */}
       {!loading && products.length > 0 && (
         <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
-          {/* Progress dots */}
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <div className="flex gap-0.5">
-              {products.slice(0, 10).map(p => (
-                <span
-                  key={p.id}
-                  className={`block h-1.5 w-3 rounded-full transition-colors ${
-                    (parseFloat(quantities[p.id]) || 0) > 0 ? 'bg-blue-500' : 'bg-slate-200'
-                  }`}
-                />
-              ))}
-            </div>
-            <span className="text-xs text-slate-400 whitespace-nowrap ml-1">
-              {filledCount > 0
-                ? <><b className="text-blue-600">{filledCount}</b>/{products.length}</>
-                : `0/${products.length}`}
-            </span>
-          </div>
+          <div className="flex-1" />
 
           {/* Total */}
           <div className="text-right">
