@@ -156,6 +156,15 @@ export default function ProductsSetup() {
     }
   };
 
+  const toggleShowInReceipt = async (p) => {
+    try {
+      await api.put(`/products/${p.id}`, { showInStockReceipt: !p.showInStockReceipt });
+      setProducts(prev => prev.map(x => x.id === p.id ? { ...x, showInStockReceipt: !x.showInStockReceipt } : x));
+    } catch {
+      notify('Failed to update', 'error');
+    }
+  };
+
   const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
@@ -219,19 +228,20 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">ml / Crate</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-16 text-center">
+                  <td colSpan={5} className="px-6 py-16 text-center">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
@@ -239,7 +249,7 @@ export default function ProductsSetup() {
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
                     <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={4} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
@@ -248,6 +258,15 @@ export default function ProductsSetup() {
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center tabular-nums">{p.mlPerCrate ?? '—'}</td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => toggleShowInReceipt(p)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${p.showInStockReceipt ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                            title={p.showInStockReceipt ? 'Hide from Stock Receipt' : 'Show in Stock Receipt'}
+                          >
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${p.showInStockReceipt ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                          </button>
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center gap-3">
                             <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit">

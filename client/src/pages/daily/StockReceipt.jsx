@@ -60,7 +60,7 @@ export default function StockReceipt() {
       api.get(`/stock-receipts?date=${date}&brandId=${activeBrand.id}`),
     ])
       .then(([prodRes, receiptRes]) => {
-        const prods = prodRes.data.data;
+        const prods = prodRes.data.data.filter(p => p.showInStockReceipt !== false);
         setProducts(prods);
         const qty = {};
         for (const p of prods) qty[p.id] = '';

@@ -37,11 +37,12 @@ const schemas = {
     dairyPrice: z.number().min(0).default(0),
   }),
   updateProduct: z.object({
-    name:       z.string().min(1).optional(),
-    category:   z.string().optional().nullable(),
-    mlPerCrate: z.number().int().positive().optional().nullable(),
-    dairyPrice: z.number().min(0).optional(),
-    isActive:   z.boolean().optional(),
+    name:               z.string().min(1).optional(),
+    category:           z.string().optional().nullable(),
+    mlPerCrate:         z.number().int().positive().optional().nullable(),
+    dairyPrice:         z.number().min(0).optional(),
+    isActive:           z.boolean().optional(),
+    showInStockReceipt: z.boolean().optional(),
   }),
 
   // Stock Receipts
