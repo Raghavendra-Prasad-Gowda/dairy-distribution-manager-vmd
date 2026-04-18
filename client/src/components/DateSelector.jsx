@@ -26,8 +26,8 @@ export default function DateSelector({ date, onChange, showNavigation = true }) 
       )}
 
       {/* Clickable date label — wraps hidden native input */}
-      <label className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 cursor-pointer transition select-none group">
-        <Calendar size={14} className="text-slate-400 group-hover:text-indigo-500 transition flex-shrink-0" />
+      <label className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:border-emerald-300 cursor-pointer transition select-none group">
+        <Calendar size={14} className="text-slate-400 group-hover:text-emerald-500 transition flex-shrink-0" />
         <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
           {fmtCompact(date)}
         </span>
@@ -55,7 +55,7 @@ export default function DateSelector({ date, onChange, showNavigation = true }) 
       {!isToday && (
         <button
           onClick={() => onChange(today)}
-          className="ml-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition whitespace-nowrap"
+          className="ml-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 px-2 py-1.5 rounded-lg hover:bg-emerald-50 transition whitespace-nowrap"
         >
           Today
         </button>

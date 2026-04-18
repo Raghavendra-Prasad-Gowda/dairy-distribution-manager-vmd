@@ -53,7 +53,7 @@ export default function BalanceSummaryCard({ brandName, opening, stockValue, pai
         <div className="px-4 pb-3">
           <Link
             to={payLink}
-            className="flex items-center justify-center gap-1.5 w-full bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-semibold py-2.5 rounded-lg transition"
+            className="flex items-center justify-center gap-1.5 w-full bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold py-2.5 rounded-lg transition"
           >
             Pay Now <ArrowRight size={14} />
           </Link>

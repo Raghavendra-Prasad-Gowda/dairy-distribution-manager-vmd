@@ -27,14 +27,14 @@ function SpBalanceCard({ sp, balance }) {
   return (
     <div className="ddm-card overflow-hidden">
       {/* Header band */}
-      <div className="px-4 py-3 flex items-center justify-between bg-indigo-700">
+      <div className="px-4 py-3 flex items-center justify-between bg-emerald-700">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {getInitials(sp.name)}
           </div>
           <div>
             <p className="font-bold text-sm text-white leading-tight">{sp.name}</p>
-            {sp.route && <p className="text-indigo-300 text-[11px] leading-tight">{sp.route}</p>}
+            {sp.route && <p className="text-emerald-300 text-[11px] leading-tight">{sp.route}</p>}
           </div>
         </div>
         <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
@@ -240,7 +240,7 @@ export default function SalespersonCollections() {
         <select
           value={selectedSpId ?? ''}
           onChange={e => { setSelectedSp(Number(e.target.value)); setPrefill(null); }}
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
         >
           {salespeople.map(sp => {
             const bal   = allBalances[sp.id];
@@ -268,7 +268,7 @@ export default function SalespersonCollections() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search name or route…"
-                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
+                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
               />
             </div>
             <div className="flex gap-1">
@@ -278,7 +278,7 @@ export default function SalespersonCollections() {
                   onClick={() => setFilter(val)}
                   className={`flex-1 text-xs py-1.5 rounded-lg font-semibold transition ${
                     filter === val
-                      ? 'bg-indigo-700 text-white'
+                      ? 'bg-emerald-700 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -301,17 +301,17 @@ export default function SalespersonCollections() {
                   onClick={() => { setSelectedSp(sp.id); setPrefill(null); }}
                   className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
                     isSelected
-                      ? 'bg-indigo-50 border-l-4 border-l-indigo-600'
+                      ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
                       : 'hover:bg-slate-50 border-l-4 border-l-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                      isSelected ? 'bg-indigo-600 text-white' : owing ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                      isSelected ? 'bg-emerald-600 text-white' : owing ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
                     }`}>
                       {getInitials(sp.name)}
                     </div>
-                    <span className={`text-sm font-semibold flex-1 truncate ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                    <span className={`text-sm font-semibold flex-1 truncate ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>
                       {sp.name}
                     </span>
                   </div>
@@ -338,7 +338,7 @@ export default function SalespersonCollections() {
           {selectedSp ? (
             loading ? (
               <div className="flex items-center justify-center flex-1 py-16">
-                <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+                <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
               </div>
             ) : (
               <div className="p-5 md:p-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
@@ -380,33 +380,33 @@ export default function SalespersonCollections() {
                         onClick={() => setShowFilter(v => !v)}
                         className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
                           showFilter || hasFilters
-                            ? 'bg-indigo-100 text-indigo-700'
-                            : 'bg-white text-slate-500 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
                         }`}
                       >
                         <Filter size={12} />
                         Filter
-                        {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+                        {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
                       </button>
                     </div>
 
                     {/* Filter controls */}
                     {showFilter && (
-                      <div className="px-4 py-3 bg-indigo-50/60 border-b border-indigo-100 grid grid-cols-2 gap-2">
+                      <div className="px-4 py-3 bg-emerald-50/60 border-b border-emerald-100 grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">From</label>
                           <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
-                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">To</label>
                           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
-                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Mode</label>
                           <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
-                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
                             <option value="">All</option>
                             {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
                           </select>
@@ -415,7 +415,7 @@ export default function SalespersonCollections() {
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Reference</label>
                           <div className="relative">
                             <input type="text" value={filterRef} onChange={e => setFilterRef(e.target.value)} placeholder="Search…"
-                              className="w-full pl-2 pr-6 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+                              className="w-full pl-2 pr-6 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
                             {filterRef && (
                               <button onClick={() => setFilterRef('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                                 <X size={11} />
@@ -471,7 +471,7 @@ export default function SalespersonCollections() {
                             <div className="col-span-2 flex items-center justify-end gap-1">
                               <button
                                 onClick={() => handleEdit(p)}
-                                className="p-1.5 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition"
+                                className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition"
                                 title="Edit"
                               >
                                 <Pencil size={12} />

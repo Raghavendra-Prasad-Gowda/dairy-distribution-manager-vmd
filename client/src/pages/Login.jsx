@@ -39,7 +39,7 @@ export default function Login() {
               <Milk className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Vikas Milk Dairy</h1>
-            <p className="text-indigo-200 mt-1 text-sm font-medium">Distribution Manager</p>
+            <p className="text-emerald-200 mt-1 text-sm font-medium">Distribution Manager</p>
           </div>
 
           {/* Form */}
@@ -67,7 +67,7 @@ export default function Login() {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter your username"
                     required
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-slate-50"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-slate-50"
                     autoFocus
                   />
                 </div>
@@ -86,7 +86,7 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-slate-50"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-slate-50"
                   />
                 </div>
               </div>
@@ -94,7 +94,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading || !username || !password}
-                className="w-full flex items-center justify-center gap-2 bg-indigo-700 hover:bg-indigo-800 disabled:bg-indigo-300 text-white font-semibold py-2.5 px-4 rounded-lg transition-all text-sm mt-2"
+                className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white font-semibold py-2.5 px-4 rounded-lg transition-all text-sm mt-2"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
@@ -106,7 +106,7 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="text-center text-indigo-300 text-xs mt-5">
+        <p className="text-center text-emerald-300 text-xs mt-5">
           Dairy Distribution Manager · Vikas Milk Dairy
         </p>
       </div>

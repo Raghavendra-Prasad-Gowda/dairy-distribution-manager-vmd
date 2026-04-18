@@ -6,11 +6,11 @@
 
 @layer base {
   :root {
-    --ddm-indigo:      #4338ca;
-    --ddm-indigo-dark: #3730a3;
+    --ddm-indigo:      #059669;
+    --ddm-indigo-dark: #065f46;
     --ddm-bg:          #f1f5f9;
     --ddm-white:       #ffffff;
-    --ddm-sidebar:     #3730a3;
+    --ddm-sidebar:     #065f46;
   }
 
   body {
@@ -25,7 +25,7 @@
 @layer utilities {
   /* ── Sidebar gradient — indigo ─────────────────────────── */
   .ddm-gradient {
-    background: linear-gradient(180deg, #3730a3 0%, #1e1b4b 100%);
+    background: linear-gradient(180deg, #065f46 0%, #022c22 100%);
   }
 
   /* ── Cards ─────────────────────────────────────────────── */
@@ -38,7 +38,7 @@
 
   /* ── Buttons ────────────────────────────────────────────── */
   .ddm-btn-primary {
-    @apply flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300
+    @apply flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300
            text-white font-semibold px-4 py-2.5 rounded-xl transition text-sm shadow-sm;
   }
   .ddm-btn-ghost {
@@ -53,7 +53,7 @@
   /* ── Form inputs ────────────────────────────────────────── */
   .ddm-input {
     @apply w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-white
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
            placeholder:text-slate-300;
   }
 

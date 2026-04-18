@@ -60,7 +60,7 @@ function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
         <div className="px-3 py-2.5 border-t border-slate-100">
           <Link
             to="/dairy/payments"
-            className="flex items-center justify-center gap-1.5 w-full bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold py-2 rounded-xl transition"
+            className="flex items-center justify-center gap-1.5 w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 rounded-xl transition"
           >
             Pay Now <ArrowRight size={12} />
           </Link>
@@ -127,7 +127,7 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-7 h-7 text-indigo-600 animate-spin" />
+          <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
         </div>
       ) : (
         <>
@@ -137,7 +137,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-3">
               {[
                 { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-blue-600' },
-                { to: '/salesman/dispatch',   icon: Truck,      label: 'Dispatch',      color: 'bg-indigo-600' },
+                { to: '/salesman/dispatch',   icon: Truck,      label: 'Dispatch',      color: 'bg-emerald-600' },
                 { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments',color: 'bg-emerald-600' },
               ].map(({ to, icon: Icon, label, color }) => (
                 <Link
@@ -191,7 +191,7 @@ export default function Dashboard() {
               <p className="ddm-section-label">Salesperson Outstanding</p>
               <Link
                 to="/salesperson-outstanding"
-                className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
               >
                 View All <ArrowRight size={12} />
               </Link>

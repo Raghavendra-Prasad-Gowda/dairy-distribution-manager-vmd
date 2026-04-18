@@ -268,7 +268,7 @@ export default function StockReceipt() {
           <button
             onClick={handleSave}
             disabled={saving || loading || filledCount === 0}
-            className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
+            className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
           >
             {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
             {saving ? 'Saving…' : 'Save Receipt'}

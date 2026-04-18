@@ -146,7 +146,7 @@ export default function ProductsSetup() {
                 value={newProduct.dairyPrice}
                 onChange={(e) => setNewProd((p) => ({ ...p, dairyPrice: e.target.value }))}
                 placeholder="0.00"
-                className="w-28 pl-7 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white tabular-nums"
+                className="w-28 pl-7 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
               />
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function ProductsSetup() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-sm">
@@ -187,7 +187,7 @@ export default function ProductsSetup() {
               <div
                 key={p.id}
                 className={`flex items-center px-5 py-3.5 border-b border-slate-100 transition-colors last:border-0 ${
-                  !p.isActive ? 'opacity-40' : isDirty ? 'bg-indigo-50/40' : 'hover:bg-slate-50/60'
+                  !p.isActive ? 'opacity-40' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'
                 }`}
               >
                 {/* Product name — editable */}
@@ -196,7 +196,7 @@ export default function ProductsSetup() {
                     value={edits[p.id]?.name ?? p.name}
                     onChange={(e) => handleEdit(p.id, 'name', e.target.value)}
                     disabled={!p.isActive}
-                    className="w-full text-sm font-semibold text-slate-800 bg-transparent border-b border-transparent focus:border-indigo-400 focus:outline-none py-0.5 disabled:cursor-not-allowed"
+                    className="w-full text-sm font-semibold text-slate-800 bg-transparent border-b border-transparent focus:border-emerald-400 focus:outline-none py-0.5 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -204,11 +204,11 @@ export default function ProductsSetup() {
                 <div className="w-16 flex justify-center">
                   <button
                     onClick={() => toggleActive(p)}
-                    className="text-slate-400 hover:text-indigo-600 transition"
+                    className="text-slate-400 hover:text-emerald-600 transition"
                     title={p.isActive ? 'Deactivate' : 'Activate'}
                   >
                     {p.isActive
-                      ? <ToggleRight size={22} className="text-indigo-600" />
+                      ? <ToggleRight size={22} className="text-emerald-600" />
                       : <ToggleLeft size={22} />
                     }
                   </button>
@@ -220,7 +220,7 @@ export default function ProductsSetup() {
                     <button
                       onClick={() => handleSave(p)}
                       disabled={saving === p.id}
-                      className="flex items-center gap-1 text-xs bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg transition font-semibold"
+                      className="flex items-center gap-1 text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg transition font-semibold"
                     >
                       {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
                       Save

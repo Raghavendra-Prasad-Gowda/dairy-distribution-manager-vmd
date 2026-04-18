@@ -48,7 +48,7 @@ export default function StockSummary() {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+          <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
         </div>
       ) : data ? (
         <div className="space-y-5">
@@ -57,7 +57,7 @@ export default function StockSummary() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               { label: 'Total Received',   val: totalReceived,   color: 'text-blue-700',    bg: 'bg-blue-600',    icon: Package },
-              { label: 'Total Dispatched', val: totalDispatched, color: 'text-indigo-700',  bg: 'bg-indigo-600',  icon: Truck },
+              { label: 'Total Dispatched', val: totalDispatched, color: 'text-emerald-700',  bg: 'bg-emerald-600',  icon: Truck },
               {
                 label: 'Net Available',
                 val:   netAvailable,
@@ -121,7 +121,7 @@ export default function StockSummary() {
           {/* ── Dispatches table ───────────────────────────────────── */}
           <div className="ddm-card overflow-hidden">
             <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-              <Truck size={14} className="text-indigo-600" />
+              <Truck size={14} className="text-emerald-600" />
               <h3 className="font-bold text-slate-900 text-sm">Dispatched to Salespeople</h3>
             </div>
 
@@ -151,7 +151,7 @@ export default function StockSummary() {
                         <div key={j}>{item.brandName} {item.productName} × {item.quantity}</div>
                       ))}
                     </div>
-                    <div className="col-span-2 text-right text-sm font-semibold text-indigo-700 tabular-nums pt-0.5">
+                    <div className="col-span-2 text-right text-sm font-semibold text-emerald-700 tabular-nums pt-0.5">
                       {formatCurrency(d.totalAmount)}
                     </div>
                   </div>

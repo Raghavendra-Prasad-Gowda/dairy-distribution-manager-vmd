@@ -78,7 +78,7 @@ export default function DairyPriceSetup() {
       )}
 
       <div className="ddm-card overflow-hidden">
-        <div className="flex items-center px-5 py-3 bg-blue-700">
+        <div className="flex items-center px-5 py-3 bg-emerald-700">
           <div className="flex-1 text-xs font-bold text-white uppercase tracking-wider">Product</div>
           <div className="w-40 text-right text-xs font-bold text-white uppercase tracking-wider">Dairy Price (₹)</div>
           <div className="w-16 text-right text-xs font-bold text-white uppercase tracking-wider">Save</div>
@@ -86,7 +86,7 @@ export default function DairyPriceSetup() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-sm">
@@ -99,7 +99,7 @@ export default function DairyPriceSetup() {
               <div
                 key={p.id}
                 className={`flex items-center px-5 py-3.5 border-b border-slate-100 last:border-0 transition-colors ${
-                  !p.isActive ? 'opacity-40' : isDirty ? 'bg-indigo-50/40' : 'hover:bg-slate-50/60'
+                  !p.isActive ? 'opacity-40' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'
                 }`}
               >
                 <div className="flex-1 min-w-0 pr-4">
@@ -117,7 +117,7 @@ export default function DairyPriceSetup() {
                       disabled={!p.isActive}
                       value={edits[p.id] ?? p.dairyPrice}
                       onChange={e => setEdits(prev => ({ ...prev, [p.id]: e.target.value }))}
-                      className="w-full pl-6 pr-2 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
+                      className="w-full pl-6 pr-2 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white disabled:bg-slate-50 disabled:cursor-not-allowed tabular-nums"
                     />
                   </div>
                 </div>
@@ -127,7 +127,7 @@ export default function DairyPriceSetup() {
                     <button
                       onClick={() => handleSave(p)}
                       disabled={saving === p.id}
-                      className="flex items-center gap-1 text-xs bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg transition font-semibold"
+                      className="flex items-center gap-1 text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg transition font-semibold"
                     >
                       {saving === p.id ? <Loader2 className="animate-spin" size={12} /> : <Save size={12} />}
                       Save

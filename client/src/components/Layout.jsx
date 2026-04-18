@@ -13,8 +13,8 @@ const MODULES = [
   {
     key: 'dairy',
     label: 'DAIRY MODULE',
-    headerClass: 'text-indigo-300',
-    badgeClass: 'bg-indigo-500/20 text-indigo-300',
+    headerClass: 'text-emerald-300',
+    badgeClass: 'bg-emerald-500/20 text-emerald-300',
     items: [
       { to: '/dairy/stock/nandini',   icon: Package,    label: 'Nandini Stock' },
       { to: '/dairy/stock/jersey',    icon: Package,    label: 'Jersey Stock' },
@@ -27,7 +27,7 @@ const MODULES = [
   {
     key: 'reports',
     label: 'REPORTS',
-    headerClass: 'text-indigo-400',
+    headerClass: 'text-emerald-400',
     items: [
       { to: '/reports/dairy', icon: FileText, label: 'Dairy Statement' },
       { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
@@ -49,7 +49,7 @@ function SidebarLink({ item, compact, setMobileOpen }) {
         } ${
           isActive
             ? 'bg-white/20 text-white shadow-sm'
-            : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+            : 'text-emerald-200 hover:bg-white/10 hover:text-white'
         }`
       }
     >
@@ -88,17 +88,17 @@ function Sidebar({ compact = false, setMobileOpen }) {
       {/* Logo */}
       <div className={`border-b border-white/10 ${compact ? 'px-3 py-4 flex justify-center' : 'px-4 py-5'}`}>
         {compact ? (
-          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
             <Milk className="text-white" size={18} />
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0">
               <Milk className="text-white" size={18} />
             </div>
             <div>
               <p className="text-white font-bold text-sm leading-tight">Vikas Milk Dairy</p>
-              <p className="text-indigo-300 text-xs leading-tight">Distribution Manager</p>
+              <p className="text-emerald-300 text-xs leading-tight">Distribution Manager</p>
             </div>
           </div>
         )}
@@ -110,7 +110,7 @@ function Sidebar({ compact = false, setMobileOpen }) {
         {/* Dashboard — standalone */}
         <div>
           {!compact && (
-            <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-indigo-300/70">
+            <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-emerald-300/70">
               OVERVIEW
             </p>
           )}
@@ -136,7 +136,7 @@ function Sidebar({ compact = false, setMobileOpen }) {
         <button
           onClick={() => setShowLogoutConfirm(true)}
           title="Sign Out"
-          className={`w-full flex items-center rounded-lg text-indigo-300 hover:bg-white/10 hover:text-white transition-all ${
+          className={`w-full flex items-center rounded-lg text-emerald-300 hover:bg-white/10 hover:text-white transition-all ${
             compact ? 'justify-center p-3' : 'gap-3 px-3 py-2'
           }`}
         >
@@ -189,7 +189,7 @@ export default function Layout() {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <Milk className="text-indigo-600" size={18} />
+            <Milk className="text-emerald-600" size={18} />
             <span className="font-bold text-slate-900 text-sm">Vikas Milk Dairy</span>
           </div>
         </header>

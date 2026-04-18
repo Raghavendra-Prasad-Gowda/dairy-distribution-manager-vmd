@@ -68,7 +68,7 @@ export default function PaymentForm({
             step="0.01"
             min="0.01"
             required
-            className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white tabular-nums"
+            className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
           />
         </div>
 
@@ -102,8 +102,8 @@ export default function PaymentForm({
               onClick={() => setForm(f => ({ ...f, paymentMode: mode }))}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
                 form.paymentMode === mode
-                  ? 'bg-indigo-700 text-white border-indigo-700'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                  ? 'bg-emerald-700 text-white border-emerald-700'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
               }`}
             >
               {mode}
@@ -117,12 +117,12 @@ export default function PaymentForm({
         <div>
           <label className="ddm-section-label block mb-1.5">Date</label>
           <input type="date" name="paymentDate" value={form.paymentDate} onChange={handleChange} required
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
         </div>
         <div>
           <label className="ddm-section-label block mb-1.5">Reference</label>
           <input type="text" name="reference" value={form.reference} onChange={handleChange} placeholder="Txn / cheque no."
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
         </div>
       </div>
 

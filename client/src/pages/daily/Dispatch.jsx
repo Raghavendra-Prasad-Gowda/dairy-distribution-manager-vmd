@@ -143,7 +143,7 @@ export default function Dispatch() {
         <select
           value={selectedSpId ?? ''}
           onChange={e => { setSelectedSp(Number(e.target.value)); setQuantities({}); }}
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
         >
           {salespeople.map(sp => (
             <option key={sp.id} value={sp.id}>
@@ -167,7 +167,7 @@ export default function Dispatch() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-slate-50"
+                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
               />
             </div>
           </div>
@@ -183,12 +183,12 @@ export default function Dispatch() {
                   onClick={() => { setSelectedSp(sp.id); setQuantities({}); }}
                   className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
                     isSelected
-                      ? 'bg-indigo-50 border-l-4 border-l-indigo-600'
+                      ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
                       : 'hover:bg-slate-50 border-l-4 border-l-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-semibold flex-1 truncate ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                    <span className={`text-sm font-semibold flex-1 truncate ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>
                       {sp.name}
                     </span>
                     {isSaved
@@ -216,9 +216,9 @@ export default function Dispatch() {
 
           {/* Selected salesperson header bar */}
           {selectedSp ? (
-            <div className="px-5 py-2.5 bg-indigo-700 text-white flex items-center gap-3">
+            <div className="px-5 py-2.5 bg-emerald-700 text-white flex items-center gap-3">
               <span className="font-bold text-sm">{selectedSp.name}</span>
-              {selectedSp.route && <span className="text-indigo-200 text-xs">· {selectedSp.route}</span>}
+              {selectedSp.route && <span className="text-emerald-200 text-xs">· {selectedSp.route}</span>}
               {savedSps.has(selectedSpId) && (
                 <span className="ml-auto flex items-center gap-1 text-emerald-300 text-xs font-semibold">
                   <CheckCircle size={13} /> Saved
@@ -271,7 +271,7 @@ export default function Dispatch() {
                         <div
                           key={p.productId}
                           className={`flex items-center px-4 py-3 border-b border-slate-100 transition-colors ${
-                            missing ? 'bg-amber-50/60' : qty > 0 ? 'bg-indigo-50/30' : 'hover:bg-slate-50/60'
+                            missing ? 'bg-amber-50/60' : qty > 0 ? 'bg-emerald-50/30' : 'hover:bg-slate-50/60'
                           }`}
                         >
                           <div className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate pr-2">{p.productName}</div>
@@ -298,13 +298,13 @@ export default function Dispatch() {
                               min="0"
                               disabled={missing || p.available <= 0}
                               placeholder={missing ? '—' : '0'}
-                              className={`w-16 text-center px-1.5 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
+                              className={`w-16 text-center px-1.5 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
                                 over ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
                               }`}
                             />
                           </div>
 
-                          <div className={`w-20 text-right text-sm tabular-nums font-semibold ${qty > 0 ? 'text-indigo-700' : 'text-slate-300'}`}>
+                          <div className={`w-20 text-right text-sm tabular-nums font-semibold ${qty > 0 ? 'text-emerald-700' : 'text-slate-300'}`}>
                             {qty > 0 ? formatCurrency(amount) : '—'}
                           </div>
                         </div>
@@ -323,7 +323,7 @@ export default function Dispatch() {
                 <div className="flex items-center gap-3 ml-auto">
                   <div className="text-right">
                     <span className="text-xs text-slate-500 mr-1.5">Total</span>
-                    <span className="text-base font-bold text-indigo-700 tabular-nums">{formatCurrency(totalAmount)}</span>
+                    <span className="text-base font-bold text-emerald-700 tabular-nums">{formatCurrency(totalAmount)}</span>
                   </div>
                   <button onClick={handleSave} disabled={saving} className="ddm-btn-primary whitespace-nowrap">
                     {saving ? <Loader2 className="animate-spin" size={15} /> : <Truck size={15} />}
