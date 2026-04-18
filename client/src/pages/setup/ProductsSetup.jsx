@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Loader2, ToggleLeft, ToggleRight, Pencil, X, Search } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Search, Loader2, X, ToggleLeft, ToggleRight } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
+import Pagination from '../../components/Pagination';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
+const ITEMS_PER_PAGE = 10;
 const EMPTY_FORM = { name: '', categoryId: '', mlPerCrate: '', dairyPrice: '' };
 
 export default function ProductsSetup() {
@@ -13,12 +16,13 @@ export default function ProductsSetup() {
   const [products, setProducts]     = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(false);
-  const [toggling, setToggling]     = useState(null);
-  const [saving, setSaving]         = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch]         = useState('');
-  // modal: null | { mode: 'add' } | { mode: 'edit', product }
-  const [modal, setModal]   = useState(null);
-  const [form, setForm]     = useState(EMPTY_FORM);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [form, setForm]               = useState(EMPTY_FORM);
+  const [confirmation, setConfirmation] = useState({ isOpen: false });
 
   useEffect(() => {
     api.get('/brands')
@@ -28,16 +32,22 @@ export default function ProductsSetup() {
 
   useEffect(() => {
     if (!activeBrandId) return;
-    fetchProducts();
-    fetchCategories();
+    fetchAll();
     setSearch('');
+    setCurrentPage(1);
   }, [activeBrandId]);
 
-  async function fetchProducts() {
+  useEffect(() => { setCurrentPage(1); }, [search]);
+
+  async function fetchAll() {
     setLoading(true);
     try {
-      const r = await api.get(`/products?brandId=${activeBrandId}&all=true`);
-      setProducts(r.data.data);
+      const [prodRes, catRes] = await Promise.all([
+        api.get(`/products?brandId=${activeBrandId}&all=true`),
+        api.get(`/categories?brandId=${activeBrandId}`),
+      ]);
+      setProducts(prodRes.data.data);
+      setCategories(catRes.data.data);
     } catch {
       notify('Failed to load products', 'error');
     } finally {
@@ -45,56 +55,61 @@ export default function ProductsSetup() {
     }
   }
 
-  async function fetchCategories() {
-    try {
-      const r = await api.get(`/categories?brandId=${activeBrandId}`);
-      setCategories(r.data.data);
-    } catch {}
-  }
-
-  // ── Filtered + grouped ────────────────────────────────────────────────────────
+  // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
-      ? products.filter(p =>
-          p.name.toLowerCase().includes(q) ||
-          (p.category ?? '').toLowerCase().includes(q)
-        )
+      ? products.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
       : products;
-    return filtered.reduce((acc, p) => {
+
+    const grouped = filtered.reduce((acc, p) => {
       const key = p.category || 'Uncategorised';
       if (!acc[key]) acc[key] = [];
       acc[key].push(p);
       return acc;
     }, {});
+
+    return Object.entries(grouped);
   }, [products, search]);
 
-  // ── Modal helpers ─────────────────────────────────────────────────────────────
-  function openAddModal() {
-    setForm(EMPTY_FORM);
-    setModal({ mode: 'add' });
-  }
+  const totalFiltered = filteredGrouped.reduce((s, [, arr]) => s + arr.length, 0);
 
-  function openEditModal(product) {
-    const cat = categories.find(c => c.name === product.category);
-    setForm({
-      name:       product.name,
-      categoryId: cat?.id ?? '',
-      mlPerCrate: product.mlPerCrate ?? '',
-      dairyPrice: product.dairyPrice,
+  // category-aware pages: keep each category group together
+  const pages = useMemo(() => {
+    const result = [];
+    let page = [];
+    let count = 0;
+    filteredGrouped.forEach(([cat, items]) => {
+      if (count + items.length > ITEMS_PER_PAGE && count > 0) {
+        result.push(page); page = []; count = 0;
+      }
+      page.push([cat, items]);
+      count += items.length;
     });
-    setModal({ mode: 'edit', product });
-  }
+    if (page.length) result.push(page);
+    return result;
+  }, [filteredGrouped]);
 
-  function closeModal() { setModal(null); }
+  const totalPages   = Math.max(1, pages.length);
+  const pageGroups   = pages[currentPage - 1] ?? [];
+  const startIdx     = pages.slice(0, currentPage - 1).reduce((s, p) => s + p.reduce((a, [, it]) => a + it.length, 0), 0);
+  const endIdx       = startIdx + pageGroups.reduce((s, [, it]) => s + it.length, 0);
 
-  const handleFormChange = (field, value) =>
-    setForm(prev => ({ ...prev, [field]: value }));
+  // ── Modal ─────────────────────────────────────────────────────────────────────
+  const openAdd = () => { setEditingProduct(null); setForm(EMPTY_FORM); setIsModalOpen(true); };
 
-  // ── Submit modal form ─────────────────────────────────────────────────────────
-  const handleModalSubmit = async (e) => {
+  const openEdit = (p) => {
+    const cat = categories.find(c => c.name === p.category);
+    setEditingProduct(p);
+    setForm({ name: p.name, categoryId: cat?.id ?? '', mlPerCrate: p.mlPerCrate ?? '', dairyPrice: Number(p.dairyPrice) });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => { setIsModalOpen(false); setEditingProduct(null); };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true);
+    setSubmitting(true);
     const categoryName = categories.find(c => c.id === Number(form.categoryId))?.name ?? null;
     const payload = {
       name:       form.name.trim(),
@@ -103,246 +118,254 @@ export default function ProductsSetup() {
       dairyPrice: parseFloat(form.dairyPrice) || 0,
     };
     try {
-      if (modal.mode === 'add') {
+      if (editingProduct) {
+        await api.put(`/products/${editingProduct.id}`, payload);
+        notify('Product updated', 'success');
+      } else {
         await api.post('/products', { brandId: activeBrandId, ...payload });
         notify('Product added', 'success');
-      } else {
-        await api.put(`/products/${modal.product.id}`, payload);
-        notify('Product updated', 'success');
       }
       closeModal();
-      fetchProducts();
+      fetchAll();
     } catch (err) {
       notify(err.response?.data?.error ?? 'Save failed', 'error');
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   };
 
-  // ── Toggle active ─────────────────────────────────────────────────────────────
-  const toggleActive = async (product) => {
-    setToggling(product.id);
+  const toggleActive = async (p) => {
+    setSubmitting(true);
     try {
-      await api.put(`/products/${product.id}`, { isActive: !product.isActive });
-      notify(`Product ${product.isActive ? 'deactivated' : 'activated'}`, 'success');
-      fetchProducts();
+      await api.put(`/products/${p.id}`, { isActive: !p.isActive });
+      notify(`Product ${p.isActive ? 'deactivated' : 'activated'}`, 'success');
+      fetchAll();
     } catch {
-      notify('Failed to update status', 'error');
+      notify('Failed to update', 'error');
     } finally {
-      setToggling(null);
+      setSubmitting(false);
     }
   };
+
+  const confirmArchive = (p) => {
+    setConfirmation({
+      isOpen: true,
+      title: 'Archive Product',
+      message: `Archive "${p.name}"? It will be hidden from daily operations but historical data is kept.`,
+      action: () => toggleActive(p),
+      isDanger: true,
+    });
+  };
+
+  const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
-    <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-5">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-5">
+
+      {submitting && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Processing…</p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Product Setup</h1>
           <p className="text-slate-400 text-sm mt-0.5">Manage products per dairy brand</p>
         </div>
-        <button onClick={openAddModal} className="ddm-btn-primary flex-shrink-0">
+        <button onClick={openAdd} className="ddm-btn-primary flex-shrink-0">
           <Plus size={15} /> Add Product
         </button>
       </div>
 
       {brands.length > 0 && (
-        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => { setActive(id); }} />
+        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => setActive(id)} />
       )}
 
       {/* Search */}
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by product name or category…"
-          className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
-        />
-        {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-            <X size={14} />
-          </button>
-        )}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name or category…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={14} />
+            </button>
+          )}
+        </div>
       </div>
+
+      <Pagination
+        currentPage={currentPage} totalPages={totalPages}
+        startIndex={startIdx} endIndex={endIdx} total={totalFiltered}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Table */}
-      <div className="ddm-card overflow-hidden">
-        {/* Column headers */}
-        <div className="grid items-center px-5 py-3 bg-slate-50 border-b border-slate-200"
-             style={{ gridTemplateColumns: '1fr 80px 52px 44px' }}>
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product</div>
-          <div className="text-center text-xs font-bold text-slate-500 uppercase tracking-wider">ml/Crate</div>
-          <div className="text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Active</div>
-          <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Edit</div>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-emerald-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">ml / Crate</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                  </td>
+                </tr>
+              ) : pageGroups.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
+                    {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
+                  </td>
+                </tr>
+              ) : (
+                pageGroups.map(([category, items]) => (
+                  <React.Fragment key={category}>
+                    {/* Category header row */}
+                    <tr className="bg-slate-100 border-l-4 border-emerald-500">
+                      <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                        {category}
+                      </td>
+                    </tr>
+                    {items.map(p => (
+                      <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${!p.isActive ? 'opacity-50' : ''}`}>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
+                        <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-500 text-center tabular-nums">{p.mlPerCrate ?? '—'}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`inline-flex px-2.5 py-0.5 text-xs font-semibold rounded-full ${p.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                            {p.isActive ? 'Active' : 'Archived'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex items-center justify-center gap-3">
+                            <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => p.isActive ? confirmArchive(p) : toggleActive(p)}
+                              className={`transition-colors ${p.isActive ? 'text-red-500 hover:text-red-700' : 'text-emerald-500 hover:text-emerald-700'}`}
+                              title={p.isActive ? 'Archive' : 'Restore'}
+                            >
+                              {p.isActive
+                                ? <ToggleRight className="w-5 h-5" />
+                                : <ToggleLeft className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-          </div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
-            No products yet. Click <strong>Add Product</strong> to get started.
-          </div>
-        ) : Object.keys(filteredGrouped).length === 0 ? (
-          <div className="text-center py-10 text-slate-400 text-sm">No products match your search.</div>
-        ) : (
-          Object.entries(filteredGrouped).map(([category, items]) => (
-            <div key={category}>
-              {/* Category header */}
-              <div className="px-5 py-2 bg-slate-50 border-b border-slate-100">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{category}</span>
-              </div>
-
-              {items.map(p => (
-                <div
-                  key={p.id}
-                  className={`grid items-center px-5 py-3.5 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors ${!p.isActive ? 'opacity-50' : ''}`}
-                  style={{ gridTemplateColumns: '1fr 80px 52px 44px' }}
-                >
-                  {/* Product name + category */}
-                  <div className="pr-3 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
-                    {p.category && (
-                      <p className="text-xs text-slate-400 truncate">{p.category}</p>
-                    )}
-                  </div>
-
-                  {/* ml/Crate */}
-                  <div className="text-center">
-                    <span className="text-sm tabular-nums text-slate-600">
-                      {p.mlPerCrate ?? <span className="text-slate-300">—</span>}
-                    </span>
-                  </div>
-
-                  {/* Active toggle */}
-                  <div className="flex justify-center">
-                    {toggling === p.id ? (
-                      <Loader2 size={18} className="animate-spin text-slate-400" />
-                    ) : (
-                      <button onClick={() => toggleActive(p)}>
-                        {p.isActive
-                          ? <ToggleRight size={22} className="text-emerald-600" />
-                          : <ToggleLeft size={22} className="text-slate-400" />}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Edit */}
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => openEditModal(p)}
-                      className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                    >
-                      <Pencil size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))
-        )}
       </div>
 
-      {/* ── Add / Edit Modal ─────────────────────────────────────────────────── */}
-      {modal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" style={{ animation: 'fadeIn 0.15s ease' }}>
+      {/* Add / Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" style={{ animation: 'popIn 0.2s ease' }}>
-            {/* Modal header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-900">
-                {modal.mode === 'add' ? 'Add Product' : 'Edit Product'}
-              </h2>
+              <h3 className="text-base font-bold text-slate-900">
+                {editingProduct ? 'Edit Product' : 'Add New Product'}
+              </h3>
               <button onClick={closeModal} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
                 <X size={16} />
               </button>
             </div>
-
-            {/* Modal form */}
-            <form onSubmit={handleModalSubmit} className="px-6 py-5 space-y-4">
-              {/* Name */}
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Product Name <span className="text-red-400">*</span>
                 </label>
                 <input
-                  autoFocus
-                  required
+                  autoFocus required
                   value={form.name}
-                  onChange={e => handleFormChange('name', e.target.value)}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Homogenised Milk"
                   className="ddm-input"
                 />
               </div>
-
-              {/* Category dropdown */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Category
-                </label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Category</label>
                 <select
                   value={form.categoryId}
-                  onChange={e => handleFormChange('categoryId', e.target.value)}
+                  onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
                   className="ddm-input bg-white"
                 >
                   <option value="">— No category —</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 {categories.length === 0 && (
-                  <p className="text-xs text-slate-400 mt-1">
-                    Add categories in <strong>Dairy → Categories</strong> first.
-                  </p>
+                  <p className="text-xs text-slate-400 mt-1">Add categories in <strong>Dairy → Categories</strong> first.</p>
                 )}
               </div>
-
-              {/* ml/Crate + Dairy Price row */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    ml / Crate
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">ml / Crate</label>
                   <input
-                    type="number"
-                    min="1"
+                    type="number" min="1"
                     value={form.mlPerCrate}
-                    onChange={e => handleFormChange('mlPerCrate', e.target.value)}
+                    onChange={e => setForm(f => ({ ...f, mlPerCrate: e.target.value }))}
                     placeholder="e.g. 12000"
                     className="ddm-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Dairy Price (₹)
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy Price (₹)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
                     <input
                       type="number" step="0.01" min="0"
                       value={form.dairyPrice}
-                      onChange={e => handleFormChange('dairyPrice', e.target.value)}
+                      onChange={e => setForm(f => ({ ...f, dairyPrice: e.target.value }))}
                       placeholder="0.00"
                       className="ddm-input pl-7 text-right tabular-nums"
                     />
                   </div>
                 </div>
               </div>
-
-              {/* Buttons */}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={closeModal} className="ddm-btn-secondary flex-1">Cancel</button>
-                <button type="submit" disabled={saving} className="ddm-btn-primary flex-1">
-                  {saving && <Loader2 size={14} className="animate-spin" />}
-                  {modal.mode === 'add' ? 'Add Product' : 'Save Changes'}
+                <button type="submit" disabled={submitting} className="ddm-btn-primary flex-1">
+                  {editingProduct ? 'Save Changes' : 'Add Product'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmation.isOpen}
+        onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
+        onConfirm={confirmation.action}
+        title={confirmation.title}
+        message={confirmation.message}
+        isDanger={confirmation.isDanger}
+        confirmText="Archive"
+      />
     </div>
   );
 }
