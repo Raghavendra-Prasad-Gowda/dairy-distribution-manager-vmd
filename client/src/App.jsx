@@ -7,17 +7,33 @@ import Login from './pages/Login';
 import { Loader2 } from 'lucide-react';
 
 class ErrorBoundary extends Component {
-  state = { hasError: false };
-  static getDerivedStateFromError() { return { hasError: true }; }
+  state = { hasError: false, chunkError: false };
+
+  static getDerivedStateFromError(error) {
+    // Chunk load errors happen when Vercel deploys a new version and old JS chunks are gone
+    const isChunkError = error?.name === 'ChunkLoadError'
+      || error?.message?.includes('Failed to fetch dynamically imported module')
+      || error?.message?.includes('Importing a module script failed');
+    return { hasError: true, chunkError: isChunkError };
+  }
+
+  componentDidCatch(error, info) {
+    // Auto-reload once on chunk errors — the new chunk URL will work after reload
+    if (this.state.chunkError && !sessionStorage.getItem('chunk-reload')) {
+      sessionStorage.setItem('chunk-reload', '1');
+      window.location.reload();
+    }
+  }
+
   render() {
-    if (this.state.hasError) {
+    if (this.state.hasError && !this.state.chunkError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
           <div className="text-center px-6">
             <h1 className="text-xl font-bold text-slate-900 mb-2">Something went wrong</h1>
             <p className="text-slate-500 text-sm mb-6">An unexpected error occurred. Please refresh the page.</p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => { sessionStorage.removeItem('chunk-reload'); window.location.reload(); }}
               className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-sm transition"
             >
               Reload Page

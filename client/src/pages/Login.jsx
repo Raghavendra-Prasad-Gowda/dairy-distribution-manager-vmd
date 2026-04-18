@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Milk, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
@@ -9,6 +9,18 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [slowWarning, setSlowWarning] = useState(false);
+  const slowTimer = useRef(null);
+
+  useEffect(() => {
+    if (loading) {
+      slowTimer.current = setTimeout(() => setSlowWarning(true), 6000);
+    } else {
+      clearTimeout(slowTimer.current);
+      setSlowWarning(false);
+    }
+    return () => clearTimeout(slowTimer.current);
+  }, [loading]);
 
   if (user) return <Navigate to="/" replace />;
 
@@ -102,6 +114,12 @@ export default function Login() {
                   'Sign In'
                 )}
               </button>
+
+              {slowWarning && (
+                <p className="text-center text-xs text-slate-400 mt-2 animate-pulse">
+                  Server is warming up, please wait…
+                </p>
+              )}
             </form>
           </div>
         </div>

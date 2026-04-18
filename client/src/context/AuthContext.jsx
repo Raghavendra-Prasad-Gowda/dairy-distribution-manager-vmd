@@ -89,9 +89,15 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center ddm-gradient">
+      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center animate-pulse" />
+    </div>
+  );
+
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
