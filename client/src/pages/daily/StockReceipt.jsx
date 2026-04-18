@@ -1,12 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Loader2, Package, TrendingUp } from 'lucide-react';
+import { Save, Loader2, Package, TrendingUp, Search, X } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import SaveOverlay from '../../components/SaveOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
-import { BRAND_COLORS } from '../../utils/constants';
 import api from '../../api/axios';
+
+/** Convert litres entered by user to crates using mlPerCrate config */
+function litresToCrates(litres, mlPerCrate) {
+  if (!mlPerCrate || !litres) return litres;
+  return (parseFloat(litres) * 1000) / mlPerCrate;
+}
 
 export default function StockReceipt() {
   const { notify } = useNotification();
@@ -14,11 +19,12 @@ export default function StockReceipt() {
   const [date, setDate]               = useState(getIndiaDate());
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
-  const [quantities, setQuantities]   = useState({});
+  const [quantities, setQuantities]   = useState({});  // stores litres (user input)
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [saveStatus, setSaveStatus]   = useState(null);
+  const [search, setSearch]           = useState('');
   const inputRefs = useRef({});
 
   useEffect(() => {
@@ -58,25 +64,64 @@ export default function StockReceipt() {
         setProducts(prods);
         const qty = {};
         for (const p of prods) qty[p.id] = '';
-        for (const r of receiptRes.data.data) qty[r.productId] = String(r.quantity);
+        for (const r of receiptRes.data.data) {
+          // Convert stored crates back to litres for display if mlPerCrate is set
+          const prod = prods.find(p => p.id === r.productId);
+          if (prod?.mlPerCrate && r.quantity) {
+            qty[r.productId] = String(
+              parseFloat(r.quantity) * prod.mlPerCrate / 1000
+            );
+          } else {
+            qty[r.productId] = String(r.quantity);
+          }
+        }
         setQuantities(qty);
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
   }, [activeBrand, date]);
 
+  // Group products by category, apply search filter
+  const filteredGrouped = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? products.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          (p.category ?? '').toLowerCase().includes(q)
+        )
+      : products;
+
+    return filtered.reduce((acc, p) => {
+      const key = p.category || 'Other';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(p);
+      return acc;
+    }, {});
+  }, [products, search]);
+
+  const allFiltered = Object.values(filteredGrouped).flat();
+
   const handleKeyDown = (e, productId) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
-      const ids = products.map(p => p.id);
-      const idx = ids.indexOf(productId);
-      if (idx < ids.length - 1) { e.preventDefault(); inputRefs.current[ids[idx + 1]]?.focus(); }
+      const idx = allFiltered.findIndex(p => p.id === productId);
+      if (idx < allFiltered.length - 1) {
+        e.preventDefault();
+        inputRefs.current[allFiltered[idx + 1]?.id]?.focus();
+      }
     }
   };
 
   const handleSave = async () => {
     const items = products
       .filter(p => quantities[p.id] && parseFloat(quantities[p.id]) > 0)
-      .map(p => ({ productId: p.id, quantity: parseFloat(quantities[p.id]), unitPrice: Number(p.dairyPrice) }));
+      .map(p => {
+        const inputVal = parseFloat(quantities[p.id]);
+        // If mlPerCrate is set, user entered litres — convert to crates for storage
+        const quantity = p.mlPerCrate
+          ? litresToCrates(inputVal, p.mlPerCrate)
+          : inputVal;
+        return { productId: p.id, quantity, unitPrice: Number(p.dairyPrice) };
+      });
 
     if (!items.length) { notify('Enter at least one quantity before saving.', 'warning'); return; }
 
@@ -95,9 +140,15 @@ export default function StockReceipt() {
     }
   };
 
-  const totalAmount = products.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0) * Number(p.dairyPrice), 0);
+  // Totals based on crates (converted from litres if needed)
+  const totalAmount = products.reduce((s, p) => {
+    const inputVal = parseFloat(quantities[p.id]) || 0;
+    const crates = p.mlPerCrate ? litresToCrates(inputVal, p.mlPerCrate) : inputVal;
+    return s + crates * Number(p.dairyPrice);
+  }, 0);
+
   const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
-  const isOwing     = balance.closing > 0;
+  const isOwing = balance.closing > 0;
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -106,7 +157,7 @@ export default function StockReceipt() {
       {/* ── Page header ─────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">
         <div className="flex items-center gap-2.5">
-          <Package size={17} className="text-blue-600 flex-shrink-0" />
+          <Package size={17} className="text-emerald-600 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-slate-900 leading-tight">
               {activeBrand ? `${activeBrand.name} Stock Receipt` : 'Stock Receipt'}
@@ -127,13 +178,11 @@ export default function StockReceipt() {
                 <TrendingUp size={14} className="text-blue-200" />
                 <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Account Balance</p>
               </div>
-
-              {/* Balance grid */}
               <div className="grid grid-cols-2 gap-2 mb-3">
                 {[
-                  { label: 'Opening Balance', value: balance.opening, color: 'text-white' },
+                  { label: 'Opening Balance', value: balance.opening,    color: 'text-white' },
                   { label: 'Stock Added',     value: balance.stockValue, color: 'text-blue-200' },
-                  { label: 'Amount Paid',     value: balance.paid, color: 'text-emerald-300' },
+                  { label: 'Amount Paid',     value: balance.paid,       color: 'text-emerald-300' },
                   { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing), color: isOwing ? 'text-red-300' : 'text-emerald-300' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="bg-white/10 rounded-xl px-3 py-2.5">
@@ -142,8 +191,6 @@ export default function StockReceipt() {
                   </div>
                 ))}
               </div>
-
-              {/* Today's receipt total */}
               <div className="flex gap-2">
                 <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
                   <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
@@ -158,22 +205,42 @@ export default function StockReceipt() {
           </div>
         )}
 
+        {/* ── Search bar ──────────────────────────────────── */}
+        {products.length > 0 && (
+          <div className="mx-4 mt-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by product or category…"
+                className="w-full pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Product table ───────────────────────────────── */}
-        <div className="mx-4 mt-4 mb-4 bg-white rounded-2xl overflow-hidden border border-slate-200">
+        <div className="mx-4 mt-3 mb-4 bg-white rounded-2xl overflow-hidden border border-slate-200">
 
           {/* Table header */}
-          <div className="grid items-center bg-white border-b border-slate-200 px-4 py-3"
-               style={{ gridTemplateColumns: '1fr 72px 80px 80px' }}>
+          <div className="grid items-center bg-slate-50 border-b border-slate-200 px-4 py-2.5"
+               style={{ gridTemplateColumns: '1fr 64px 88px 88px' }}>
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product</div>
-            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate (₹)</div>
+            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</div>
             <div className="text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Qty</div>
-            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount (₹)</div>
+            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</div>
           </div>
 
-          {/* Body */}
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
+              <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
             </div>
           ) : !activeBrand ? (
             <div className="text-center py-16 text-slate-400 text-sm">Brand not found.</div>
@@ -182,73 +249,76 @@ export default function StockReceipt() {
               No active products for {activeBrand.name}.<br />
               <span className="text-xs">Add them in Dairy → Product Setup.</span>
             </div>
+          ) : Object.keys(filteredGrouped).length === 0 ? (
+            <div className="text-center py-10 text-slate-400 text-sm">No products match your search.</div>
           ) : (
-            products.map((p, idx) => {
-              const qty    = parseFloat(quantities[p.id]) || 0;
-              const amount = qty * Number(p.dairyPrice);
-              const filled = qty > 0;
+            Object.entries(filteredGrouped).map(([category, items]) => (
+              <div key={category}>
+                {/* Category header */}
+                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{category}</span>
+                </div>
 
-              return (
-                <div
-                  key={p.id}
-                  className={`grid items-center px-4 border-b border-slate-100 last:border-0 transition-colors ${
-                    filled ? 'bg-blue-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
-                  }`}
-                  style={{ gridTemplateColumns: '1fr 72px 80px 80px', minHeight: 52 }}
-                >
-                  {/* Product */}
-                  <div className="py-3 pr-2">
-                    <div className="flex items-center gap-2">
-                      {filled && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
-                      <div>
-                        <p className={`text-sm font-bold leading-tight ${filled ? 'text-blue-800' : 'text-slate-800'}`}>
-                          {p.name}
-                        </p>
-                        {p.unit && (
-                          <p className="text-[11px] text-slate-400 leading-tight mt-0.5">{p.unit}</p>
+                {items.map((p) => {
+                  const inputVal = parseFloat(quantities[p.id]) || 0;
+                  const crates   = p.mlPerCrate ? litresToCrates(inputVal, p.mlPerCrate) : inputVal;
+                  const amount   = crates * Number(p.dairyPrice);
+                  const filled   = inputVal > 0;
+                  const usesLitres = !!p.mlPerCrate;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="grid items-center px-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
+                      style={{ gridTemplateColumns: '1fr 64px 88px 88px', minHeight: 52 }}
+                    >
+                      {/* Product name */}
+                      <div className="py-3 pr-2">
+                        <p className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</p>
+                        {usesLitres && filled && (
+                          <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
+                            {crates.toFixed(2)} crates
+                          </p>
                         )}
                       </div>
+
+                      {/* Rate */}
+                      <div className="text-right py-3">
+                        <span className="text-xs tabular-nums text-slate-500">
+                          {Number(p.dairyPrice).toFixed(2)}
+                        </span>
+                      </div>
+
+                      {/* Qty input */}
+                      <div className="flex flex-col items-center gap-0.5 py-2">
+                        <input
+                          ref={el => { inputRefs.current[p.id] = el; }}
+                          type="number"
+                          inputMode="decimal"
+                          value={quantities[p.id] ?? ''}
+                          onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          onKeyDown={e => handleKeyDown(e, p.id)}
+                          step="0.5"
+                          min="0"
+                          placeholder="0"
+                          className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                        />
+                        {usesLitres && (
+                          <span className="text-[9px] text-slate-400 font-medium">litres</span>
+                        )}
+                      </div>
+
+                      {/* Amount */}
+                      <div className="text-right py-3">
+                        <span className={`text-sm font-bold tabular-nums ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
+                          {filled ? formatCurrency(amount) : '₹0.00'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Rate */}
-                  <div className="text-right py-3">
-                    <span className="text-xs tabular-nums font-semibold text-slate-500">
-                      {Number(p.dairyPrice).toFixed(2)}
-                    </span>
-                  </div>
-
-                  {/* Qty input */}
-                  <div className="flex justify-center py-2">
-                    <input
-                      ref={el => { inputRefs.current[p.id] = el; }}
-                      type="number"
-                      inputMode="decimal"
-                      value={quantities[p.id] ?? ''}
-                      onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                      onKeyDown={e => handleKeyDown(e, p.id)}
-                      step="0.5"
-                      min="0"
-                      placeholder="—"
-                      className={`w-16 text-center px-1.5 py-2 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 ${
-                        filled
-                          ? 'border-blue-400 bg-white text-blue-700 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600'
-                      }`}
-                    />
-                  </div>
-
-                  {/* Amount */}
-                  <div className="text-right py-3">
-                    {filled ? (
-                      <span className="text-sm font-bold text-blue-700 tabular-nums">{formatCurrency(amount)}</span>
-                    ) : (
-                      <span className="text-xs font-semibold text-amber-500">Pending</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
+                  );
+                })}
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -257,14 +327,10 @@ export default function StockReceipt() {
       {!loading && products.length > 0 && (
         <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
           <div className="flex-1" />
-
-          {/* Total */}
           <div className="text-right">
             <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total</p>
-            <p className="text-base font-bold text-blue-700 tabular-nums leading-none">{formatCurrency(totalAmount)}</p>
+            <p className="text-base font-bold text-slate-800 tabular-nums leading-none">{formatCurrency(totalAmount)}</p>
           </div>
-
-          {/* Save */}
           <button
             onClick={handleSave}
             disabled={saving || loading || filledCount === 0}

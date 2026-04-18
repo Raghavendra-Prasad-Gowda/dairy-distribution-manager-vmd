@@ -24,14 +24,18 @@ const schemas = {
 
   // Products
   createProduct: z.object({
-    brandId: z.number().int().positive('Brand ID is required'),
-    name: z.string().min(1, 'Product name is required'),
+    brandId:    z.number().int().positive('Brand ID is required'),
+    name:       z.string().min(1, 'Product name is required'),
+    category:   z.string().optional().nullable(),
+    mlPerCrate: z.number().int().positive().optional().nullable(),
     dairyPrice: z.number().min(0).default(0),
   }),
   updateProduct: z.object({
-    name: z.string().min(1).optional(),
+    name:       z.string().min(1).optional(),
+    category:   z.string().optional().nullable(),
+    mlPerCrate: z.number().int().positive().optional().nullable(),
     dairyPrice: z.number().min(0).optional(),
-    isActive: z.boolean().optional(),
+    isActive:   z.boolean().optional(),
   }),
 
   // Stock Receipts
