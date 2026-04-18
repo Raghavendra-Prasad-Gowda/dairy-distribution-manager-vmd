@@ -231,7 +231,7 @@ export default function StockReceipt() {
 
           {/* Table header */}
           <div className="grid items-center bg-slate-50 border-b border-slate-200 px-4 py-2.5"
-               style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr' }}>
+               style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product</div>
             <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</div>
             <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Qty (Litres)</div>
@@ -271,7 +271,7 @@ export default function StockReceipt() {
                     <div
                       key={p.id}
                       className="grid items-center px-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
-                      style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', minHeight: 52 }}
+                      style={{ gridTemplateColumns: 'repeat(5, 1fr)', minHeight: 52 }}
                     >
                       {/* Product name */}
                       <div className="py-3 pr-2">
