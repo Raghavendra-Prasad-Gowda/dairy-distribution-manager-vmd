@@ -222,7 +222,7 @@ export default function StockReceipt() {
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">QTY</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
@@ -295,7 +295,7 @@ export default function StockReceipt() {
                                 <span className="text-xs text-slate-400">{unitLabel}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="hidden sm:table-cell px-4 py-3 text-right">
                               <span className="text-xs tabular-nums text-slate-600">
                                 {isML ? (crates ?? 0).toFixed(2) : '—'}
                               </span>
