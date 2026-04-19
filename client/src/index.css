@@ -111,8 +111,9 @@
   }
 }
 
-/* ── Table cell alignment ─────────────────────────────────────────────────── */
-tbody td { text-align: center; }
+/* ── Table cell alignment & weight ───────────────────────────────────────── */
+tbody td { text-align: center; font-weight: 600; }
+tr.cat-row td { text-align: left; font-weight: 700; }
 
 /* ── Animations ───────────────────────────────────────────────────────────── */
 @keyframes fadeIn {

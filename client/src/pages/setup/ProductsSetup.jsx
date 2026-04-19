@@ -7,7 +7,8 @@ import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
-const EMPTY_FORM = { name: '', categoryId: '', mlPerCrate: '', dairyPrice: '' };
+const UNIT_SIZES = [25, 50, 100, 250, 500, 1000];
+const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', mlPerCrate: '', dairyPrice: '' };
 
 export default function ProductsSetup() {
   const { notify } = useNotification();
@@ -100,7 +101,7 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
-    setForm({ name: p.name, categoryId: cat?.id ?? '', mlPerCrate: p.mlPerCrate ?? '', dairyPrice: Number(p.dairyPrice) });
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', mlPerCrate: p.mlPerCrate ?? '', dairyPrice: Number(p.dairyPrice) });
     setIsModalOpen(true);
   };
 
@@ -113,7 +114,9 @@ export default function ProductsSetup() {
     const payload = {
       name:       form.name.trim(),
       category:   categoryName,
-      mlPerCrate: form.mlPerCrate ? parseInt(form.mlPerCrate, 10) : null,
+      unitType:   form.unitType || 'piece',
+      unitSize:   form.unitType !== 'piece' && form.unitSize ? parseInt(form.unitSize, 10) : null,
+      mlPerCrate: form.unitType === 'ml' && form.mlPerCrate ? parseInt(form.mlPerCrate, 10) : null,
       dairyPrice: parseFloat(form.dairyPrice) || 0,
     };
     try {
@@ -227,7 +230,7 @@ export default function ProductsSetup() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">ml / Crate</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
@@ -248,7 +251,7 @@ export default function ProductsSetup() {
               ) : (
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
-                    <tr className="bg-slate-100 border-l-4 border-emerald-500">
+                    <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
                       <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
@@ -257,7 +260,9 @@ export default function ProductsSetup() {
                       <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
-                        <td className="px-6 py-4 text-sm text-slate-500 text-center tabular-nums">{p.mlPerCrate ?? '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-500 text-center">
+                          {p.unitType === 'ml' ? `${p.unitSize ?? '?'} ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'} g` : 'piece'}
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <button
                             onClick={() => toggleShowInReceipt(p)}
@@ -328,27 +333,56 @@ export default function ProductsSetup() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Unit Type</label>
+                  <select
+                    value={form.unitType}
+                    onChange={e => setForm(f => ({ ...f, unitType: e.target.value, unitSize: e.target.value !== 'piece' ? (f.unitSize || '500') : '', mlPerCrate: e.target.value === 'ml' ? f.mlPerCrate : '' }))}
+                    className="ddm-input bg-white"
+                  >
+                    <option value="ml">ml</option>
+                    <option value="gram">gram</option>
+                    <option value="piece">piece</option>
+                  </select>
+                </div>
+                {form.unitType !== 'piece' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Size per unit ({form.unitType})
+                    </label>
+                    <select
+                      value={form.unitSize}
+                      onChange={e => setForm(f => ({ ...f, unitSize: e.target.value }))}
+                      className="ddm-input bg-white"
+                    >
+                      <option value="">— Select —</option>
+                      {UNIT_SIZES.map(s => <option key={s} value={s}>{s} {form.unitType}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+              {form.unitType === 'ml' && (
+                <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">ml / Crate</label>
                   <input
                     type="number" min="1"
                     value={form.mlPerCrate}
                     onChange={e => setForm(f => ({ ...f, mlPerCrate: e.target.value }))}
-                    placeholder="e.g. 12000"
+                    placeholder="e.g. 6000"
                     className="ddm-input"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy Price (₹)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={form.dairyPrice}
-                      onChange={e => setForm(f => ({ ...f, dairyPrice: e.target.value }))}
-                      placeholder="0.00"
-                      className="ddm-input pl-7 text-right tabular-nums"
-                    />
-                  </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={form.dairyPrice}
+                    onChange={e => setForm(f => ({ ...f, dairyPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="ddm-input pl-7 text-right tabular-nums"
+                  />
                 </div>
               </div>
               <div className="flex gap-3 pt-1">

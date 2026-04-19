@@ -228,7 +228,7 @@ export default function DairyPriceSetup() {
               ) : (
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
-                    <tr className="bg-slate-100 border-l-4 border-emerald-500">
+                    <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
                       <td colSpan={4} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>

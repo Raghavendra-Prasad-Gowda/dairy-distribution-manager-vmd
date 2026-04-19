@@ -7,10 +7,10 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-/** Convert litres entered by user to crates using mlPerCrate config */
-function litresToCrates(litres, mlPerCrate) {
-  if (!mlPerCrate || !litres) return litres;
-  return (parseFloat(litres) * 1000) / mlPerCrate;
+/** Compute display crates from unit count (ml products only) */
+function calcCrates(units, unitSize, mlPerCrate) {
+  if (!units || !unitSize || !mlPerCrate) return 0;
+  return (parseFloat(units) * unitSize) / mlPerCrate;
 }
 
 export default function StockReceipt() {
@@ -65,15 +65,7 @@ export default function StockReceipt() {
         const qty = {};
         for (const p of prods) qty[p.id] = '';
         for (const r of receiptRes.data.data) {
-          // Convert stored crates back to litres for display if mlPerCrate is set
-          const prod = prods.find(p => p.id === r.productId);
-          if (prod?.mlPerCrate && r.quantity) {
-            qty[r.productId] = String(
-              parseFloat(r.quantity) * prod.mlPerCrate / 1000
-            );
-          } else {
-            qty[r.productId] = String(r.quantity);
-          }
+          qty[r.productId] = String(r.quantity);
         }
         setQuantities(qty);
       })
@@ -114,14 +106,11 @@ export default function StockReceipt() {
   const handleSave = async () => {
     const items = products
       .filter(p => quantities[p.id] && parseFloat(quantities[p.id]) > 0)
-      .map(p => {
-        const inputVal = parseFloat(quantities[p.id]);
-        // If mlPerCrate is set, user entered litres — convert to crates for storage
-        const quantity = p.mlPerCrate
-          ? litresToCrates(inputVal, p.mlPerCrate)
-          : inputVal;
-        return { productId: p.id, quantity, unitPrice: Number(p.dairyPrice) };
-      });
+      .map(p => ({
+        productId: p.id,
+        quantity:  parseFloat(quantities[p.id]),
+        unitPrice: Number(p.dairyPrice),
+      }));
 
     if (!items.length) { notify('Enter at least one quantity before saving.', 'warning'); return; }
 
@@ -140,11 +129,9 @@ export default function StockReceipt() {
     }
   };
 
-  // Totals based on crates (converted from litres if needed)
   const totalAmount = products.reduce((s, p) => {
     const inputVal = parseFloat(quantities[p.id]) || 0;
-    const crates = p.mlPerCrate ? litresToCrates(inputVal, p.mlPerCrate) : inputVal;
-    return s + crates * Number(p.dairyPrice);
+    return s + inputVal * Number(p.dairyPrice);
   }, 0);
 
   const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
@@ -234,7 +221,7 @@ export default function StockReceipt() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Qty (Litres)</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">QTY</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
                 </tr>
@@ -265,41 +252,52 @@ export default function StockReceipt() {
                   Object.entries(filteredGrouped).map(([category, items]) => (
                     <React.Fragment key={category}>
                       {/* Category header */}
-                      <tr className="bg-slate-50 border-l-4 border-emerald-400">
+                      <tr className="cat-row bg-slate-50 border-l-4 border-emerald-400">
                         <td colSpan={5} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                           {category}
                         </td>
                       </tr>
                       {items.map((p) => {
-                        const inputVal   = parseFloat(quantities[p.id]) || 0;
-                        const crates     = p.mlPerCrate ? litresToCrates(inputVal, p.mlPerCrate) : inputVal;
-                        const amount     = crates * Number(p.dairyPrice);
-                        const filled     = inputVal > 0;
-                        const usesLitres = !!p.mlPerCrate;
+                        const inputVal  = parseFloat(quantities[p.id]) || 0;
+                        const isML      = p.unitType === 'ml';
+                        const crates    = isML ? calcCrates(inputVal, p.unitSize, p.mlPerCrate) : null;
+                        const amount    = inputVal * Number(p.dairyPrice);
+                        const filled    = inputVal > 0;
+                        const unitLabel = p.unitType === 'piece' ? 'pcs' : 'pkts';
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3 text-sm font-semibold text-slate-800">{p.name}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-slate-800">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {p.name}
+                                <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                                  {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
+                                </span>
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
                               ₹{Number(p.dairyPrice).toFixed(2)}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <input
-                                ref={el => { inputRefs.current[p.id] = el; }}
-                                type="number"
-                                inputMode="decimal"
-                                value={quantities[p.id] ?? ''}
-                                onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                onKeyDown={e => handleKeyDown(e, p.id)}
-                                step="0.5"
-                                min="0"
-                                placeholder="0"
-                                className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                              />
+                              <div className="inline-flex items-center gap-1.5">
+                                <input
+                                  ref={el => { inputRefs.current[p.id] = el; }}
+                                  type="number"
+                                  inputMode="decimal"
+                                  value={quantities[p.id] ?? ''}
+                                  onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                  onKeyDown={e => handleKeyDown(e, p.id)}
+                                  step="1"
+                                  min="0"
+                                  placeholder="0"
+                                  className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                />
+                                <span className="text-xs text-slate-400">{unitLabel}</span>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <span className={`text-xs tabular-nums ${filled ? 'text-slate-600' : 'text-slate-300'}`}>
-                                {filled ? (usesLitres ? crates.toFixed(2) : inputVal.toFixed(2)) : '—'}
+                              <span className="text-xs tabular-nums text-slate-600">
+                                {isML ? (crates ?? 0).toFixed(2) : '—'}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
