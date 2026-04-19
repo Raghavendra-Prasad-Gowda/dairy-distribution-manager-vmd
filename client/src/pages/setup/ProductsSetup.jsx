@@ -7,7 +7,7 @@ import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
-const UNIT_SIZES = [25, 50, 100, 250, 500, 1000];
+const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 250, 400, 500, 1000, 2000, 5000, 15000];
 const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', mlPerCrate: '', dairyPrice: '' };
 
 export default function ProductsSetup() {
