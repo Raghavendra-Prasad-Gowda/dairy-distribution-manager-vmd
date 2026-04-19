@@ -22,6 +22,14 @@ const server = app.listen(PORT, async () => {
   } catch (error) {
     logger.warn('Warning: Failed to seed demo data', { message: error.message });
   }
+
+  // Seed Nandini products (one-time — guard skips if already applied)
+  try {
+    const { seedNandiniProducts } = require('./scripts/seed-nandini');
+    await seedNandiniProducts();
+  } catch (error) {
+    logger.warn('Warning: Failed to seed Nandini products', { message: error.message });
+  }
 });
 
 // Graceful shutdown

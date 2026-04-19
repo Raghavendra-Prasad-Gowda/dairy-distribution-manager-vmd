@@ -1,5 +1,4 @@
 'use strict';
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const prisma = require('../lib/prisma');
 
 // ─── 140 Nandini products from rate chart photos ──────────────────────────────
@@ -231,8 +230,8 @@ const PRODUCTS = [
   { category: 'NANDINI AQUA DRINKING WATER', name: 'Nandini Aqua 2000ml', unitType: 'ml', unitSize: 2000, mlPerCrate: 24000, dairyPrice: 30 },
 ];
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-async function main() {
+// ─── Exported function (called from index.js on startup) ─────────────────────
+async function seedNandiniProducts() {
   // 1. Find Nandini brand
   const brand = await prisma.brand.findFirst({ where: { name: 'Nandini' } });
   if (!brand) throw new Error('Nandini brand not found in database');
@@ -292,6 +291,12 @@ async function main() {
   console.log('\nDone! Nandini product catalogue is ready.');
 }
 
-main()
-  .catch(e => { console.error('Error:', e.message); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+module.exports = { seedNandiniProducts };
+
+// Allow direct execution: node scripts/seed-nandini.js
+if (require.main === module) {
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+  seedNandiniProducts()
+    .catch(e => { console.error('Error:', e.message); process.exit(1); })
+    .finally(() => prisma.$disconnect());
+}
