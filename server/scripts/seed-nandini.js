@@ -236,12 +236,12 @@ async function seedNandiniProducts() {
   const brand = await prisma.brand.findFirst({ where: { name: 'Nandini' } });
   if (!brand) throw new Error('Nandini brand not found in database');
 
-  // Guard: skip if already seeded (TONED MILK category exists = seed was run)
-  const alreadySeeded = await prisma.category.findFirst({
-    where: { brandId: brand.id, name: 'TONED MILK' },
+  // Guard: skip only if active products already exist for this brand
+  const activeCount = await prisma.product.count({
+    where: { brandId: brand.id, isActive: true },
   });
-  if (alreadySeeded) {
-    console.log('Nandini seed already applied — skipping.');
+  if (activeCount >= 140) {
+    console.log(`Nandini seed already applied (${activeCount} active products) — skipping.`);
     return;
   }
   console.log(`✓ Found Nandini brand (ID: ${brand.id})`);
