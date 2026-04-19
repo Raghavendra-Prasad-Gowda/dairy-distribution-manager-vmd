@@ -7,10 +7,10 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-/** Compute display crates from unit count (ml products only) */
-function calcCrates(units, unitSize, mlPerCrate) {
-  if (!units || !unitSize || !mlPerCrate) return 0;
-  return (parseFloat(units) * unitSize) / mlPerCrate;
+/** Compute crates from litres (ml products only) */
+function calcCrates(litres, mlPerCrate) {
+  if (!litres || !mlPerCrate) return 0;
+  return (parseFloat(litres) * 1000) / mlPerCrate;
 }
 
 export default function StockReceipt() {
@@ -222,7 +222,7 @@ export default function StockReceipt() {
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">QTY</th>
-                  <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
@@ -260,10 +260,10 @@ export default function StockReceipt() {
                       {items.map((p) => {
                         const inputVal  = parseFloat(quantities[p.id]) || 0;
                         const isML      = p.unitType === 'ml';
-                        const crates    = isML ? calcCrates(inputVal, p.unitSize, p.mlPerCrate) : null;
+                        const crates    = isML ? calcCrates(inputVal, p.mlPerCrate) : null;
                         const amount    = inputVal * Number(p.dairyPrice);
                         const filled    = inputVal > 0;
-                        const unitLabel = p.unitType === 'piece' ? 'pcs' : 'pkts';
+                        const unitLabel = isML ? 'litres' : p.unitType === 'piece' ? 'pcs' : 'pkts';
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
@@ -287,7 +287,7 @@ export default function StockReceipt() {
                                   value={quantities[p.id] ?? ''}
                                   onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
                                   onKeyDown={e => handleKeyDown(e, p.id)}
-                                  step="1"
+                                  step="0.5"
                                   min="0"
                                   placeholder="0"
                                   className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
@@ -295,7 +295,7 @@ export default function StockReceipt() {
                                 <span className="text-xs text-slate-400">{unitLabel}</span>
                               </div>
                             </td>
-                            <td className="hidden sm:table-cell px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-right">
                               <span className="text-xs tabular-nums text-slate-600">
                                 {isML ? (crates ?? 0).toFixed(2) : '—'}
                               </span>
