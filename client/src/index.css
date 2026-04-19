@@ -111,6 +111,9 @@
   }
 }
 
+/* ── Table cell alignment ─────────────────────────────────────────────────── */
+tbody td { text-align: center; }
+
 /* ── Animations ───────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; }
