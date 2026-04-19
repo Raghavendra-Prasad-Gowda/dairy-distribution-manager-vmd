@@ -206,60 +206,72 @@ export default function SalespeopleSetup() {
 
           {/* Prices table */}
           <div className="ddm-card overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center px-5 py-3 bg-white border-b border-slate-200">
-              <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
-              <div className="w-32 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Price</div>
-              <div className="w-32 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">New Price</div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-emerald-700">
+                  <tr>
+                    <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                    <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Current Price</th>
+                    <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">New Price</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-100">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={3} className="py-12 text-center">
+                        <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
+                      </td>
+                    </tr>
+                  ) : filteredPrices.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-10 text-center text-slate-400 text-sm">No products for this brand</td>
+                    </tr>
+                  ) : (
+                    filteredPrices.map(p => {
+                      const hasPrice = p.sellingPrice !== null;
+                      const isDirty  = editedPrices[p.productId] !== undefined;
+                      return (
+                        <tr
+                          key={p.productId}
+                          className={`transition-colors ${!hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
+                        >
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-slate-800">{p.productName}</span>
+                              {!hasPrice && <span className="badge-amber text-[10px]">No price</span>}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-500">
+                            {hasPrice
+                              ? `₹${p.sellingPrice}`
+                              : <span className="text-amber-600 font-semibold text-xs">Not set</span>
+                            }
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex justify-end">
+                              <div className="relative w-24">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editedPrices[p.productId] ?? ''}
+                                  onChange={e => handlePriceChange(p.productId, e.target.value)}
+                                  placeholder={p.sellingPrice ?? '0.00'}
+                                  className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
+                                    isDirty ? 'border-emerald-400' : 'border-slate-200'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 text-emerald-600 animate-spin" />
-              </div>
-            ) : filteredPrices.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 text-sm">No products for this brand</div>
-            ) : (
-              filteredPrices.map(p => {
-                const hasPrice = p.sellingPrice !== null;
-                const isDirty  = editedPrices[p.productId] !== undefined;
-                return (
-                  <div
-                    key={p.productId}
-                    className={`flex items-center px-5 py-4 border-b border-slate-100 transition-colors last:border-0 ${
-                      !hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0 flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-800">{p.productName}</span>
-                      {!hasPrice && <span className="badge-amber text-[10px]">No price</span>}
-                    </div>
-                    <div className="w-32 text-right text-sm tabular-nums text-slate-500">
-                      {hasPrice
-                        ? `₹${p.sellingPrice}`
-                        : <span className="text-amber-600 font-semibold text-xs">Not set</span>
-                      }
-                    </div>
-                    <div className="w-32 flex justify-end">
-                      <div className="relative w-24">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={editedPrices[p.productId] ?? ''}
-                          onChange={e => handlePriceChange(p.productId, e.target.value)}
-                          placeholder={p.sellingPrice ?? '0.00'}
-                          className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
-                            isDirty ? 'border-emerald-400' : 'border-slate-200'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
           </div>
         </div>
       )}

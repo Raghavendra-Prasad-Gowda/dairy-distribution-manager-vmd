@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, ChevronDown, ChevronRight, Loader2, AlertCircle } from 'lucide-react';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -18,62 +18,65 @@ function ExpandableRow({ row }) {
   const [open, setOpen] = useState(false);
   const isOwing = row.closingBalance > 0;
   return (
-    <div>
-      <div
-        className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors cursor-pointer"
+    <React.Fragment>
+      <tr
+        className="hover:bg-slate-50/60 transition-colors cursor-pointer border-b border-slate-100"
         onClick={() => setOpen(!open)}
       >
-        <div className="col-span-3 text-xs text-slate-600 tabular-nums">
+        <td className="px-4 py-2.5 text-xs text-slate-600 tabular-nums whitespace-nowrap">
           {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-        </div>
-        <div className="col-span-2 text-right text-xs text-slate-500 tabular-nums">
+        </td>
+        <td className="px-4 py-2.5 text-right text-xs text-slate-500 tabular-nums whitespace-nowrap">
           {formatCurrency(row.openingBalance)}
-        </div>
-        <div className="col-span-2 text-right text-xs text-blue-600 tabular-nums">
+        </td>
+        <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.stockGiven)}
-        </div>
-        <div className="col-span-2 text-right text-xs text-emerald-600 tabular-nums">
+        </td>
+        <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.amountPaid)}
-        </div>
-        <div className={`col-span-2 text-right text-xs font-bold tabular-nums ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        </td>
+        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
           {formatCurrency(row.closingBalance)}
-        </div>
-        <div className="col-span-1 flex justify-end text-slate-400">
-          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </div>
-      </div>
-
+        </td>
+        <td className="px-4 py-2.5 text-right text-slate-400">
+          {open ? <ChevronDown size={13} className="ml-auto" /> : <ChevronRight size={13} className="ml-auto" />}
+        </td>
+      </tr>
       {open && (row.items?.length > 0 || row.payments?.length > 0) && (
-        <div className="bg-emerald-50/50 border-b border-slate-100 px-4 py-3 space-y-3">
-          {row.items?.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-600 mb-1.5">Stock Dispatched</p>
-              <div className="space-y-1">
-                {row.items.map((item, i) => (
-                  <div key={i} className="grid grid-cols-3 text-xs">
-                    <span className="font-medium text-slate-700">{item.brandName} {item.productName}</span>
-                    <span className="text-right text-slate-500">{item.quantity} × ₹{item.unitPrice}</span>
-                    <span className="text-right font-semibold text-slate-700">{formatCurrency(item.totalAmount)}</span>
+        <tr>
+          <td colSpan={6} className="px-4 py-3 bg-emerald-50/50 border-b border-slate-100">
+            <div className="space-y-3">
+              {row.items?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 mb-1.5">Stock Dispatched</p>
+                  <div className="space-y-1">
+                    {row.items.map((item, i) => (
+                      <div key={i} className="grid grid-cols-3 text-xs">
+                        <span className="font-medium text-slate-700">{item.brandName} {item.productName}</span>
+                        <span className="text-right text-slate-500">{item.quantity} × ₹{item.unitPrice}</span>
+                        <span className="text-right font-semibold text-slate-700">{formatCurrency(item.totalAmount)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+              {row.payments?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 mb-1.5">Collections</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {row.payments.map((p, i) => (
+                      <span key={i} className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                        {formatCurrency(p.amount)} via {p.mode || 'Cash'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-          {row.payments?.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-600 mb-1.5">Collections</p>
-              <div className="flex gap-2 flex-wrap">
-                {row.payments.map((p, i) => (
-                  <span key={i} className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                    {formatCurrency(p.amount)} via {p.mode || 'Cash'}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          </td>
+        </tr>
       )}
-    </div>
+    </React.Fragment>
   );
 }
 
@@ -176,40 +179,39 @@ export default function SalespersonStatement() {
 
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
-        {/* Table header */}
-        <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-2.5">
-          {['Date', 'Opening', 'Given', 'Collected', 'Due', ''].map((h, i) => (
-            <div
-              key={i}
-              className={`${
-                i === 0 ? 'col-span-3' :
-                i === 1 ? 'col-span-2 text-right' :
-                i === 2 ? 'col-span-2 text-right' :
-                i === 3 ? 'col-span-2 text-right' :
-                i === 4 ? 'col-span-2 text-right' :
-                'col-span-1'
-              } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
-            >
-              {h}
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-emerald-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Given</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Collected</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Due</th>
+                <th className="px-4 py-3 w-8" />
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                  </td>
+                </tr>
+              ) : !selectedSp ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">Select a salesperson to view their statement</td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
+                </tr>
+              ) : (
+                rows.map((row, i) => <ExpandableRow key={i} row={row} />)
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-          </div>
-        ) : !selectedSp ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
-            Select a salesperson to view their statement
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
-            No data for this period
-          </div>
-        ) : (
-          rows.map((row, i) => <ExpandableRow key={i} row={row} />)
-        )}
       </div>
     </div>
   );

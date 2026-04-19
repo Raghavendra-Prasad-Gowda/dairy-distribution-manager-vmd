@@ -242,75 +242,78 @@ export default function Dispatch() {
 
               {/* Product table */}
               <div className="flex-1 overflow-auto">
-                <div className="min-w-[480px] bg-white">
-                  <div className="flex items-center px-4 py-3 bg-white border-b border-slate-200 sticky top-0">
-                    <div className="flex-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</div>
-                    <div className="w-14 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Avail</div>
-                    <div className="w-16 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</div>
-                    <div className="w-24 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</div>
-                    <div className="w-20 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-emerald-700 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Avail</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Qty</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-100">
+                      {allVisible.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400 text-sm">
+                            No stock received for this date yet. Enter Stock Receipt first.
+                          </td>
+                        </tr>
+                      ) : brandProducts.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">
+                            No {activeBrand?.name} stock received on this date.
+                          </td>
+                        </tr>
+                      ) : (
+                        brandProducts.map(p => {
+                          const qty     = parseFloat(quantities[p.productId]) || 0;
+                          const price   = prices[p.productId];
+                          const missing = price === undefined || price === null;
+                          const over    = qty > p.available;
+                          const amount  = qty * (price ?? 0);
 
-                  {allVisible.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400 text-sm">
-                      No stock received for this date yet. Enter Stock Receipt first.
-                    </div>
-                  ) : brandProducts.length === 0 ? (
-                    <div className="text-center py-10 text-slate-400 text-sm">
-                      No {activeBrand?.name} stock received on this date.
-                    </div>
-                  ) : (
-                    brandProducts.map(p => {
-                      const qty     = parseFloat(quantities[p.productId]) || 0;
-                      const price   = prices[p.productId];
-                      const missing = price === undefined || price === null;
-                      const over    = qty > p.available;
-                      const amount  = qty * (price ?? 0);
-
-                      return (
-                        <div
-                          key={p.productId}
-                          className={`flex items-center px-4 py-3 border-b border-slate-100 transition-colors ${
-                            missing ? 'bg-amber-50/60' : qty > 0 ? 'bg-emerald-50/30' : 'hover:bg-slate-50/60'
-                          }`}
-                        >
-                          <div className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate pr-2">{p.productName}</div>
-
-                          <div className={`w-14 text-right text-sm tabular-nums font-medium ${p.available <= 0 ? 'text-red-500' : 'text-slate-600'}`}>
-                            {p.available}
-                          </div>
-
-                          <div className="w-16 text-right text-sm tabular-nums text-slate-500">
-                            {missing
-                              ? <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">—</span>
-                              : `₹${price}`
-                            }
-                          </div>
-
-                          <div className="w-24 flex justify-center">
-                            <input
-                              ref={el => { inputRefs.current[p.productId] = el; }}
-                              type="number"
-                              value={quantities[p.productId] ?? ''}
-                              onChange={e => setQuantities(prev => ({ ...prev, [p.productId]: e.target.value }))}
-                              onKeyDown={e => handleKeyDown(e, p.productId)}
-                              step="0.5"
-                              min="0"
-                              disabled={missing || p.available <= 0}
-                              placeholder={missing ? '—' : '0'}
-                              className={`w-16 text-center px-1.5 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
-                                over ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
-                              }`}
-                            />
-                          </div>
-
-                          <div className={`w-20 text-right text-sm tabular-nums font-semibold ${qty > 0 ? 'text-emerald-700' : 'text-slate-300'}`}>
-                            {qty > 0 ? formatCurrency(amount) : '—'}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+                          return (
+                            <tr
+                              key={p.productId}
+                              className={`transition-colors ${missing ? 'bg-amber-50/60' : qty > 0 ? 'bg-emerald-50/30' : 'hover:bg-slate-50/60'}`}
+                            >
+                              <td className="px-4 py-3 text-sm font-semibold text-slate-800">{p.productName}</td>
+                              <td className={`px-4 py-3 text-right text-sm tabular-nums font-medium ${p.available <= 0 ? 'text-red-500' : 'text-slate-600'}`}>
+                                {p.available}
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-500">
+                                {missing
+                                  ? <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">—</span>
+                                  : `₹${price}`
+                                }
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <input
+                                  ref={el => { inputRefs.current[p.productId] = el; }}
+                                  type="number"
+                                  value={quantities[p.productId] ?? ''}
+                                  onChange={e => setQuantities(prev => ({ ...prev, [p.productId]: e.target.value }))}
+                                  onKeyDown={e => handleKeyDown(e, p.productId)}
+                                  step="0.5"
+                                  min="0"
+                                  disabled={missing || p.available <= 0}
+                                  placeholder={missing ? '—' : '0'}
+                                  className={`w-16 text-center px-1.5 py-1.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-slate-100 disabled:cursor-not-allowed tabular-nums ${
+                                    over ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white'
+                                  }`}
+                                />
+                              </td>
+                              <td className={`px-4 py-3 text-right text-sm tabular-nums font-semibold ${qty > 0 ? 'text-emerald-700' : 'text-slate-300'}`}>
+                                {qty > 0 ? formatCurrency(amount) : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 

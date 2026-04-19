@@ -295,54 +295,49 @@ export default function DairyPayments() {
                   ) : filteredPayments.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 text-sm">No payments match the current filters</div>
                   ) : (
-                    <>
-                      {/* Table header */}
-                      <div className="grid grid-cols-12 items-center px-4 py-2.5 bg-white border-b border-slate-200">
-                        <div className="col-span-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date</div>
-                        <div className="col-span-3 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Amount</div>
-                        <div className="col-span-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Mode</div>
-                        <div className="col-span-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider pl-2">Reference</div>
-                        <div className="col-span-2" />
-                      </div>
-
-                      {filteredPayments.map((p, idx) => (
-                        <div
-                          key={p.id}
-                          className="grid grid-cols-12 items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50/80 transition-colors last:border-0"
-                        >
-                          <div className="col-span-2 text-xs font-semibold text-slate-600 tabular-nums">
-                            {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                          </div>
-                          <div className="col-span-3 text-right text-sm font-bold text-emerald-700 tabular-nums">
-                            {formatCurrency(p.amount)}
-                          </div>
-                          <div className="col-span-2 flex justify-center">
-                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
-                              {p.paymentMode || 'Cash'}
-                            </span>
-                          </div>
-                          <div className="col-span-3 text-xs text-slate-400 truncate pl-2">
-                            {p.reference || <span className="text-slate-300">—</span>}
-                          </div>
-                          <div className="col-span-2 flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => handleEdit(p)}
-                              className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition"
-                              title="Edit"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(p.id)}
-                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-emerald-700">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Mode</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Reference</th>
+                            <th className="px-4 py-3 w-20" />
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-100">
+                          {filteredPayments.map((p) => (
+                            <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+                                {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                                {formatCurrency(p.amount)}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
+                                  {p.paymentMode || 'Cash'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-slate-400 max-w-[8rem] truncate">
+                                {p.reference || <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                    <Pencil size={12} />
+                                  </button>
+                                  <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>

@@ -88,33 +88,30 @@ export default function StockSummary() {
             {data.receipts.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
             ) : (
-              <>
-                <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-3">
-                  {['Brand', 'Product', 'Qty', 'Price', 'Amount'].map((h, i) => (
-                    <div
-                      key={i}
-                      className={`${
-                        i === 0 ? 'col-span-3' :
-                        i === 1 ? 'col-span-4' :
-                        i === 2 ? 'col-span-1 text-right' :
-                        i === 3 ? 'col-span-2 text-right' :
-                        'col-span-2 text-right'
-                      } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
-                    >
-                      {h}
-                    </div>
-                  ))}
-                </div>
-                {data.receipts.map((r, i) => (
-                  <div key={i} className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0">
-                    <div className="col-span-3 text-xs text-slate-400">{r.brandName}</div>
-                    <div className="col-span-4 text-sm font-medium text-slate-800">{r.productName}</div>
-                    <div className="col-span-1 text-right text-sm text-slate-600 tabular-nums">{r.quantity}</div>
-                    <div className="col-span-2 text-right text-xs text-slate-500 tabular-nums">₹{r.unitPrice}</div>
-                    <div className="col-span-2 text-right text-sm font-semibold text-blue-700 tabular-nums">{formatCurrency(r.amount)}</div>
-                  </div>
-                ))}
-              </>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-emerald-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-100">
+                    {data.receipts.map((r, i) => (
+                      <tr key={i} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-4 py-2.5 text-xs text-slate-400">{r.brandName}</td>
+                        <td className="px-4 py-2.5 text-sm font-medium text-slate-800">{r.productName}</td>
+                        <td className="px-4 py-2.5 text-right text-sm text-slate-600 tabular-nums">{r.quantity}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-500 tabular-nums whitespace-nowrap">₹{r.unitPrice}</td>
+                        <td className="px-4 py-2.5 text-right text-sm font-semibold text-blue-700 tabular-nums whitespace-nowrap">{formatCurrency(r.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
@@ -128,35 +125,32 @@ export default function StockSummary() {
             {data.dispatches.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-sm">No dispatches for this date</div>
             ) : (
-              <>
-                <div className="grid grid-cols-12 bg-white border-b border-slate-200 px-4 py-3">
-                  {['Salesperson', 'Items Dispatched', 'Total'].map((h, i) => (
-                    <div
-                      key={i}
-                      className={`${
-                        i === 0 ? 'col-span-4' :
-                        i === 1 ? 'col-span-6' :
-                        'col-span-2 text-right'
-                      } text-xs font-semibold text-slate-500 uppercase tracking-wider`}
-                    >
-                      {h}
-                    </div>
-                  ))}
-                </div>
-                {data.dispatches.map((d, i) => (
-                  <div key={i} className="grid grid-cols-12 items-start px-4 py-2.5 border-b border-slate-100 hover:bg-slate-50/60 transition-colors last:border-0">
-                    <div className="col-span-4 text-sm font-semibold text-slate-800 pt-0.5">{d.salespersonName}</div>
-                    <div className="col-span-6 text-xs text-slate-400 space-y-0.5">
-                      {d.items.map((item, j) => (
-                        <div key={j}>{item.brandName} {item.productName} × {item.quantity}</div>
-                      ))}
-                    </div>
-                    <div className="col-span-2 text-right text-sm font-semibold text-emerald-700 tabular-nums pt-0.5">
-                      {formatCurrency(d.totalAmount)}
-                    </div>
-                  </div>
-                ))}
-              </>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-emerald-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Salesperson</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Items Dispatched</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-100">
+                    {data.dispatches.map((d, i) => (
+                      <tr key={i} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-4 py-2.5 text-sm font-semibold text-slate-800 align-top">{d.salespersonName}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-400 space-y-0.5 align-top">
+                          {d.items.map((item, j) => (
+                            <div key={j}>{item.brandName} {item.productName} × {item.quantity}</div>
+                          ))}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-sm font-semibold text-emerald-700 tabular-nums whitespace-nowrap align-top">
+                          {formatCurrency(d.totalAmount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
