@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Save, Loader2, Package, TrendingUp, Search, X } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
@@ -228,98 +228,94 @@ export default function StockReceipt() {
 
         {/* ── Product table ───────────────────────────────── */}
         <div className="mx-4 mt-3 mb-4 bg-white rounded-2xl overflow-hidden border border-slate-200">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Qty (Litres)</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="py-20 text-center">
+                      <Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" />
+                    </td>
+                  </tr>
+                ) : !activeBrand ? (
+                  <tr>
+                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td>
+                  </tr>
+                ) : products.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm px-4">
+                      No active products for {activeBrand.name}.<br />
+                      <span className="text-xs">Add them in Dairy → Product Setup.</span>
+                    </td>
+                  </tr>
+                ) : Object.keys(filteredGrouped).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
+                  </tr>
+                ) : (
+                  Object.entries(filteredGrouped).map(([category, items]) => (
+                    <React.Fragment key={category}>
+                      {/* Category header */}
+                      <tr className="bg-slate-50 border-l-4 border-emerald-400">
+                        <td colSpan={5} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          {category}
+                        </td>
+                      </tr>
+                      {items.map((p) => {
+                        const inputVal   = parseFloat(quantities[p.id]) || 0;
+                        const crates     = p.mlPerCrate ? litresToCrates(inputVal, p.mlPerCrate) : inputVal;
+                        const amount     = crates * Number(p.dairyPrice);
+                        const filled     = inputVal > 0;
+                        const usesLitres = !!p.mlPerCrate;
 
-          {/* Table header */}
-          <div className="grid items-center bg-slate-50 border-b border-slate-200 px-4 py-2.5"
-               style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product</div>
-            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</div>
-            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Qty (Litres)</div>
-            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</div>
-            <div className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</div>
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-4 py-3 text-sm font-semibold text-slate-800">{p.name}</td>
+                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                              ₹{Number(p.dairyPrice).toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                ref={el => { inputRefs.current[p.id] = el; }}
+                                type="number"
+                                inputMode="decimal"
+                                value={quantities[p.id] ?? ''}
+                                onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                onKeyDown={e => handleKeyDown(e, p.id)}
+                                step="0.5"
+                                min="0"
+                                placeholder="0"
+                                className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`text-xs tabular-nums ${filled ? 'text-slate-600' : 'text-slate-300'}`}>
+                                {filled ? (usesLitres ? crates.toFixed(2) : inputVal.toFixed(2)) : '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
+                                {filled ? formatCurrency(amount) : '₹0.00'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-            </div>
-          ) : !activeBrand ? (
-            <div className="text-center py-16 text-slate-400 text-sm">Brand not found.</div>
-          ) : products.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 text-sm px-4">
-              No active products for {activeBrand.name}.<br />
-              <span className="text-xs">Add them in Dairy → Product Setup.</span>
-            </div>
-          ) : Object.keys(filteredGrouped).length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-sm">No products match your search.</div>
-          ) : (
-            Object.entries(filteredGrouped).map(([category, items]) => (
-              <div key={category}>
-                {/* Category header */}
-                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{category}</span>
-                </div>
-
-                {items.map((p) => {
-                  const inputVal = parseFloat(quantities[p.id]) || 0;
-                  const crates   = p.mlPerCrate ? litresToCrates(inputVal, p.mlPerCrate) : inputVal;
-                  const amount   = crates * Number(p.dairyPrice);
-                  const filled   = inputVal > 0;
-                  const usesLitres = !!p.mlPerCrate;
-
-                  return (
-                    <div
-                      key={p.id}
-                      className="grid items-center px-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
-                      style={{ gridTemplateColumns: 'repeat(5, 1fr)', minHeight: 52 }}
-                    >
-                      {/* Product name */}
-                      <div className="py-3 pr-2">
-                        <p className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</p>
-                      </div>
-
-                      {/* Rate */}
-                      <div className="text-right py-3">
-                        <span className="text-xs tabular-nums text-slate-500">
-                          ₹{Number(p.dairyPrice).toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Qty input (litres) */}
-                      <div className="flex justify-end py-2">
-                        <input
-                          ref={el => { inputRefs.current[p.id] = el; }}
-                          type="number"
-                          inputMode="decimal"
-                          value={quantities[p.id] ?? ''}
-                          onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                          onKeyDown={e => handleKeyDown(e, p.id)}
-                          step="0.5"
-                          min="0"
-                          placeholder="0"
-                          className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                        />
-                      </div>
-
-                      {/* Crates */}
-                      <div className="text-right py-3">
-                        <span className={`text-xs tabular-nums ${filled ? 'text-slate-600' : 'text-slate-300'}`}>
-                          {filled ? (usesLitres ? crates.toFixed(2) : inputVal.toFixed(2)) : '—'}
-                        </span>
-                      </div>
-
-                      {/* Amount */}
-                      <div className="text-right py-3">
-                        <span className={`text-sm font-bold tabular-nums ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
-                          {filled ? formatCurrency(amount) : '₹0.00'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))
-          )}
         </div>
       </div>
 
