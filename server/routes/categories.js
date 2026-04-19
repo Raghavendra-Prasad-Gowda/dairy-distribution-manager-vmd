@@ -24,6 +24,27 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: category });
 }));
 
+// PUT /categories/:id — rename and cascade to all products using this category name
+router.put('/:id', asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Category ID');
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Category name is required' });
+  }
+  const category = await prisma.category.findUnique({ where: { id } });
+  if (!category) {
+    return res.status(404).json({ success: false, error: 'Category not found' });
+  }
+  const oldName = category.name;
+  const newName = name.trim();
+
+  const [updated] = await prisma.$transaction([
+    prisma.category.update({ where: { id }, data: { name: newName } }),
+    prisma.product.updateMany({ where: { brandId: category.brandId, category: oldName }, data: { category: newName } }),
+  ]);
+  res.json({ success: true, data: updated });
+}));
+
 // DELETE /categories/:id
 router.delete('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Category ID');

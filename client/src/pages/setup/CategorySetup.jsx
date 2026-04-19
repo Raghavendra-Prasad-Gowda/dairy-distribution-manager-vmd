@@ -59,9 +59,7 @@ export default function CategorySetup() {
     setSubmitting(true);
     try {
       if (editingCat) {
-        // categories don't have a PUT endpoint yet — delete old + create new
-        await api.delete(`/categories/${editingCat.id}`);
-        await api.post('/categories', { brandId: activeBrandId, name: formName.trim() });
+        await api.put(`/categories/${editingCat.id}`, { name: formName.trim() });
         notify('Category updated', 'success');
       } else {
         await api.post('/categories', { brandId: activeBrandId, name: formName.trim() });
