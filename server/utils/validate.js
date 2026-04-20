@@ -30,13 +30,15 @@ const schemas = {
 
   // Products
   createProduct: z.object({
-    brandId:    z.number().int().positive('Brand ID is required'),
-    name:       z.string().min(1, 'Product name is required'),
-    category:   z.string().optional().nullable(),
-    unitType:   z.enum(['ml', 'gram', 'piece']).default('piece'),
-    unitSize:   z.number().int().positive().optional().nullable(),
-    mlPerCrate: z.number().int().positive().optional().nullable(),
-    dairyPrice: z.number().min(0).default(0),
+    brandId:           z.number().int().positive('Brand ID is required'),
+    name:              z.string().min(1, 'Product name is required'),
+    category:          z.string().optional().nullable(),
+    unitType:          z.enum(['ml', 'gram', 'piece']).default('piece'),
+    unitSize:          z.number().int().positive().optional().nullable(),
+    mlPerCrate:        z.number().int().positive().optional().nullable(),
+    containerType:     z.enum(['crate', 'box']).optional().nullable(),
+    unitsPerContainer: z.number().int().positive().optional().nullable(),
+    dairyPrice:        z.number().min(0).default(0),
   }),
   updateProduct: z.object({
     name:               z.string().min(1).optional(),
@@ -44,6 +46,8 @@ const schemas = {
     unitType:           z.enum(['ml', 'gram', 'piece']).optional(),
     unitSize:           z.number().int().positive().optional().nullable(),
     mlPerCrate:         z.number().int().positive().optional().nullable(),
+    containerType:      z.enum(['crate', 'box']).optional().nullable(),
+    unitsPerContainer:  z.number().int().positive().optional().nullable(),
     dairyPrice:         z.number().min(0).optional(),
     isActive:           z.boolean().optional(),
     showInStockReceipt: z.boolean().optional(),

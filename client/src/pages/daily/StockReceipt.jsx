@@ -7,10 +7,13 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-/** Compute crates from litres (ml products only) */
-function calcCrates(litres, mlPerCrate) {
-  if (!litres || !mlPerCrate) return 0;
-  return (parseFloat(litres) * 1000) / mlPerCrate;
+/** Compute container count from units */
+function calcContainerDisplay(units, containerType, unitsPerContainer) {
+  if (!containerType || !unitsPerContainer || !units) return '—';
+  const count = Math.floor(parseFloat(units) / unitsPerContainer);
+  if (count <= 0) return '—';
+  const label = containerType.charAt(0).toUpperCase() + containerType.slice(1);
+  return `${count} ${label}${count !== 1 ? 's' : ''}`;
 }
 
 export default function StockReceipt() {
@@ -19,7 +22,7 @@ export default function StockReceipt() {
   const [date, setDate]               = useState(getIndiaDate());
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
-  const [quantities, setQuantities]   = useState({});  // stores litres (user input)
+  const [quantities, setQuantities]   = useState({});  // stores individual units (user input)
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
@@ -221,8 +224,8 @@ export default function StockReceipt() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">QTY</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Units</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates/Boxes</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
@@ -258,12 +261,11 @@ export default function StockReceipt() {
                         </td>
                       </tr>
                       {items.map((p) => {
-                        const inputVal  = parseFloat(quantities[p.id]) || 0;
-                        const isML      = p.unitType === 'ml';
-                        const crates    = isML ? calcCrates(inputVal, p.mlPerCrate) : null;
-                        const amount    = inputVal * Number(p.dairyPrice);
-                        const filled    = inputVal > 0;
-                        const unitLabel = isML ? 'litres' : p.unitType === 'piece' ? 'pcs' : 'pkts';
+                        const inputVal       = parseFloat(quantities[p.id]) || 0;
+                        const containerLabel = calcContainerDisplay(inputVal, p.containerType, p.unitsPerContainer);
+                        const amount         = inputVal * Number(p.dairyPrice);
+                        const filled         = inputVal > 0;
+                        const unitLabel      = p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units';
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
@@ -287,7 +289,7 @@ export default function StockReceipt() {
                                   value={quantities[p.id] ?? ''}
                                   onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
                                   onKeyDown={e => handleKeyDown(e, p.id)}
-                                  step="0.5"
+                                  step="1"
                                   min="0"
                                   placeholder="0"
                                   className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
@@ -296,8 +298,8 @@ export default function StockReceipt() {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <span className="text-xs tabular-nums text-slate-600">
-                                {isML ? (crates ?? 0).toFixed(2) : '—'}
+                              <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                {containerLabel}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">

@@ -34,6 +34,8 @@ model Product {
   mlPerCrate          Int?     @map("ml_per_crate")
   unitType            String   @default("piece") @map("unit_type")
   unitSize            Int?     @map("unit_size")
+  containerType       String?  @map("container_type")
+  unitsPerContainer   Int?     @map("units_per_container")
   dairyPrice          Decimal  @default(0) @db.Decimal(10, 2) @map("dairy_price")
   isActive            Boolean  @default(true) @map("is_active")
   showInStockReceipt  Boolean  @default(true) @map("show_in_stock_receipt")

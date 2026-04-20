@@ -23,13 +23,14 @@ const server = app.listen(PORT, async () => {
     logger.warn('Warning: Failed to seed demo data', { message: error.message });
   }
 
-  // Seed Nandini products (one-time — guard skips if already applied)
+  // Migrate container fields (idempotent — containerType + unitsPerContainer from mlPerCrate)
   try {
-    const { seedNandiniProducts } = require('./scripts/seed-nandini');
-    await seedNandiniProducts();
+    const { migrateContainerFields } = require('./scripts/migrate-container-fields');
+    await migrateContainerFields();
   } catch (error) {
-    logger.warn('Warning: Failed to seed Nandini products', { message: error.message });
+    logger.warn('Warning: Failed to migrate container fields', { message: error.message });
   }
+
 });
 
 // Graceful shutdown

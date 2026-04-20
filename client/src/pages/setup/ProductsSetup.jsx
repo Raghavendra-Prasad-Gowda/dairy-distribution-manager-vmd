@@ -8,7 +8,7 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 250, 400, 500, 1000, 2000, 5000, 15000];
-const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', mlPerCrate: '', dairyPrice: '' };
+const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', dairyPrice: '' };
 
 export default function ProductsSetup() {
   const { notify } = useNotification();
@@ -101,7 +101,7 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
-    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', mlPerCrate: p.mlPerCrate ?? '', dairyPrice: Number(p.dairyPrice) });
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', dairyPrice: Number(p.dairyPrice) });
     setIsModalOpen(true);
   };
 
@@ -112,12 +112,13 @@ export default function ProductsSetup() {
     setSubmitting(true);
     const categoryName = categories.find(c => c.id === Number(form.categoryId))?.name ?? null;
     const payload = {
-      name:       form.name.trim(),
-      category:   categoryName,
-      unitType:   form.unitType || 'piece',
-      unitSize:   form.unitType !== 'piece' && form.unitSize ? parseInt(form.unitSize, 10) : null,
-      mlPerCrate: form.unitType === 'ml' && form.mlPerCrate ? parseInt(form.mlPerCrate, 10) : null,
-      dairyPrice: parseFloat(form.dairyPrice) || 0,
+      name:              form.name.trim(),
+      category:          categoryName,
+      unitType:          form.unitType || 'piece',
+      unitSize:          form.unitType !== 'piece' && form.unitSize ? parseInt(form.unitSize, 10) : null,
+      containerType:     form.containerType || null,
+      unitsPerContainer: form.containerType && form.unitsPerContainer ? parseInt(form.unitsPerContainer, 10) : null,
+      dairyPrice:        parseFloat(form.dairyPrice) || 0,
     };
     try {
       if (editingProduct) {
@@ -261,7 +262,10 @@ export default function ProductsSetup() {
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">
-                          {p.unitType === 'ml' ? `${p.unitSize ?? '?'} ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'} g` : 'piece'}
+                          <div>{p.unitType === 'ml' ? `${p.unitSize ?? '?'} ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'} g` : 'piece'}</div>
+                          {p.containerType && p.unitsPerContainer && (
+                            <div className="text-[10px] text-slate-400 mt-0.5">{p.unitsPerContainer}/{ p.containerType}</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
@@ -336,7 +340,7 @@ export default function ProductsSetup() {
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Unit Type</label>
                   <select
                     value={form.unitType}
-                    onChange={e => setForm(f => ({ ...f, unitType: e.target.value, unitSize: e.target.value !== 'piece' ? (f.unitSize || '500') : '', mlPerCrate: e.target.value === 'ml' ? f.mlPerCrate : '' }))}
+                    onChange={e => setForm(f => ({ ...f, unitType: e.target.value, unitSize: e.target.value !== 'piece' ? (f.unitSize || '500') : '' }))}
                     className="ddm-input bg-white"
                   >
                     <option value="ml">ml</option>
@@ -360,18 +364,34 @@ export default function ProductsSetup() {
                   </div>
                 )}
               </div>
-              {form.unitType === 'ml' && (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">ml / Crate</label>
-                  <input
-                    type="number" min="1"
-                    value={form.mlPerCrate}
-                    onChange={e => setForm(f => ({ ...f, mlPerCrate: e.target.value }))}
-                    placeholder="e.g. 6000"
-                    className="ddm-input"
-                  />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Container Type</label>
+                  <select
+                    value={form.containerType}
+                    onChange={e => setForm(f => ({ ...f, containerType: e.target.value, unitsPerContainer: e.target.value ? f.unitsPerContainer : '' }))}
+                    className="ddm-input bg-white"
+                  >
+                    <option value="">— None —</option>
+                    <option value="crate">Crate</option>
+                    <option value="box">Box</option>
+                  </select>
                 </div>
-              )}
+                {form.containerType && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Units per {form.containerType === 'crate' ? 'Crate' : 'Box'}
+                    </label>
+                    <input
+                      type="number" min="1"
+                      value={form.unitsPerContainer}
+                      onChange={e => setForm(f => ({ ...f, unitsPerContainer: e.target.value }))}
+                      placeholder="e.g. 12"
+                      className="ddm-input"
+                    />
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
                 <div className="relative">
