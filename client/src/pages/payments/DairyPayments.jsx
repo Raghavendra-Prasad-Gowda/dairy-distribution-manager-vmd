@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Pencil, Filter, X } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import { useNotification } from '../../context/NotificationContext';
@@ -204,7 +204,7 @@ export default function DairyPayments() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
               {/* ── Left column: balance card + form ───────────────── */}
-              <div className="lg:col-span-1 space-y-4">
+              <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
 
                 {balance && (
                   <BrandBalanceCard
@@ -232,7 +232,7 @@ export default function DairyPayments() {
               </div>
 
               {/* ── Right column: history ───────────────────────────── */}
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 order-1 lg:order-2">
                 <div className="ddm-card overflow-hidden">
 
                   {/* Header + filter toggle */}
@@ -264,13 +264,19 @@ export default function DairyPayments() {
                     <div className="px-5 py-3 bg-emerald-50/60 border-b border-emerald-100 grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">From</label>
-                        <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
-                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                        <div className="relative">
+                          <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
+                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                        </div>
                       </div>
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">To</label>
-                        <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
-                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                        <div className="relative">
+                          <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
+                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                        </div>
                       </div>
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Mode</label>
