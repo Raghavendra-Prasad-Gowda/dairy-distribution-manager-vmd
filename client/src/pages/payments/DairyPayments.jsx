@@ -79,6 +79,10 @@ export default function DairyPayments() {
   const [filterRef,  setFilterRef]    = useState('');
   const [showFilter, setShowFilter]   = useState(false);
 
+  // Pagination
+  const HISTORY_PER_PAGE = 15;
+  const [historyPage, setHistoryPage] = useState(1);
+
   const today = getIndiaDate();
 
   useEffect(() => {
@@ -162,6 +166,15 @@ export default function DairyPayments() {
       return true;
     });
   }, [payments, filterFrom, filterTo, filterMode, filterRef]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setHistoryPage(1); }, [filterFrom, filterTo, filterMode, filterRef, activeBrandId]);
+
+  const historyTotalPages = Math.max(1, Math.ceil(filteredPayments.length / HISTORY_PER_PAGE));
+  const pagedPayments = filteredPayments.slice(
+    (historyPage - 1) * HISTORY_PER_PAGE,
+    historyPage * HISTORY_PER_PAGE,
+  );
 
   const activeBrand = brands.find(b => b.id === activeBrandId);
 
@@ -248,7 +261,7 @@ export default function DairyPayments() {
 
                   {/* Filter controls */}
                   {showFilter && (
-                    <div className="px-5 py-3 bg-emerald-50/60 border-b border-emerald-100 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="px-5 py-3 bg-emerald-50/60 border-b border-emerald-100 grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">From</label>
                         <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
@@ -295,49 +308,75 @@ export default function DairyPayments() {
                   ) : filteredPayments.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 text-sm">No payments match the current filters</div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-emerald-700">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
-                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Mode</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Reference</th>
-                            <th className="px-4 py-3 w-20" />
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-100">
-                          {filteredPayments.map((p) => (
-                            <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
-                                {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                              </td>
-                              <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
-                                {formatCurrency(p.amount)}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
-                                  {p.paymentMode || 'Cash'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-xs text-slate-400 max-w-[8rem] truncate">
-                                {p.reference || <span className="text-slate-300">—</span>}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center justify-end gap-1">
-                                  <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
-                                    <Pencil size={12} />
-                                  </button>
-                                  <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              </td>
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200">
+                          <thead className="bg-emerald-700">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
+                              <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Mode</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Reference</th>
+                              <th className="px-4 py-3 w-20" />
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-slate-100">
+                            {pagedPayments.map((p) => (
+                              <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+                                  {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                                  {formatCurrency(p.amount)}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
+                                    {p.paymentMode || 'Cash'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-400 max-w-[8rem] truncate">
+                                  {p.reference || <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                      <Pencil size={12} />
+                                    </button>
+                                    <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {historyTotalPages > 1 && (
+                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/60">
+                          <p className="text-xs text-slate-400">
+                            {(historyPage - 1) * HISTORY_PER_PAGE + 1}–{Math.min(historyPage * HISTORY_PER_PAGE, filteredPayments.length)} of {filteredPayments.length}
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                              disabled={historyPage === 1}
+                              className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                            >
+                              Prev
+                            </button>
+                            <span className="text-xs text-slate-500 font-medium px-1">{historyPage} / {historyTotalPages}</span>
+                            <button
+                              onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
+                              disabled={historyPage === historyTotalPages}
+                              className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
