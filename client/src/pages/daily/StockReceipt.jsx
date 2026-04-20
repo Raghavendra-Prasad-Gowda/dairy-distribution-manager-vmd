@@ -10,10 +10,11 @@ import api from '../../api/axios';
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
   if (!containerType || !unitsPerContainer || !units) return '—';
-  const count = Math.floor(parseFloat(units) / unitsPerContainer);
+  const count = parseFloat(units) / unitsPerContainer;
   if (count <= 0) return '—';
   const label = containerType.charAt(0).toUpperCase() + containerType.slice(1);
-  return `${count} ${label}${count !== 1 ? 's' : ''}`;
+  const display = Number.isInteger(count) ? count : count.toFixed(2);
+  return `${display} ${label}${count !== 1 ? 's' : ''}`;
 }
 
 export default function StockReceipt() {
