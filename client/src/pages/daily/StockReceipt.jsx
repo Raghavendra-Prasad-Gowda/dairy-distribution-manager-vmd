@@ -224,9 +224,8 @@ export default function StockReceipt() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Units</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Units/Crate·Box</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates/Boxes</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
                 </tr>
@@ -234,31 +233,31 @@ export default function StockReceipt() {
               <tbody className="bg-white divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-20 text-center">
+                    <td colSpan={5} className="py-20 text-center">
                       <Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" />
                     </td>
                   </tr>
                 ) : !activeBrand ? (
                   <tr>
-                    <td colSpan={6} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td>
+                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td>
                   </tr>
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-16 text-center text-slate-400 text-sm px-4">
+                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm px-4">
                       No active products for {activeBrand.name}.<br />
                       <span className="text-xs">Add them in Dairy → Product Setup.</span>
                     </td>
                   </tr>
                 ) : Object.keys(filteredGrouped).length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
+                    <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
                   </tr>
                 ) : (
                   Object.entries(filteredGrouped).map(([category, items]) => (
                     <React.Fragment key={category}>
                       {/* Category header */}
                       <tr className="cat-row bg-slate-50 border-l-4 border-emerald-400">
-                        <td colSpan={6} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        <td colSpan={5} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                           {category}
                         </td>
                       </tr>
@@ -279,9 +278,6 @@ export default function StockReceipt() {
                                 </span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                              ₹{Number(p.dairyPrice).toFixed(2)}
-                            </td>
                             <td className="px-4 py-3 text-center">
                               <div className="inline-flex items-center gap-1.5">
                                 <input
@@ -299,12 +295,8 @@ export default function StockReceipt() {
                                 <span className="text-xs text-slate-400">{unitLabel}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="text-xs tabular-nums text-slate-400 whitespace-nowrap">
-                                {p.containerType && p.unitsPerContainer
-                                  ? `${p.unitsPerContainer} units/${p.containerType}`
-                                  : '—'}
-                              </span>
+                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                              ₹{Number(p.dairyPrice).toFixed(2)}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
