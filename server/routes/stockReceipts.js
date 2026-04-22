@@ -18,7 +18,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const receipts = await prisma.stockReceipt.findMany({
     where,
     include: {
-      product: { select: { id: true, name: true, dairyPrice: true } },
+      product: { select: { id: true, name: true, costPrice: true } },
       brand:   { select: { id: true, name: true } },
     },
     orderBy: [{ brandId: 'asc' }, { productId: 'asc' }],
@@ -66,7 +66,7 @@ router.get('/availability', asyncHandler(async (req, res) => {
     received:      receivedMap[p.id] ?? 0,
     dispatched:    dispatchedMap[p.id] ?? 0,
     available:     (receivedMap[p.id] ?? 0) - (dispatchedMap[p.id] ?? 0),
-    dairyPrice:    Number(p.dairyPrice),
+    costPrice:     Number(p.costPrice),
   }));
 
   res.json({ success: true, data: result });

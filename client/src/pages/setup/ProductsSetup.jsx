@@ -8,7 +8,7 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
-const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', dairyPrice: '' };
+const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '' };
 
 export default function ProductsSetup() {
   const { notify } = useNotification();
@@ -101,7 +101,7 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
-    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', dairyPrice: Number(p.dairyPrice) });
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice) });
     setIsModalOpen(true);
   };
 
@@ -118,7 +118,8 @@ export default function ProductsSetup() {
       unitSize:          form.unitType !== 'piece' && form.unitSize ? parseInt(form.unitSize, 10) : null,
       containerType:     form.containerType || null,
       unitsPerContainer: form.containerType && form.unitsPerContainer ? parseInt(form.unitsPerContainer, 10) : null,
-      dairyPrice:        parseFloat(form.dairyPrice) || 0,
+      costPrice:         parseFloat(form.costPrice) || 0,
+      sellingPrice:      parseFloat(form.sellingPrice) || 0,
     };
     try {
       if (editingProduct) {
@@ -392,17 +393,32 @@ export default function ProductsSetup() {
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                  <input
-                    type="number" step="0.01" min="0"
-                    value={form.dairyPrice}
-                    onChange={e => setForm(f => ({ ...f, dairyPrice: e.target.value }))}
-                    placeholder="0.00"
-                    className="ddm-input pl-7 text-right tabular-nums"
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Cost Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={form.costPrice}
+                      onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="ddm-input pl-7 text-right tabular-nums"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Selling Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={form.sellingPrice}
+                      onChange={e => setForm(f => ({ ...f, sellingPrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="ddm-input pl-7 text-right tabular-nums"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex gap-3 pt-1">

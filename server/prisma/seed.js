@@ -48,7 +48,7 @@ async function seedFoundationData(externalPrisma) {
     await prisma.product.upsert({
       where: { brandId_name: { brandId: nandini.id, name } },
       update: {},
-      create: { brandId: nandini.id, name, dairyPrice: 0 },
+      create: { brandId: nandini.id, name, costPrice: 0, sellingPrice: 0 },
     });
   }
 
@@ -58,7 +58,7 @@ async function seedFoundationData(externalPrisma) {
     await prisma.product.upsert({
       where: { brandId_name: { brandId: jersey.id, name } },
       update: {},
-      create: { brandId: jersey.id, name, dairyPrice: 0 },
+      create: { brandId: jersey.id, name, costPrice: 0, sellingPrice: 0 },
     });
   }
 
@@ -68,7 +68,7 @@ async function seedFoundationData(externalPrisma) {
     await prisma.product.upsert({
       where: { brandId_name: { brandId: gowardhan.id, name } },
       update: {},
-      create: { brandId: gowardhan.id, name, dairyPrice: 0 },
+      create: { brandId: gowardhan.id, name, costPrice: 0, sellingPrice: 0 },
     });
   }
 

@@ -17,18 +17,18 @@ const GOWARDHAN_CATEGORIES = [
 
 const GOWARDHAN_PRODUCTS = [
   // ── TONED MILK ───────────────────────────────────────────────────────────
-  { name: 'TM 1000ml', category: 'TONED MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 50.00 },
-  { name: 'TM 450ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 450,  containerType: 'crate', unitsPerContainer: 24, dairyPrice: 25.00 },
-  { name: 'TM 225ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, dairyPrice: 14.00 },
+  { name: 'TM 1000ml', category: 'TONED MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 50.00 },
+  { name: 'TM 450ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 450,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 25.00 },
+  { name: 'TM 225ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, sellingPrice: 14.00 },
 
   // ── CURD ─────────────────────────────────────────────────────────────────
-  { name: 'Curd 1000ml',    category: 'CURD', unitType: 'ml',   unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 60.00 },
-  { name: 'DTM Curd 200g',  category: 'CURD', unitType: 'gram', unitSize: 200,  containerType: 'crate', unitsPerContainer: 60, dairyPrice: 14.00 },
-  { name: 'DTM Curd 500g',  category: 'CURD', unitType: 'gram', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, dairyPrice: 30.00 },
-  { name: 'Curd 1000g',     category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 60.00 },
+  { name: 'Curd 1000ml',    category: 'CURD', unitType: 'ml',   unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
+  { name: 'DTM Curd 200g',  category: 'CURD', unitType: 'gram', unitSize: 200,  containerType: 'crate', unitsPerContainer: 60, sellingPrice: 14.00 },
+  { name: 'DTM Curd 500g',  category: 'CURD', unitType: 'gram', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 30.00 },
+  { name: 'Curd 1000g',     category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
 
   // ── TEA SPECIAL ──────────────────────────────────────────────────────────
-  { name: 'Tea Special 1000ml', category: 'TEA SPECIAL', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 60.00 },
+  { name: 'Tea Special 1000ml', category: 'TEA SPECIAL', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
 ];
 
 async function seedGowardhanProducts() {
@@ -82,7 +82,8 @@ async function seedGowardhanProducts() {
       unitSize:           p.unitSize,
       containerType:      p.containerType,
       unitsPerContainer:  p.unitsPerContainer,
-      dairyPrice:         p.dairyPrice,
+      costPrice:          0,
+      sellingPrice:       p.sellingPrice,
       isActive:           true,
       showInStockReceipt: true,
     })),

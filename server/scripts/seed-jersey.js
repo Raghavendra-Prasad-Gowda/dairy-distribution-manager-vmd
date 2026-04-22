@@ -19,25 +19,25 @@ const JERSEY_CATEGORIES = [
 
 const JERSEY_PRODUCTS = [
   // ── HOMOGENISED TONED MILK ───────────────────────────────────────────────
-  { name: 'HTM 1000ml', category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 58.00 },
-  { name: 'HTM 500ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, dairyPrice: 25.00 },
-  { name: 'HTM 225ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, dairyPrice: 14.00 },
+  { name: 'HTM 1000ml', category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 58.00 },
+  { name: 'HTM 500ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 25.00 },
+  { name: 'HTM 225ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, sellingPrice: 14.00 },
 
   // ── STANDARDISED MILK ────────────────────────────────────────────────────
-  { name: 'STM 1000ml', category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 60.00 },
-  { name: 'STM 500ml',  category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, dairyPrice: 30.00 },
+  { name: 'STM 1000ml', category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
+  { name: 'STM 500ml',  category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 30.00 },
 
   // ── HOMOGENISED FULL CREAM MILK ──────────────────────────────────────────
-  { name: 'HFCM 500ml',  category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, dairyPrice: 35.00 },
-  { name: 'HFCM 1000ml', category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 70.00 },
+  { name: 'HFCM 500ml',  category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 35.00 },
+  { name: 'HFCM 1000ml', category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 70.00 },
 
   // ── CURD ─────────────────────────────────────────────────────────────────
-  { name: 'DTM Curd 1000g', category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, dairyPrice: 60.00 },
-  { name: 'DTM Curd 450g',  category: 'CURD', unitType: 'gram', unitSize: 450,  containerType: 'crate', unitsPerContainer: 26, dairyPrice: 30.00 },
-  { name: 'DTM Curd 140g',  category: 'CURD', unitType: 'gram', unitSize: 140,  containerType: 'crate', unitsPerContainer: 84, dairyPrice: 10.00 },
+  { name: 'DTM Curd 1000g', category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
+  { name: 'DTM Curd 450g',  category: 'CURD', unitType: 'gram', unitSize: 450,  containerType: 'crate', unitsPerContainer: 26, sellingPrice: 30.00 },
+  { name: 'DTM Curd 140g',  category: 'CURD', unitType: 'gram', unitSize: 140,  containerType: 'crate', unitsPerContainer: 84, sellingPrice: 10.00 },
 
   // ── BUTTER MILK ──────────────────────────────────────────────────────────
-  { name: 'Butter Milk', category: 'BUTTER MILK', unitType: 'piece', unitSize: null, containerType: null, unitsPerContainer: null, dairyPrice: 10.00 },
+  { name: 'Butter Milk', category: 'BUTTER MILK', unitType: 'piece', unitSize: null, containerType: null, unitsPerContainer: null, sellingPrice: 10.00 },
 ];
 
 async function seedJerseyProducts() {
@@ -91,7 +91,8 @@ async function seedJerseyProducts() {
       unitSize:          p.unitSize,
       containerType:     p.containerType,
       unitsPerContainer: p.unitsPerContainer,
-      dairyPrice:        p.dairyPrice,
+      costPrice:         0,
+      sellingPrice:      p.sellingPrice,
       isActive:          true,
       showInStockReceipt: true,
     })),

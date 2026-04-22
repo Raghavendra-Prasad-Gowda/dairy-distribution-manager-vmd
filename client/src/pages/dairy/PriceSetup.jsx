@@ -19,7 +19,7 @@ export default function DairyPriceSetup() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [priceForm, setPriceForm] = useState('');
+  const [priceForm, setPriceForm] = useState({ costPrice: '', sellingPrice: '' });
   const [confirmation, setConfirmation] = useState({ isOpen: false });
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function DairyPriceSetup() {
 
   const openEdit = (p) => {
     setEditingProduct(p);
-    setPriceForm(Number(p.dairyPrice).toFixed(2));
+    setPriceForm({ costPrice: Number(p.costPrice).toFixed(2), sellingPrice: Number(p.sellingPrice).toFixed(2) });
     setIsModalOpen(true);
   };
 
@@ -62,8 +62,9 @@ export default function DairyPriceSetup() {
     setSubmitting(true);
     try {
       await api.put(`/products/${editingProduct.id}`, {
-        name:       editingProduct.name,
-        dairyPrice: parseFloat(priceForm) || 0,
+        name:         editingProduct.name,
+        costPrice:    parseFloat(priceForm.costPrice) || 0,
+        sellingPrice: parseFloat(priceForm.sellingPrice) || 0,
       });
       notify('Price updated', 'success');
       closeModal();
@@ -157,14 +158,14 @@ export default function DairyPriceSetup() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-slate-900">Price Setup</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Set dairy purchase prices per product per brand</p>
+        <p className="text-slate-400 text-sm mt-0.5">Set cost and selling prices per product per brand</p>
       </div>
 
       {/* Info */}
       <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-xs">
         <Info size={13} className="flex-shrink-0 mt-0.5" />
         <span>
-          <strong>Rate Master:</strong> Prices set here are used automatically when recording stock receipts.
+          <strong>Rate Master:</strong> Cost Price is what you pay the dairy. Selling Price is what you charge customers.
           Changes apply to future receipts only.
         </span>
       </div>
@@ -206,20 +207,21 @@ export default function DairyPriceSetup() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Dairy Price (₹)</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Cost Price (₹)</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Selling Price (₹)</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-16 text-center">
+                  <td colSpan={5} className="px-6 py-16 text-center">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search
                       ? 'No products match your search.'
                       : `No products yet for ${activeBrand?.name}. Add them in Product Setup.`}
@@ -229,7 +231,7 @@ export default function DairyPriceSetup() {
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
                     <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={4} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
@@ -238,7 +240,10 @@ export default function DairyPriceSetup() {
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.dairyPrice).toFixed(2)}
+                          ₹{Number(p.costPrice).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
+                          ₹{Number(p.sellingPrice).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center gap-3">
@@ -280,15 +285,30 @@ export default function DairyPriceSetup() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Dairy Price (₹) <span className="text-red-400">*</span>
+                  Cost Price (₹) <span className="normal-case font-normal text-slate-400">what dairy charges you</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
                   <input
                     autoFocus
-                    type="number" step="0.01" min="0" required
-                    value={priceForm}
-                    onChange={e => setPriceForm(e.target.value)}
+                    type="number" step="0.01" min="0"
+                    value={priceForm.costPrice}
+                    onChange={e => setPriceForm(f => ({ ...f, costPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="ddm-input pl-7 text-right tabular-nums"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Selling Price (₹) <span className="normal-case font-normal text-slate-400">what you charge customers</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={priceForm.sellingPrice}
+                    onChange={e => setPriceForm(f => ({ ...f, sellingPrice: e.target.value }))}
                     placeholder="0.00"
                     className="ddm-input pl-7 text-right tabular-nums"
                   />

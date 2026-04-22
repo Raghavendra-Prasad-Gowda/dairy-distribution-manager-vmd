@@ -113,7 +113,7 @@ export default function StockReceipt() {
       .map(p => ({
         productId: p.id,
         quantity:  parseFloat(quantities[p.id]),
-        unitPrice: Number(p.dairyPrice),
+        unitPrice: Number(p.costPrice),
       }));
 
     if (!items.length) { notify('Enter at least one quantity before saving.', 'warning'); return; }
@@ -135,7 +135,7 @@ export default function StockReceipt() {
 
   const totalAmount = products.reduce((s, p) => {
     const inputVal = parseFloat(quantities[p.id]) || 0;
-    return s + inputVal * Number(p.dairyPrice);
+    return s + inputVal * Number(p.costPrice);
   }, 0);
 
   const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
@@ -264,7 +264,7 @@ export default function StockReceipt() {
                       {items.map((p) => {
                         const inputVal       = parseFloat(quantities[p.id]) || 0;
                         const containerLabel = calcContainerDisplay(inputVal, p.containerType, p.unitsPerContainer);
-                        const amount         = inputVal * Number(p.dairyPrice);
+                        const amount         = inputVal * Number(p.costPrice);
                         const filled         = inputVal > 0;
                         const unitLabel      = p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units';
 
@@ -296,7 +296,7 @@ export default function StockReceipt() {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                              ₹{Number(p.dairyPrice).toFixed(2)}
+                              ₹{Number(p.costPrice).toFixed(2)}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">

@@ -186,7 +186,7 @@ async function seedDemoData(externalPrisma) {
 
       await prisma.product.update({
         where: { id: product.id },
-        data: { dairyPrice: price },
+        data: { costPrice: price },
       });
       priceUpdateCount++;
     }
