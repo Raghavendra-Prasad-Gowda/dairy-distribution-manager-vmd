@@ -48,8 +48,12 @@ async function seedJerseyProducts() {
     where: { brandId: brand.id, isActive: true },
   });
 
-  if (activeCount >= 11) {
-    console.log(`Jersey seed already applied (${activeCount} active products) — skipping.`);
+  const zeroCostCount = await prisma.product.count({
+    where: { brandId: brand.id, isActive: true, costPrice: 0 },
+  });
+
+  if (activeCount >= 11 && zeroCostCount === 0) {
+    console.log(`Jersey seed already applied with prices (${activeCount} products) — skipping.`);
     return;
   }
 

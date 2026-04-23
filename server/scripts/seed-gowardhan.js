@@ -39,8 +39,12 @@ async function seedGowardhanProducts() {
     where: { brandId: brand.id, isActive: true },
   });
 
-  if (activeCount >= 8) {
-    console.log(`Gowardhan seed already applied (${activeCount} active products) — skipping.`);
+  const zeroCostCount = await prisma.product.count({
+    where: { brandId: brand.id, isActive: true, costPrice: 0 },
+  });
+
+  if (activeCount >= 8 && zeroCostCount === 0) {
+    console.log(`Gowardhan seed already applied with prices (${activeCount} products) — skipping.`);
     return;
   }
 
