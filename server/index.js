@@ -26,45 +26,7 @@ const server = app.listen(PORT, async () => {
     logger.warn('Warning: Failed to seed foundation data', { message: error.message });
   }
 
-  // Seed demo data on startup (idempotent — salespeople, prices)
-  try {
-    const { seedDemoData } = require('./scripts/seed-demo-data');
-    await seedDemoData();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed demo data', { message: error.message });
-  }
-
-  // Migrate container fields (idempotent — containerType + unitsPerContainer from mlPerCrate)
-  try {
-    const { migrateContainerFields } = require('./scripts/migrate-container-fields');
-    await migrateContainerFields();
-  } catch (error) {
-    logger.warn('Warning: Failed to migrate container fields', { message: error.message });
-  }
-
-  // Seed Nandini product prices (costPrice + sellingPrice from client rate chart)
-  try {
-    const { seedNandiniPrices } = require('./scripts/seed-nandini-prices');
-    await seedNandiniPrices();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed Nandini prices', { message: error.message });
-  }
-
-  // Seed Jersey products (clears existing zero-cost products and re-seeds with correct prices)
-  try {
-    const { seedJerseyProducts } = require('./scripts/seed-jersey');
-    await seedJerseyProducts();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed Jersey products', { message: error.message });
-  }
-
-  // Seed Gowardhan products (clears existing zero-cost products and re-seeds with correct prices)
-  try {
-    const { seedGowardhanProducts } = require('./scripts/seed-gowardhan');
-    await seedGowardhanProducts();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed Gowardhan products', { message: error.message });
-  }
+  // [DISABLED] seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
 
 });
 
