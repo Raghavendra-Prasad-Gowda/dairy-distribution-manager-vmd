@@ -107,6 +107,9 @@ export default function Dispatch() {
 
     if (!items.length) { notify('Enter at least one quantity.', 'warning'); return; }
 
+    const missingPrice = items.find(item => prices[item.productId] === undefined || prices[item.productId] === null);
+    if (missingPrice) { notify('Some products have no price set. Configure prices in Price Setup first.', 'warning'); return; }
+
     setSaving(true);
     try {
       await api.post('/dispatches', { salespersonId: Number(selectedSpId), dispatchDate: date, items });

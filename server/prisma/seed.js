@@ -26,6 +26,9 @@ async function seedFoundationData(externalPrisma) {
   // ─── Admin user ───────────────────────────────────────────────────────────
   const existing = await prisma.appSettings.findFirst();
   if (!existing) {
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn('⚠️  ADMIN_PASSWORD env var not set — admin account will use insecure default password. Set this in production.');
+    }
     const rawUsername = process.env.ADMIN_USERNAME || 'admin';
     const rawPassword = process.env.ADMIN_PASSWORD || 'admin123';
     const passwordHash = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);

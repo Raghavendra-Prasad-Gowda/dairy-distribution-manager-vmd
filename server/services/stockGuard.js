@@ -11,45 +11,49 @@ const prisma = require('../lib/prisma');
  */
 async function validateDispatchStock(items, date, excludeDispatchId = null) {
   const receiptDate = new Date(date);
-  const errors = [];
 
-  for (const item of items) {
-    // Total received for this product on this date
-    const receivedAgg = await prisma.stockReceipt.aggregate({
-      where: { productId: item.productId, receiptDate },
-      _sum: { quantity: true },
-    });
-    const received = Number(receivedAgg._sum.quantity ?? 0);
+  // Run all aggregate queries in parallel (was: sequential N×2 queries)
+  const results = await Promise.all(
+    items.map(async (item) => {
+      const [receivedAgg, dispatchedAgg] = await Promise.all([
+        prisma.stockReceipt.aggregate({
+          where: { productId: item.productId, receiptDate },
+          _sum: { quantity: true },
+        }),
+        prisma.stockDispatchItem.aggregate({
+          where: {
+            productId: item.productId,
+            dispatch: {
+              dispatchDate: receiptDate,
+              ...(excludeDispatchId ? { NOT: { id: excludeDispatchId } } : {}),
+            },
+          },
+          _sum: { quantity: true },
+        }),
+      ]);
+      const received   = Number(receivedAgg._sum.quantity ?? 0);
+      const dispatched = Number(dispatchedAgg._sum.quantity ?? 0);
+      return { item, available: received - dispatched };
+    })
+  );
 
-    // Total already dispatched, excluding the current dispatch if updating
-    const dispatchedAgg = await prisma.stockDispatchItem.aggregate({
-      where: {
-        productId: item.productId,
-        dispatch: {
-          dispatchDate: receiptDate,
-          ...(excludeDispatchId ? { NOT: { id: excludeDispatchId } } : {}),
-        },
-      },
-      _sum: { quantity: true },
-    });
-    const dispatched = Number(dispatchedAgg._sum.quantity ?? 0);
-    const available = received - dispatched;
+  const overLimit = results.filter(({ item, available }) => item.quantity > available);
+  if (overLimit.length === 0) return [];
 
-    if (item.quantity > available) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-        select: { name: true },
-      });
-      errors.push({
-        productId: item.productId,
-        productName: product?.name ?? 'Unknown',
-        requested: item.quantity,
-        available: Math.max(0, available),
-      });
-    }
-  }
+  // Batch-fetch product names for all error items in one query
+  const errorIds = overLimit.map(({ item }) => item.productId);
+  const products = await prisma.product.findMany({
+    where: { id: { in: errorIds } },
+    select: { id: true, name: true },
+  });
+  const nameMap = Object.fromEntries(products.map(p => [p.id, p.name]));
 
-  return errors;
+  return overLimit.map(({ item, available }) => ({
+    productId:   item.productId,
+    productName: nameMap[item.productId] ?? 'Unknown',
+    requested:   item.quantity,
+    available:   Math.max(0, available),
+  }));
 }
 
 module.exports = { validateDispatchStock };

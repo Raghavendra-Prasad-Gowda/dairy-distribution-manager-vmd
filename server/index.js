@@ -18,12 +18,14 @@ const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, async () => {
   logger.info(`Dairy Distribution Manager API running on port ${PORT}`);
 
-  // Seed foundation data on startup (idempotent — brands, products, admin)
+  // Seed foundation data on startup (idempotent — brands, admin)
+  // Fail-fast: if brands/admin can't be created the app is unusable
   try {
     const { seedFoundationData } = require('./prisma/seed');
     await seedFoundationData();
   } catch (error) {
-    logger.warn('Warning: Failed to seed foundation data', { message: error.message });
+    logger.error('Critical: Failed to seed foundation data — shutting down.', { message: error.message });
+    process.exit(1);
   }
 
   // Seed Jersey products (clears existing zero-cost products and re-seeds with correct prices)
