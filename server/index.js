@@ -1,6 +1,17 @@
 require('dotenv').config();
+const { execSync } = require('child_process');
 const app = require('./app');
 const logger = require('./config/logger');
+
+// Run database migrations before starting the server
+try {
+  logger.info('Running database migrations…');
+  execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+  logger.info('Migrations complete.');
+} catch (err) {
+  logger.error('Migration failed — server will not start.', { message: err.message });
+  process.exit(1);
+}
 
 const PORT = process.env.PORT || 3001;
 
