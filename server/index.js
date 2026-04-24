@@ -28,23 +28,7 @@ const server = app.listen(PORT, async () => {
     process.exit(1);
   }
 
-  // Seed Jersey products (clears existing zero-cost products and re-seeds with correct prices)
-  try {
-    const { seedJerseyProducts } = require('./scripts/seed-jersey');
-    await seedJerseyProducts();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed Jersey products', { message: error.message });
-  }
-
-  // Seed Gowardhan products (clears existing zero-cost products and re-seeds with correct prices)
-  try {
-    const { seedGowardhanProducts } = require('./scripts/seed-gowardhan');
-    await seedGowardhanProducts();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed Gowardhan products', { message: error.message });
-  }
-
-  // [DISABLED] seed-demo-data, migrate-container-fields, seed-nandini-prices
+  // [DISABLED] seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
 
 });
 
