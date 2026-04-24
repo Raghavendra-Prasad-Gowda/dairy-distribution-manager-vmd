@@ -38,38 +38,48 @@ async function seedFoundationData(externalPrisma) {
   });
 
   // ─── Nandini Products (13) ────────────────────────────────────────────────
-  const nandiniProducts = [
-    'HM', 'TM', 'QM', 'HCM', 'Red',
-    'NSM 1000', 'NSM 500', 'NSM 250',
-    'Curd 1000', 'Curd 500', 'Curd 250',
-    'MM', 'Lassi',
-  ];
-  for (const name of nandiniProducts) {
-    await prisma.product.upsert({
-      where: { brandId_name: { brandId: nandini.id, name } },
-      update: {},
-      create: { brandId: nandini.id, name, costPrice: 0, sellingPrice: 0 },
-    });
+  // Skip if brand already has active products — brand-specific seeds handle real data
+  const nandiniActiveCount = await prisma.product.count({ where: { brandId: nandini.id, isActive: true } });
+  if (nandiniActiveCount === 0) {
+    const nandiniProducts = [
+      'HM', 'TM', 'QM', 'HCM', 'Red',
+      'NSM 1000', 'NSM 500', 'NSM 250',
+      'Curd 1000', 'Curd 500', 'Curd 250',
+      'MM', 'Lassi',
+    ];
+    for (const name of nandiniProducts) {
+      await prisma.product.upsert({
+        where: { brandId_name: { brandId: nandini.id, name } },
+        update: {},
+        create: { brandId: nandini.id, name, costPrice: 0, sellingPrice: 0 },
+      });
+    }
   }
 
   // ─── Jersey Products (7) ──────────────────────────────────────────────────
-  const jerseyProducts = ['M', 'QTR', 'FCM 1000', 'FCM 500', 'BC', 'SC', 'MM'];
-  for (const name of jerseyProducts) {
-    await prisma.product.upsert({
-      where: { brandId_name: { brandId: jersey.id, name } },
-      update: {},
-      create: { brandId: jersey.id, name, costPrice: 0, sellingPrice: 0 },
-    });
+  const jerseyActiveCount = await prisma.product.count({ where: { brandId: jersey.id, isActive: true } });
+  if (jerseyActiveCount === 0) {
+    const jerseyProducts = ['M', 'QTR', 'FCM 1000', 'FCM 500', 'BC', 'SC', 'MM'];
+    for (const name of jerseyProducts) {
+      await prisma.product.upsert({
+        where: { brandId_name: { brandId: jersey.id, name } },
+        update: {},
+        create: { brandId: jersey.id, name, costPrice: 0, sellingPrice: 0 },
+      });
+    }
   }
 
   // ─── Gowardhan Products (4) ───────────────────────────────────────────────
-  const gowardhanProducts = ['M', 'QTR', 'BC', 'SC'];
-  for (const name of gowardhanProducts) {
-    await prisma.product.upsert({
-      where: { brandId_name: { brandId: gowardhan.id, name } },
-      update: {},
-      create: { brandId: gowardhan.id, name, costPrice: 0, sellingPrice: 0 },
-    });
+  const gowardhanActiveCount = await prisma.product.count({ where: { brandId: gowardhan.id, isActive: true } });
+  if (gowardhanActiveCount === 0) {
+    const gowardhanProducts = ['M', 'QTR', 'BC', 'SC'];
+    for (const name of gowardhanProducts) {
+      await prisma.product.upsert({
+        where: { brandId_name: { brandId: gowardhan.id, name } },
+        update: {},
+        create: { brandId: gowardhan.id, name, costPrice: 0, sellingPrice: 0 },
+      });
+    }
   }
 
   // ─── App Settings (admin password) ────────────────────────────────────────
