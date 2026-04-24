@@ -19,25 +19,25 @@ const JERSEY_CATEGORIES = [
 
 const JERSEY_PRODUCTS = [
   // ── HOMOGENISED TONED MILK ───────────────────────────────────────────────
-  { name: 'HTM 1000ml', category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 58.00 },
-  { name: 'HTM 500ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 25.00 },
-  { name: 'HTM 225ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, sellingPrice: 14.00 },
+  { name: 'HTM 1000ml', category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 46.30, sellingPrice: 58.00 },
+  { name: 'HTM 500ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, costPrice: 23.15, sellingPrice: 25.00 },
+  { name: 'HTM 225ml',  category: 'HOMOGENISED TONED MILK', unitType: 'ml',    unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, costPrice:  9.90, sellingPrice: 14.00 },
 
   // ── STANDARDISED MILK ────────────────────────────────────────────────────
-  { name: 'STM 1000ml', category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
-  { name: 'STM 500ml',  category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 30.00 },
+  { name: 'STM 1000ml', category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 53.00, sellingPrice: 60.00 },
+  { name: 'STM 500ml',  category: 'STANDARDISED MILK',      unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, costPrice: 26.50, sellingPrice: 30.00 },
 
   // ── HOMOGENISED FULL CREAM MILK ──────────────────────────────────────────
-  { name: 'HFCM 500ml',  category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 35.00 },
-  { name: 'HFCM 1000ml', category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 70.00 },
+  { name: 'HFCM 500ml',  category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, costPrice: 30.75, sellingPrice: 35.00 },
+  { name: 'HFCM 1000ml', category: 'HOMOGENISED FULL CREAM MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 60.80, sellingPrice: 70.00 },
 
   // ── CURD ─────────────────────────────────────────────────────────────────
-  { name: 'DTM Curd 1000g', category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
-  { name: 'DTM Curd 450g',  category: 'CURD', unitType: 'gram', unitSize: 450,  containerType: 'crate', unitsPerContainer: 26, sellingPrice: 30.00 },
-  { name: 'DTM Curd 140g',  category: 'CURD', unitType: 'gram', unitSize: 140,  containerType: 'crate', unitsPerContainer: 84, sellingPrice: 10.00 },
+  { name: 'DTM Curd 1000g', category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 49.49, sellingPrice: 60.00 },
+  { name: 'DTM Curd 450g',  category: 'CURD', unitType: 'gram', unitSize: 450,  containerType: 'crate', unitsPerContainer: 26, costPrice: 24.20, sellingPrice: 30.00 },
+  { name: 'DTM Curd 140g',  category: 'CURD', unitType: 'gram', unitSize: 140,  containerType: 'crate', unitsPerContainer: 84, costPrice:  7.40, sellingPrice: 10.00 },
 
   // ── BUTTER MILK ──────────────────────────────────────────────────────────
-  { name: 'Butter Milk', category: 'BUTTER MILK', unitType: 'piece', unitSize: null, containerType: null, unitsPerContainer: null, sellingPrice: 10.00 },
+  { name: 'Butter Milk', category: 'BUTTER MILK', unitType: 'piece', unitSize: null, containerType: null, unitsPerContainer: null, costPrice: 5.00, sellingPrice: 10.00 },
 ];
 
 async function seedJerseyProducts() {
@@ -48,8 +48,12 @@ async function seedJerseyProducts() {
     where: { brandId: brand.id, isActive: true },
   });
 
-  if (activeCount >= 11) {
-    console.log(`Jersey seed already applied (${activeCount} active products) — skipping.`);
+  const zeroCostCount = await prisma.product.count({
+    where: { brandId: brand.id, isActive: true, costPrice: 0 },
+  });
+
+  if (activeCount >= 11 && zeroCostCount === 0) {
+    console.log(`Jersey seed already applied with prices (${activeCount} products) — skipping.`);
     return;
   }
 
@@ -91,7 +95,7 @@ async function seedJerseyProducts() {
       unitSize:          p.unitSize,
       containerType:     p.containerType,
       unitsPerContainer: p.unitsPerContainer,
-      costPrice:         0,
+      costPrice:         p.costPrice,
       sellingPrice:      p.sellingPrice,
       isActive:          true,
       showInStockReceipt: true,

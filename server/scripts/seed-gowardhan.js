@@ -17,18 +17,18 @@ const GOWARDHAN_CATEGORIES = [
 
 const GOWARDHAN_PRODUCTS = [
   // ── TONED MILK ───────────────────────────────────────────────────────────
-  { name: 'TM 1000ml', category: 'TONED MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 50.00 },
-  { name: 'TM 450ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 450,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 25.00 },
-  { name: 'TM 225ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, sellingPrice: 14.00 },
+  { name: 'TM 1000ml', category: 'TONED MILK', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 42.08, sellingPrice: 50.00 },
+  { name: 'TM 450ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 450,  containerType: 'crate', unitsPerContainer: 24, costPrice: 21.04, sellingPrice: 25.00 },
+  { name: 'TM 225ml',  category: 'TONED MILK', unitType: 'ml', unitSize: 225,  containerType: 'crate', unitsPerContainer: 52, costPrice: 11.30, sellingPrice: 14.00 },
 
   // ── CURD ─────────────────────────────────────────────────────────────────
-  { name: 'Curd 1000ml',    category: 'CURD', unitType: 'ml',   unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
-  { name: 'DTM Curd 200g',  category: 'CURD', unitType: 'gram', unitSize: 200,  containerType: 'crate', unitsPerContainer: 60, sellingPrice: 14.00 },
-  { name: 'DTM Curd 500g',  category: 'CURD', unitType: 'gram', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, sellingPrice: 30.00 },
-  { name: 'Curd 1000g',     category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
+  { name: 'Curd 1000ml',    category: 'CURD', unitType: 'ml',   unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 50.80, sellingPrice: 60.00 },
+  { name: 'DTM Curd 200g',  category: 'CURD', unitType: 'gram', unitSize: 200,  containerType: 'crate', unitsPerContainer: 60, costPrice:  9.37, sellingPrice: 14.00 },
+  { name: 'DTM Curd 500g',  category: 'CURD', unitType: 'gram', unitSize: 500,  containerType: 'crate', unitsPerContainer: 24, costPrice: 22.88, sellingPrice: 30.00 },
+  { name: 'Curd 1000g',     category: 'CURD', unitType: 'gram', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 45.35, sellingPrice: 60.00 },
 
   // ── TEA SPECIAL ──────────────────────────────────────────────────────────
-  { name: 'Tea Special 1000ml', category: 'TEA SPECIAL', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, sellingPrice: 60.00 },
+  { name: 'Tea Special 1000ml', category: 'TEA SPECIAL', unitType: 'ml', unitSize: 1000, containerType: 'crate', unitsPerContainer: 12, costPrice: 56.00, sellingPrice: 60.00 },
 ];
 
 async function seedGowardhanProducts() {
@@ -39,8 +39,12 @@ async function seedGowardhanProducts() {
     where: { brandId: brand.id, isActive: true },
   });
 
-  if (activeCount >= 8) {
-    console.log(`Gowardhan seed already applied (${activeCount} active products) — skipping.`);
+  const zeroCostCount = await prisma.product.count({
+    where: { brandId: brand.id, isActive: true, costPrice: 0 },
+  });
+
+  if (activeCount >= 8 && zeroCostCount === 0) {
+    console.log(`Gowardhan seed already applied with prices (${activeCount} products) — skipping.`);
     return;
   }
 
@@ -82,7 +86,7 @@ async function seedGowardhanProducts() {
       unitSize:           p.unitSize,
       containerType:      p.containerType,
       unitsPerContainer:  p.unitsPerContainer,
-      costPrice:          0,
+      costPrice:          p.costPrice,
       sellingPrice:       p.sellingPrice,
       isActive:           true,
       showInStockReceipt: true,

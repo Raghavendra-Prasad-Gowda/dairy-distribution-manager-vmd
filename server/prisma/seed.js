@@ -73,15 +73,16 @@ async function seedFoundationData(externalPrisma) {
   }
 
   // ─── App Settings (admin password) ────────────────────────────────────────
+  const rawUsername = process.env.ADMIN_USERNAME || 'admin';
   const rawPassword = process.env.ADMIN_PASSWORD || 'admin123';
   const passwordHash = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
 
   const existing = await prisma.appSettings.findFirst();
   if (!existing) {
     await prisma.appSettings.create({
-      data: { businessName: 'Vikas Milk Dairy', username: 'admin', passwordHash },
+      data: { businessName: 'Vikas Milk Dairy', username: rawUsername, passwordHash },
     });
-    console.log(`✅ Created AppSettings with user: admin and password: ${rawPassword}`);
+    console.log(`✅ Created AppSettings with user: ${rawUsername} and password: ${rawPassword}`);
   } else {
     console.log('ℹ️  AppSettings already exists — skipping password seed');
   }
