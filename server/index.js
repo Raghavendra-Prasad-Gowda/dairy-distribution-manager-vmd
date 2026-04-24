@@ -31,6 +31,14 @@ const server = app.listen(PORT, async () => {
     logger.warn('Warning: Failed to migrate container fields', { message: error.message });
   }
 
+  // Seed Nandini product prices (costPrice + sellingPrice from client rate chart)
+  try {
+    const { seedNandiniPrices } = require('./scripts/seed-nandini-prices');
+    await seedNandiniPrices();
+  } catch (error) {
+    logger.warn('Warning: Failed to seed Nandini prices', { message: error.message });
+  }
+
   // Seed Jersey products (clears existing zero-cost products and re-seeds with correct prices)
   try {
     const { seedJerseyProducts } = require('./scripts/seed-jersey');
