@@ -120,6 +120,7 @@ async function seedNandiniPrices() {
 
   console.log('💰  Updating Nandini product prices and container info…');
 
+  const stockedNames = new Set(PRICE_DATA.map(p => p.name));
   let updated = 0;
   let notFound = 0;
 
@@ -135,8 +136,9 @@ async function seedNandiniPrices() {
     }
 
     const data = {
-      costPrice:    entry.costPrice,
-      sellingPrice: entry.sellingPrice,
+      costPrice:          entry.costPrice,
+      sellingPrice:       entry.sellingPrice,
+      showInStockReceipt: true,
     };
     if (entry.containerType)     data.containerType     = entry.containerType;
     if (entry.unitsPerContainer) data.unitsPerContainer = entry.unitsPerContainer;
@@ -145,7 +147,19 @@ async function seedNandiniPrices() {
     updated++;
   }
 
+  // Hide all other active Nandini products from the stock receipt
+  const { count: hidden } = await prisma.product.updateMany({
+    where: {
+      brandId:            brand.id,
+      isActive:           true,
+      showInStockReceipt: true,
+      name:               { notIn: [...stockedNames] },
+    },
+    data: { showInStockReceipt: false },
+  });
+
   console.log(`  ✅  Updated ${updated} products${notFound ? `, ⚠️  ${notFound} not found` : ''}`);
+  console.log(`  👁️   Hidden ${hidden} non-stocked products from stock receipt`);
 }
 
 module.exports = { seedNandiniPrices };
