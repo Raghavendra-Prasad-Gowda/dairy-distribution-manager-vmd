@@ -13,7 +13,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, LayoutGrid, Save, Loader2, Eye, EyeOff } from 'lucide-react';
+import { GripVertical, LayoutGrid, Save, Loader2 } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -56,7 +56,7 @@ function SortableCategoryRow({ category, isExpanded, onToggleExpand, children })
 }
 
 // ── Sortable product row ───────────────────────────────────────────────────────
-function SortableProductRow({ product, onToggleVisibility }) {
+function SortableProductRow({ product }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: `prod-${product.id}` });
 
@@ -70,9 +70,7 @@ function SortableProductRow({ product, onToggleVisibility }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 bg-white border rounded-lg px-3 py-2 ${
-        product.showInStockReceipt ? 'border-slate-200' : 'border-slate-100 opacity-50'
-      }`}
+      className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2"
     >
       <button
         {...attributes}
@@ -81,27 +79,14 @@ function SortableProductRow({ product, onToggleVisibility }) {
       >
         <GripVertical size={14} />
       </button>
-      <span className={`flex-1 text-sm ${product.showInStockReceipt ? 'text-slate-700' : 'text-slate-400'}`}>
-        {product.name}
-      </span>
-      <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full mr-1">
+      <span className="flex-1 text-sm text-slate-700">{product.name}</span>
+      <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
         {product.unitType === 'ml'
           ? `${product.unitSize ?? '?'}ml`
           : product.unitType === 'gram'
           ? `${product.unitSize ?? '?'}g`
           : 'piece'}
       </span>
-      <button
-        onClick={() => onToggleVisibility(product.id)}
-        className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
-          product.showInStockReceipt
-            ? 'text-emerald-600 hover:bg-emerald-50'
-            : 'text-slate-300 hover:bg-slate-100'
-        }`}
-        title={product.showInStockReceipt ? 'Visible in Stock Receipt' : 'Hidden from Stock Receipt'}
-      >
-        {product.showInStockReceipt ? <Eye size={14} /> : <EyeOff size={14} />}
-      </button>
     </div>
   );
 }
@@ -140,7 +125,7 @@ export default function LayoutSettings() {
       api.get(`/products?brandId=${activeBrandId}&all=true`),
     ]).then(([catRes, prodRes]) => {
       const cats = catRes.data.data ?? [];
-      const prods = (prodRes.data.data ?? []).filter(p => p.isActive);
+      const prods = (prodRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
       setCategories(cats);
       setProducts(prods);
       // Expand all categories by default
@@ -204,14 +189,6 @@ export default function LayoutSettings() {
     }
   }, [categories, products]);
 
-  // ── Toggle product visibility ───────────────────────────────────────────────
-  const handleToggleVisibility = useCallback((productId) => {
-    setProducts(prev =>
-      prev.map(p => p.id === productId ? { ...p, showInStockReceipt: !p.showInStockReceipt } : p)
-    );
-    setDirty(true);
-  }, []);
-
   // ── Save layout ─────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
@@ -219,18 +196,9 @@ export default function LayoutSettings() {
       const categoryOrders = categories.map((c, i) => ({ id: c.id, displayOrder: i }));
       const productOrders  = products.map((p, i) => ({ id: p.id, displayOrder: i }));
 
-      // Persist visibility changes
-      const visibilityUpdates = products
-        .filter(p => {
-          // Find the original to check if changed — we just push all to be safe
-          return true;
-        })
-        .map(p => api.put(`/products/${p.id}`, { showInStockReceipt: p.showInStockReceipt }));
-
       await Promise.all([
         api.patch('/categories/reorder', categoryOrders),
         api.patch('/products/reorder', productOrders),
-        ...visibilityUpdates,
       ]);
 
       notify('Layout saved successfully!', 'success');
@@ -261,7 +229,7 @@ export default function LayoutSettings() {
           <LayoutGrid size={17} className="text-emerald-600 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-slate-900 leading-tight">Layout Settings</h1>
-            <p className="text-slate-400 text-xs">Drag to reorder categories and products. Toggle eye to show/hide.</p>
+            <p className="text-slate-400 text-xs">Drag to reorder categories and visible products.</p>
           </div>
         </div>
       </div>
@@ -321,7 +289,6 @@ export default function LayoutSettings() {
                           <SortableProductRow
                             key={p.id}
                             product={p}
-                            onToggleVisibility={handleToggleVisibility}
                           />
                         ))}
                       </SortableContext>
