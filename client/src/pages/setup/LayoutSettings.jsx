@@ -246,7 +246,7 @@ export default function LayoutSettings() {
             <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
           </div>
         ) : (
-          {/* ── Outer DndContext: category ordering only ─────────────────── */}
+          /* ── Outer DndContext: category ordering only ─────────────────── */
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCategoryDragEnd}>
             <SortableContext
               items={categories.map(c => `cat-${c.id}`)}
