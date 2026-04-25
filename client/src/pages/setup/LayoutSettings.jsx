@@ -154,40 +154,26 @@ export default function LayoutSettings() {
     });
   }, [categories, products]);
 
-  // ── Drag end handler ────────────────────────────────────────────────────────
-  const handleDragEnd = useCallback(({ active, over }) => {
+  // ── Drag handlers (separate per context) ────────────────────────────────────
+  const handleCategoryDragEnd = useCallback(({ active, over }) => {
     if (!over || active.id === over.id) return;
+    const activeIdx = categories.findIndex(c => `cat-${c.id}` === String(active.id));
+    const overIdx   = categories.findIndex(c => `cat-${c.id}` === String(over.id));
+    if (activeIdx === -1 || overIdx === -1) return;
+    setCategories(prev => arrayMove(prev, activeIdx, overIdx));
+    setDirty(true);
+  }, [categories]);
 
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    // Category reorder
-    if (activeId.startsWith('cat-') && overId.startsWith('cat-')) {
-      const activeIdx = categories.findIndex(c => `cat-${c.id}` === activeId);
-      const overIdx = categories.findIndex(c => `cat-${c.id}` === overId);
-      if (activeIdx === -1 || overIdx === -1) return;
-      setCategories(prev => arrayMove(prev, activeIdx, overIdx));
-      setDirty(true);
-      return;
-    }
-
-    // Product reorder (within same category only)
-    if (activeId.startsWith('prod-') && overId.startsWith('prod-')) {
-      const activeProductId = parseInt(activeId.replace('prod-', ''));
-      const overProductId   = parseInt(overId.replace('prod-', ''));
-      const activeProduct = products.find(p => p.id === activeProductId);
-      const overProduct   = products.find(p => p.id === overProductId);
-      if (!activeProduct || !overProduct) return;
-      if (activeProduct.category !== overProduct.category) return; // different category — ignore
-
-      setProducts(prev => {
-        const activeIdx = prev.findIndex(p => p.id === activeProductId);
-        const overIdx   = prev.findIndex(p => p.id === overProductId);
-        return arrayMove(prev, activeIdx, overIdx);
-      });
-      setDirty(true);
-    }
-  }, [categories, products]);
+  const handleProductDragEnd = useCallback(({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    setProducts(prev => {
+      const activeIdx = prev.findIndex(p => `prod-${p.id}` === String(active.id));
+      const overIdx   = prev.findIndex(p => `prod-${p.id}` === String(over.id));
+      if (activeIdx === -1 || overIdx === -1) return prev;
+      return arrayMove(prev, activeIdx, overIdx);
+    });
+    setDirty(true);
+  }, []);
 
   // ── Save layout ─────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -260,9 +246,8 @@ export default function LayoutSettings() {
             <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
           </div>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-
-            {/* ── Category sortable list ────────────────────────────────────── */}
+          /* ── Outer DndContext: category ordering only ─────────────────── */
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCategoryDragEnd}>
             <SortableContext
               items={categories.map(c => `cat-${c.id}`)}
               strategy={verticalListSortingStrategy}
@@ -280,24 +265,22 @@ export default function LayoutSettings() {
                         setExpanded(prev => ({ ...prev, [catName]: !prev[catName] }))
                       }
                     >
-                      {/* ── Product sortable list within category ─────────── */}
-                      <SortableContext
-                        items={catProducts.map(p => `prod-${p.id}`)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        {catProducts.map(p => (
-                          <SortableProductRow
-                            key={p.id}
-                            product={p}
-                          />
-                        ))}
-                      </SortableContext>
+                      {/* ── Inner DndContext: product ordering within this category ── */}
+                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>
+                        <SortableContext
+                          items={catProducts.map(p => `prod-${p.id}`)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {catProducts.map(p => (
+                            <SortableProductRow key={p.id} product={p} />
+                          ))}
+                        </SortableContext>
+                      </DndContext>
                     </SortableCategoryRow>
                   );
                 })}
               </div>
             </SortableContext>
-
           </DndContext>
         )}
       </div>
