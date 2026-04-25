@@ -60,6 +60,7 @@ const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'))
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
 const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
 const DairyPriceSetup        = lazy(() => import('./pages/dairy/PriceSetup'));
+const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 
 function PageLoader() {
   return (
@@ -97,6 +98,7 @@ function AppRoutes() {
         <Route path="dairy/setup/categories" element={S(CategorySetup)} />
         <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
         <Route path="dairy/setup/prices"     element={S(DairyPriceSetup)} />
+        <Route path="dairy/setup/layout"     element={S(LayoutSettings)} />
 
         {/* ── SALESMAN MODULE ── */}
         <Route path="salesman/dispatch"  element={S(Dispatch)} />

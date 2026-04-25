@@ -55,6 +55,16 @@ const schemas = {
     showInStockReceipt: z.boolean().optional(),
   }),
 
+  // Layout reordering
+  reorderProducts: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+  reorderCategories: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+
   // Stock Receipts
   bulkStockReceipt: z.object({
     brandId: z.number().int().positive(),
@@ -67,6 +77,13 @@ const schemas = {
   }),
 
   // Dairy Payment
+  updateDairyPayment: z.object({
+    amount:      z.number().positive('Amount must be positive'),
+    paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    paymentMode: z.string().optional(),
+    reference:   z.string().optional(),
+    notes:       z.string().optional(),
+  }),
   createDairyPayment: z.object({
     brandId: z.number().int().positive(),
     paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

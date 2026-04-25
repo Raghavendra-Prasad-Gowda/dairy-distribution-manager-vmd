@@ -13,9 +13,21 @@ router.get('/', asyncHandler(async (req, res) => {
   const products = await prisma.product.findMany({
     where,
     include: { brand: { select: { id: true, name: true } } },
-    orderBy: [{ brandId: 'asc' }, { category: 'asc' }, { name: 'asc' }],
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
   res.json({ success: true, data: products });
+}));
+
+// PATCH /products/reorder
+router.patch('/reorder', asyncHandler(async (req, res) => {
+  const items = validate(schemas.reorderProducts, req, res);
+  if (!items) return;
+  await prisma.$transaction(
+    items.map(({ id, displayOrder }) =>
+      prisma.product.update({ where: { id }, data: { displayOrder } })
+    )
+  );
+  res.json({ success: true, data: { message: `${items.length} products reordered` } });
 }));
 
 // POST /products

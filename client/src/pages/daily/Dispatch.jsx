@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Loader2, Truck, Info, CheckCircle, Search } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import BrandTabs from '../../components/BrandTabs';
-import SaveOverlay from '../../components/SaveOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { BRAND_COLORS } from '../../utils/constants';
@@ -21,7 +20,6 @@ export default function Dispatch() {
   const [quantities, setQuantities]   = useState({});
   const [savedSps, setSavedSps]       = useState(new Set());
   const [saving, setSaving]           = useState(false);
-  const [saveStatus, setSaveStatus]   = useState(null);
   const inputRefs = useRef({});
 
   // Load brands + salespeople once
@@ -113,7 +111,7 @@ export default function Dispatch() {
     setSaving(true);
     try {
       await api.post('/dispatches', { salespersonId: Number(selectedSpId), dispatchDate: date, items });
-      setSaveStatus('success');
+      notify('Dispatch saved successfully!', 'success');
       setSavedSps(prev => new Set([...prev, selectedSpId]));
       // Auto-advance to next pending salesperson
       const pending = salespeople.filter(sp => !savedSps.has(sp.id) && sp.id !== selectedSpId);
@@ -127,7 +125,15 @@ export default function Dispatch() {
 
   return (
     <div className="flex flex-col h-full">
-      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Dispatch Saved!" />
+      {/* ── Saving overlay ──────────────────────────────────── */}
+      {saving && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Saving dispatch…</p>
+          </div>
+        </div>
+      )}
 
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 md:px-7 pt-5 pb-4 border-b border-slate-200 bg-white">

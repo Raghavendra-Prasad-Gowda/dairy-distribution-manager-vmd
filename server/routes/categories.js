@@ -12,9 +12,21 @@ router.get('/', asyncHandler(async (req, res) => {
   if (req.query.brandId) where.brandId = parseId(req.query.brandId, 'Brand ID');
   const categories = await prisma.category.findMany({
     where,
-    orderBy: [{ brandId: 'asc' }, { name: 'asc' }],
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
   res.json({ success: true, data: categories });
+}));
+
+// PATCH /categories/reorder
+router.patch('/reorder', asyncHandler(async (req, res) => {
+  const items = validate(schemas.reorderCategories, req, res);
+  if (!items) return;
+  await prisma.$transaction(
+    items.map(({ id, displayOrder }) =>
+      prisma.category.update({ where: { id }, data: { displayOrder } })
+    )
+  );
+  res.json({ success: true, data: { message: `${items.length} categories reordered` } });
 }));
 
 // POST /categories

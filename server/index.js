@@ -28,16 +28,7 @@ const server = app.listen(PORT, async () => {
     process.exit(1);
   }
 
-  // One-time reseed: clears and re-seeds Nandini catalogue + prices.
-  // Runs once per environment (guarded by _seed_log table), then never again.
-  try {
-    const { reseedNandiniOnce } = require('./scripts/reseed-nandini');
-    await reseedNandiniOnce();
-  } catch (error) {
-    logger.error('Nandini reseed failed — continuing startup.', { message: error.message });
-  }
-
-  // [DISABLED] seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
+  // [DISABLED] reseed-nandini, seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
 
 });
 

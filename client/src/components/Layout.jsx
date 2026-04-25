@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   Settings, LogOut, Menu,
-  FileText, Warehouse, Tag, Layers
+  FileText, Warehouse, Tag, Layers, LayoutGrid
 } from 'lucide-react';
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
@@ -26,10 +26,11 @@ const NAV = [
       {
         label: 'MANAGE',
         items: [
-          { to: '/dairy/setup/categories', icon: Layers,    label: 'Categories' },
-          { to: '/dairy/setup/products',   icon: Settings,  label: 'Products' },
-          { to: '/dairy/setup/prices',     icon: Tag,       label: 'Price Setup' },
-          { to: '/dairy/payments',         icon: CreditCard, label: 'Payments' },
+          { to: '/dairy/setup/categories', icon: Layers,      label: 'Categories' },
+          { to: '/dairy/setup/products',   icon: Settings,    label: 'Products' },
+          { to: '/dairy/setup/prices',     icon: Tag,         label: 'Price Setup' },
+          { to: '/dairy/setup/layout',     icon: LayoutGrid,  label: 'Layout' },
+          { to: '/dairy/payments',         icon: CreditCard,  label: 'Payments' },
         ],
       },
     ],

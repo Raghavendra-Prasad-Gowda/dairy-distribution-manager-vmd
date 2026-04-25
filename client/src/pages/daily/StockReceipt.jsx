@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Save, Loader2, Package, TrendingUp, Search, X } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
-import SaveOverlay from '../../components/SaveOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -23,11 +22,11 @@ export default function StockReceipt() {
   const [date, setDate]               = useState(getIndiaDate());
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
+  const [categories, setCategories]   = useState([]);
   const [quantities, setQuantities]   = useState({});  // stores individual units (user input)
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
-  const [saveStatus, setSaveStatus]   = useState(null);
   const [search, setSearch]           = useState('');
   const inputRefs = useRef({});
 
@@ -58,6 +57,13 @@ export default function StockReceipt() {
 
   useEffect(() => {
     if (!activeBrand) return;
+    api.get(`/categories?brandId=${activeBrand.id}`)
+      .then(r => setCategories(r.data.data ?? []))
+      .catch(() => {});
+  }, [activeBrand]);
+
+  useEffect(() => {
+    if (!activeBrand) return;
     setLoading(true);
     Promise.all([
       api.get(`/products?brandId=${activeBrand.id}`),
@@ -77,7 +83,7 @@ export default function StockReceipt() {
       .finally(() => setLoading(false));
   }, [activeBrand, date]);
 
-  // Group products by category, apply search filter
+  // Group products by category, apply search filter, sort by category displayOrder
   const filteredGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
@@ -87,15 +93,25 @@ export default function StockReceipt() {
         )
       : products;
 
-    return filtered.reduce((acc, p) => {
+    const grouped = filtered.reduce((acc, p) => {
       const key = p.category || 'Other';
       if (!acc[key]) acc[key] = [];
       acc[key].push(p);
       return acc;
     }, {});
-  }, [products, search]);
 
-  const allFiltered = Object.values(filteredGrouped).flat();
+    // Sort category groups by their displayOrder from the Category model
+    const catOrderMap = Object.fromEntries(
+      categories.map(c => [c.name, c.displayOrder])
+    );
+    return Object.entries(grouped).sort(([a], [b]) => {
+      const oa = catOrderMap[a] ?? 9999;
+      const ob = catOrderMap[b] ?? 9999;
+      return oa !== ob ? oa - ob : a.localeCompare(b);
+    });
+  }, [products, categories, search]);
+
+  const allFiltered = filteredGrouped.flatMap(([, items]) => items);
 
   const handleKeyDown = (e, productId) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
@@ -121,7 +137,7 @@ export default function StockReceipt() {
     setSaving(true);
     try {
       await api.post('/stock-receipts/bulk', { brandId: activeBrand.id, date, items });
-      setSaveStatus('success');
+      notify('Receipt saved successfully!', 'success');
       api.get(`/dairy-balance?date=${date}`).then(r => {
         const entry = (r.data.data?.brands ?? []).find(b => b.brandId === activeBrand.id);
         if (entry) setBalance({ opening: entry.openingBalance, stockValue: entry.stockValue, paid: entry.amountPaid, closing: entry.closingBalance });
@@ -138,12 +154,36 @@ export default function StockReceipt() {
     return s + inputVal * Number(p.costPrice);
   }, 0);
 
+  const totalUnits = products.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0), 0);
+
+  const totalCrates = products.reduce((s, p) => {
+    const units = parseFloat(quantities[p.id]) || 0;
+    if (!p.containerType || !p.unitsPerContainer || !units) return s;
+    return s + units / p.unitsPerContainer;
+  }, 0);
+
+  // Determine predominant container label for the totals footer
+  const containerTypes = products
+    .filter(p => p.containerType && p.unitsPerContainer && (parseFloat(quantities[p.id]) || 0) > 0)
+    .map(p => p.containerType);
+  const crateLabel = containerTypes.length > 0
+    ? (containerTypes[0].charAt(0).toUpperCase() + containerTypes[0].slice(1)) + 's'
+    : 'Crates';
+
   const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
   const isOwing = balance.closing > 0;
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
-      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Receipt Saved!" />
+      {/* ── Saving overlay ──────────────────────────────────── */}
+      {saving && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Saving receipt…</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Page header ─────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">
@@ -248,12 +288,12 @@ export default function StockReceipt() {
                       <span className="text-xs">Add them in Dairy → Product Setup.</span>
                     </td>
                   </tr>
-                ) : Object.keys(filteredGrouped).length === 0 ? (
+                ) : filteredGrouped.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
                   </tr>
                 ) : (
-                  Object.entries(filteredGrouped).map(([category, items]) => (
+                  filteredGrouped.map(([category, items]) => (
                     <React.Fragment key={category}>
                       {/* Category header */}
                       <tr className="cat-row bg-slate-50 border-l-4 border-emerald-400">
@@ -323,9 +363,22 @@ export default function StockReceipt() {
       {/* ── Footer / Save bar ──────────────────────────────── */}
       {!loading && products.length > 0 && (
         <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
-          <div className="flex-1" />
+          <div className="flex-1 flex items-center gap-4">
+            <div className="text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Units</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">{totalUnits > 0 ? totalUnits : '—'}</p>
+            </div>
+            {totalCrates > 0 && (
+              <div className="text-center">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">{crateLabel}</p>
+                <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">
+                  {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)}
+                </p>
+              </div>
+            )}
+          </div>
           <div className="text-right">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Amount</p>
             <p className="text-base font-bold text-slate-800 tabular-nums leading-none">{formatCurrency(totalAmount)}</p>
           </div>
           <button

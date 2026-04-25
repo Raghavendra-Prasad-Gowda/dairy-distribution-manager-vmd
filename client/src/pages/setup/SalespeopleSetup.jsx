@@ -95,6 +95,16 @@ export default function SalespeopleSetup() {
   return (
     <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-6">
 
+      {/* ── Saving overlay ──────────────────────────────────── */}
+      {saving && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Saving prices…</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
