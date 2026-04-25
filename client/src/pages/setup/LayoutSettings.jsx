@@ -13,36 +13,34 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, LayoutGrid, Save, Loader2 } from 'lucide-react';
+import { GripVertical, LayoutGrid, Save, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
-// ── Sortable category row ──────────────────────────────────────────────────────
-function SortableCategoryRow({ category, isExpanded, onToggleExpand, children }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: `cat-${category.id}` });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : undefined,
-  };
-
+// ── Category row with up/down buttons ─────────────────────────────────────────
+function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDown, isFirst, isLast, children }) {
   return (
-    <div ref={setNodeRef} style={style}>
+    <div>
       <div
         className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 cursor-pointer select-none"
         onClick={onToggleExpand}
       >
-        <button
-          {...attributes}
-          {...listeners}
-          className="text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing p-0.5"
-          onClick={e => e.stopPropagation()}
-        >
-          <GripVertical size={16} />
-        </button>
+        <div className="flex flex-col gap-0.5" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={onMoveUp}
+            disabled={isFirst}
+            className="text-slate-400 hover:text-emerald-600 disabled:opacity-20 disabled:cursor-not-allowed p-0.5 leading-none"
+          >
+            <ChevronUp size={14} />
+          </button>
+          <button
+            onClick={onMoveDown}
+            disabled={isLast}
+            className="text-slate-400 hover:text-emerald-600 disabled:opacity-20 disabled:cursor-not-allowed p-0.5 leading-none"
+          >
+            <ChevronDown size={14} />
+          </button>
+        </div>
         <span className="flex-1 text-sm font-bold text-slate-700">{category.name}</span>
         <span className="text-xs text-slate-400">{isExpanded ? '▲' : '▼'}</span>
       </div>
@@ -154,16 +152,14 @@ export default function LayoutSettings() {
     });
   }, [categories, products]);
 
-  // ── Drag handlers (separate per context) ────────────────────────────────────
-  const handleCategoryDragEnd = useCallback(({ active, over }) => {
-    if (!over || active.id === over.id) return;
-    const activeIdx = categories.findIndex(c => `cat-${c.id}` === String(active.id));
-    const overIdx   = categories.findIndex(c => `cat-${c.id}` === String(over.id));
-    if (activeIdx === -1 || overIdx === -1) return;
-    setCategories(prev => arrayMove(prev, activeIdx, overIdx));
+  // ── Category move up/down ────────────────────────────────────────────────────
+  const moveCategory = useCallback((index, direction) => {
+    const newIndex = index + direction;
+    setCategories(prev => arrayMove(prev, index, newIndex));
     setDirty(true);
-  }, [categories]);
+  }, []);
 
+  // ── Product drag-and-drop within a category ──────────────────────────────────
   const handleProductDragEnd = useCallback(({ active, over }) => {
     if (!over || active.id === over.id) return;
     setProducts(prev => {
@@ -246,42 +242,38 @@ export default function LayoutSettings() {
             <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
           </div>
         ) : (
-          /* ── Outer DndContext: category ordering only ─────────────────── */
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCategoryDragEnd}>
-            <SortableContext
-              items={categories.map(c => `cat-${c.id}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {grouped.map(([catName, catProducts]) => {
-                  const cat = categories.find(c => c.name === catName);
-                  if (!cat) return null;
-                  return (
-                    <SortableCategoryRow
-                      key={cat.id}
-                      category={cat}
-                      isExpanded={expanded[catName] ?? true}
-                      onToggleExpand={() =>
-                        setExpanded(prev => ({ ...prev, [catName]: !prev[catName] }))
-                      }
+          <div className="space-y-2">
+            {grouped.map(([catName, catProducts], catIdx) => {
+              const cat = categories.find(c => c.name === catName);
+              if (!cat) return null;
+              return (
+                <CategoryRow
+                  key={cat.id}
+                  category={cat}
+                  isExpanded={expanded[catName] ?? true}
+                  onToggleExpand={() =>
+                    setExpanded(prev => ({ ...prev, [catName]: !prev[catName] }))
+                  }
+                  onMoveUp={() => moveCategory(catIdx, -1)}
+                  onMoveDown={() => moveCategory(catIdx, 1)}
+                  isFirst={catIdx === 0}
+                  isLast={catIdx === grouped.length - 1}
+                >
+                  {/* ── Product drag-and-drop within this category ── */}
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>
+                    <SortableContext
+                      items={catProducts.map(p => `prod-${p.id}`)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      {/* ── Inner DndContext: product ordering within this category ── */}
-                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>
-                        <SortableContext
-                          items={catProducts.map(p => `prod-${p.id}`)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          {catProducts.map(p => (
-                            <SortableProductRow key={p.id} product={p} />
-                          ))}
-                        </SortableContext>
-                      </DndContext>
-                    </SortableCategoryRow>
-                  );
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
+                      {catProducts.map(p => (
+                        <SortableProductRow key={p.id} product={p} />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                </CategoryRow>
+              );
+            })}
+          </div>
         )}
       </div>
 
