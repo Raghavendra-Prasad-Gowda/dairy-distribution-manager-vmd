@@ -69,8 +69,13 @@ export default function DairyPayments() {
   const [loading, setLoading]      = useState(false);
   const [saving, setSaving]        = useState(false);
 
-  // Edit-a-mistake state
-  const [prefill, setPrefill]      = useState(null);
+  // Edit modal state
+  const [editPayment, setEditPayment]   = useState(null);   // payment being edited
+  const [editForm, setEditForm]         = useState({});
+  const [editSaving, setEditSaving]     = useState(false);
+
+  // Delete confirm state
+  const [deleteId, setDeleteId]         = useState(null);
 
   // Filter state
   const [filterFrom, setFilterFrom]   = useState('');
@@ -125,32 +130,43 @@ export default function DairyPayments() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this payment?')) return;
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      await api.delete(`/dairy-payments/${id}`);
+      await api.delete(`/dairy-payments/${deleteId}`);
       notify('Payment deleted', 'success');
+      setDeleteId(null);
       fetchAll();
     } catch {
       notify('Failed to delete payment', 'error');
     }
   };
 
-  /** Delete the record and prefill the form so user can re-enter corrected values */
-  const handleEdit = async (p) => {
-    if (!window.confirm('Delete this payment and re-enter corrected values?')) return;
+  const openEdit = (p) => {
+    setEditPayment(p);
+    setEditForm({
+      amount:      String(p.amount ?? ''),
+      paymentDate: p.paymentDate?.slice(0, 10) ?? today,
+      paymentMode: p.paymentMode ?? 'Cash',
+      reference:   p.reference ?? '',
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editPayment) return;
+    setEditSaving(true);
     try {
-      await api.delete(`/dairy-payments/${p.id}`);
-      setPrefill({
-        amount:      p.amount,
-        paymentDate: p.paymentDate?.slice(0, 10) ?? today,
-        paymentMode: p.paymentMode ?? 'Cash',
-        reference:   p.reference ?? '',
+      await api.put(`/dairy-payments/${editPayment.id}`, {
+        ...editForm,
+        amount: parseFloat(editForm.amount),
       });
-      notify('Payment removed — correct and re-submit below', 'info');
+      notify('Payment updated successfully', 'success');
+      setEditPayment(null);
       fetchAll();
-    } catch {
-      notify('Failed to edit payment', 'error');
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to update payment', 'error');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -200,7 +216,7 @@ export default function DairyPayments() {
       {/* Brand tabs */}
       {brands.length > 0 && (
         <div className="px-5 md:px-7 pt-4 pb-0 bg-white border-b border-slate-200">
-          <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={(id) => { setActive(id); setPrefill(null); }} />
+          <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
         </div>
       )}
 
@@ -227,16 +243,11 @@ export default function DairyPayments() {
                 )}
 
                 <div className="ddm-card p-5">
-                  <h3 className="ddm-section-label mb-4">
-                    {prefill ? 'Correct & Re-enter' : 'Record Payment'}
-                  </h3>
+                  <h3 className="ddm-section-label mb-4">Record Payment</h3>
                   <PaymentForm
                     onSubmit={handlePayment}
                     closingBalance={balance?.closingBalance ?? 0}
                     loading={saving}
-                    prefill={prefill}
-                    onClearPrefill={() => setPrefill(null)}
-                    submitLabel={prefill ? 'Save Correction' : 'Record Payment'}
                   />
                 </div>
               </div>
@@ -355,10 +366,10 @@ export default function DairyPayments() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center justify-end gap-1">
-                                    <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                    <button onClick={() => openEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
                                       <Pencil size={12} />
                                     </button>
-                                    <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                    <button onClick={() => setDeleteId(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                                       <Trash2 size={12} />
                                     </button>
                                   </div>
@@ -396,6 +407,111 @@ export default function DairyPayments() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit payment modal ───────────────────────────────── */}
+      {editPayment && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+          onClick={() => setEditPayment(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Edit Payment</h3>
+            <p className="text-xs text-slate-400 mb-5">Correct the details below and save.</p>
+
+            <div className="space-y-4">
+              {/* Amount */}
+              <div>
+                <label className="ddm-section-label block mb-1.5">Amount (₹)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                  <input
+                    type="number" step="0.01" min="0.01" required
+                    value={editForm.amount}
+                    onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
+                  />
+                </div>
+              </div>
+
+              {/* Mode */}
+              <div>
+                <label className="ddm-section-label block mb-1.5">Mode</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Cash','UPI','NEFT','RTGS','Cheque'].map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => setEditForm(f => ({ ...f, paymentMode: mode }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                        editForm.paymentMode === mode
+                          ? 'bg-emerald-700 text-white border-emerald-700'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
+                      }`}>
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="ddm-section-label block mb-1.5">Date</label>
+                <input type="date"
+                  value={editForm.paymentDate}
+                  onChange={e => setEditForm(f => ({ ...f, paymentDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                />
+              </div>
+
+              {/* Reference */}
+              <div>
+                <label className="ddm-section-label block mb-1.5">Reference</label>
+                <input type="text" placeholder="Txn / cheque no."
+                  value={editForm.reference}
+                  onChange={e => setEditForm(f => ({ ...f, reference: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEditPayment(null)}
+                className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving || !editForm.amount}
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+                {editSaving ? <Loader2 className="animate-spin" size={14} /> : <Pencil size={14} />}
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirm modal ─────────────────────────────── */}
+      {deleteId && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+          onClick={() => setDeleteId(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center"
+            onClick={e => e.stopPropagation()}>
+            <div className="mx-auto w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="text-red-600" size={24} />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Delete Payment?</h3>
+            <p className="text-sm text-slate-500 mb-6">This will permanently remove the payment and recalculate the balance.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteId(null)}
+                className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
+                Cancel
+              </button>
+              <button onClick={handleDelete}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+                Delete
+              </button>
             </div>
           </div>
         </div>

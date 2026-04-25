@@ -37,6 +37,29 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ success: true, data: payments });
 }));
 
+// PUT /dairy-payments/:id
+router.put('/:id', asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Payment ID');
+  const data = validate(schemas.updateDairyPayment, req, res);
+  if (!data) return;
+
+  const existing = await prisma.dairyPayment.findUnique({ where: { id } });
+  if (!existing) throw new AppError('Payment not found', 404);
+
+  const updated = await prisma.dairyPayment.update({
+    where: { id },
+    data: { ...data, paymentDate: new Date(data.paymentDate) },
+  });
+
+  // Recalculate balance for both old and new date (in case date changed)
+  const oldDate = existing.paymentDate.toISOString().slice(0, 10);
+  const newDate = data.paymentDate;
+  await recalculateDairyBalance(existing.brandId, oldDate);
+  if (newDate !== oldDate) await recalculateDairyBalance(existing.brandId, newDate);
+
+  res.json({ success: true, data: updated });
+}));
+
 // DELETE /dairy-payments/:id
 router.delete('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Payment ID');
