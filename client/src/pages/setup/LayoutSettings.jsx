@@ -152,9 +152,10 @@ export default function LayoutSettings() {
       .finally(() => setLoading(false));
   }, [activeBrandId]);
 
-  // Products grouped by category, in category displayOrder
+  // Products grouped by category, sorted by the current index in the categories array
+  // (not displayOrder from DB — that only reflects saved state; array position reflects live drag order)
   const grouped = React.useMemo(() => {
-    const catOrder = Object.fromEntries(categories.map(c => [c.name, c.displayOrder]));
+    const catIndex = Object.fromEntries(categories.map((c, i) => [c.name, i]));
     const map = {};
     for (const p of products) {
       const key = p.category || 'Other';
@@ -162,8 +163,8 @@ export default function LayoutSettings() {
       map[key].push(p);
     }
     return Object.entries(map).sort(([a], [b]) => {
-      const oa = catOrder[a] ?? 9999;
-      const ob = catOrder[b] ?? 9999;
+      const oa = catIndex[a] ?? 9999;
+      const ob = catIndex[b] ?? 9999;
       return oa !== ob ? oa - ob : a.localeCompare(b);
     });
   }, [categories, products]);
