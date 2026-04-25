@@ -138,6 +138,22 @@ export default function StockReceipt() {
     return s + inputVal * Number(p.costPrice);
   }, 0);
 
+  const totalUnits = products.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0), 0);
+
+  const totalCrates = products.reduce((s, p) => {
+    const units = parseFloat(quantities[p.id]) || 0;
+    if (!p.containerType || !p.unitsPerContainer || !units) return s;
+    return s + units / p.unitsPerContainer;
+  }, 0);
+
+  // Determine predominant container label for the totals footer
+  const containerTypes = products
+    .filter(p => p.containerType && p.unitsPerContainer && (parseFloat(quantities[p.id]) || 0) > 0)
+    .map(p => p.containerType);
+  const crateLabel = containerTypes.length > 0
+    ? (containerTypes[0].charAt(0).toUpperCase() + containerTypes[0].slice(1)) + 's'
+    : 'Crates';
+
   const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
   const isOwing = balance.closing > 0;
 
@@ -323,9 +339,22 @@ export default function StockReceipt() {
       {/* ── Footer / Save bar ──────────────────────────────── */}
       {!loading && products.length > 0 && (
         <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
-          <div className="flex-1" />
+          <div className="flex-1 flex items-center gap-4">
+            <div className="text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Units</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">{totalUnits > 0 ? totalUnits : '—'}</p>
+            </div>
+            {totalCrates > 0 && (
+              <div className="text-center">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">{crateLabel}</p>
+                <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">
+                  {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)}
+                </p>
+              </div>
+            )}
+          </div>
           <div className="text-right">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Amount</p>
             <p className="text-base font-bold text-slate-800 tabular-nums leading-none">{formatCurrency(totalAmount)}</p>
           </div>
           <button

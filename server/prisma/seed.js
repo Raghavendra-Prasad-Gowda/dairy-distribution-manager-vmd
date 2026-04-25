@@ -12,16 +12,11 @@ function getClient(externalClient) {
 const BCRYPT_ROUNDS = 10;
 
 /**
- * Idempotent — creates the 3 brands and admin account if they don't exist.
+ * Idempotent — creates the admin account if it doesn't exist.
  * Safe to call on every deployment startup.
  */
 async function seedFoundationData(externalPrisma) {
   const prisma = getClient(externalPrisma);
-
-  // ─── Brands ───────────────────────────────────────────────────────────────
-  await prisma.brand.upsert({ where: { name: 'Nandini' },   update: {}, create: { name: 'Nandini' } });
-  await prisma.brand.upsert({ where: { name: 'Jersey' },    update: {}, create: { name: 'Jersey' } });
-  await prisma.brand.upsert({ where: { name: 'Gowardhan' }, update: {}, create: { name: 'Gowardhan' } });
 
   // ─── Admin user ───────────────────────────────────────────────────────────
   const existing = await prisma.appSettings.findFirst();
