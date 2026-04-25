@@ -18,31 +18,26 @@ const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, async () => {
   logger.info(`Dairy Distribution Manager API running on port ${PORT}`);
 
-  // Seed foundation data on startup (idempotent — brands, products, admin)
+  // Seed foundation data on startup (idempotent — brands, admin)
+  // Fail-fast: if brands/admin can't be created the app is unusable
   try {
     const { seedFoundationData } = require('./prisma/seed');
     await seedFoundationData();
   } catch (error) {
-    logger.warn('Warning: Failed to seed foundation data', { message: error.message });
+    logger.error('Critical: Failed to seed foundation data — shutting down.', { message: error.message });
+    process.exit(1);
   }
 
-  // Seed Jersey products (clears existing zero-cost products and re-seeds with correct prices)
+  // One-time reseed: clears and re-seeds Nandini catalogue + prices.
+  // Runs once per environment (guarded by _seed_log table), then never again.
   try {
-    const { seedJerseyProducts } = require('./scripts/seed-jersey');
-    await seedJerseyProducts();
+    const { reseedNandiniOnce } = require('./scripts/reseed-nandini');
+    await reseedNandiniOnce();
   } catch (error) {
-    logger.warn('Warning: Failed to seed Jersey products', { message: error.message });
+    logger.error('Nandini reseed failed — continuing startup.', { message: error.message });
   }
 
-  // Seed Gowardhan products (clears existing zero-cost products and re-seeds with correct prices)
-  try {
-    const { seedGowardhanProducts } = require('./scripts/seed-gowardhan');
-    await seedGowardhanProducts();
-  } catch (error) {
-    logger.warn('Warning: Failed to seed Gowardhan products', { message: error.message });
-  }
-
-  // [DISABLED] seed-demo-data, migrate-container-fields, seed-nandini-prices
+  // [DISABLED] seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
 
 });
 

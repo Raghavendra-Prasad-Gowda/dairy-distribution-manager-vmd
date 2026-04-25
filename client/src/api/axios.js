@@ -1,5 +1,9 @@
 import axios from 'axios';
 
+if (!import.meta.env.VITE_API_BASE_URL && !import.meta.env.DEV) {
+  console.error('[API] VITE_API_BASE_URL is not set. API calls will fail in production.');
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1',
   headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,7 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
+const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 
 const router = express.Router();
@@ -28,13 +29,9 @@ router.post('/', asyncHandler(async (req, res) => {
 router.put('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Category ID');
   const { name } = req.body;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ success: false, error: 'Category name is required' });
-  }
+  if (!name || !name.trim()) throw new AppError('Category name is required', 400);
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category) {
-    return res.status(404).json({ success: false, error: 'Category not found' });
-  }
+  if (!category) throw new AppError('Category not found', 404);
   const oldName = category.name;
   const newName = name.trim();
 
@@ -48,6 +45,8 @@ router.put('/:id', asyncHandler(async (req, res) => {
 // DELETE /categories/:id
 router.delete('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Category ID');
+  const category = await prisma.category.findUnique({ where: { id } });
+  if (!category) throw new AppError('Category not found', 404);
   await prisma.category.delete({ where: { id } });
   res.json({ success: true, data: { message: 'Category deleted' } });
 }));
