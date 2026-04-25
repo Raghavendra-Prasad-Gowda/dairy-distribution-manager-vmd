@@ -181,6 +181,16 @@ export default function DairyPayments() {
   return (
     <div className="flex flex-col h-full">
 
+      {/* ── Saving overlay ──────────────────────────────────── */}
+      {saving && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Recording payment…</p>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="px-5 md:px-7 pt-5 pb-4 border-b border-slate-200 bg-white">
         <h1 className="text-xl font-bold text-slate-900">Dairy Payments</h1>

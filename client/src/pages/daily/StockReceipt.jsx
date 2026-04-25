@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Save, Loader2, Package, TrendingUp, Search, X } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
-import SaveOverlay from '../../components/SaveOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -28,7 +27,6 @@ export default function StockReceipt() {
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
-  const [saveStatus, setSaveStatus]   = useState(null);
   const [search, setSearch]           = useState('');
   const inputRefs = useRef({});
 
@@ -139,7 +137,7 @@ export default function StockReceipt() {
     setSaving(true);
     try {
       await api.post('/stock-receipts/bulk', { brandId: activeBrand.id, date, items });
-      setSaveStatus('success');
+      notify('Receipt saved successfully!', 'success');
       api.get(`/dairy-balance?date=${date}`).then(r => {
         const entry = (r.data.data?.brands ?? []).find(b => b.brandId === activeBrand.id);
         if (entry) setBalance({ opening: entry.openingBalance, stockValue: entry.stockValue, paid: entry.amountPaid, closing: entry.closingBalance });
@@ -177,7 +175,15 @@ export default function StockReceipt() {
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
-      <SaveOverlay status={saveStatus} onClose={() => setSaveStatus(null)} successMessage="Receipt Saved!" />
+      {/* ── Saving overlay ──────────────────────────────────── */}
+      {saving && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+            <p className="text-slate-700 font-semibold text-sm">Saving receipt…</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Page header ─────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">

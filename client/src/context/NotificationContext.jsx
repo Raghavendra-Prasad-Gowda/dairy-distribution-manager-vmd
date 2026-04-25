@@ -1,59 +1,123 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { CheckCircle, XCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
 
 const Ctx = createContext(null);
 
-const VARIANTS = {
-  success: { bg: 'bg-emerald-600', border: 'border-emerald-700', Icon: CheckCircle },
-  error:   { bg: 'bg-red-600',     border: 'border-red-700',     Icon: XCircle },
-  warning: { bg: 'bg-amber-500',   border: 'border-amber-600',   Icon: AlertTriangle },
-  info:    { bg: 'bg-blue-600',    border: 'border-blue-700',    Icon: Info },
+// ── Centered modal notification ───────────────────────────────────────────────
+const MODAL_VARIANTS = {
+  success: {
+    iconBg:  'from-emerald-400 to-emerald-600',
+    Icon:    CheckCircle,
+    title:   'Success',
+    btnCls:  'bg-emerald-600 hover:bg-emerald-700',
+  },
+  error: {
+    iconBg:  'from-red-400 to-red-600',
+    Icon:    XCircle,
+    title:   'Something went wrong',
+    btnCls:  'bg-red-600 hover:bg-red-700',
+  },
+  warning: {
+    iconBg:  'from-amber-400 to-amber-600',
+    Icon:    AlertTriangle,
+    title:   'Warning',
+    btnCls:  'bg-amber-500 hover:bg-amber-600',
+  },
+  info: {
+    iconBg:  'from-blue-400 to-blue-600',
+    Icon:    Info,
+    title:   'Info',
+    btnCls:  'bg-blue-600 hover:bg-blue-700',
+  },
 };
 
-function Toast({ id, message, type, onDismiss }) {
-  const { bg, Icon } = VARIANTS[type] ?? VARIANTS.success;
+function NotificationModal({ type, message, onClose }) {
+  const v = MODAL_VARIANTS[type] ?? MODAL_VARIANTS.info;
+  const { Icon, iconBg, title, btnCls } = v;
+
+  // Auto-dismiss success after 3 s
+  useEffect(() => {
+    if (type !== 'success') return;
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, [type, onClose]);
+
   return (
     <div
-      className={`${bg} text-white flex items-start gap-3 pl-4 pr-3 py-3.5 rounded-xl shadow-2xl text-sm font-medium min-w-[280px] max-w-sm border border-white/10`}
-      style={{ animation: 'toastIn 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+      style={{ animation: 'ntFadeIn 0.2s ease' }}
     >
-      <Icon size={16} className="flex-shrink-0 mt-0.5" />
-      <span className="flex-1 leading-snug">{message}</span>
-      <button
-        onClick={() => onDismiss(id)}
-        className="opacity-60 hover:opacity-100 transition-opacity ml-1 p-0.5 flex-shrink-0"
-        aria-label="Dismiss"
+      <div
+        className="bg-white rounded-3xl shadow-2xl p-8 mx-4 w-full max-w-sm text-center"
+        style={{ animation: 'ntPopIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}
+        onClick={e => e.stopPropagation()}
       >
-        <X size={14} />
-      </button>
+        {/* Icon circle */}
+        <div className={`mx-auto w-20 h-20 rounded-full bg-gradient-to-br ${iconBg} flex items-center justify-center mb-4`}
+          style={{ animation: 'ntScaleIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.05s both' }}
+        >
+          <Icon className="w-10 h-10 text-white" />
+        </div>
+
+        <h3 className="text-xl font-bold text-slate-900 mb-2">{title}</h3>
+        <p className="text-slate-500 text-sm mb-6 leading-relaxed">{message}</p>
+
+        <button
+          onClick={onClose}
+          className={`w-full py-3 rounded-xl text-white font-semibold text-sm transition ${btnCls}`}
+        >
+          OK
+        </button>
+      </div>
     </div>
   );
 }
 
+// ── Loading overlay ────────────────────────────────────────────────────────────
+function LoadingOverlay({ message = 'Processing…' }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
+        <span className="text-5xl" style={{ animation: 'ntBounce 0.8s ease-in-out infinite alternate' }}>🥛</span>
+        <p className="text-slate-700 font-semibold text-sm">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function NotificationProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
+  const [current, setCurrent] = useState(null); // { type, message }
 
-  const notify = useCallback((message, type = 'success', duration = 4000) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
+  const notify = useCallback((message, type = 'success') => {
+    setCurrent({ type, message });
   }, []);
 
-  const dismiss = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  const dismiss = useCallback(() => setCurrent(null), []);
 
   return (
     <Ctx.Provider value={{ notify }}>
       {children}
-      {toasts.length > 0 && (
-        <div className="fixed top-4 right-4 z-[300] flex flex-col gap-2 pointer-events-none">
-          {toasts.map(t => (
-            <div key={t.id} className="pointer-events-auto">
-              <Toast {...t} onDismiss={dismiss} />
-            </div>
-          ))}
-        </div>
+
+      {/* Animations injected once */}
+      <style>{`
+        @keyframes ntFadeIn  { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes ntPopIn   { from { opacity: 0; transform: scale(0.85) } to { opacity: 1; transform: scale(1) } }
+        @keyframes ntScaleIn { from { transform: scale(0) } to { transform: scale(1) } }
+        @keyframes ntBounce  { from { transform: translateY(0) } to { transform: translateY(-10px) } }
+      `}</style>
+
+      {current?.type === 'loading' && (
+        <LoadingOverlay message={current.message} />
+      )}
+
+      {current && current.type !== 'loading' && (
+        <NotificationModal
+          type={current.type}
+          message={current.message}
+          onClose={dismiss}
+        />
       )}
     </Ctx.Provider>
   );
