@@ -153,11 +153,21 @@ export default function LayoutSettings() {
   }, [categories, products]);
 
   // ── Category move up/down ────────────────────────────────────────────────────
-  const moveCategory = useCallback((index, direction) => {
-    const newIndex = index + direction;
-    setCategories(prev => arrayMove(prev, index, newIndex));
+  // Uses visible grouped order to find adjacent category, then swaps
+  // their actual positions in the categories array (handles hidden categories)
+  const moveCategory = useCallback((fromVisibleIdx, direction) => {
+    const toVisibleIdx = fromVisibleIdx + direction;
+    const fromName = grouped[fromVisibleIdx]?.[0];
+    const toName   = grouped[toVisibleIdx]?.[0];
+    if (!fromName || !toName) return;
+    setCategories(prev => {
+      const fromIdx = prev.findIndex(c => c.name === fromName);
+      const toIdx   = prev.findIndex(c => c.name === toName);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      return arrayMove(prev, fromIdx, toIdx);
+    });
     setDirty(true);
-  }, []);
+  }, [grouped]);
 
   // ── Product drag-and-drop within a category ──────────────────────────────────
   const handleProductDragEnd = useCallback(({ active, over }) => {
