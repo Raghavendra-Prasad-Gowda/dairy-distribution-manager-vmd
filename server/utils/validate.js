@@ -55,6 +55,16 @@ const schemas = {
     showInStockReceipt: z.boolean().optional(),
   }),
 
+  // Layout reordering
+  reorderProducts: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+  reorderCategories: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+
   // Stock Receipts
   bulkStockReceipt: z.object({
     brandId: z.number().int().positive(),

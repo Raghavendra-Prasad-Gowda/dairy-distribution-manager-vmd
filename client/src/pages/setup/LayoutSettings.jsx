@@ -1,0 +1,346 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, LayoutGrid, Save, Loader2, Eye, EyeOff } from 'lucide-react';
+import { useNotification } from '../../context/NotificationContext';
+import api from '../../api/axios';
+
+// ── Sortable category row ──────────────────────────────────────────────────────
+function SortableCategoryRow({ category, isExpanded, onToggleExpand, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `cat-${category.id}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 cursor-pointer select-none"
+        onClick={onToggleExpand}
+      >
+        <button
+          {...attributes}
+          {...listeners}
+          className="text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing p-0.5"
+          onClick={e => e.stopPropagation()}
+        >
+          <GripVertical size={16} />
+        </button>
+        <span className="flex-1 text-sm font-bold text-slate-700">{category.name}</span>
+        <span className="text-xs text-slate-400">{isExpanded ? '▲' : '▼'}</span>
+      </div>
+      {isExpanded && (
+        <div className="ml-6 mt-1 space-y-1">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sortable product row ───────────────────────────────────────────────────────
+function SortableProductRow({ product, onToggleVisibility }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `prod-${product.id}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 bg-white border rounded-lg px-3 py-2 ${
+        product.showInStockReceipt ? 'border-slate-200' : 'border-slate-100 opacity-50'
+      }`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-0.5 flex-shrink-0"
+      >
+        <GripVertical size={14} />
+      </button>
+      <span className={`flex-1 text-sm ${product.showInStockReceipt ? 'text-slate-700' : 'text-slate-400'}`}>
+        {product.name}
+      </span>
+      <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full mr-1">
+        {product.unitType === 'ml'
+          ? `${product.unitSize ?? '?'}ml`
+          : product.unitType === 'gram'
+          ? `${product.unitSize ?? '?'}g`
+          : 'piece'}
+      </span>
+      <button
+        onClick={() => onToggleVisibility(product.id)}
+        className={`p-1 rounded-lg transition-colors flex-shrink-0 ${
+          product.showInStockReceipt
+            ? 'text-emerald-600 hover:bg-emerald-50'
+            : 'text-slate-300 hover:bg-slate-100'
+        }`}
+        title={product.showInStockReceipt ? 'Visible in Stock Receipt' : 'Hidden from Stock Receipt'}
+      >
+        {product.showInStockReceipt ? <Eye size={14} /> : <EyeOff size={14} />}
+      </button>
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+export default function LayoutSettings() {
+  const { notify } = useNotification();
+  const [brands, setBrands]           = useState([]);
+  const [activeBrandId, setActiveBrandId] = useState(null);
+  const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
+  const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
+  const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
+  const [loading, setLoading]         = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [dirty, setDirty]             = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  // Load brands
+  useEffect(() => {
+    api.get('/brands').then(r => {
+      const b = r.data.data ?? [];
+      setBrands(b);
+      if (b.length) setActiveBrandId(b[0].id);
+    }).catch(() => notify('Failed to load brands', 'error'));
+  }, []);
+
+  // Load categories + products for active brand
+  useEffect(() => {
+    if (!activeBrandId) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`/categories?brandId=${activeBrandId}`),
+      api.get(`/products?brandId=${activeBrandId}&all=true`),
+    ]).then(([catRes, prodRes]) => {
+      const cats = catRes.data.data ?? [];
+      const prods = (prodRes.data.data ?? []).filter(p => p.isActive);
+      setCategories(cats);
+      setProducts(prods);
+      // Expand all categories by default
+      const exp = {};
+      cats.forEach(c => { exp[c.name] = true; });
+      setExpanded(exp);
+      setDirty(false);
+    }).catch(() => notify('Failed to load data', 'error'))
+      .finally(() => setLoading(false));
+  }, [activeBrandId]);
+
+  // Products grouped by category, in category displayOrder
+  const grouped = React.useMemo(() => {
+    const catOrder = Object.fromEntries(categories.map(c => [c.name, c.displayOrder]));
+    const map = {};
+    for (const p of products) {
+      const key = p.category || 'Other';
+      if (!map[key]) map[key] = [];
+      map[key].push(p);
+    }
+    return Object.entries(map).sort(([a], [b]) => {
+      const oa = catOrder[a] ?? 9999;
+      const ob = catOrder[b] ?? 9999;
+      return oa !== ob ? oa - ob : a.localeCompare(b);
+    });
+  }, [categories, products]);
+
+  // ── Drag end handler ────────────────────────────────────────────────────────
+  const handleDragEnd = useCallback(({ active, over }) => {
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Category reorder
+    if (activeId.startsWith('cat-') && overId.startsWith('cat-')) {
+      const activeIdx = categories.findIndex(c => `cat-${c.id}` === activeId);
+      const overIdx = categories.findIndex(c => `cat-${c.id}` === overId);
+      if (activeIdx === -1 || overIdx === -1) return;
+      setCategories(prev => arrayMove(prev, activeIdx, overIdx));
+      setDirty(true);
+      return;
+    }
+
+    // Product reorder (within same category only)
+    if (activeId.startsWith('prod-') && overId.startsWith('prod-')) {
+      const activeProductId = parseInt(activeId.replace('prod-', ''));
+      const overProductId   = parseInt(overId.replace('prod-', ''));
+      const activeProduct = products.find(p => p.id === activeProductId);
+      const overProduct   = products.find(p => p.id === overProductId);
+      if (!activeProduct || !overProduct) return;
+      if (activeProduct.category !== overProduct.category) return; // different category — ignore
+
+      setProducts(prev => {
+        const activeIdx = prev.findIndex(p => p.id === activeProductId);
+        const overIdx   = prev.findIndex(p => p.id === overProductId);
+        return arrayMove(prev, activeIdx, overIdx);
+      });
+      setDirty(true);
+    }
+  }, [categories, products]);
+
+  // ── Toggle product visibility ───────────────────────────────────────────────
+  const handleToggleVisibility = useCallback((productId) => {
+    setProducts(prev =>
+      prev.map(p => p.id === productId ? { ...p, showInStockReceipt: !p.showInStockReceipt } : p)
+    );
+    setDirty(true);
+  }, []);
+
+  // ── Save layout ─────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const categoryOrders = categories.map((c, i) => ({ id: c.id, displayOrder: i }));
+      const productOrders  = products.map((p, i) => ({ id: p.id, displayOrder: i }));
+
+      // Persist visibility changes
+      const visibilityUpdates = products
+        .filter(p => {
+          // Find the original to check if changed — we just push all to be safe
+          return true;
+        })
+        .map(p => api.put(`/products/${p.id}`, { showInStockReceipt: p.showInStockReceipt }));
+
+      await Promise.all([
+        api.patch('/categories/reorder', categoryOrders),
+        api.patch('/products/reorder', productOrders),
+        ...visibilityUpdates,
+      ]);
+
+      notify('Layout saved successfully!', 'success');
+      setDirty(false);
+    } catch {
+      notify('Failed to save layout', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-slate-100">
+
+      {/* ── Page header ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">
+        <div className="flex items-center gap-2.5">
+          <LayoutGrid size={17} className="text-emerald-600 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-slate-900 leading-tight">Layout Settings</h1>
+            <p className="text-slate-400 text-xs">Drag to reorder categories and products. Toggle eye to show/hide.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Brand tabs ───────────────────────────────────────────────────────── */}
+      {brands.length > 1 && (
+        <div className="flex gap-2 px-4 pt-4">
+          {brands.map(b => (
+            <button
+              key={b.id}
+              onClick={() => setActiveBrandId(b.id)}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
+                activeBrandId === b.id
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Content ──────────────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-auto px-4 py-4 space-y-2">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
+          </div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+
+            {/* ── Category sortable list ────────────────────────────────────── */}
+            <SortableContext
+              items={categories.map(c => `cat-${c.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {grouped.map(([catName, catProducts]) => {
+                  const cat = categories.find(c => c.name === catName);
+                  if (!cat) return null;
+                  return (
+                    <SortableCategoryRow
+                      key={cat.id}
+                      category={cat}
+                      isExpanded={expanded[catName] ?? true}
+                      onToggleExpand={() =>
+                        setExpanded(prev => ({ ...prev, [catName]: !prev[catName] }))
+                      }
+                    >
+                      {/* ── Product sortable list within category ─────────── */}
+                      <SortableContext
+                        items={catProducts.map(p => `prod-${p.id}`)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {catProducts.map(p => (
+                          <SortableProductRow
+                            key={p.id}
+                            product={p}
+                            onToggleVisibility={handleToggleVisibility}
+                          />
+                        ))}
+                      </SortableContext>
+                    </SortableCategoryRow>
+                  );
+                })}
+              </div>
+            </SortableContext>
+
+          </DndContext>
+        )}
+      </div>
+
+      {/* ── Footer / Save bar ────────────────────────────────────────────────── */}
+      {!loading && (
+        <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
+          {dirty && (
+            <p className="flex-1 text-xs text-amber-600 font-medium">Unsaved changes</p>
+          )}
+          {!dirty && <div className="flex-1" />}
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm"
+          >
+            {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+            {saving ? 'Saving…' : 'Save Layout'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

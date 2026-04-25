@@ -23,6 +23,7 @@ export default function StockReceipt() {
   const [date, setDate]               = useState(getIndiaDate());
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
+  const [categories, setCategories]   = useState([]);
   const [quantities, setQuantities]   = useState({});  // stores individual units (user input)
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [loading, setLoading]         = useState(false);
@@ -58,6 +59,13 @@ export default function StockReceipt() {
 
   useEffect(() => {
     if (!activeBrand) return;
+    api.get(`/categories?brandId=${activeBrand.id}`)
+      .then(r => setCategories(r.data.data ?? []))
+      .catch(() => {});
+  }, [activeBrand]);
+
+  useEffect(() => {
+    if (!activeBrand) return;
     setLoading(true);
     Promise.all([
       api.get(`/products?brandId=${activeBrand.id}`),
@@ -77,7 +85,7 @@ export default function StockReceipt() {
       .finally(() => setLoading(false));
   }, [activeBrand, date]);
 
-  // Group products by category, apply search filter
+  // Group products by category, apply search filter, sort by category displayOrder
   const filteredGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
@@ -87,15 +95,25 @@ export default function StockReceipt() {
         )
       : products;
 
-    return filtered.reduce((acc, p) => {
+    const grouped = filtered.reduce((acc, p) => {
       const key = p.category || 'Other';
       if (!acc[key]) acc[key] = [];
       acc[key].push(p);
       return acc;
     }, {});
-  }, [products, search]);
 
-  const allFiltered = Object.values(filteredGrouped).flat();
+    // Sort category groups by their displayOrder from the Category model
+    const catOrderMap = Object.fromEntries(
+      categories.map(c => [c.name, c.displayOrder])
+    );
+    return Object.entries(grouped).sort(([a], [b]) => {
+      const oa = catOrderMap[a] ?? 9999;
+      const ob = catOrderMap[b] ?? 9999;
+      return oa !== ob ? oa - ob : a.localeCompare(b);
+    });
+  }, [products, categories, search]);
+
+  const allFiltered = filteredGrouped.flatMap(([, items]) => items);
 
   const handleKeyDown = (e, productId) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
@@ -264,12 +282,12 @@ export default function StockReceipt() {
                       <span className="text-xs">Add them in Dairy → Product Setup.</span>
                     </td>
                   </tr>
-                ) : Object.keys(filteredGrouped).length === 0 ? (
+                ) : filteredGrouped.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
                   </tr>
                 ) : (
-                  Object.entries(filteredGrouped).map(([category, items]) => (
+                  filteredGrouped.map(([category, items]) => (
                     <React.Fragment key={category}>
                       {/* Category header */}
                       <tr className="cat-row bg-slate-50 border-l-4 border-emerald-400">
