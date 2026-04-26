@@ -1,28 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Loader2, Package, TrendingUp, Search, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Save, Loader2, Package, TrendingUp, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 const ROUTE_LABELS = ['Route 1', 'Route 2', 'Route 3', 'Route 4'];
-
-function ExpandCollapseBtn({ filteredGrouped, collapsedCategories, setCollapsedCategories }) {
-  const allCollapsed = filteredGrouped.every(([cat], i) => collapsedCategories[cat] ?? (i !== 0));
-  return (
-    <button
-      onClick={() => {
-        const next = {};
-        filteredGrouped.forEach(([cat]) => { next[cat] = !allCollapsed; });
-        setCollapsedCategories(next);
-      }}
-      className="flex-shrink-0 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
-    >
-      {allCollapsed ? 'Expand All' : 'Collapse All'}
-    </button>
-  );
-}
 
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
@@ -41,8 +25,8 @@ export default function StockReceipt() {
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
   const [categories, setCategories]   = useState([]);
-  const [quantities, setQuantities]   = useState({});    // single qty per product (non-Nandini)
-  const [routeQty, setRouteQty]       = useState({});    // { [productId]: ['','','',''] } (Nandini)
+  const [quantities, setQuantities]   = useState({});
+  const [routeQty, setRouteQty]       = useState({});
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]         = useState(false);
@@ -53,7 +37,6 @@ export default function StockReceipt() {
   const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
   const COL_COUNT = isNandini ? 8 : 5;
 
-  // Effective qty for a product — sum of routes (Nandini) or single value (others)
   const getEffectiveQty = (productId) => {
     if (isNandini) {
       return (routeQty[productId] ?? []).reduce((s, v) => s + (parseFloat(v) || 0), 0);
@@ -104,13 +87,11 @@ export default function StockReceipt() {
         const prods = prodRes.data.data.filter(p => p.showInStockReceipt !== false);
         setProducts(prods);
 
-        // Single-quantity state (non-Nandini)
         const qty = {};
         for (const p of prods) qty[p.id] = '';
         for (const r of receiptRes.data.data) qty[r.productId] = String(r.quantity);
         setQuantities(qty);
 
-        // Route-quantity state (Nandini) — pre-fill existing total into Route 1
         const routes = {};
         for (const p of prods) routes[p.id] = ['', '', '', ''];
         for (const r of receiptRes.data.data) {
@@ -124,7 +105,6 @@ export default function StockReceipt() {
       .finally(() => setLoading(false));
   }, [activeBrand, date]);
 
-  // Group products by category, apply search filter, sort by category displayOrder
   const filteredGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
@@ -151,7 +131,6 @@ export default function StockReceipt() {
 
   const allFiltered = filteredGrouped.flatMap(([, items]) => items);
 
-  // Enter/Tab navigation — only used in non-Nandini mode (single input per row)
   const handleKeyDown = (e, productId) => {
     if (isNandini) return;
     if (e.key === 'Enter' || e.key === 'Tab') {
@@ -187,6 +166,18 @@ export default function StockReceipt() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const expandAll = () => {
+    const next = {};
+    filteredGrouped.forEach(([cat]) => { next[cat] = false; });
+    setCollapsedCategories(next);
+  };
+
+  const collapseAll = () => {
+    const next = {};
+    filteredGrouped.forEach(([cat]) => { next[cat] = true; });
+    setCollapsedCategories(next);
   };
 
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
@@ -271,236 +262,227 @@ export default function StockReceipt() {
           </div>
         )}
 
-        {/* ── Search bar ──────────────────────────────────── */}
+        {/* ── Action bar (search + expand/collapse + save) ── */}
         {products.length > 0 && (
-          <div className="mx-4 mt-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by product or category…"
-                  className="w-full pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
-                />
+          <div className="mx-4 mt-3 bg-white rounded-2xl border border-slate-200 px-3 py-3 flex flex-col gap-2.5">
+            {/* Search */}
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by product or category…"
+                className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+              />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   <X size={14} />
                 </button>
               )}
-              </div>
-              {/* Expand / Collapse All */}
-              {filteredGrouped.length > 1 && <ExpandCollapseBtn filteredGrouped={filteredGrouped} collapsedCategories={collapsedCategories} setCollapsedCategories={setCollapsedCategories} />}
+            </div>
+
+            {/* Expand / Collapse / Save row */}
+            <div className="flex items-center gap-2">
+              {filteredGrouped.length > 1 && (
+                <>
+                  <button
+                    onClick={expandAll}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                  >
+                    <ChevronsUpDown size={12} />
+                    Expand All
+                  </button>
+                  <button
+                    onClick={collapseAll}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                  >
+                    <ChevronsDownUp size={12} />
+                    Collapse All
+                  </button>
+                </>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={handleSave}
+                disabled={saving || loading || filledCount === 0}
+                className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
+              >
+                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                {saving ? 'Saving…' : 'Save Receipt'}
+              </button>
             </div>
           </div>
         )}
 
         {/* ── Product table ───────────────────────────────── */}
         <div className="mx-4 mt-3 mb-4 rounded-2xl border border-slate-200 overflow-x-auto">
-            <table className="min-w-full text-sm border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10">
-                <tr>
-                  <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
-                  {isNandini ? (
-                    <>
-                      {ROUTE_LABELS.map(label => (
-                        <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
-                      ))}
-                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
-                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
-                    </>
-                  )}
-                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-2xl">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white">
-                {loading ? (
-                  <tr><td colSpan={COL_COUNT} className="py-20 text-center"><Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" /></td></tr>
-                ) : !activeBrand ? (
-                  <tr><td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td></tr>
-                ) : products.length === 0 ? (
-                  <tr>
-                    <td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm px-4">
-                      No active products for {activeBrand.name}.<br />
-                      <span className="text-xs">Add them in Dairy → Product Setup.</span>
-                    </td>
-                  </tr>
-                ) : filteredGrouped.length === 0 ? (
-                  <tr><td colSpan={COL_COUNT} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td></tr>
+          <table className="min-w-full text-sm border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
+                {isNandini ? (
+                  <>
+                    {ROUTE_LABELS.map(label => (
+                      <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
+                    ))}
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                  </>
                 ) : (
                   <>
-                    {filteredGrouped.map(([category, items], catIdx) => {
-                      const isCollapsed = collapsedCategories[category] ?? (catIdx !== 0);
-                      const catAmount   = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
-                      const catFilled   = items.filter(p => getEffectiveQty(p.id) > 0).length;
-
-                      return (
-                        <React.Fragment key={category}>
-                          {/* Category header row */}
-                          <tr
-                            className="cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
-                            onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
-                          >
-                            <td colSpan={COL_COUNT} className="px-4 py-2.5 border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
-                              <div className="flex items-center gap-2">
-                                {isCollapsed
-                                  ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
-                                  : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
-                                }
-                                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">{category}</span>
-                                <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">
-                                  {catFilled}/{items.length}
-                                </span>
-                                {catAmount > 0 && (
-                                  <span className="ml-auto text-xs font-bold text-emerald-700 tabular-nums">{formatCurrency(catAmount)}</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-
-                          {/* Product rows */}
-                          {!isCollapsed && items.map((p) => {
-                            const effectiveQty   = getEffectiveQty(p.id);
-                            const amount         = effectiveQty * Number(p.costPrice);
-                            const filled         = effectiveQty > 0;
-
-                            return (
-                              <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
-                                {/* Product name */}
-                                <td className="px-4 py-3 text-sm font-semibold text-slate-800">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {p.name}
-                                    <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                                      {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
-                                    </span>
-                                  </div>
-                                </td>
-
-                                {isNandini ? (
-                                  /* 4 route quantity inputs + rate + crates */
-                                  <>
-                                    {ROUTE_LABELS.map((_, ri) => (
-                                      <td key={ri} className="px-2 py-3 text-center">
-                                        <input
-                                          ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
-                                          type="number"
-                                          inputMode="decimal"
-                                          value={routeQty[p.id]?.[ri] ?? ''}
-                                          onChange={e => setRouteQty(prev => {
-                                            const updated = [...(prev[p.id] ?? ['', '', '', ''])];
-                                            updated[ri] = e.target.value;
-                                            return { ...prev, [p.id]: updated };
-                                          })}
-                                          step="1"
-                                          min="0"
-                                          placeholder="0"
-                                          className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                        />
-                                      </td>
-                                    ))}
-                                    <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                                      ₹{Number(p.costPrice).toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                        {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
-                                      </span>
-                                    </td>
-                                  </>
-                                ) : (
-                                  /* Single quantity input + rate + crates */
-                                  <>
-                                    <td className="px-4 py-3 text-center">
-                                      <div className="inline-flex items-center gap-1.5">
-                                        <input
-                                          ref={el => { inputRefs.current[p.id] = el; }}
-                                          type="number"
-                                          inputMode="decimal"
-                                          value={quantities[p.id] ?? ''}
-                                          onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                          onKeyDown={e => handleKeyDown(e, p.id)}
-                                          step="1"
-                                          min="0"
-                                          placeholder="0"
-                                          className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                        />
-                                        <span className="text-xs text-slate-400">
-                                          {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                                      ₹{Number(p.costPrice).toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                        {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
-                                      </span>
-                                    </td>
-                                  </>
-                                )}
-
-                                {/* Amount (always shown) */}
-                                <td className="px-4 py-3 text-center">
-                                  <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
-                                    {filled ? formatCurrency(amount) : '₹0.00'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </React.Fragment>
-                      );
-                    })}
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
                   </>
                 )}
-              </tbody>
-            </table>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-2xl">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {loading ? (
+                <tr><td colSpan={COL_COUNT} className="py-20 text-center"><Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" /></td></tr>
+              ) : !activeBrand ? (
+                <tr><td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td></tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm px-4">
+                    No active products for {activeBrand.name}.<br />
+                    <span className="text-xs">Add them in Dairy → Product Setup.</span>
+                  </td>
+                </tr>
+              ) : filteredGrouped.length === 0 ? (
+                <tr><td colSpan={COL_COUNT} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td></tr>
+              ) : (
+                <>
+                  {filteredGrouped.map(([category, items], catIdx) => {
+                    const isCollapsed  = collapsedCategories[category] ?? (catIdx !== 0);
+                    const catAmount    = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
+                    const catFilled    = items.filter(p => getEffectiveQty(p.id) > 0).length;
+                    const filledPct    = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
+
+                    return (
+                      <React.Fragment key={category}>
+                        {/* Category header row */}
+                        <tr
+                          className="cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
+                          onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
+                        >
+                          <td colSpan={COL_COUNT} className="border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
+                            {/* Top line: name + items count + amount */}
+                            <div className="flex items-center gap-2 px-4 pt-2.5 pb-1">
+                              {isCollapsed
+                                ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
+                                : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                              }
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
+                              {catAmount > 0 && (
+                                <span className="ml-auto text-xs font-bold text-emerald-700 tabular-nums">
+                                  Receipt: {formatCurrency(catAmount)}
+                                </span>
+                              )}
+                            </div>
+                            {/* Bottom line: filled progress */}
+                            <div className="px-4 pb-2">
+                              <span className={`text-[10px] font-semibold tabular-nums ${filledPct === 100 ? 'text-emerald-600' : filledPct > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                {catFilled}/{items.length} FILLED ({filledPct}%)
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Product rows */}
+                        {!isCollapsed && items.map((p) => {
+                          const effectiveQty = getEffectiveQty(p.id);
+                          const amount       = effectiveQty * Number(p.costPrice);
+                          const filled       = effectiveQty > 0;
+
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
+                              {/* Product name + unit label below */}
+                              <td className="px-4 py-3">
+                                <div className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
+                                </div>
+                              </td>
+
+                              {isNandini ? (
+                                <>
+                                  {ROUTE_LABELS.map((_, ri) => (
+                                    <td key={ri} className="px-2 py-3 text-center">
+                                      <input
+                                        ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={routeQty[p.id]?.[ri] ?? ''}
+                                        onChange={e => setRouteQty(prev => {
+                                          const updated = [...(prev[p.id] ?? ['', '', '', ''])];
+                                          updated[ri] = e.target.value;
+                                          return { ...prev, [p.id]: updated };
+                                        })}
+                                        step="1"
+                                        min="0"
+                                        placeholder="0"
+                                        className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                      />
+                                    </td>
+                                  ))}
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                    ₹{Number(p.costPrice).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                    {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="px-4 py-3 text-center">
+                                    <div className="inline-flex items-center gap-1.5">
+                                      <input
+                                        ref={el => { inputRefs.current[p.id] = el; }}
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={quantities[p.id] ?? ''}
+                                        onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                        onKeyDown={e => handleKeyDown(e, p.id)}
+                                        step="1"
+                                        min="0"
+                                        placeholder="0"
+                                        className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                      />
+                                      <span className="text-xs text-slate-400">
+                                        {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                    ₹{Number(p.costPrice).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                    {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                  </td>
+                                </>
+                              )}
+
+                              <td className="px-4 py-3 text-center">
+                                <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
+                                  {filled ? formatCurrency(amount) : '₹0.00'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                </>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      {/* ── Footer / Save bar ──────────────────────────────── */}
-      {!loading && products.length > 0 && (
-        <div className="border-t border-emerald-800 bg-emerald-800 px-4 pt-3 pb-3 flex flex-col gap-2.5">
-          {/* Totals row */}
-          <div className="flex items-center justify-around bg-emerald-900/50 rounded-xl px-3 py-2.5">
-            <div className="text-center">
-              <p className="text-[10px] text-emerald-300 uppercase tracking-wide leading-none mb-0.5">Total Units</p>
-              <p className="text-sm font-bold text-white tabular-nums leading-none">{totalUnits > 0 ? totalUnits : '—'}</p>
-            </div>
-            <div className="w-px h-6 bg-emerald-600" />
-            <div className="text-center">
-              <p className="text-[10px] text-emerald-300 uppercase tracking-wide leading-none mb-0.5">{crateLabel}</p>
-              <p className="text-sm font-bold text-white tabular-nums leading-none">
-                {totalCrates > 0
-                  ? (Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2))
-                  : '—'}
-              </p>
-            </div>
-            <div className="w-px h-6 bg-emerald-600" />
-            <div className="text-center">
-              <p className="text-[10px] text-emerald-300 uppercase tracking-wide leading-none mb-0.5">Total Amount</p>
-              <p className="text-sm font-bold text-amber-300 tabular-nums leading-none">{totalAmount > 0 ? formatCurrency(totalAmount) : '—'}</p>
-            </div>
-          </div>
-          {/* Save button row */}
-          <button
-            onClick={handleSave}
-            disabled={saving || loading || filledCount === 0}
-            className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 disabled:bg-white/20 disabled:text-white/40 text-emerald-800 font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm"
-          >
-            {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
-            {saving ? 'Saving…' : 'Save Receipt'}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
