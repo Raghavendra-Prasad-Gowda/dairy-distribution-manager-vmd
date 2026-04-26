@@ -8,6 +8,22 @@ import api from '../../api/axios';
 
 const ROUTE_LABELS = ['Route 1', 'Route 2', 'Route 3', 'Route 4'];
 
+function ExpandCollapseBtn({ filteredGrouped, collapsedCategories, setCollapsedCategories }) {
+  const allCollapsed = filteredGrouped.every(([cat], i) => collapsedCategories[cat] ?? (i !== 0));
+  return (
+    <button
+      onClick={() => {
+        const next = {};
+        filteredGrouped.forEach(([cat]) => { next[cat] = !allCollapsed; });
+        setCollapsedCategories(next);
+      }}
+      className="flex-shrink-0 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+    >
+      {allCollapsed ? 'Expand All' : 'Collapse All'}
+    </button>
+  );
+}
+
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
   if (!containerType || !unitsPerContainer || !units) return '—';
@@ -258,20 +274,24 @@ export default function StockReceipt() {
         {/* ── Search bar ──────────────────────────────────── */}
         {products.length > 0 && (
           <div className="mx-4 mt-3">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by product or category…"
-                className="w-full pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by product or category…"
+                  className="w-full pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+                />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   <X size={14} />
                 </button>
               )}
+              </div>
+              {/* Expand / Collapse All */}
+              {filteredGrouped.length > 1 && <ExpandCollapseBtn filteredGrouped={filteredGrouped} collapsedCategories={collapsedCategories} setCollapsedCategories={setCollapsedCategories} />}
             </div>
           </div>
         )}
