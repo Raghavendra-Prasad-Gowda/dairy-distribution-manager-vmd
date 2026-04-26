@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Loader2, Package, TrendingUp, Search, X } from 'lucide-react';
+import { Save, Loader2, Package, TrendingUp, Search, X, ChevronDown, ChevronRight } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -25,6 +25,7 @@ export default function StockReceipt() {
   const [categories, setCategories]   = useState([]);
   const [quantities, setQuantities]   = useState({});  // stores individual units (user input)
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
+  const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState('');
@@ -78,6 +79,7 @@ export default function StockReceipt() {
           qty[r.productId] = String(r.quantity);
         }
         setQuantities(qty);
+        setCollapsedCategories({});
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
@@ -260,17 +262,17 @@ export default function StockReceipt() {
         {/* ── Product table ───────────────────────────────── */}
         <div className="mx-4 mt-3 mb-4 bg-white rounded-2xl overflow-hidden border border-slate-200">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+            <table className="min-w-full text-sm border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Units</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates/Boxes</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-100">
+              <tbody className="bg-white">
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="py-20 text-center">
@@ -293,66 +295,108 @@ export default function StockReceipt() {
                     <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
                   </tr>
                 ) : (
-                  filteredGrouped.map(([category, items]) => (
-                    <React.Fragment key={category}>
-                      {/* Category header */}
-                      <tr className="cat-row bg-slate-50 border-l-4 border-emerald-400">
-                        <td colSpan={5} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                          {category}
-                        </td>
-                      </tr>
-                      {items.map((p) => {
-                        const inputVal       = parseFloat(quantities[p.id]) || 0;
-                        const containerLabel = calcContainerDisplay(inputVal, p.containerType, p.unitsPerContainer);
-                        const amount         = inputVal * Number(p.costPrice);
-                        const filled         = inputVal > 0;
-                        const unitLabel      = p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units';
+                  <>
+                    {filteredGrouped.map(([category, items], catIdx) => {
+                      const isCollapsed = collapsedCategories[category] ?? (catIdx !== 0);
+                      const catAmount   = items.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0) * Number(p.costPrice), 0);
+                      const catFilled   = items.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
 
-                        return (
-                          <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3 text-sm font-semibold text-slate-800">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {p.name}
-                                <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                                  {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
+                      return (
+                        <React.Fragment key={category}>
+                          {/* Category header row */}
+                          <tr
+                            className="cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
+                            onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
+                          >
+                            <td colSpan={5} className="px-4 py-2.5 border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
+                              <div className="flex items-center gap-2">
+                                {isCollapsed
+                                  ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
+                                  : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                                }
+                                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">{category}</span>
+                                <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">
+                                  {catFilled}/{items.length}
                                 </span>
+                                {catAmount > 0 && (
+                                  <span className="ml-auto text-xs font-bold text-emerald-700 tabular-nums">{formatCurrency(catAmount)}</span>
+                                )}
                               </div>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="inline-flex items-center gap-1.5">
-                                <input
-                                  ref={el => { inputRefs.current[p.id] = el; }}
-                                  type="number"
-                                  inputMode="decimal"
-                                  value={quantities[p.id] ?? ''}
-                                  onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                  onKeyDown={e => handleKeyDown(e, p.id)}
-                                  step="1"
-                                  min="0"
-                                  placeholder="0"
-                                  className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                />
-                                <span className="text-xs text-slate-400">{unitLabel}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                              ₹{Number(p.costPrice).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                {containerLabel}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
-                                {filled ? formatCurrency(amount) : '₹0.00'}
-                              </span>
                             </td>
                           </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))
+                          {/* Product rows */}
+                          {!isCollapsed && items.map((p) => {
+                            const inputVal       = parseFloat(quantities[p.id]) || 0;
+                            const containerLabel = calcContainerDisplay(inputVal, p.containerType, p.unitsPerContainer);
+                            const amount         = inputVal * Number(p.costPrice);
+                            const filled         = inputVal > 0;
+                            const unitLabel      = p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units';
+
+                            return (
+                              <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
+                                <td className="px-4 py-3 text-sm font-semibold text-slate-800">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {p.name}
+                                    <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                                      {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <input
+                                      ref={el => { inputRefs.current[p.id] = el; }}
+                                      type="number"
+                                      inputMode="decimal"
+                                      value={quantities[p.id] ?? ''}
+                                      onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                      onKeyDown={e => handleKeyDown(e, p.id)}
+                                      step="1"
+                                      min="0"
+                                      placeholder="0"
+                                      className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                    />
+                                    <span className="text-xs text-slate-400">{unitLabel}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                  ₹{Number(p.costPrice).toFixed(2)}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                    {containerLabel}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
+                                    {filled ? formatCurrency(amount) : '₹0.00'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                    {/* Grand total row */}
+                    <tr className="bg-emerald-800">
+                      <td className="px-4 py-3 text-sm font-bold text-white" colSpan={2}>
+                        Grand Total
+                        {totalUnits > 0 && (
+                          <span className="ml-2 text-xs font-medium text-emerald-300 tabular-nums">{totalUnits} units</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3 text-right text-xs font-medium text-emerald-300 tabular-nums whitespace-nowrap">
+                        {totalCrates > 0
+                          ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} ${crateLabel}`
+                          : ''}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-bold text-amber-300 tabular-nums whitespace-nowrap">
+                        {formatCurrency(totalAmount)}
+                      </td>
+                    </tr>
+                  </>
                 )}
               </tbody>
             </table>
