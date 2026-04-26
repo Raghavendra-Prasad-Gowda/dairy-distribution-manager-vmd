@@ -388,29 +388,33 @@ export default function StockReceipt() {
 
       {/* ── Footer / Save bar ──────────────────────────────── */}
       {!loading && products.length > 0 && (
-        <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
-          <div className="flex-1 flex items-center gap-4">
+        <div className="border-t border-slate-200 bg-white px-4 pt-3 pb-3 flex flex-col gap-2.5">
+          {/* Totals row */}
+          <div className="flex items-center justify-around border border-slate-100 rounded-xl bg-slate-50 px-3 py-2.5">
             <div className="text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Units</p>
               <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">{totalUnits > 0 ? totalUnits : '—'}</p>
             </div>
-            {totalCrates > 0 && (
-              <div className="text-center">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">{crateLabel}</p>
-                <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">
-                  {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)}
-                </p>
-              </div>
-            )}
+            <div className="w-px h-6 bg-slate-200" />
+            <div className="text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">{crateLabel}</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">
+                {totalCrates > 0
+                  ? (Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2))
+                  : '—'}
+              </p>
+            </div>
+            <div className="w-px h-6 bg-slate-200" />
+            <div className="text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Amount</p>
+              <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">{totalAmount > 0 ? formatCurrency(totalAmount) : '—'}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Amount</p>
-            <p className="text-base font-bold text-slate-800 tabular-nums leading-none">{formatCurrency(totalAmount)}</p>
-          </div>
+          {/* Save button row */}
           <button
             onClick={handleSave}
             disabled={saving || loading || filledCount === 0}
-            className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm"
           >
             {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
             {saving ? 'Saving…' : 'Save Receipt'}
