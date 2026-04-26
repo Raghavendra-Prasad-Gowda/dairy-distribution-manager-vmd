@@ -90,7 +90,7 @@ export default function StockSummary() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700">
+                  <thead className="bg-emerald-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
@@ -127,7 +127,7 @@ export default function StockSummary() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700">
+                  <thead className="bg-emerald-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Salesperson</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Items Dispatched</th>

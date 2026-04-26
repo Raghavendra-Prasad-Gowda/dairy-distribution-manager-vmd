@@ -218,7 +218,7 @@ export default function SalespeopleSetup() {
           <div className="ddm-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-emerald-700">
+                <thead className="bg-emerald-700 sticky top-0 z-10">
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                     <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Current Price</th>

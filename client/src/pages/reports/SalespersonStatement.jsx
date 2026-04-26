@@ -181,7 +181,7 @@ export default function SalespersonStatement() {
       <div className="ddm-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-emerald-700">
+            <thead className="bg-emerald-700 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
