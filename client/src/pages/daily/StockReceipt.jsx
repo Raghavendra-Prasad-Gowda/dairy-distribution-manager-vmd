@@ -490,11 +490,13 @@ export default function StockReceipt() {
                   Total
                 </td>
                 {isNandini ? (
-                  /* Route columns — span them with empty cells then show totals */
+                  /* Span all 4 route columns to show total units, then empty Rate cell */
                   <>
-                    {ROUTE_LABELS.map((_, ri) => (
-                      <td key={ri} className="bg-emerald-800 px-2 py-3" />
-                    ))}
+                    <td colSpan={ROUTE_LABELS.length} className="bg-emerald-800 px-4 py-3 text-center">
+                      <span className="text-xs font-bold text-white tabular-nums">
+                        {totalUnits > 0 ? totalUnits : '—'}
+                      </span>
+                    </td>
                     <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
                   </>
                 ) : (
