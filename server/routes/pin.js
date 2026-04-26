@@ -11,7 +11,7 @@ router.post('/verify', asyncHandler(async (req, res) => {
   const correct = process.env.EDIT_PIN ?? '1234';
 
   if (!pin || String(pin) !== String(correct)) {
-    return res.status(401).json({ success: false, error: 'Incorrect PIN' });
+    return res.status(400).json({ success: false, error: 'Incorrect PIN' });
   }
 
   res.json({ success: true });
