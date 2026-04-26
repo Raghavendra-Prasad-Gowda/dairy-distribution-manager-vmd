@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -84,7 +84,8 @@ export default function DairyPayments() {
   // Delete confirm state
   const [deleteId, setDeleteId]         = useState(null);
 
-  // Filter state
+  // Search + filter state
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterFrom, setFilterFrom]   = useState('');
   const [filterTo,   setFilterTo]     = useState('');
   const [filterMode, setFilterMode]   = useState('');
@@ -203,20 +204,29 @@ export default function DairyPayments() {
   };
 
   const hasFilters = filterFrom || filterTo || filterMode || filterRef;
+  const hasSearch  = searchQuery.trim().length > 0;
 
   const filteredPayments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return payments.filter(p => {
       const dateStr = p.paymentDate?.slice(0, 10) ?? '';
       if (filterFrom && dateStr < filterFrom) return false;
       if (filterTo   && dateStr > filterTo)   return false;
       if (filterMode && p.paymentMode !== filterMode) return false;
       if (filterRef  && !(p.reference ?? '').toLowerCase().includes(filterRef.toLowerCase())) return false;
+      if (q) {
+        const amount   = String(p.amount ?? '');
+        const ref      = (p.reference ?? '').toLowerCase();
+        const mode     = (p.paymentMode ?? '').toLowerCase();
+        const date     = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).toLowerCase();
+        if (!amount.includes(q) && !ref.includes(q) && !mode.includes(q) && !date.includes(q)) return false;
+      }
       return true;
     });
-  }, [payments, filterFrom, filterTo, filterMode, filterRef]);
+  }, [payments, searchQuery, filterFrom, filterTo, filterMode, filterRef]);
 
-  // Reset to page 1 when filters change
-  useEffect(() => { setHistoryPage(1); }, [filterFrom, filterTo, filterMode, filterRef, activeBrandId]);
+  // Reset to page 1 when filters/search change
+  useEffect(() => { setHistoryPage(1); }, [searchQuery, filterFrom, filterTo, filterMode, filterRef, activeBrandId]);
 
   const historyTotalPages = Math.max(1, Math.ceil(filteredPayments.length / HISTORY_PER_PAGE));
   const pagedPayments = filteredPayments.slice(
@@ -291,28 +301,46 @@ export default function DairyPayments() {
               <div className="lg:col-span-2 order-2 lg:order-2">
                 <div className="ddm-card overflow-hidden">
 
-                  {/* Header + filter toggle */}
-                  <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-slate-200">
-                    <h3 className="font-bold text-slate-900 text-sm">
-                      Payment History
-                      {filteredPayments.length !== payments.length && (
-                        <span className="ml-2 text-xs font-normal text-slate-400">
-                          ({filteredPayments.length} of {payments.length})
-                        </span>
+                  {/* Header + search + filter toggle */}
+                  <div className="px-4 py-3 bg-white border-b border-slate-200 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900 text-sm">
+                        Payment History
+                        {(hasSearch || hasFilters) && filteredPayments.length !== payments.length && (
+                          <span className="ml-2 text-xs font-normal text-slate-400">
+                            ({filteredPayments.length} of {payments.length})
+                          </span>
+                        )}
+                      </h3>
+                      <button
+                        onClick={() => setShowFilter(v => !v)}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
+                          showFilter || hasFilters
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
+                        }`}
+                      >
+                        <Filter size={12} />
+                        Filter
+                        {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+                      </button>
+                    </div>
+                    {/* Quick search */}
+                    <div className="relative">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Search by amount, mode, reference, date…"
+                        className="w-full pl-8 pr-8 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50 placeholder:text-slate-400"
+                      />
+                      {hasSearch && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X size={12} />
+                        </button>
                       )}
-                    </h3>
-                    <button
-                      onClick={() => setShowFilter(v => !v)}
-                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
-                        showFilter || hasFilters
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
-                      }`}
-                    >
-                      <Filter size={12} />
-                      Filter
-                      {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
-                    </button>
+                    </div>
                   </div>
 
                   {/* Filter controls */}
