@@ -46,11 +46,15 @@ export default function PaymentForm({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ ...form, amount: parseFloat(form.amount) });
+    const amt = parseFloat(form.amount);
+    if (hasBalance && amt > closingBalance) return; // guard — button should be disabled anyway
+    onSubmit({ ...form, amount: amt });
     setForm(blankForm);
   };
 
   const hasBalance = closingBalance > 0;
+  const enteredAmount = parseFloat(form.amount) || 0;
+  const isExcess = hasBalance && enteredAmount > closingBalance;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -68,9 +72,16 @@ export default function PaymentForm({
             step="0.01"
             min="0.01"
             required
-            className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
+            className={`w-full pl-8 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 bg-white tabular-nums ${isExcess ? 'border-red-400 focus:ring-red-400 text-red-600' : 'border-slate-200 focus:ring-emerald-400'}`}
           />
         </div>
+
+        {/* Excess payment warning */}
+        {isExcess && (
+          <p className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
+            ⚠ Exceeds outstanding balance of {formatCurrency(closingBalance)}
+          </p>
+        )}
 
         {/* Quick-fill buttons */}
         {hasBalance && (
@@ -126,7 +137,7 @@ export default function PaymentForm({
           className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
       </div>
 
-      <button type="submit" disabled={loading || !form.amount} className="ddm-btn-primary w-full justify-center">
+      <button type="submit" disabled={loading || !form.amount || isExcess} className="ddm-btn-primary w-full justify-center">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard size={15} />}
         {loading ? 'Recording…' : submitLabel}
       </button>

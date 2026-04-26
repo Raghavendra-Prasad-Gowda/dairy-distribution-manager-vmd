@@ -230,7 +230,7 @@ export default function DairyPayments() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
               {/* ── Left column: balance card + form ───────────────── */}
-              <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
+              <div className="lg:col-span-1 space-y-4 order-1 lg:order-1">
 
                 {balance && (
                   <BrandBalanceCard
@@ -253,7 +253,7 @@ export default function DairyPayments() {
               </div>
 
               {/* ── Right column: history ───────────────────────────── */}
-              <div className="lg:col-span-2 order-1 lg:order-2">
+              <div className="lg:col-span-2 order-2 lg:order-2">
                 <div className="ddm-card overflow-hidden">
 
                   {/* Header + filter toggle */}
