@@ -297,12 +297,11 @@ export default function StockReceipt() {
         )}
 
         {/* ── Product table ───────────────────────────────── */}
-        <div className="mx-4 mt-3 mb-4 bg-white rounded-2xl overflow-hidden border border-slate-200">
-          <div className="overflow-x-auto">
+        <div className="mx-4 mt-3 mb-4 rounded-2xl border border-slate-200 overflow-x-auto">
             <table className="min-w-full text-sm border-separate border-spacing-0">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
                   {isNandini ? (
                     <>
                       {ROUTE_LABELS.map(label => (
@@ -318,7 +317,7 @@ export default function StockReceipt() {
                       <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
                     </>
                   )}
-                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-2xl">Amount</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -464,7 +463,6 @@ export default function StockReceipt() {
                 )}
               </tbody>
             </table>
-          </div>
         </div>
       </div>
 
