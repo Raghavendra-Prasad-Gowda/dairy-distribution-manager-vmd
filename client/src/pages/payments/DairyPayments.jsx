@@ -70,12 +70,12 @@ export default function DairyPayments() {
   const [loading, setLoading]      = useState(false);
   const [saving, setSaving]        = useState(false);
 
-  // PIN modal state
+  // PIN modal state — single gate for both edit and delete
   const [pinOpen, setPinOpen]           = useState(false);
-  const [pendingEdit, setPendingEdit]   = useState(null);  // payment waiting for PIN
+  const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
 
   // Edit modal state
-  const [editPayment, setEditPayment]   = useState(null);   // payment being edited
+  const [editPayment, setEditPayment]   = useState(null);
   const [editForm, setEditForm]         = useState({});
   const [editSaving, setEditSaving]     = useState(false);
 
@@ -148,21 +148,30 @@ export default function DairyPayments() {
   };
 
   const openEdit = (p) => {
-    setPendingEdit(p);
+    setPendingAction({ type: 'edit', payment: p });
+    setPinOpen(true);
+  };
+
+  const openDelete = (p) => {
+    setPendingAction({ type: 'delete', payment: p });
     setPinOpen(true);
   };
 
   const onPinSuccess = () => {
-    const p = pendingEdit;
-    if (!p) return;
-    setEditPayment(p);
-    setEditForm({
-      amount:      String(p.amount ?? ''),
-      paymentDate: p.paymentDate?.slice(0, 10) ?? today,
-      paymentMode: p.paymentMode ?? 'Cash',
-      reference:   p.reference ?? '',
-    });
-    setPendingEdit(null);
+    if (!pendingAction) return;
+    const { type, payment: p } = pendingAction;
+    if (type === 'edit') {
+      setEditPayment(p);
+      setEditForm({
+        amount:      String(p.amount ?? ''),
+        paymentDate: p.paymentDate?.slice(0, 10) ?? today,
+        paymentMode: p.paymentMode ?? 'Cash',
+        reference:   p.reference ?? '',
+      });
+    } else if (type === 'delete') {
+      setDeleteId(p.id);
+    }
+    setPendingAction(null);
   };
 
   const handleEditSave = async () => {
@@ -385,7 +394,7 @@ export default function DairyPayments() {
                                     <button onClick={() => openEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
                                       <Pencil size={12} />
                                     </button>
-                                    <button onClick={() => setDeleteId(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                    <button onClick={() => openDelete(p)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                                       <Trash2 size={12} />
                                     </button>
                                   </div>
@@ -431,7 +440,7 @@ export default function DairyPayments() {
       {/* ── PIN modal ────────────────────────────────────────── */}
       <PinModal
         isOpen={pinOpen}
-        onClose={() => { setPinOpen(false); setPendingEdit(null); }}
+        onClose={() => { setPinOpen(false); setPendingAction(null); }}
         onSuccess={onPinSuccess}
         title="Enter PIN to Edit Payment"
       />
