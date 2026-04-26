@@ -200,7 +200,7 @@ export default function StockReceipt() {
   const isOwing = balance.closing > 0;
 
   return (
-    <div className="flex flex-col h-full bg-slate-100">
+    <div className="flex flex-col min-h-full bg-slate-100">
       {/* ── Saving overlay ──────────────────────────────────── */}
       {saving && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -318,7 +318,7 @@ export default function StockReceipt() {
 
       {/* ── Table — flex-1 own scroll context, sticky thead works here ── */}
       {products.length > 0 && (
-        <div className="flex-1 min-h-0 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
+        <div className="flex-1 min-h-[420px] mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
           <table className="min-w-full text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr>
