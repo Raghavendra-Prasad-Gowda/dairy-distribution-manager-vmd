@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
@@ -63,6 +64,7 @@ function BrandBalanceCard({ brandName, opening, stockValue, paid, closing }) {
 
 export default function DairyPayments() {
   const { notify } = useNotification();
+  const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
   const [balance, setBalance]      = useState(null);
@@ -96,8 +98,16 @@ export default function DairyPayments() {
   const today = getIndiaDate();
 
   useEffect(() => {
+    const preferredId = searchParams.get('brandId');
     api.get('/brands')
-      .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .then(r => {
+        const b = r.data.data;
+        setBrands(b);
+        if (b.length) {
+          const match = preferredId && b.find(x => String(x.id) === String(preferredId));
+          setActive(match ? match.id : b[0].id);
+        }
+      })
       .catch(() => notify('Failed to load brands', 'error'));
   }, []);
 
