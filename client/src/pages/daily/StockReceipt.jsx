@@ -267,9 +267,9 @@ export default function StockReceipt() {
                 <tr>
                   <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                   <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
-                  <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                  <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
-                  <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -359,15 +359,15 @@ export default function StockReceipt() {
                                     <span className="text-xs text-slate-400">{unitLabel}</span>
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
                                   ₹{Number(p.costPrice).toFixed(2)}
                                 </td>
-                                <td className="px-4 py-3 text-right">
+                                <td className="px-4 py-3 text-center">
                                   <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
                                     {containerLabel}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-right">
+                                <td className="px-4 py-3 text-center">
                                   <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
                                     {filled ? formatCurrency(amount) : '₹0.00'}
                                   </span>
