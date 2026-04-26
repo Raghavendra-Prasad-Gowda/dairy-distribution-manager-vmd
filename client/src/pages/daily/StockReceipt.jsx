@@ -225,9 +225,9 @@ export default function StockReceipt() {
         <DateSelector date={date} onChange={setDate} dark />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      {/* ── Balance summary card + action bar (fixed, non-scrolling) ── */}
+      <div className="flex-shrink-0">
 
-        {/* ── Balance summary card ─────────────────────────── */}
         {activeBrand && (
           <div className="mx-4 mt-4 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }}>
             <div className="px-4 pt-4 pb-3">
@@ -315,8 +315,11 @@ export default function StockReceipt() {
           </div>
         )}
 
-        {/* ── Product table ───────────────────────────────── */}
-        <div className="mx-4 mt-3 mb-4 rounded-2xl border border-slate-200 overflow-x-auto">
+      </div>{/* end fixed top section */}
+
+      {/* ── Table — flex-1 own scroll context, sticky thead works here ── */}
+      {products.length > 0 && (
+        <div className="flex-1 min-h-0 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
           <table className="min-w-full text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr>
@@ -482,7 +485,7 @@ export default function StockReceipt() {
             </tbody>
           </table>
         </div>
-      </div>
+      )}
     </div>
   );
 }
