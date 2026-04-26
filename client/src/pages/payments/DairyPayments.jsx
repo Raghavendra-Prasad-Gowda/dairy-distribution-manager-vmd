@@ -313,7 +313,7 @@ export default function DairyPayments() {
                         <div className="relative">
                           <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                           <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
-                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none" />
                         </div>
                       </div>
                       <div>
@@ -321,7 +321,7 @@ export default function DairyPayments() {
                         <div className="relative">
                           <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
-                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none" />
                         </div>
                       </div>
                       <div>
@@ -493,7 +493,7 @@ export default function DairyPayments() {
                 <input type="date"
                   value={editForm.paymentDate}
                   onChange={e => setEditForm(f => ({ ...f, paymentDate: e.target.value }))}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none"
                 />
               </div>
 
