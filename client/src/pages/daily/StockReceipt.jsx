@@ -378,24 +378,6 @@ export default function StockReceipt() {
                         </React.Fragment>
                       );
                     })}
-                    {/* Grand total row */}
-                    <tr className="bg-emerald-800">
-                      <td className="px-4 py-3 text-sm font-bold text-white" colSpan={2}>
-                        Grand Total
-                        {totalUnits > 0 && (
-                          <span className="ml-2 text-xs font-medium text-emerald-300 tabular-nums">{totalUnits} units</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3" />
-                      <td className="px-4 py-3 text-right text-xs font-medium text-emerald-300 tabular-nums whitespace-nowrap">
-                        {totalCrates > 0
-                          ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} ${crateLabel}`
-                          : ''}
-                      </td>
-                      <td className="px-4 py-3 text-right text-sm font-bold text-amber-300 tabular-nums whitespace-nowrap">
-                        {formatCurrency(totalAmount)}
-                      </td>
-                    </tr>
                   </>
                 )}
               </tbody>
