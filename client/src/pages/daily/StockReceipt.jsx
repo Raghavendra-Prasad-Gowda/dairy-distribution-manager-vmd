@@ -205,17 +205,17 @@ export default function StockReceipt() {
       )}
 
       {/* ── Page header ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
         <div className="flex items-center gap-2.5">
-          <Package size={17} className="text-emerald-600 flex-shrink-0" />
+          <Package size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
-            <h1 className="text-sm font-bold text-slate-900 leading-tight">
+            <h1 className="text-sm font-bold text-white leading-tight">
               {activeBrand ? `${activeBrand.name} Stock Receipt` : 'Stock Receipt'}
             </h1>
-            <p className="text-slate-400 text-xs">Enter quantities received from dairy</p>
+            <p className="text-emerald-300 text-xs">Enter quantities received from dairy</p>
           </div>
         </div>
-        <DateSelector date={date} onChange={setDate} />
+        <DateSelector date={date} onChange={setDate} dark />
       </div>
 
       <div className="flex-1 overflow-auto">
