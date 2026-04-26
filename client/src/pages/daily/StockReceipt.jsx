@@ -483,6 +483,45 @@ export default function StockReceipt() {
                 </>
               )}
             </tbody>
+
+            {/* ── Sticky footer totals ── */}
+            <tfoot className="sticky bottom-0 z-10">
+              <tr>
+                <td className="bg-emerald-800 px-4 py-3 text-xs font-bold text-white rounded-bl-2xl">
+                  Total
+                </td>
+                {isNandini ? (
+                  /* Route columns — span them with empty cells then show totals */
+                  <>
+                    {ROUTE_LABELS.map((_, ri) => (
+                      <td key={ri} className="bg-emerald-800 px-2 py-3" />
+                    ))}
+                    <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
+                  </>
+                ) : (
+                  <>
+                    <td className="bg-emerald-800 px-4 py-3 text-center">
+                      <span className="text-xs font-bold text-white tabular-nums">
+                        {totalUnits > 0 ? totalUnits : '—'}
+                      </span>
+                    </td>
+                    <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
+                  </>
+                )}
+                <td className="bg-emerald-800 px-4 py-3 text-center">
+                  <span className="text-xs font-bold text-white tabular-nums">
+                    {totalCrates > 0
+                      ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} ${crateLabel}`
+                      : '—'}
+                  </span>
+                </td>
+                <td className="bg-emerald-800 px-4 py-3 text-center rounded-br-2xl">
+                  <span className="text-sm font-bold text-amber-300 tabular-nums">
+                    {totalAmount > 0 ? formatCurrency(totalAmount) : '—'}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
