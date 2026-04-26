@@ -6,6 +6,8 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
+const ROUTE_LABELS = ['Route 1', 'Route 2', 'Route 3', 'Route 4'];
+
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
   if (!containerType || !unitsPerContainer || !units) return '—';
@@ -23,13 +25,25 @@ export default function StockReceipt() {
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
   const [categories, setCategories]   = useState([]);
-  const [quantities, setQuantities]   = useState({});  // stores individual units (user input)
+  const [quantities, setQuantities]   = useState({});    // single qty per product (non-Nandini)
+  const [routeQty, setRouteQty]       = useState({});    // { [productId]: ['','','',''] } (Nandini)
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState('');
   const inputRefs = useRef({});
+
+  const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
+  const COL_COUNT = isNandini ? 6 : 5;
+
+  // Effective qty for a product — sum of routes (Nandini) or single value (others)
+  const getEffectiveQty = (productId) => {
+    if (isNandini) {
+      return (routeQty[productId] ?? []).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+    }
+    return parseFloat(quantities[productId]) || 0;
+  };
 
   useEffect(() => {
     api.get('/brands')
@@ -73,12 +87,21 @@ export default function StockReceipt() {
       .then(([prodRes, receiptRes]) => {
         const prods = prodRes.data.data.filter(p => p.showInStockReceipt !== false);
         setProducts(prods);
+
+        // Single-quantity state (non-Nandini)
         const qty = {};
         for (const p of prods) qty[p.id] = '';
-        for (const r of receiptRes.data.data) {
-          qty[r.productId] = String(r.quantity);
-        }
+        for (const r of receiptRes.data.data) qty[r.productId] = String(r.quantity);
         setQuantities(qty);
+
+        // Route-quantity state (Nandini) — pre-fill existing total into Route 1
+        const routes = {};
+        for (const p of prods) routes[p.id] = ['', '', '', ''];
+        for (const r of receiptRes.data.data) {
+          if (routes[r.productId]) routes[r.productId][0] = String(r.quantity);
+        }
+        setRouteQty(routes);
+
         setCollapsedCategories({});
       })
       .catch(() => notify('Failed to load products', 'error'))
@@ -102,10 +125,7 @@ export default function StockReceipt() {
       return acc;
     }, {});
 
-    // Sort category groups by their displayOrder from the Category model
-    const catOrderMap = Object.fromEntries(
-      categories.map(c => [c.name, c.displayOrder])
-    );
+    const catOrderMap = Object.fromEntries(categories.map(c => [c.name, c.displayOrder]));
     return Object.entries(grouped).sort(([a], [b]) => {
       const oa = catOrderMap[a] ?? 9999;
       const ob = catOrderMap[b] ?? 9999;
@@ -115,7 +135,9 @@ export default function StockReceipt() {
 
   const allFiltered = filteredGrouped.flatMap(([, items]) => items);
 
+  // Enter/Tab navigation — only used in non-Nandini mode (single input per row)
   const handleKeyDown = (e, productId) => {
+    if (isNandini) return;
     if (e.key === 'Enter' || e.key === 'Tab') {
       const idx = allFiltered.findIndex(p => p.id === productId);
       if (idx < allFiltered.length - 1) {
@@ -127,10 +149,10 @@ export default function StockReceipt() {
 
   const handleSave = async () => {
     const items = products
-      .filter(p => quantities[p.id] && parseFloat(quantities[p.id]) > 0)
+      .filter(p => getEffectiveQty(p.id) > 0)
       .map(p => ({
         productId: p.id,
-        quantity:  parseFloat(quantities[p.id]),
+        quantity:  getEffectiveQty(p.id),
         unitPrice: Number(p.costPrice),
       }));
 
@@ -151,28 +173,23 @@ export default function StockReceipt() {
     }
   };
 
-  const totalAmount = products.reduce((s, p) => {
-    const inputVal = parseFloat(quantities[p.id]) || 0;
-    return s + inputVal * Number(p.costPrice);
-  }, 0);
-
-  const totalUnits = products.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0), 0);
+  const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
+  const totalUnits  = products.reduce((s, p) => s + getEffectiveQty(p.id), 0);
 
   const totalCrates = products.reduce((s, p) => {
-    const units = parseFloat(quantities[p.id]) || 0;
+    const units = getEffectiveQty(p.id);
     if (!p.containerType || !p.unitsPerContainer || !units) return s;
     return s + units / p.unitsPerContainer;
   }, 0);
 
-  // Determine predominant container label for the totals footer
   const containerTypes = products
-    .filter(p => p.containerType && p.unitsPerContainer && (parseFloat(quantities[p.id]) || 0) > 0)
+    .filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0)
     .map(p => p.containerType);
   const crateLabel = containerTypes.length > 0
     ? (containerTypes[0].charAt(0).toUpperCase() + containerTypes[0].slice(1)) + 's'
     : 'Crates';
 
-  const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
+  const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
   const isOwing = balance.closing > 0;
 
   return (
@@ -266,40 +283,40 @@ export default function StockReceipt() {
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
-                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                  <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                  {isNandini ? (
+                    ROUTE_LABELS.map(label => (
+                      <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
+                    ))
+                  ) : (
+                    <>
+                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
+                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                    </>
+                  )}
                   <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
                 {loading ? (
-                  <tr>
-                    <td colSpan={5} className="py-20 text-center">
-                      <Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" />
-                    </td>
-                  </tr>
+                  <tr><td colSpan={COL_COUNT} className="py-20 text-center"><Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" /></td></tr>
                 ) : !activeBrand ? (
-                  <tr>
-                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td>
-                  </tr>
+                  <tr><td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td></tr>
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm px-4">
+                    <td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm px-4">
                       No active products for {activeBrand.name}.<br />
                       <span className="text-xs">Add them in Dairy → Product Setup.</span>
                     </td>
                   </tr>
                 ) : filteredGrouped.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
-                  </tr>
+                  <tr><td colSpan={COL_COUNT} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td></tr>
                 ) : (
                   <>
                     {filteredGrouped.map(([category, items], catIdx) => {
                       const isCollapsed = collapsedCategories[category] ?? (catIdx !== 0);
-                      const catAmount   = items.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0) * Number(p.costPrice), 0);
-                      const catFilled   = items.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
+                      const catAmount   = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
+                      const catFilled   = items.filter(p => getEffectiveQty(p.id) > 0).length;
 
                       return (
                         <React.Fragment key={category}>
@@ -308,7 +325,7 @@ export default function StockReceipt() {
                             className="cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
                             onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
                           >
-                            <td colSpan={5} className="px-4 py-2.5 border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
+                            <td colSpan={COL_COUNT} className="px-4 py-2.5 border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
                               <div className="flex items-center gap-2">
                                 {isCollapsed
                                   ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
@@ -324,16 +341,16 @@ export default function StockReceipt() {
                               </div>
                             </td>
                           </tr>
+
                           {/* Product rows */}
                           {!isCollapsed && items.map((p) => {
-                            const inputVal       = parseFloat(quantities[p.id]) || 0;
-                            const containerLabel = calcContainerDisplay(inputVal, p.containerType, p.unitsPerContainer);
-                            const amount         = inputVal * Number(p.costPrice);
-                            const filled         = inputVal > 0;
-                            const unitLabel      = p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units';
+                            const effectiveQty   = getEffectiveQty(p.id);
+                            const amount         = effectiveQty * Number(p.costPrice);
+                            const filled         = effectiveQty > 0;
 
                             return (
                               <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
+                                {/* Product name */}
                                 <td className="px-4 py-3 text-sm font-semibold text-slate-800">
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     {p.name}
@@ -342,31 +359,62 @@ export default function StockReceipt() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-center">
-                                  <div className="inline-flex items-center gap-1.5">
-                                    <input
-                                      ref={el => { inputRefs.current[p.id] = el; }}
-                                      type="number"
-                                      inputMode="decimal"
-                                      value={quantities[p.id] ?? ''}
-                                      onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                      onKeyDown={e => handleKeyDown(e, p.id)}
-                                      step="1"
-                                      min="0"
-                                      placeholder="0"
-                                      className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                    />
-                                    <span className="text-xs text-slate-400">{unitLabel}</span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                                  ₹{Number(p.costPrice).toFixed(2)}
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                    {containerLabel}
-                                  </span>
-                                </td>
+
+                                {isNandini ? (
+                                  /* 4 route quantity inputs */
+                                  ROUTE_LABELS.map((_, ri) => (
+                                    <td key={ri} className="px-2 py-3 text-center">
+                                      <input
+                                        ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={routeQty[p.id]?.[ri] ?? ''}
+                                        onChange={e => setRouteQty(prev => {
+                                          const updated = [...(prev[p.id] ?? ['', '', '', ''])];
+                                          updated[ri] = e.target.value;
+                                          return { ...prev, [p.id]: updated };
+                                        })}
+                                        step="1"
+                                        min="0"
+                                        placeholder="0"
+                                        className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                      />
+                                    </td>
+                                  ))
+                                ) : (
+                                  /* Single quantity input + rate + crates */
+                                  <>
+                                    <td className="px-4 py-3 text-center">
+                                      <div className="inline-flex items-center gap-1.5">
+                                        <input
+                                          ref={el => { inputRefs.current[p.id] = el; }}
+                                          type="number"
+                                          inputMode="decimal"
+                                          value={quantities[p.id] ?? ''}
+                                          onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                          onKeyDown={e => handleKeyDown(e, p.id)}
+                                          step="1"
+                                          min="0"
+                                          placeholder="0"
+                                          className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                        />
+                                        <span className="text-xs text-slate-400">
+                                          {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                      ₹{Number(p.costPrice).toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                        {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                      </span>
+                                    </td>
+                                  </>
+                                )}
+
+                                {/* Amount (always shown) */}
                                 <td className="px-4 py-3 text-center">
                                   <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
                                     {filled ? formatCurrency(amount) : '₹0.00'}
