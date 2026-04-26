@@ -182,6 +182,9 @@ export default function StockReceipt() {
 
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
   const totalUnits  = products.reduce((s, p) => s + getEffectiveQty(p.id), 0);
+  const routeTotals = ROUTE_LABELS.map((_, ri) =>
+    products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0)
+  );
 
   const totalCrates = products.reduce((s, p) => {
     const units = getEffectiveQty(p.id);
@@ -490,13 +493,15 @@ export default function StockReceipt() {
                   Total
                 </td>
                 {isNandini ? (
-                  /* Span all 4 route columns to show total units, then empty Rate cell */
+                  /* Per-route totals, then empty Rate cell */
                   <>
-                    <td colSpan={ROUTE_LABELS.length} className="bg-emerald-800 px-4 py-3 text-center">
-                      <span className="text-xs font-bold text-white tabular-nums">
-                        {totalUnits > 0 ? totalUnits : '—'}
-                      </span>
-                    </td>
+                    {ROUTE_LABELS.map((_, ri) => (
+                      <td key={ri} className="bg-emerald-800 px-2 py-3 text-center">
+                        <span className="text-xs font-bold text-white tabular-nums">
+                          {routeTotals[ri] > 0 ? routeTotals[ri] : '—'}
+                        </span>
+                      </td>
+                    ))}
                     <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
                   </>
                 ) : (
