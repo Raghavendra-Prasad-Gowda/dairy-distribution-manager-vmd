@@ -35,7 +35,7 @@ export default function StockReceipt() {
   const inputRefs = useRef({});
 
   const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
-  const COL_COUNT = isNandini ? 6 : 5;
+  const COL_COUNT = isNandini ? 8 : 5;
 
   // Effective qty for a product — sum of routes (Nandini) or single value (others)
   const getEffectiveQty = (productId) => {
@@ -284,9 +284,13 @@ export default function StockReceipt() {
                 <tr>
                   <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                   {isNandini ? (
-                    ROUTE_LABELS.map(label => (
-                      <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
-                    ))
+                    <>
+                      {ROUTE_LABELS.map(label => (
+                        <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
+                      ))}
+                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                      <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                    </>
                   ) : (
                     <>
                       <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
@@ -361,26 +365,36 @@ export default function StockReceipt() {
                                 </td>
 
                                 {isNandini ? (
-                                  /* 4 route quantity inputs */
-                                  ROUTE_LABELS.map((_, ri) => (
-                                    <td key={ri} className="px-2 py-3 text-center">
-                                      <input
-                                        ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={routeQty[p.id]?.[ri] ?? ''}
-                                        onChange={e => setRouteQty(prev => {
-                                          const updated = [...(prev[p.id] ?? ['', '', '', ''])];
-                                          updated[ri] = e.target.value;
-                                          return { ...prev, [p.id]: updated };
-                                        })}
-                                        step="1"
-                                        min="0"
-                                        placeholder="0"
-                                        className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                      />
+                                  /* 4 route quantity inputs + rate + crates */
+                                  <>
+                                    {ROUTE_LABELS.map((_, ri) => (
+                                      <td key={ri} className="px-2 py-3 text-center">
+                                        <input
+                                          ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
+                                          type="number"
+                                          inputMode="decimal"
+                                          value={routeQty[p.id]?.[ri] ?? ''}
+                                          onChange={e => setRouteQty(prev => {
+                                            const updated = [...(prev[p.id] ?? ['', '', '', ''])];
+                                            updated[ri] = e.target.value;
+                                            return { ...prev, [p.id]: updated };
+                                          })}
+                                          step="1"
+                                          min="0"
+                                          placeholder="0"
+                                          className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                        />
+                                      </td>
+                                    ))}
+                                    <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                      ₹{Number(p.costPrice).toFixed(2)}
                                     </td>
-                                  ))
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                        {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                      </span>
+                                    </td>
+                                  </>
                                 ) : (
                                   /* Single quantity input + rate + crates */
                                   <>
