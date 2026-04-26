@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Loader2, Package, TrendingUp, Search, X } from 'lucide-react';
+import { Save, Loader2, Package, TrendingUp, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
+
+const ROUTE_LABELS = ['Route 1', 'Route 2', 'Route 3', 'Route 4'];
 
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
@@ -23,12 +25,24 @@ export default function StockReceipt() {
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
   const [categories, setCategories]   = useState([]);
-  const [quantities, setQuantities]   = useState({});  // stores individual units (user input)
+  const [quantities, setQuantities]   = useState({});
+  const [routeQty, setRouteQty]       = useState({});
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
+  const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState('');
   const inputRefs = useRef({});
+
+  const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
+  const COL_COUNT = isNandini ? 8 : 5;
+
+  const getEffectiveQty = (productId) => {
+    if (isNandini) {
+      return (routeQty[productId] ?? []).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+    }
+    return parseFloat(quantities[productId]) || 0;
+  };
 
   useEffect(() => {
     api.get('/brands')
@@ -72,18 +86,25 @@ export default function StockReceipt() {
       .then(([prodRes, receiptRes]) => {
         const prods = prodRes.data.data.filter(p => p.showInStockReceipt !== false);
         setProducts(prods);
+
         const qty = {};
         for (const p of prods) qty[p.id] = '';
-        for (const r of receiptRes.data.data) {
-          qty[r.productId] = String(r.quantity);
-        }
+        for (const r of receiptRes.data.data) qty[r.productId] = String(r.quantity);
         setQuantities(qty);
+
+        const routes = {};
+        for (const p of prods) routes[p.id] = ['', '', '', ''];
+        for (const r of receiptRes.data.data) {
+          if (routes[r.productId]) routes[r.productId][0] = String(r.quantity);
+        }
+        setRouteQty(routes);
+
+        setCollapsedCategories({});
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
   }, [activeBrand, date]);
 
-  // Group products by category, apply search filter, sort by category displayOrder
   const filteredGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
@@ -100,10 +121,7 @@ export default function StockReceipt() {
       return acc;
     }, {});
 
-    // Sort category groups by their displayOrder from the Category model
-    const catOrderMap = Object.fromEntries(
-      categories.map(c => [c.name, c.displayOrder])
-    );
+    const catOrderMap = Object.fromEntries(categories.map(c => [c.name, c.displayOrder]));
     return Object.entries(grouped).sort(([a], [b]) => {
       const oa = catOrderMap[a] ?? 9999;
       const ob = catOrderMap[b] ?? 9999;
@@ -114,6 +132,7 @@ export default function StockReceipt() {
   const allFiltered = filteredGrouped.flatMap(([, items]) => items);
 
   const handleKeyDown = (e, productId) => {
+    if (isNandini) return;
     if (e.key === 'Enter' || e.key === 'Tab') {
       const idx = allFiltered.findIndex(p => p.id === productId);
       if (idx < allFiltered.length - 1) {
@@ -125,10 +144,10 @@ export default function StockReceipt() {
 
   const handleSave = async () => {
     const items = products
-      .filter(p => quantities[p.id] && parseFloat(quantities[p.id]) > 0)
+      .filter(p => getEffectiveQty(p.id) > 0)
       .map(p => ({
         productId: p.id,
-        quantity:  parseFloat(quantities[p.id]),
+        quantity:  getEffectiveQty(p.id),
         unitPrice: Number(p.costPrice),
       }));
 
@@ -149,28 +168,38 @@ export default function StockReceipt() {
     }
   };
 
-  const totalAmount = products.reduce((s, p) => {
-    const inputVal = parseFloat(quantities[p.id]) || 0;
-    return s + inputVal * Number(p.costPrice);
-  }, 0);
+  const expandAll = () => {
+    const next = {};
+    filteredGrouped.forEach(([cat]) => { next[cat] = false; });
+    setCollapsedCategories(next);
+  };
 
-  const totalUnits = products.reduce((s, p) => s + (parseFloat(quantities[p.id]) || 0), 0);
+  const collapseAll = () => {
+    const next = {};
+    filteredGrouped.forEach(([cat]) => { next[cat] = true; });
+    setCollapsedCategories(next);
+  };
+
+  const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
+  const totalUnits  = products.reduce((s, p) => s + getEffectiveQty(p.id), 0);
+  const routeTotals = ROUTE_LABELS.map((_, ri) =>
+    products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0)
+  );
 
   const totalCrates = products.reduce((s, p) => {
-    const units = parseFloat(quantities[p.id]) || 0;
+    const units = getEffectiveQty(p.id);
     if (!p.containerType || !p.unitsPerContainer || !units) return s;
     return s + units / p.unitsPerContainer;
   }, 0);
 
-  // Determine predominant container label for the totals footer
   const containerTypes = products
-    .filter(p => p.containerType && p.unitsPerContainer && (parseFloat(quantities[p.id]) || 0) > 0)
+    .filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0)
     .map(p => p.containerType);
   const crateLabel = containerTypes.length > 0
     ? (containerTypes[0].charAt(0).toUpperCase() + containerTypes[0].slice(1)) + 's'
     : 'Crates';
 
-  const filledCount = products.filter(p => (parseFloat(quantities[p.id]) || 0) > 0).length;
+  const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
   const isOwing = balance.closing > 0;
 
   return (
@@ -186,22 +215,22 @@ export default function StockReceipt() {
       )}
 
       {/* ── Page header ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
         <div className="flex items-center gap-2.5">
-          <Package size={17} className="text-emerald-600 flex-shrink-0" />
+          <Package size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
-            <h1 className="text-sm font-bold text-slate-900 leading-tight">
+            <h1 className="text-sm font-bold text-white leading-tight">
               {activeBrand ? `${activeBrand.name} Stock Receipt` : 'Stock Receipt'}
             </h1>
-            <p className="text-slate-400 text-xs">Enter quantities received from dairy</p>
+            <p className="text-emerald-300 text-xs">Enter quantities received from dairy</p>
           </div>
         </div>
-        <DateSelector date={date} onChange={setDate} />
+        <DateSelector date={date} onChange={setDate} dark />
       </div>
 
-      <div className="flex-1 overflow-auto">
+      {/* ── Balance summary card + action bar (fixed, non-scrolling) ── */}
+      <div className="flex-shrink-0">
 
-        {/* ── Balance summary card ─────────────────────────── */}
         {activeBrand && (
           <div className="mx-4 mt-4 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }}>
             <div className="px-4 pt-4 pb-3">
@@ -236,9 +265,10 @@ export default function StockReceipt() {
           </div>
         )}
 
-        {/* ── Search bar ──────────────────────────────────── */}
+        {/* ── Action bar (search + expand/collapse + save) ── */}
         {products.length > 0 && (
-          <div className="mx-4 mt-3">
+          <div className="mx-4 mt-3 bg-white rounded-2xl border border-slate-200 px-3 py-3 flex flex-col gap-2.5">
+            {/* Search */}
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -246,7 +276,7 @@ export default function StockReceipt() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search by product or category…"
-                className="w-full pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+                className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -254,141 +284,251 @@ export default function StockReceipt() {
                 </button>
               )}
             </div>
+
+            {/* Expand / Collapse row */}
+            {filteredGrouped.length > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={expandAll}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                >
+                  <ChevronsUpDown size={12} />
+                  Expand All
+                </button>
+                <button
+                  onClick={collapseAll}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                >
+                  <ChevronsDownUp size={12} />
+                  Collapse All
+                </button>
+              </div>
+            )}
+
+            {/* Save button — full width */}
+            <button
+              onClick={handleSave}
+              disabled={saving || loading || filledCount === 0}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
+            >
+              {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              {saving ? 'Saving…' : 'Save Receipt'}
+            </button>
           </div>
         )}
 
-        {/* ── Product table ───────────────────────────────── */}
-        <div className="mx-4 mt-3 mb-4 bg-white rounded-2xl overflow-hidden border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Units</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Crates/Boxes</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="py-20 text-center">
-                      <Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" />
-                    </td>
-                  </tr>
-                ) : !activeBrand ? (
-                  <tr>
-                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td>
-                  </tr>
-                ) : products.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-16 text-center text-slate-400 text-sm px-4">
-                      No active products for {activeBrand.name}.<br />
-                      <span className="text-xs">Add them in Dairy → Product Setup.</span>
-                    </td>
-                  </tr>
-                ) : filteredGrouped.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td>
-                  </tr>
+      </div>{/* end fixed top section */}
+
+      {/* ── Table — flex-1 own scroll context, sticky thead works here ── */}
+      {products.length > 0 && (
+        <div className="flex-1 min-h-0 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
+          <table className="min-w-full text-sm border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
+                {isNandini ? (
+                  <>
+                    {ROUTE_LABELS.map(label => (
+                      <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
+                    ))}
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                  </>
                 ) : (
-                  filteredGrouped.map(([category, items]) => (
-                    <React.Fragment key={category}>
-                      {/* Category header */}
-                      <tr className="cat-row bg-slate-50 border-l-4 border-emerald-400">
-                        <td colSpan={5} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                          {category}
-                        </td>
-                      </tr>
-                      {items.map((p) => {
-                        const inputVal       = parseFloat(quantities[p.id]) || 0;
-                        const containerLabel = calcContainerDisplay(inputVal, p.containerType, p.unitsPerContainer);
-                        const amount         = inputVal * Number(p.costPrice);
-                        const filled         = inputVal > 0;
-                        const unitLabel      = p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units';
-
-                        return (
-                          <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-3 text-sm font-semibold text-slate-800">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {p.name}
-                                <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                                  {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="inline-flex items-center gap-1.5">
-                                <input
-                                  ref={el => { inputRefs.current[p.id] = el; }}
-                                  type="number"
-                                  inputMode="decimal"
-                                  value={quantities[p.id] ?? ''}
-                                  onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                  onKeyDown={e => handleKeyDown(e, p.id)}
-                                  step="1"
-                                  min="0"
-                                  placeholder="0"
-                                  className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                />
-                                <span className="text-xs text-slate-400">{unitLabel}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                              ₹{Number(p.costPrice).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                {containerLabel}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
-                                {filled ? formatCurrency(amount) : '₹0.00'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))
+                  <>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
+                  </>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-2xl">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {loading ? (
+                <tr><td colSpan={COL_COUNT} className="py-20 text-center"><Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" /></td></tr>
+              ) : !activeBrand ? (
+                <tr><td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm">Brand not found.</td></tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={COL_COUNT} className="py-16 text-center text-slate-400 text-sm px-4">
+                    No active products for {activeBrand.name}.<br />
+                    <span className="text-xs">Add them in Dairy → Product Setup.</span>
+                  </td>
+                </tr>
+              ) : filteredGrouped.length === 0 ? (
+                <tr><td colSpan={COL_COUNT} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td></tr>
+              ) : (
+                <>
+                  {filteredGrouped.map(([category, items], catIdx) => {
+                    const isCollapsed  = collapsedCategories[category] ?? (catIdx !== 0);
+                    const catAmount    = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
+                    const catFilled    = items.filter(p => getEffectiveQty(p.id) > 0).length;
+                    const filledPct    = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
 
-      {/* ── Footer / Save bar ──────────────────────────────── */}
-      {!loading && products.length > 0 && (
-        <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center gap-3">
-          <div className="flex-1 flex items-center gap-4">
-            <div className="text-center">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Units</p>
-              <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">{totalUnits > 0 ? totalUnits : '—'}</p>
-            </div>
-            {totalCrates > 0 && (
-              <div className="text-center">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">{crateLabel}</p>
-                <p className="text-sm font-bold text-slate-800 tabular-nums leading-none">
-                  {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)}
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide leading-none mb-0.5">Total Amount</p>
-            <p className="text-base font-bold text-slate-800 tabular-nums leading-none">{formatCurrency(totalAmount)}</p>
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || loading || filledCount === 0}
-            className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
-          >
-            {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
-            {saving ? 'Saving…' : 'Save Receipt'}
-          </button>
+                    return (
+                      <React.Fragment key={category}>
+                        {/* Category header row */}
+                        <tr
+                          className="cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
+                          onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
+                        >
+                          <td colSpan={COL_COUNT} className="border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
+                            {/* Top line: name + items count + amount */}
+                            <div className="flex items-center gap-2 px-4 pt-2.5 pb-1">
+                              {isCollapsed
+                                ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
+                                : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                              }
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
+                              {catAmount > 0 && (
+                                <span className="ml-auto text-xs font-bold text-emerald-700 tabular-nums">
+                                  Receipt: {formatCurrency(catAmount)}
+                                </span>
+                              )}
+                            </div>
+                            {/* Bottom line: filled progress */}
+                            <div className="px-4 pb-2">
+                              <span className={`text-[10px] font-semibold tabular-nums ${filledPct === 100 ? 'text-emerald-600' : filledPct > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                {catFilled}/{items.length} FILLED ({filledPct}%)
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Product rows */}
+                        {!isCollapsed && items.map((p) => {
+                          const effectiveQty = getEffectiveQty(p.id);
+                          const amount       = effectiveQty * Number(p.costPrice);
+                          const filled       = effectiveQty > 0;
+
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
+                              {/* Product name + unit label below */}
+                              <td className="px-4 py-3">
+                                <div className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
+                                </div>
+                              </td>
+
+                              {isNandini ? (
+                                <>
+                                  {ROUTE_LABELS.map((_, ri) => (
+                                    <td key={ri} className="px-2 py-3 text-center">
+                                      <input
+                                        ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={routeQty[p.id]?.[ri] ?? ''}
+                                        onChange={e => setRouteQty(prev => {
+                                          const updated = [...(prev[p.id] ?? ['', '', '', ''])];
+                                          updated[ri] = e.target.value;
+                                          return { ...prev, [p.id]: updated };
+                                        })}
+                                        step="1"
+                                        min="0"
+                                        placeholder="0"
+                                        className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                      />
+                                    </td>
+                                  ))}
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                    ₹{Number(p.costPrice).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                    {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="px-4 py-3 text-center">
+                                    <div className="inline-flex items-center gap-1.5">
+                                      <input
+                                        ref={el => { inputRefs.current[p.id] = el; }}
+                                        type="number"
+                                        inputMode="decimal"
+                                        value={quantities[p.id] ?? ''}
+                                        onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                        onKeyDown={e => handleKeyDown(e, p.id)}
+                                        step="1"
+                                        min="0"
+                                        placeholder="0"
+                                        className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
+                                      />
+                                      <span className="text-xs text-slate-400">
+                                        {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                    ₹{Number(p.costPrice).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                    {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                  </td>
+                                </>
+                              )}
+
+                              <td className="px-4 py-3 text-center">
+                                <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
+                                  {filled ? formatCurrency(amount) : '₹0.00'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                </>
+              )}
+            </tbody>
+
+            {/* ── Sticky footer totals ── */}
+            <tfoot className="sticky bottom-0 z-10">
+              <tr>
+                <td className="bg-emerald-800 px-4 py-3 text-xs font-bold text-white rounded-bl-2xl">
+                  Total
+                </td>
+                {isNandini ? (
+                  /* Per-route totals, then empty Rate cell */
+                  <>
+                    {ROUTE_LABELS.map((_, ri) => (
+                      <td key={ri} className="bg-emerald-800 px-2 py-3 text-center">
+                        <span className="text-xs font-bold text-white tabular-nums">
+                          {routeTotals[ri] > 0 ? routeTotals[ri] : '—'}
+                        </span>
+                      </td>
+                    ))}
+                    <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
+                  </>
+                ) : (
+                  <>
+                    <td className="bg-emerald-800 px-4 py-3 text-center">
+                      <span className="text-xs font-bold text-white tabular-nums">
+                        {totalUnits > 0 ? totalUnits : '—'}
+                      </span>
+                    </td>
+                    <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
+                  </>
+                )}
+                <td className="bg-emerald-800 px-4 py-3 text-center">
+                  <span className="text-xs font-bold text-white tabular-nums">
+                    {totalCrates > 0
+                      ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} ${crateLabel}`
+                      : '—'}
+                  </span>
+                </td>
+                <td className="bg-emerald-800 px-4 py-3 text-center rounded-br-2xl">
+                  <span className="text-sm font-bold text-amber-300 tabular-nums">
+                    {totalAmount > 0 ? formatCurrency(totalAmount) : '—'}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
     </div>

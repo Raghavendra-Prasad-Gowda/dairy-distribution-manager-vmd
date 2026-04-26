@@ -29,16 +29,22 @@ export default function StockSummary() {
   const netAvailable    = totalReceived - totalDispatched;
 
   return (
-    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="flex flex-col h-full">
 
       {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Stock Summary</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Daily stock received vs dispatched</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Package size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Stock Summary</h1>
+            <p className="text-emerald-300 text-xs">Daily stock received vs dispatched</p>
+          </div>
         </div>
-        <DateSelector date={date} onChange={setDate} />
+        <DateSelector date={date} onChange={setDate} dark />
       </div>
+
+    <div className="flex-1 overflow-y-auto">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
       {error && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
@@ -90,7 +96,7 @@ export default function StockSummary() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700">
+                  <thead className="bg-emerald-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
@@ -127,7 +133,7 @@ export default function StockSummary() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700">
+                  <thead className="bg-emerald-700 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Salesperson</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Items Dispatched</th>
@@ -155,6 +161,8 @@ export default function StockSummary() {
           </div>
         </div>
       ) : null}
+    </div>
+    </div>
     </div>
   );
 }

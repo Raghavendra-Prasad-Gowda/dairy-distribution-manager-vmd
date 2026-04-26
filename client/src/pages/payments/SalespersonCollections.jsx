@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays } from 'lucide-react';
+import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
@@ -231,18 +231,19 @@ export default function SalespersonCollections() {
     <div className="flex flex-col h-full">
 
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 md:px-7 pt-5 pb-4 border-b border-slate-200 bg-white">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Collections</h1>
-          <p className="text-slate-500 text-sm">
-            Record cash / UPI collected from salespeople
-            {pendingCount > 0 && (
-              <span className="ml-2 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                {formatCurrency(totalOwing)} outstanding · {pendingCount} pending
-              </span>
-            )}
-          </p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Users size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Collections</h1>
+            <p className="text-emerald-300 text-xs">Record cash / UPI collected from salespeople</p>
+          </div>
         </div>
+        {pendingCount > 0 && (
+          <span className="text-xs font-semibold text-red-300 bg-red-900/50 px-2.5 py-1 rounded-full whitespace-nowrap">
+            {pendingCount} pending
+          </span>
+        )}
       </div>
 
       {/* ── Mobile: salesperson dropdown ── */}
@@ -461,7 +462,7 @@ export default function SalespersonCollections() {
                       <>
                         <div className="overflow-x-auto">
                           <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-emerald-700">
+                            <thead className="bg-emerald-700 sticky top-0 z-10">
                               <tr>
                                 <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>

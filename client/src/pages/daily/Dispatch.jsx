@@ -136,12 +136,15 @@ export default function Dispatch() {
       )}
 
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 md:px-7 pt-5 pb-4 border-b border-slate-200 bg-white">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Stock Dispatch</h1>
-          <p className="text-slate-500 text-sm">Allocate stock to salespeople</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Truck size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Stock Dispatch</h1>
+            <p className="text-emerald-300 text-xs">Allocate stock to salespeople</p>
+          </div>
         </div>
-        <DateSelector date={date} onChange={setDate} />
+        <DateSelector date={date} onChange={setDate} dark />
       </div>
 
       {/* ── Mobile: salesperson dropdown (replaces left panel) ── */}

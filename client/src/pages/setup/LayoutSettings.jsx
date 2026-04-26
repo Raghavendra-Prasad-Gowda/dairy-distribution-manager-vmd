@@ -216,13 +216,11 @@ export default function LayoutSettings() {
       )}
 
       {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-b border-slate-200 bg-white">
-        <div className="flex items-center gap-2.5">
-          <LayoutGrid size={17} className="text-emerald-600 flex-shrink-0" />
-          <div>
-            <h1 className="text-sm font-bold text-slate-900 leading-tight">Layout Settings</h1>
-            <p className="text-slate-400 text-xs">Drag to reorder categories and visible products.</p>
-          </div>
+      <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
+        <div>
+          <h1 className="text-sm font-bold text-white leading-tight">Layout Settings</h1>
+          <p className="text-emerald-300 text-xs">Drag to reorder categories and visible products.</p>
         </div>
       </div>
 
