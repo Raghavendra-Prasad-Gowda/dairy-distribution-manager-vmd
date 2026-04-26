@@ -363,7 +363,7 @@ export default function DairyPayments() {
                     <>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
-                          <thead className="bg-emerald-700 sticky top-0 z-10">
+                          <thead className="bg-emerald-700">
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                               <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
