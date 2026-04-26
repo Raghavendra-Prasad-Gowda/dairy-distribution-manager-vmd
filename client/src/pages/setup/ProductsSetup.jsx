@@ -233,6 +233,9 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Container</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Cost Price</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Sell Price</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
@@ -240,13 +243,13 @@ export default function ProductsSetup() {
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={8} className="px-6 py-16 text-center">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={8} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
@@ -254,7 +257,7 @@ export default function ProductsSetup() {
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
                     <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={8} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
@@ -263,10 +266,18 @@ export default function ProductsSetup() {
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">
-                          <div>{p.unitType === 'ml' ? `${p.unitSize ?? '?'} ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'} g` : 'piece'}</div>
-                          {p.containerType && p.unitsPerContainer && (
-                            <div className="text-[10px] text-slate-400 mt-0.5">{p.unitsPerContainer}/{ p.containerType}</div>
-                          )}
+                          {p.unitType === 'ml' ? `${p.unitSize ?? '?'} ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'} g` : 'piece'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500 text-center">
+                          {p.containerType && p.unitsPerContainer
+                            ? <span className="inline-flex items-center gap-1"><span className="font-semibold text-slate-700">{p.unitsPerContainer}</span><span className="text-slate-400">/ {p.containerType}</span></span>
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
+                          ₹{Number(p.costPrice).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
+                          ₹{Number(p.sellingPrice).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
