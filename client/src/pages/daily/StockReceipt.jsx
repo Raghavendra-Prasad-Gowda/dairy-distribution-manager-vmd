@@ -282,36 +282,35 @@ export default function StockReceipt() {
               )}
             </div>
 
-            {/* Expand / Collapse / Save row */}
-            <div className="flex items-center gap-2">
-              {filteredGrouped.length > 1 && (
-                <>
-                  <button
-                    onClick={expandAll}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
-                  >
-                    <ChevronsUpDown size={12} />
-                    Expand All
-                  </button>
-                  <button
-                    onClick={collapseAll}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
-                  >
-                    <ChevronsDownUp size={12} />
-                    Collapse All
-                  </button>
-                </>
-              )}
-              <div className="flex-1" />
-              <button
-                onClick={handleSave}
-                disabled={saving || loading || filledCount === 0}
-                className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
-              >
-                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                {saving ? 'Saving…' : 'Save Receipt'}
-              </button>
-            </div>
+            {/* Expand / Collapse row */}
+            {filteredGrouped.length > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={expandAll}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                >
+                  <ChevronsUpDown size={12} />
+                  Expand All
+                </button>
+                <button
+                  onClick={collapseAll}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                >
+                  <ChevronsDownUp size={12} />
+                  Collapse All
+                </button>
+              </div>
+            )}
+
+            {/* Save button — full width */}
+            <button
+              onClick={handleSave}
+              disabled={saving || loading || filledCount === 0}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
+            >
+              {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              {saving ? 'Saving…' : 'Save Receipt'}
+            </button>
           </div>
         )}
 
