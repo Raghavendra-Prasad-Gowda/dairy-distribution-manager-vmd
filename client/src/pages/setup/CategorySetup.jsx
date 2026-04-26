@@ -107,7 +107,7 @@ export default function CategorySetup() {
   const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
-    <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-5">
+    <div className="flex flex-col h-full">
 
       {/* Loading overlay */}
       {submitting && (
@@ -120,15 +120,21 @@ export default function CategorySetup() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Category Setup</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Manage product categories per brand</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Layers size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Category Setup</h1>
+            <p className="text-emerald-300 text-xs">Manage product categories per brand</p>
+          </div>
         </div>
-        <button onClick={openAdd} className="ddm-btn-primary flex-shrink-0">
-          <Plus size={15} /> Add Category
+        <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0">
+          <Plus size={14} /> Add Category
         </button>
       </div>
+
+    <div className="flex-1 overflow-y-auto">
+    <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-5">
 
       {brands.length > 0 && (
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => setActive(id)} />
@@ -255,6 +261,8 @@ export default function CategorySetup() {
         isDanger={confirmation.isDanger}
         confirmText="Delete"
       />
+    </div>
+    </div>
     </div>
   );
 }

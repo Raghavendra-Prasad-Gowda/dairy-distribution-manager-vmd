@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import { useNotification } from '../../context/NotificationContext';
@@ -208,9 +208,12 @@ export default function DairyPayments() {
       )}
 
       {/* Page header */}
-      <div className="px-5 md:px-7 pt-5 pb-4 border-b border-slate-200 bg-white">
-        <h1 className="text-xl font-bold text-slate-900">Dairy Payments</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Record payments to dairy suppliers</p>
+      <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <CreditCard size={17} className="text-emerald-300 flex-shrink-0" />
+        <div>
+          <h1 className="text-sm font-bold text-white leading-tight">Dairy Payments</h1>
+          <p className="text-emerald-300 text-xs">Record payments to dairy suppliers</p>
+        </div>
       </div>
 
       {/* Brand tabs */}

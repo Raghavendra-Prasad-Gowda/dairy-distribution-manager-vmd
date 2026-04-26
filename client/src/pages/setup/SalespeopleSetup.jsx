@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Save, Loader2, Info, X } from 'lucide-react';
+import { Plus, Save, Loader2, Info, X, Users } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate } from '../../utils/dateUtils';
@@ -93,7 +93,7 @@ export default function SalespeopleSetup() {
   const hasDirtyPrices = Object.keys(editedPrices).length > 0;
 
   return (
-    <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="flex flex-col h-full">
 
       {/* ── Saving overlay ──────────────────────────────────── */}
       {saving && (
@@ -106,15 +106,21 @@ export default function SalespeopleSetup() {
       )}
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Salespeople &amp; Rates</h1>
-          <p className="text-slate-500 text-sm mt-1">Configure salespeople and their selling prices</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Users size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Salespeople &amp; Rates</h1>
+            <p className="text-emerald-300 text-xs">Configure salespeople and their selling prices</p>
+          </div>
         </div>
-        <button onClick={() => setShowAddSp(!showAddSp)} className="ddm-btn-primary flex-shrink-0">
-          <Plus size={15} /> Add Salesperson
+        <button onClick={() => setShowAddSp(!showAddSp)} className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0">
+          <Plus size={14} /> Add Salesperson
         </button>
       </div>
+
+    <div className="flex-1 overflow-y-auto">
+    <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-6">
 
       {/* Rate master notice */}
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-xs">
@@ -291,6 +297,8 @@ export default function SalespeopleSetup() {
           Select a salesperson above to configure their selling prices
         </div>
       )}
+    </div>
+    </div>
     </div>
   );
 }

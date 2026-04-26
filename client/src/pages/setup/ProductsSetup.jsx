@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Loader2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Loader2, X, Package } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -173,7 +173,7 @@ export default function ProductsSetup() {
   const activeBrand = brands.find(b => b.id === activeBrandId);
 
   return (
-    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-5">
+    <div className="flex flex-col h-full">
 
       {submitting && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -185,15 +185,21 @@ export default function ProductsSetup() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Product Setup</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Manage products per dairy brand</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Package size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Product Setup</h1>
+            <p className="text-emerald-300 text-xs">Manage products per dairy brand</p>
+          </div>
         </div>
-        <button onClick={openAdd} className="ddm-btn-primary flex-shrink-0">
-          <Plus size={15} /> Add Product
+        <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0">
+          <Plus size={14} /> Add Product
         </button>
       </div>
+
+    <div className="flex-1 overflow-y-auto">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-5">
 
       {brands.length > 0 && (
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => setActive(id)} />
@@ -452,6 +458,8 @@ export default function ProductsSetup() {
         isDanger={confirmation.isDanger}
         confirmText="Delete"
       />
+    </div>
+    </div>
     </div>
   );
 }

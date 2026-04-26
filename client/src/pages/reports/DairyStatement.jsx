@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, Loader2, AlertCircle } from 'lucide-react';
+import { Download, ChevronDown, ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -116,23 +116,26 @@ export default function DairyStatement() {
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 
   return (
-    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="flex flex-col h-full">
 
       {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Dairy Statement</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Account statement per dairy brand</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <FileText size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Dairy Statement</h1>
+            <p className="text-emerald-300 text-xs">Account statement per dairy brand</p>
+          </div>
         </div>
         {rows.length > 0 && (
-          <button
-            onClick={() => exportCSV(rows, activeBrand?.name)}
-            className="ddm-btn-secondary"
-          >
-            <Download size={14} /> Export CSV
+          <button onClick={() => exportCSV(rows, activeBrand?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition">
+            <Download size={13} /> Export CSV
           </button>
         )}
       </div>
+
+    <div className="flex-1 overflow-y-auto">
+    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
       {brands.length > 0 && (
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
@@ -199,6 +202,8 @@ export default function DairyStatement() {
           </table>
         </div>
       </div>
+    </div>
+    </div>
     </div>
   );
 }
