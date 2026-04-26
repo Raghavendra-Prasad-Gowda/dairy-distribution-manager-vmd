@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
+import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
@@ -68,6 +69,10 @@ export default function DairyPayments() {
   const [payments, setPayments]    = useState([]);
   const [loading, setLoading]      = useState(false);
   const [saving, setSaving]        = useState(false);
+
+  // PIN modal state
+  const [pinOpen, setPinOpen]           = useState(false);
+  const [pendingEdit, setPendingEdit]   = useState(null);  // payment waiting for PIN
 
   // Edit modal state
   const [editPayment, setEditPayment]   = useState(null);   // payment being edited
@@ -143,6 +148,13 @@ export default function DairyPayments() {
   };
 
   const openEdit = (p) => {
+    setPendingEdit(p);
+    setPinOpen(true);
+  };
+
+  const onPinSuccess = () => {
+    const p = pendingEdit;
+    if (!p) return;
     setEditPayment(p);
     setEditForm({
       amount:      String(p.amount ?? ''),
@@ -150,6 +162,7 @@ export default function DairyPayments() {
       paymentMode: p.paymentMode ?? 'Cash',
       reference:   p.reference ?? '',
     });
+    setPendingEdit(null);
   };
 
   const handleEditSave = async () => {
@@ -414,6 +427,14 @@ export default function DairyPayments() {
           </div>
         </div>
       )}
+
+      {/* ── PIN modal ────────────────────────────────────────── */}
+      <PinModal
+        isOpen={pinOpen}
+        onClose={() => { setPinOpen(false); setPendingEdit(null); }}
+        onSuccess={onPinSuccess}
+        title="Enter PIN to Edit Payment"
+      />
 
       {/* ── Edit payment modal ───────────────────────────────── */}
       {editPayment && (
