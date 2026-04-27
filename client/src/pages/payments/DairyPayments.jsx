@@ -487,15 +487,30 @@ export default function DairyPayments() {
       {editPayment && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
           onClick={() => setEditPayment(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            style={{ animation: 'popIn 0.2s ease' }}
             onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Edit Payment</h3>
-            <p className="text-xs text-slate-400 mb-5">Correct the details below and save.</p>
 
-            <div className="space-y-4">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-emerald-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
+                  <Pencil size={14} className="text-emerald-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">Edit Payment</p>
+                  <p className="text-emerald-300 text-[11px]">Correct the details below and save</p>
+                </div>
+              </div>
+              <button onClick={() => setEditPayment(null)} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
               {/* Amount */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Amount (₹)</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Amount (₹)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
                   <input
@@ -509,15 +524,15 @@ export default function DairyPayments() {
 
               {/* Mode */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Mode</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Mode</label>
                 <div className="flex flex-wrap gap-1.5">
                   {['Cash','UPI','NEFT','RTGS','Cheque'].map(mode => (
                     <button key={mode} type="button"
                       onClick={() => setEditForm(f => ({ ...f, paymentMode: mode }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${
                         editForm.paymentMode === mode
-                          ? 'bg-emerald-700 text-white border-emerald-700'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
+                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
                       }`}>
                       {mode}
                     </button>
@@ -525,9 +540,15 @@ export default function DairyPayments() {
                 </div>
               </div>
 
+              {/* Divider */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest whitespace-nowrap">Details</span>
+                <div className="flex-1 h-px bg-emerald-100" />
+              </div>
+
               {/* Date */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Date</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Date</label>
                 <input type="date"
                   value={editForm.paymentDate}
                   onChange={e => setEditForm(f => ({ ...f, paymentDate: e.target.value }))}
@@ -537,7 +558,7 @@ export default function DairyPayments() {
 
               {/* Reference */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Reference</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Reference</label>
                 <input type="text" placeholder="Txn / cheque no."
                   value={editForm.reference}
                   onChange={e => setEditForm(f => ({ ...f, reference: e.target.value }))}
@@ -546,7 +567,7 @@ export default function DairyPayments() {
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 px-5 pb-5">
               <button onClick={() => setEditPayment(null)}
                 className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
                 Cancel
