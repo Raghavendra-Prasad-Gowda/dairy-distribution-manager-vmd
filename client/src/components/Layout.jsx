@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
-  Settings, LogOut, Menu,
+  LogOut, Menu, Package,
   FileText, Warehouse, Layers, LayoutGrid
 } from 'lucide-react';
 
@@ -11,12 +11,10 @@ const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
 
 const NAV = [
   {
-    key: 'dairy',
-    label: 'DAIRY MODULE',
-    headerClass: 'text-emerald-300',
+    key: 'stock',
+    label: 'DAIRY STOCK RECEIPT',
     groups: [
       {
-        label: 'BRANDS',
         items: [
           { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
           { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
@@ -24,12 +22,21 @@ const NAV = [
         ],
       },
       {
-        label: 'MANAGE',
         items: [
-          { to: '/dairy/setup/categories', icon: Layers,      label: 'Categories' },
-          { to: '/dairy/setup/products',   icon: Settings,    label: 'Products' },
-          { to: '/dairy/setup/layout',     icon: LayoutGrid,  label: 'Layout' },
-          { to: '/dairy/payments',         icon: CreditCard,  label: 'Payments' },
+          { to: '/dairy/payments', icon: CreditCard, label: 'Payments' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'setup',
+    label: 'SETUP',
+    groups: [
+      {
+        items: [
+          { to: '/dairy/setup/products',   icon: Package,    label: 'Products' },
+          { to: '/dairy/setup/categories', icon: Layers,     label: 'Categories' },
+          { to: '/dairy/setup/layout',     icon: LayoutGrid, label: 'Layout' },
         ],
       },
     ],
@@ -37,7 +44,6 @@ const NAV = [
   {
     key: 'reports',
     label: 'REPORTS',
-    headerClass: 'text-emerald-400',
     groups: [
       {
         items: [
@@ -112,23 +118,18 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest }) {
           <SidebarLink item={DASHBOARD_ITEM} compact={compact} setMobileOpen={setMobileOpen} />
         </div>
 
-        {/* Module + Report sections */}
+        {/* Sections */}
         {NAV.map((module) => (
           <div key={module.key}>
             {!compact && (
-              <p className={`px-2 mb-2 text-[10px] font-bold uppercase tracking-widest ${module.headerClass}`}>
+              <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400/80">
                 {module.label}
               </p>
             )}
             {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
-            <div className="space-y-3">
+            <div className="space-y-0.5">
               {module.groups.map((group, gi) => (
                 <div key={gi}>
-                  {!compact && group.label && (
-                    <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-white/30">
-                      {group.label}
-                    </p>
-                  )}
                   <div className="space-y-0.5">
                     {group.items.map((item) => (
                       <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
