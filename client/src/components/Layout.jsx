@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
-  LogOut, Menu, Package,
+  Settings, LogOut, Menu,
   FileText, Warehouse, Layers, LayoutGrid
 } from 'lucide-react';
 
@@ -11,11 +11,12 @@ const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
 
 const NAV = [
   {
-    key: 'operations',
-    label: 'OPERATIONS',
+    key: 'dairy',
+    label: 'DAIRY MODULE',
+    headerClass: 'text-emerald-300',
     groups: [
       {
-        label: 'DAIRY STOCK RECEIPT',
+        label: 'BRANDS',
         items: [
           { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
           { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
@@ -23,21 +24,12 @@ const NAV = [
         ],
       },
       {
+        label: 'MANAGE',
         items: [
-          { to: '/dairy/payments', icon: CreditCard, label: 'Payments' },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'setup',
-    label: 'SETUP',
-    groups: [
-      {
-        items: [
-          { to: '/dairy/setup/products',   icon: Package,    label: 'Products' },
-          { to: '/dairy/setup/categories', icon: Layers,     label: 'Categories' },
-          { to: '/dairy/setup/layout',     icon: LayoutGrid, label: 'Layout' },
+          { to: '/dairy/setup/categories', icon: Layers,      label: 'Categories' },
+          { to: '/dairy/setup/products',   icon: Settings,    label: 'Products' },
+          { to: '/dairy/setup/layout',     icon: LayoutGrid,  label: 'Layout' },
+          { to: '/dairy/payments',         icon: CreditCard,  label: 'Payments' },
         ],
       },
     ],
@@ -45,6 +37,7 @@ const NAV = [
   {
     key: 'reports',
     label: 'REPORTS',
+    headerClass: 'text-emerald-400',
     groups: [
       {
         items: [
@@ -119,23 +112,22 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest }) {
           <SidebarLink item={DASHBOARD_ITEM} compact={compact} setMobileOpen={setMobileOpen} />
         </div>
 
-        {/* Sections */}
+        {/* Module + Report sections */}
         {NAV.map((module) => (
           <div key={module.key}>
             {!compact && (
-              <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400/80">
+              <p className={`px-2 mb-2 text-[10px] font-bold uppercase tracking-widest ${module.headerClass}`}>
                 {module.label}
               </p>
             )}
             {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
-            <div className="space-y-2">
+            <div className="space-y-3">
               {module.groups.map((group, gi) => (
                 <div key={gi}>
                   {!compact && group.label && (
-                    <div className="flex items-center gap-2 px-3 mb-1">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">{group.label}</span>
-                      <div className="flex-1 h-px bg-white/10" />
-                    </div>
+                    <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-white/30">
+                      {group.label}
+                    </p>
                   )}
                   <div className="space-y-0.5">
                     {group.items.map((item) => (
