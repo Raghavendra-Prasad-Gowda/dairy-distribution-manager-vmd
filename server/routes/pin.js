@@ -8,7 +8,7 @@ const router = express.Router();
 // Returns 200 if correct, 401 if wrong
 router.post('/verify', asyncHandler(async (req, res) => {
   const { pin } = req.body;
-  const correct = process.env.EDIT_PIN ?? '1234';
+  const correct = process.env.EDIT_PIN ?? '123456';
 
   if (!pin || String(pin) !== String(correct)) {
     return res.status(400).json({ success: false, error: 'Incorrect PIN' });

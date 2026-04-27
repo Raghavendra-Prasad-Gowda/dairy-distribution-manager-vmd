@@ -6,6 +6,7 @@ const LOCK_KEY     = 'vmd_pin_lockout_until';
 const ATTEMPTS_KEY = 'vmd_pin_attempts';
 const MAX_ATTEMPTS = 4;
 const LOCKOUT_MS   = 60 * 60 * 1000; // 1 hour
+const PIN_LENGTH   = 6;
 
 function getLockoutRemaining() {
   const until = parseInt(localStorage.getItem(LOCK_KEY) || '0');
@@ -45,7 +46,7 @@ function clearAttempts() {
  *   title        — optional heading
  */
 export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PIN' }) {
-  const [digits, setDigits]       = useState(['', '', '', '']);
+  const [digits, setDigits]       = useState(Array(PIN_LENGTH).fill(''));
   const [error, setError]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [remaining, setRemaining] = useState(0);  // lockout ms remaining
@@ -56,7 +57,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
   // Check lockout + reset on open
   useEffect(() => {
     if (!isOpen) return;
-    setDigits(['', '', '', '']);
+    setDigits(Array(PIN_LENGTH).fill(''));
     setError('');
     setAttempts(parseInt(localStorage.getItem(ATTEMPTS_KEY) || '0'));
 
@@ -98,7 +99,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
     setDigits(next);
     setError('');
 
-    if (idx < 3) {
+    if (idx < PIN_LENGTH - 1) {
       inputRefs.current[idx + 1]?.focus();
     } else {
       submitPin(next);
@@ -107,7 +108,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
 
   const submitPin = async (d = digits) => {
     const pin = d.join('');
-    if (pin.length < 4) return;
+    if (pin.length < PIN_LENGTH) return;
     setLoading(true);
     setError('');
     try {
@@ -117,7 +118,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
       onClose();
     } catch {
       const { locked, attempts: newAttempts } = recordFailedAttempt();
-      setDigits(['', '', '', '']);
+      setDigits(Array(PIN_LENGTH).fill(''));
       if (locked) {
         setRemaining(LOCKOUT_MS);
         setAttempts(0);
@@ -179,7 +180,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
             )}
 
             {/* PIN boxes */}
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               {digits.map((d, i) => (
                 <input
                   key={i}
@@ -191,7 +192,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
                   onChange={() => {}}
                   onKeyDown={e => handleKey(e, i)}
                   disabled={loading}
-                  className={`w-12 h-14 text-center text-xl font-bold border-2 rounded-xl outline-none transition
+                  className={`w-10 h-12 text-center text-lg font-bold border-2 rounded-xl outline-none transition
                     ${d ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-800'}
                     ${error ? 'border-red-400 bg-red-50' : ''}
                     focus:border-emerald-500 focus:bg-emerald-50
