@@ -429,10 +429,10 @@ export default function DairyPayments() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center justify-end gap-1">
-                                    <button onClick={() => openEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                    <button onClick={() => openEdit(p)} className="p-1.5 text-emerald-600 hover:text-white hover:bg-emerald-600 rounded-lg transition" title="Edit">
                                       <Pencil size={12} />
                                     </button>
-                                    <button onClick={() => openDelete(p)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                    <button onClick={() => openDelete(p)} className="p-1.5 text-red-400 hover:text-white hover:bg-red-500 rounded-lg transition" title="Delete">
                                       <Trash2 size={12} />
                                     </button>
                                   </div>
