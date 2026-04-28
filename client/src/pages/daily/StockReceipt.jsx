@@ -365,6 +365,8 @@ export default function StockReceipt() {
                     const catAmount    = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
                     const catFilled    = items.filter(p => getEffectiveQty(p.id) > 0).length;
                     const filledPct    = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
+                    // Total units for this category
+                    const catTotalUnits = items.reduce((s, p) => s + getEffectiveQty(p.id), 0);
                     // Crates summary for this category
                     const catCrateItems = items.filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0);
                     const catCrateCount = catCrateItems.reduce((s, p) => s + getEffectiveQty(p.id) / p.unitsPerContainer, 0);
@@ -389,17 +391,22 @@ export default function StockReceipt() {
                               }
                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
                               <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
-                              {/* Show amount + crates only when collapsed and filled */}
-                              {isCollapsed && catAmount > 0 && (
-                                <div className="ml-auto flex items-center gap-2">
+                              {/* Show units + crates + amount only when collapsed and filled */}
+                              {isCollapsed && catTotalUnits > 0 && (
+                                <div className="ml-auto flex items-center gap-1.5">
+                                  <span className="text-[11px] font-bold text-slate-600 tabular-nums bg-slate-100 px-2 py-0.5 rounded-lg">
+                                    {catTotalUnits} units
+                                  </span>
                                   {catCrateLabel && (
                                     <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-2 py-0.5 rounded-lg">
                                       {catCrateLabel}
                                     </span>
                                   )}
-                                  <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-lg">
-                                    {formatCurrency(catAmount)}
-                                  </span>
+                                  {catAmount > 0 && (
+                                    <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-lg">
+                                      {formatCurrency(catAmount)}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
