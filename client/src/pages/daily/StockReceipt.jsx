@@ -290,16 +290,16 @@ export default function StockReceipt() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={expandAll}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition"
                 >
-                  <ChevronsUpDown size={12} />
+                  <ChevronsUpDown size={14} />
                   Expand All
                 </button>
                 <button
                   onClick={collapseAll}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition"
                 >
-                  <ChevronsDownUp size={12} />
+                  <ChevronsDownUp size={14} />
                   Collapse All
                 </button>
               </div>
