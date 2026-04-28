@@ -9,51 +9,40 @@ import {
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
 
-const NAV = [
-  {
-    key: 'stock',
-    label: 'DAIRY STOCK RECEIPT',
-    groups: [
-      {
-        items: [
-          { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
-          { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
-          { to: '/dairy/stock/gowardhan', dot: 'bg-violet-400', label: 'Gowardhan' },
-        ],
-      },
-      {
-        items: [
-          { to: '/dairy/payments', icon: CreditCard, label: 'Payments' },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'setup',
-    label: 'SETUP',
-    groups: [
-      {
-        items: [
-          { to: '/dairy/setup/products',   icon: Package,    label: 'Products' },
-          { to: '/dairy/setup/categories', icon: Layers,     label: 'Categories' },
-          { to: '/dairy/setup/layout',     icon: LayoutGrid, label: 'Layout' },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'reports',
-    label: 'REPORTS',
-    groups: [
-      {
-        items: [
-          { to: '/reports/dairy', icon: FileText,  label: 'Dairy Statement' },
-          { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
-        ],
-      },
-    ],
-  },
-];
+const DAIRY_MODULE = {
+  label: 'DAIRY',
+  sections: [
+    {
+      label: 'STOCK RECEIPT',
+      items: [
+        { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
+        { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
+        { to: '/dairy/stock/gowardhan', dot: 'bg-violet-400', label: 'Gowardhan' },
+      ],
+    },
+    {
+      label: 'ACCOUNTS PAYABLE',
+      items: [
+        { to: '/dairy/payments', icon: CreditCard, label: 'Payments' },
+      ],
+    },
+    {
+      label: 'SETUP',
+      items: [
+        { to: '/dairy/setup/products',   icon: Package,    label: 'Products' },
+        { to: '/dairy/setup/categories', icon: Layers,     label: 'Categories' },
+        { to: '/dairy/setup/layout',     icon: LayoutGrid, label: 'Layout' },
+      ],
+    },
+    {
+      label: 'REPORTS',
+      items: [
+        { to: '/reports/dairy', icon: FileText,  label: 'Dairy Statement' },
+        { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
+      ],
+    },
+  ],
+};
 
 function SidebarLink({ item, compact, setMobileOpen }) {
   const Icon = item.icon;
@@ -118,28 +107,34 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest }) {
           <SidebarLink item={DASHBOARD_ITEM} compact={compact} setMobileOpen={setMobileOpen} />
         </div>
 
-        {/* Sections */}
-        {NAV.map((module) => (
-          <div key={module.key}>
-            {!compact && (
-              <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400/80">
-                {module.label}
-              </p>
-            )}
-            {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
-            <div className="space-y-0.5">
-              {module.groups.map((group, gi) => (
-                <div key={gi}>
-                  <div className="space-y-0.5">
-                    {group.items.map((item) => (
-                      <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
-                    ))}
+        {/* DAIRY module */}
+        <div>
+          {!compact && (
+            <p className="px-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-emerald-400/80">
+              {DAIRY_MODULE.label}
+            </p>
+          )}
+          {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
+          <div className="space-y-3">
+            {DAIRY_MODULE.sections.map((section) => (
+              <div key={section.label}>
+                {!compact && (
+                  <div className="flex items-center gap-2 px-2 mb-1">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-white/40 whitespace-nowrap">
+                      {section.label}
+                    </span>
+                    <div className="flex-1 h-px bg-white/10" />
                   </div>
+                )}
+                <div className="space-y-0.5">
+                  {section.items.map((item) => (
+                    <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </nav>
 
       {/* User + Sign Out */}
