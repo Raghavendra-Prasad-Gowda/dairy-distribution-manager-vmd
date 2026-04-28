@@ -365,6 +365,13 @@ export default function StockReceipt() {
                     const catAmount    = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
                     const catFilled    = items.filter(p => getEffectiveQty(p.id) > 0).length;
                     const filledPct    = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
+                    // Crates summary for this category
+                    const catCrateItems = items.filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0);
+                    const catCrateCount = catCrateItems.reduce((s, p) => s + getEffectiveQty(p.id) / p.unitsPerContainer, 0);
+                    const catCrateType  = catCrateItems[0]?.containerType;
+                    const catCrateLabel = catCrateType
+                      ? `${Number.isInteger(catCrateCount) ? catCrateCount : catCrateCount.toFixed(1)} ${catCrateType.charAt(0).toUpperCase() + catCrateType.slice(1)}${catCrateCount !== 1 ? 's' : ''}`
+                      : null;
 
                     return (
                       <React.Fragment key={category}>
@@ -374,7 +381,7 @@ export default function StockReceipt() {
                           onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
                         >
                           <td colSpan={COL_COUNT} className="border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
-                            {/* Top line: name + items count + amount */}
+                            {/* Top line: name + items count */}
                             <div className="flex items-center gap-2 px-4 pt-2.5 pb-1">
                               {isCollapsed
                                 ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
@@ -382,10 +389,18 @@ export default function StockReceipt() {
                               }
                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
                               <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
-                              {catAmount > 0 && (
-                                <span className="ml-auto text-xs font-bold text-emerald-700 tabular-nums">
-                                  Receipt: {formatCurrency(catAmount)}
-                                </span>
+                              {/* Show amount + crates only when collapsed and filled */}
+                              {isCollapsed && catAmount > 0 && (
+                                <div className="ml-auto flex items-center gap-2">
+                                  {catCrateLabel && (
+                                    <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-2 py-0.5 rounded-lg">
+                                      {catCrateLabel}
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-lg">
+                                    {formatCurrency(catAmount)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                             {/* Bottom line: filled progress */}
