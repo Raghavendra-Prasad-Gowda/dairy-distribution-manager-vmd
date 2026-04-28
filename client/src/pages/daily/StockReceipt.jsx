@@ -391,8 +391,8 @@ export default function StockReceipt() {
                               }
                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
                               <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
-                              {/* Show units + crates + amount only when collapsed and filled */}
-                              {isCollapsed && catTotalUnits > 0 && (
+                              {/* Show units + crates + amount when filled */}
+                              {catTotalUnits > 0 && (
                                 <div className="ml-auto flex items-center gap-1.5">
                                   <span className="text-[11px] font-bold text-slate-600 tabular-nums bg-slate-100 px-2 py-0.5 rounded-lg">
                                     {catTotalUnits} units
