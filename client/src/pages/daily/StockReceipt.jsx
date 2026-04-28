@@ -394,7 +394,7 @@ export default function StockReceipt() {
                               {/* Show units + crates + amount when filled */}
                               {catTotalUnits > 0 && (
                                 <div className="ml-auto flex items-center gap-1.5">
-                                  <span className="text-[11px] font-bold text-slate-600 tabular-nums bg-slate-100 px-2 py-0.5 rounded-lg">
+                                  <span className="text-[11px] font-bold text-blue-600 tabular-nums bg-blue-50 px-2 py-0.5 rounded-lg">
                                     {catTotalUnits} units
                                   </span>
                                   {catCrateLabel && (
