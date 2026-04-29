@@ -6,6 +6,54 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
+// Cycling color palette for route tabs — one per route index
+const ROUTE_COLORS = [
+  {
+    pill:        'bg-sky-500 text-white border-sky-500 shadow-sm',
+    pillInactive:'bg-white text-sky-600 border-sky-200 hover:border-sky-400 hover:text-sky-700',
+    dot:         'bg-sky-400',
+    ring:        'focus:ring-sky-400',
+    summaryCard: 'border-sky-200 bg-sky-50/70',
+    summaryTitle:'text-sky-700',
+    badge:       'text-sky-700 bg-sky-50',
+  },
+  {
+    pill:        'bg-violet-500 text-white border-violet-500 shadow-sm',
+    pillInactive:'bg-white text-violet-600 border-violet-200 hover:border-violet-400 hover:text-violet-700',
+    dot:         'bg-violet-400',
+    ring:        'focus:ring-violet-400',
+    summaryCard: 'border-violet-200 bg-violet-50/70',
+    summaryTitle:'text-violet-700',
+    badge:       'text-violet-700 bg-violet-50',
+  },
+  {
+    pill:        'bg-amber-500 text-white border-amber-500 shadow-sm',
+    pillInactive:'bg-white text-amber-600 border-amber-200 hover:border-amber-400 hover:text-amber-700',
+    dot:         'bg-amber-400',
+    ring:        'focus:ring-amber-400',
+    summaryCard: 'border-amber-200 bg-amber-50/70',
+    summaryTitle:'text-amber-700',
+    badge:       'text-amber-700 bg-amber-50',
+  },
+  {
+    pill:        'bg-rose-500 text-white border-rose-500 shadow-sm',
+    pillInactive:'bg-white text-rose-600 border-rose-200 hover:border-rose-400 hover:text-rose-700',
+    dot:         'bg-rose-400',
+    ring:        'focus:ring-rose-400',
+    summaryCard: 'border-rose-200 bg-rose-50/70',
+    summaryTitle:'text-rose-700',
+    badge:       'text-rose-700 bg-rose-50',
+  },
+  {
+    pill:        'bg-emerald-500 text-white border-emerald-500 shadow-sm',
+    pillInactive:'bg-white text-emerald-600 border-emerald-200 hover:border-emerald-400 hover:text-emerald-700',
+    dot:         'bg-emerald-400',
+    ring:        'focus:ring-emerald-400',
+    summaryCard: 'border-emerald-200 bg-emerald-50/70',
+    summaryTitle:'text-emerald-700',
+    badge:       'text-emerald-700 bg-emerald-50',
+  },
+];
 
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
@@ -25,8 +73,9 @@ export default function StockReceipt() {
   const [products, setProducts]       = useState([]);
   const [categories, setCategories]   = useState([]);
   const [quantities, setQuantities]   = useState({});
-  const [routeQty, setRouteQty]       = useState({});
+  const [routeQty, setRouteQty]       = useState({});   // { productId: string[] } indexed by route position
   const [routes, setRoutes]           = useState([]);
+  const [activeRouteIdx, setActiveRouteIdx] = useState(0);
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]         = useState(false);
@@ -35,7 +84,7 @@ export default function StockReceipt() {
   const inputRefs = useRef({});
 
   const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
-  const COL_COUNT = isNandini ? routes.length + 4 : 5;
+  const COL_COUNT = 5; // Product | Units | Rate | Crates/Boxes | Amount — same for all brands
 
   const getEffectiveQty = (productId) => {
     if (isNandini) {
@@ -43,6 +92,9 @@ export default function StockReceipt() {
     }
     return parseFloat(quantities[productId]) || 0;
   };
+
+  // Active route quantity for a product (what's shown in input)
+  const getRouteQty = (productId) => routeQty[productId]?.[activeRouteIdx] ?? '';
 
   useEffect(() => {
     api.get('/brands')
@@ -61,10 +113,11 @@ export default function StockReceipt() {
     if (!activeBrand) return;
     if (activeBrand.name?.toLowerCase() === 'nandini') {
       api.get(`/routes?brandId=${activeBrand.id}`)
-        .then(r => setRoutes(r.data.data ?? []))
+        .then(r => { setRoutes(r.data.data ?? []); setActiveRouteIdx(0); })
         .catch(() => {});
     } else {
       setRoutes([]);
+      setActiveRouteIdx(0);
     }
   }, [activeBrand]);
 
@@ -144,12 +197,13 @@ export default function StockReceipt() {
   const allFiltered = filteredGrouped.flatMap(([, items]) => items);
 
   const handleKeyDown = (e, productId) => {
-    if (isNandini) return;
     if (e.key === 'Enter' || e.key === 'Tab') {
       const idx = allFiltered.findIndex(p => p.id === productId);
       if (idx < allFiltered.length - 1) {
         e.preventDefault();
-        inputRefs.current[allFiltered[idx + 1]?.id]?.focus();
+        const nextId = allFiltered[idx + 1]?.id;
+        const key = isNandini ? `${nextId}_r${activeRouteIdx}` : nextId;
+        inputRefs.current[key]?.focus();
       }
     }
   };
@@ -194,13 +248,11 @@ export default function StockReceipt() {
 
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
   const totalUnits  = products.reduce((s, p) => s + getEffectiveQty(p.id), 0);
-  const routeTotals = routes.map((_, ri) =>
-    products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0)
-  );
 
-  // Per-route summary (units + crates + amount) for the summary panel
+  // Per-route summary for the summary panel
   const routeSummary = routes.map((r, ri) => {
-    const units = products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0);
+    const color  = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+    const units  = products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0);
     const amount = products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0) * Number(p.costPrice), 0);
     const crates = products.reduce((s, p) => {
       const q = parseFloat(routeQty[p.id]?.[ri]) || 0;
@@ -208,9 +260,14 @@ export default function StockReceipt() {
       return s + q / p.unitsPerContainer;
     }, 0);
     const crateType = products.find(p => p.containerType && (parseFloat(routeQty[p.id]?.[ri]) || 0) > 0)?.containerType;
-    return { routeNumber: r.routeNumber, units, amount, crates, crateType };
+    return { routeNumber: r.routeNumber, units, amount, crates, crateType, color };
   });
   const hasRouteSummary = isNandini && routeSummary.some(r => r.units > 0);
+
+  // For footer: active route units total (Nandini) or grand total (others)
+  const activeRouteTotal = isNandini
+    ? products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[activeRouteIdx]) || 0), 0)
+    : totalUnits;
 
   const totalCrates = products.reduce((s, p) => {
     const units = getEffectiveQty(p.id);
@@ -227,6 +284,8 @@ export default function StockReceipt() {
 
   const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
   const isOwing = balance.closing > 0;
+
+  const activeColor = isNandini ? (ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length]) : null;
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -254,7 +313,7 @@ export default function StockReceipt() {
         <DateSelector date={date} onChange={setDate} dark />
       </div>
 
-      {/* ── Balance summary card + action bar (fixed, non-scrolling) ── */}
+      {/* ── Balance summary card + action bar + route strip (fixed, non-scrolling) ── */}
       <div className="flex-shrink-0">
 
         {activeBrand && (
@@ -343,45 +402,72 @@ export default function StockReceipt() {
           </div>
         )}
 
-      {/* ── Route Summary Panel (Nandini only, shown when any route has qty) ── */}
-      {hasRouteSummary && (
-        <div className="mx-4 mt-2 mb-1">
-          <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Route Summary</p>
-            <div className="flex gap-2 flex-wrap">
-              {routeSummary.map(r => {
-                const active = r.units > 0;
-                const crateLabel = r.crateType
-                  ? `${Number.isInteger(r.crates) ? r.crates : r.crates.toFixed(1)} ${r.crateType.charAt(0).toUpperCase() + r.crateType.slice(1)}${r.crates !== 1 ? 's' : ''}`
-                  : null;
-                return (
-                  <div key={r.routeNumber}
-                    className={`flex-1 min-w-[90px] rounded-xl border px-3 py-2.5 transition-all ${active ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-100 bg-slate-50/60 opacity-50'}`}>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Route {r.routeNumber}</p>
-                    {active ? (
-                      <div className="space-y-1">
-                        <span className="flex items-center gap-1">
-                          <span className="text-[11px] font-bold text-blue-600 tabular-nums bg-blue-50 px-1.5 py-0.5 rounded-md">{r.units} units</span>
-                        </span>
-                        {crateLabel && (
-                          <span className="flex items-center gap-1">
-                            <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-1.5 py-0.5 rounded-md">{crateLabel}</span>
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-1.5 py-0.5 rounded-md">{formatCurrency(r.amount)}</span>
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-300 font-medium">—</p>
-                    )}
-                  </div>
-                );
-              })}
+        {/* ── Route Strip (Nandini only) ── */}
+        {isNandini && routes.length > 0 && (
+          <div className="mx-4 mt-2">
+            <div className="bg-white rounded-2xl border border-slate-200 px-3 py-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {routes.map((r, ri) => {
+                  const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+                  const isActive  = ri === activeRouteIdx;
+                  const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[ri]) > 0);
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => setActiveRouteIdx(ri)}
+                      className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
+                      Route {r.routeNumber}
+                      {/* Filled indicator dot */}
+                      {hasFilled && !isActive && (
+                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ── Route Summary Panel (Nandini only, shown when any route has qty) ── */}
+        {hasRouteSummary && (
+          <div className="mx-4 mt-2">
+            <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Route Summary</p>
+              <div className="flex gap-2 flex-wrap">
+                {routeSummary.map((r, ri) => {
+                  const hasData = r.units > 0;
+                  const crateStr = r.crateType
+                    ? `${Number.isInteger(r.crates) ? r.crates : r.crates.toFixed(1)} ${r.crateType.charAt(0).toUpperCase() + r.crateType.slice(1)}${r.crates !== 1 ? 's' : ''}`
+                    : null;
+                  return (
+                    <button
+                      key={r.routeNumber}
+                      onClick={() => setActiveRouteIdx(ri)}
+                      className={`flex-1 min-w-[80px] rounded-xl border px-3 py-2.5 text-left transition-all ${hasData ? r.color.summaryCard : 'border-slate-100 bg-slate-50/60 opacity-40'}`}
+                    >
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${hasData ? r.color.summaryTitle : 'text-slate-400'}`}>
+                        Route {r.routeNumber}
+                      </p>
+                      {hasData ? (
+                        <div className="space-y-1">
+                          <div><span className={`text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded-md ${r.color.badge}`}>{r.units} units</span></div>
+                          {crateStr && <div><span className="text-[11px] font-bold tabular-nums text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md">{crateStr}</span></div>}
+                          <div><span className="text-[11px] font-bold tabular-nums text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">{formatCurrency(r.amount)}</span></div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-300 font-medium">—</p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>{/* end fixed top section */}
 
@@ -392,21 +478,13 @@ export default function StockReceipt() {
             <thead className="sticky top-0 z-10">
               <tr>
                 <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
-                {isNandini ? (
-                  <>
-                    {routes.map(r => (
-                      <th key={r.id} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Route {r.routeNumber}</th>
-                    ))}
-                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Units</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
-                  </>
-                )}
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                  {isNandini && routes[activeRouteIdx]
+                    ? `Route ${routes[activeRouteIdx].routeNumber}`
+                    : 'Units'}
+                </th>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
                 <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-2xl">Amount</th>
               </tr>
             </thead>
@@ -427,13 +505,11 @@ export default function StockReceipt() {
               ) : (
                 <>
                   {filteredGrouped.map(([category, items], catIdx) => {
-                    const isCollapsed  = collapsedCategories[category] ?? (catIdx !== 0);
-                    const catAmount    = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
-                    const catFilled    = items.filter(p => getEffectiveQty(p.id) > 0).length;
-                    const filledPct    = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
-                    // Total units for this category
+                    const isCollapsed   = collapsedCategories[category] ?? (catIdx !== 0);
+                    const catAmount     = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
+                    const catFilled     = items.filter(p => getEffectiveQty(p.id) > 0).length;
+                    const filledPct     = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
                     const catTotalUnits = items.reduce((s, p) => s + getEffectiveQty(p.id), 0);
-                    // Crates summary for this category
                     const catCrateItems = items.filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0);
                     const catCrateCount = catCrateItems.reduce((s, p) => s + getEffectiveQty(p.id) / p.unitsPerContainer, 0);
                     const catCrateType  = catCrateItems[0]?.containerType;
@@ -449,7 +525,6 @@ export default function StockReceipt() {
                           onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
                         >
                           <td colSpan={COL_COUNT} className="border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
-                            {/* Top line: name + items count */}
                             <div className="flex items-center gap-2 px-4 pt-2.5 pb-1">
                               {isCollapsed
                                 ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
@@ -457,26 +532,18 @@ export default function StockReceipt() {
                               }
                               <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
                               <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
-                              {/* Show units + crates + amount when filled */}
                               {catTotalUnits > 0 && (
                                 <div className="ml-auto flex items-center gap-1.5">
-                                  <span className="text-[11px] font-bold text-blue-600 tabular-nums bg-blue-50 px-2 py-0.5 rounded-lg">
-                                    {catTotalUnits} units
-                                  </span>
+                                  <span className="text-[11px] font-bold text-blue-600 tabular-nums bg-blue-50 px-2 py-0.5 rounded-lg">{catTotalUnits} units</span>
                                   {catCrateLabel && (
-                                    <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-2 py-0.5 rounded-lg">
-                                      {catCrateLabel}
-                                    </span>
+                                    <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-2 py-0.5 rounded-lg">{catCrateLabel}</span>
                                   )}
                                   {catAmount > 0 && (
-                                    <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-lg">
-                                      {formatCurrency(catAmount)}
-                                    </span>
+                                    <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-lg">{formatCurrency(catAmount)}</span>
                                   )}
                                 </div>
                               )}
                             </div>
-                            {/* Bottom line: filled progress */}
                             <div className="px-4 pb-2">
                               <span className={`text-[10px] font-semibold tabular-nums ${filledPct === 100 ? 'text-emerald-600' : filledPct > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
                                 {catFilled}/{items.length} FILLED ({filledPct}%)
@@ -490,10 +557,11 @@ export default function StockReceipt() {
                           const effectiveQty = getEffectiveQty(p.id);
                           const amount       = effectiveQty * Number(p.costPrice);
                           const filled       = effectiveQty > 0;
+                          const inputVal     = isNandini ? getRouteQty(p.id) : (quantities[p.id] ?? '');
 
                           return (
                             <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
-                              {/* Product name + unit label below */}
+                              {/* Product name */}
                               <td className="px-4 py-3">
                                 <div className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</div>
                                 <div className="text-[10px] text-slate-400 mt-0.5">
@@ -501,64 +569,51 @@ export default function StockReceipt() {
                                 </div>
                               </td>
 
-                              {isNandini ? (
-                                <>
-                                  {routes.map((r, ri) => (
-                                    <td key={r.id} className="px-2 py-3 text-center">
-                                      <input
-                                        ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={routeQty[p.id]?.[ri] ?? ''}
-                                        onChange={e => setRouteQty(prev => {
-                                          const updated = [...(prev[p.id] ?? Array(routes.length).fill(''))];
-                                          updated[ri] = e.target.value;
+                              {/* Quantity input — single column for all brands */}
+                              <td className="px-4 py-3 text-center">
+                                <div className="inline-flex items-center gap-1.5">
+                                  <input
+                                    ref={el => {
+                                      inputRefs.current[isNandini ? `${p.id}_r${activeRouteIdx}` : p.id] = el;
+                                    }}
+                                    type="number"
+                                    inputMode="decimal"
+                                    value={inputVal}
+                                    onChange={e => {
+                                      if (isNandini) {
+                                        setRouteQty(prev => {
+                                          const updated = [...(prev[p.id] ?? [])];
+                                          updated[activeRouteIdx] = e.target.value;
                                           return { ...prev, [p.id]: updated };
-                                        })}
-                                        step="1"
-                                        min="0"
-                                        placeholder="0"
-                                        className="w-14 text-center px-1 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                      />
-                                    </td>
-                                  ))}
-                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                                    ₹{Number(p.costPrice).toFixed(2)}
-                                  </td>
-                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                    {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
-                                  </td>
-                                </>
-                              ) : (
-                                <>
-                                  <td className="px-4 py-3 text-center">
-                                    <div className="inline-flex items-center gap-1.5">
-                                      <input
-                                        ref={el => { inputRefs.current[p.id] = el; }}
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={quantities[p.id] ?? ''}
-                                        onChange={e => setQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                        onKeyDown={e => handleKeyDown(e, p.id)}
-                                        step="1"
-                                        min="0"
-                                        placeholder="0"
-                                        className="w-16 text-center px-1.5 py-2 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700"
-                                      />
-                                      <span className="text-xs text-slate-400">
-                                        {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
-                                    ₹{Number(p.costPrice).toFixed(2)}
-                                  </td>
-                                  <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                    {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
-                                  </td>
-                                </>
-                              )}
+                                        });
+                                      } else {
+                                        setQuantities(prev => ({ ...prev, [p.id]: e.target.value }));
+                                      }
+                                    }}
+                                    onKeyDown={e => handleKeyDown(e, p.id)}
+                                    step="1"
+                                    min="0"
+                                    placeholder="0"
+                                    className={`w-16 text-center px-1.5 py-2 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700 ${
+                                      isNandini && activeColor
+                                        ? `border-slate-200 ${activeColor.ring}`
+                                        : 'border-slate-200 focus:ring-emerald-500'
+                                    }`}
+                                  />
+                                  {!isNandini && (
+                                    <span className="text-xs text-slate-400">
+                                      {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
 
+                              <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                                ₹{Number(p.costPrice).toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                                {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                              </td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
                                   {filled ? formatCurrency(amount) : '₹0.00'}
@@ -578,30 +633,14 @@ export default function StockReceipt() {
             <tfoot className="sticky bottom-0 z-10">
               <tr>
                 <td className="bg-emerald-800 px-4 py-3 text-xs font-bold text-white rounded-bl-2xl">
-                  Total
+                  {isNandini && routes[activeRouteIdx] ? `Route ${routes[activeRouteIdx].routeNumber}` : 'Total'}
                 </td>
-                {isNandini ? (
-                  /* Per-route totals, then empty Rate cell */
-                  <>
-                    {routes.map((r, ri) => (
-                      <td key={r.id} className="bg-emerald-800 px-2 py-3 text-center">
-                        <span className="text-xs font-bold text-white tabular-nums">
-                          {routeTotals[ri] > 0 ? routeTotals[ri] : '—'}
-                        </span>
-                      </td>
-                    ))}
-                    <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
-                  </>
-                ) : (
-                  <>
-                    <td className="bg-emerald-800 px-4 py-3 text-center">
-                      <span className="text-xs font-bold text-white tabular-nums">
-                        {totalUnits > 0 ? totalUnits : '—'}
-                      </span>
-                    </td>
-                    <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
-                  </>
-                )}
+                <td className="bg-emerald-800 px-4 py-3 text-center">
+                  <span className="text-xs font-bold text-white tabular-nums">
+                    {activeRouteTotal > 0 ? activeRouteTotal : '—'}
+                  </span>
+                </td>
+                <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
                 <td className="bg-emerald-800 px-4 py-3 text-center">
                   <span className="text-xs font-bold text-white tabular-nums">
                     {totalCrates > 0
