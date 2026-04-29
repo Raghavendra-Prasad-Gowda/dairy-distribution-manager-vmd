@@ -37,26 +37,14 @@ async function boot() {
   const server = app.listen(PORT, async () => {
     logger.info(`Dairy Distribution Manager API running on port ${PORT}`);
 
-    // Seed foundation data on startup (idempotent — brands, admin)
-    // Fail-fast: if brands/admin can't be created the app is unusable
+    // Seed admin user on first deploy (idempotent — no-op if already exists)
     try {
       const { seedFoundationData } = require('./prisma/seed');
       await seedFoundationData();
     } catch (error) {
-      logger.error('Critical: Failed to seed foundation data — shutting down.', { message: error.message });
+      logger.error('Critical: Failed to seed admin user — shutting down.', { message: error.message });
       process.exit(1);
     }
-
-    // Seed master data — idempotent upserts, safe on every deploy
-    try {
-      const { seedNandiniRoutes } = require('./scripts/seed-nandini');
-      await seedNandiniRoutes();
-    } catch (error) {
-      logger.warn('Non-critical: Failed to seed Nandini routes.', { message: error.message });
-    }
-
-    // [DISABLED] reseed-nandini, seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
-
   });
 
   // Graceful shutdown
