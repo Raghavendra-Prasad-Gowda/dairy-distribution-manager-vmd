@@ -514,7 +514,14 @@ export default function StockReceipt() {
       {/* ── Table ── */}
       {products.length > 0 && (
         <div className="flex-1 min-h-0 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
-          <table className="min-w-full text-sm border-separate border-spacing-0">
+          <table className="w-full table-fixed text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
+            <colgroup>
+              <col style={{ width: '38%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '14%' }} />
+            </colgroup>
             <thead className="sticky top-0 z-10">
               <tr>
                 <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
