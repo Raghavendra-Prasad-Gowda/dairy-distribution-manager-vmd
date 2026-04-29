@@ -406,6 +406,7 @@ export default function DairyPayments() {
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                               <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Amount in Words</th>
                               <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Mode</th>
                               <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Reference</th>
                               <th className="px-4 py-3 w-20" />
@@ -417,9 +418,11 @@ export default function DairyPayments() {
                                 <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
                                   {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                 </td>
-                                <td className="px-4 py-3 text-right">
-                                  <div className="text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">{formatCurrency(p.amount)}</div>
-                                  <div className="text-[10px] text-slate-400 italic mt-0.5 leading-tight">{numberToWords(p.amount)}</div>
+                                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                                  {formatCurrency(p.amount)}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-slate-500 italic">
+                                  {numberToWords(p.amount)}
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
