@@ -6,7 +6,6 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-const ROUTE_LABELS = ['Route 1', 'Route 2', 'Route 3', 'Route 4'];
 
 /** Compute container count from units */
 function calcContainerDisplay(units, containerType, unitsPerContainer) {
@@ -27,6 +26,7 @@ export default function StockReceipt() {
   const [categories, setCategories]   = useState([]);
   const [quantities, setQuantities]   = useState({});
   const [routeQty, setRouteQty]       = useState({});
+  const [routes, setRoutes]           = useState([]);
   const [balance, setBalance]         = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]         = useState(false);
@@ -35,7 +35,7 @@ export default function StockReceipt() {
   const inputRefs = useRef({});
 
   const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
-  const COL_COUNT = isNandini ? 8 : 5;
+  const COL_COUNT = isNandini ? routes.length + 4 : 5;
 
   const getEffectiveQty = (productId) => {
     if (isNandini) {
@@ -55,6 +55,18 @@ export default function StockReceipt() {
       })
       .catch(() => notify('Failed to load brands', 'error'));
   }, [brandName]);
+
+  // Fetch routes for Nandini brand
+  useEffect(() => {
+    if (!activeBrand) return;
+    if (activeBrand.name?.toLowerCase() === 'nandini') {
+      api.get(`/routes?brandId=${activeBrand.id}`)
+        .then(r => setRoutes(r.data.data ?? []))
+        .catch(() => {});
+    } else {
+      setRoutes([]);
+    }
+  }, [activeBrand]);
 
   useEffect(() => {
     if (!activeBrand) return;
@@ -92,12 +104,12 @@ export default function StockReceipt() {
         for (const r of receiptRes.data.data) qty[r.productId] = String(r.quantity);
         setQuantities(qty);
 
-        const routes = {};
-        for (const p of prods) routes[p.id] = ['', '', '', ''];
+        const rqty = {};
+        for (const p of prods) rqty[p.id] = [];
         for (const r of receiptRes.data.data) {
-          if (routes[r.productId]) routes[r.productId][0] = String(r.quantity);
+          if (rqty[r.productId] !== undefined) rqty[r.productId][0] = String(r.quantity);
         }
-        setRouteQty(routes);
+        setRouteQty(rqty);
 
         setCollapsedCategories({});
       })
@@ -182,9 +194,23 @@ export default function StockReceipt() {
 
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
   const totalUnits  = products.reduce((s, p) => s + getEffectiveQty(p.id), 0);
-  const routeTotals = ROUTE_LABELS.map((_, ri) =>
+  const routeTotals = routes.map((_, ri) =>
     products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0)
   );
+
+  // Per-route summary (units + crates + amount) for the summary panel
+  const routeSummary = routes.map((r, ri) => {
+    const units = products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0), 0);
+    const amount = products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[ri]) || 0) * Number(p.costPrice), 0);
+    const crates = products.reduce((s, p) => {
+      const q = parseFloat(routeQty[p.id]?.[ri]) || 0;
+      if (!p.containerType || !p.unitsPerContainer || !q) return s;
+      return s + q / p.unitsPerContainer;
+    }, 0);
+    const crateType = products.find(p => p.containerType && (parseFloat(routeQty[p.id]?.[ri]) || 0) > 0)?.containerType;
+    return { routeNumber: r.routeNumber, units, amount, crates, crateType };
+  });
+  const hasRouteSummary = isNandini && routeSummary.some(r => r.units > 0);
 
   const totalCrates = products.reduce((s, p) => {
     const units = getEffectiveQty(p.id);
@@ -317,6 +343,46 @@ export default function StockReceipt() {
           </div>
         )}
 
+      {/* ── Route Summary Panel (Nandini only, shown when any route has qty) ── */}
+      {hasRouteSummary && (
+        <div className="mx-4 mt-2 mb-1">
+          <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Route Summary</p>
+            <div className="flex gap-2 flex-wrap">
+              {routeSummary.map(r => {
+                const active = r.units > 0;
+                const crateLabel = r.crateType
+                  ? `${Number.isInteger(r.crates) ? r.crates : r.crates.toFixed(1)} ${r.crateType.charAt(0).toUpperCase() + r.crateType.slice(1)}${r.crates !== 1 ? 's' : ''}`
+                  : null;
+                return (
+                  <div key={r.routeNumber}
+                    className={`flex-1 min-w-[90px] rounded-xl border px-3 py-2.5 transition-all ${active ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-100 bg-slate-50/60 opacity-50'}`}>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Route {r.routeNumber}</p>
+                    {active ? (
+                      <div className="space-y-1">
+                        <span className="flex items-center gap-1">
+                          <span className="text-[11px] font-bold text-blue-600 tabular-nums bg-blue-50 px-1.5 py-0.5 rounded-md">{r.units} units</span>
+                        </span>
+                        {crateLabel && (
+                          <span className="flex items-center gap-1">
+                            <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-1.5 py-0.5 rounded-md">{crateLabel}</span>
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-1.5 py-0.5 rounded-md">{formatCurrency(r.amount)}</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-300 font-medium">—</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>{/* end fixed top section */}
 
       {/* ── Table — flex-1 own scroll context, sticky thead works here ── */}
@@ -328,8 +394,8 @@ export default function StockReceipt() {
                 <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
                 {isNandini ? (
                   <>
-                    {ROUTE_LABELS.map(label => (
-                      <th key={label} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">{label}</th>
+                    {routes.map(r => (
+                      <th key={r.id} className="bg-emerald-700 px-3 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Route {r.routeNumber}</th>
                     ))}
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
@@ -437,15 +503,15 @@ export default function StockReceipt() {
 
                               {isNandini ? (
                                 <>
-                                  {ROUTE_LABELS.map((_, ri) => (
-                                    <td key={ri} className="px-2 py-3 text-center">
+                                  {routes.map((r, ri) => (
+                                    <td key={r.id} className="px-2 py-3 text-center">
                                       <input
                                         ref={el => { inputRefs.current[`${p.id}_r${ri}`] = el; }}
                                         type="number"
                                         inputMode="decimal"
                                         value={routeQty[p.id]?.[ri] ?? ''}
                                         onChange={e => setRouteQty(prev => {
-                                          const updated = [...(prev[p.id] ?? ['', '', '', ''])];
+                                          const updated = [...(prev[p.id] ?? Array(routes.length).fill(''))];
                                           updated[ri] = e.target.value;
                                           return { ...prev, [p.id]: updated };
                                         })}
@@ -517,8 +583,8 @@ export default function StockReceipt() {
                 {isNandini ? (
                   /* Per-route totals, then empty Rate cell */
                   <>
-                    {ROUTE_LABELS.map((_, ri) => (
-                      <td key={ri} className="bg-emerald-800 px-2 py-3 text-center">
+                    {routes.map((r, ri) => (
+                      <td key={r.id} className="bg-emerald-800 px-2 py-3 text-center">
                         <span className="text-xs font-bold text-white tabular-nums">
                           {routeTotals[ri] > 0 ? routeTotals[ri] : '—'}
                         </span>

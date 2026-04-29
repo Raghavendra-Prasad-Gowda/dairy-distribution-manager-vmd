@@ -93,6 +93,18 @@ const schemas = {
     notes: z.string().optional(),
   }),
 
+  // Routes
+  createRoute: z.object({
+    brandId:      z.number().int().positive('Brand ID is required'),
+    routeNumber:  z.string().min(1, 'Route number is required'),
+    displayOrder: z.number().int().nonnegative().optional(),
+  }),
+  updateRoute: z.object({
+    routeNumber:  z.string().min(1).optional(),
+    displayOrder: z.number().int().nonnegative().optional(),
+    isActive:     z.boolean().optional(),
+  }),
+
   // Salespeople
   createSalesperson: z.object({
     name: z.string().min(1, 'Name is required'),
