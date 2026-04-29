@@ -127,7 +127,7 @@ export default function PaymentForm({
       <div>
         <label className="ddm-section-label block mb-1.5">Date</label>
         <input type="date" name="paymentDate" value={form.paymentDate} onChange={handleChange} required
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none" />
       </div>
 
       {/* Reference */}

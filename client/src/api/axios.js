@@ -22,10 +22,13 @@ api.interceptors.request.use(
 );
 
 // Handle 401 — token expired → redirect to login
+// Exception: PIN verification errors must never trigger logout
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url ?? '';
+    const isPinEndpoint = url.includes('/pin/');
+    if (error.response?.status === 401 && !isPinEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

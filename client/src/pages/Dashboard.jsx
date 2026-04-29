@@ -8,7 +8,7 @@ import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
 
 /** Premium dairy payable card — brand-colored header, large owe amount, breakdown row */
-function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
+function DairyPayableCard({ brandId, brandName, opening, stockValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
 
@@ -53,7 +53,7 @@ function DairyPayableCard({ brandName, opening, stockValue, paid, closing }) {
       {isOwing && (
         <div className="px-3 py-2.5 border-t border-slate-100">
           <Link
-            to="/dairy/payments"
+            to={`/dairy/payments?brandId=${brandId}`}
             className="flex items-center justify-center gap-1.5 w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 rounded-xl transition"
           >
             Pay Now <ArrowRight size={12} />
@@ -157,6 +157,7 @@ export default function Dashboard() {
               {dairyBalances.map(b => (
                 <DairyPayableCard
                   key={b.brandId}
+                  brandId={b.brandId}
                   brandName={b.brandName}
                   opening={b.openingBalance}
                   stockValue={b.stockValue}

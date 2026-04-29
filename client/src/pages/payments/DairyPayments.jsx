@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
+import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
@@ -62,6 +64,7 @@ function BrandBalanceCard({ brandName, opening, stockValue, paid, closing }) {
 
 export default function DairyPayments() {
   const { notify } = useNotification();
+  const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
   const [balance, setBalance]      = useState(null);
@@ -69,15 +72,20 @@ export default function DairyPayments() {
   const [loading, setLoading]      = useState(false);
   const [saving, setSaving]        = useState(false);
 
+  // PIN modal state — single gate for both edit and delete
+  const [pinOpen, setPinOpen]           = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
+
   // Edit modal state
-  const [editPayment, setEditPayment]   = useState(null);   // payment being edited
+  const [editPayment, setEditPayment]   = useState(null);
   const [editForm, setEditForm]         = useState({});
   const [editSaving, setEditSaving]     = useState(false);
 
   // Delete confirm state
   const [deleteId, setDeleteId]         = useState(null);
 
-  // Filter state
+  // Search + filter state
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterFrom, setFilterFrom]   = useState('');
   const [filterTo,   setFilterTo]     = useState('');
   const [filterMode, setFilterMode]   = useState('');
@@ -91,8 +99,16 @@ export default function DairyPayments() {
   const today = getIndiaDate();
 
   useEffect(() => {
+    const preferredId = searchParams.get('brandId');
     api.get('/brands')
-      .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
+      .then(r => {
+        const b = r.data.data;
+        setBrands(b);
+        if (b.length) {
+          const match = preferredId && b.find(x => String(x.id) === String(preferredId));
+          setActive(match ? match.id : b[0].id);
+        }
+      })
       .catch(() => notify('Failed to load brands', 'error'));
   }, []);
 
@@ -143,13 +159,30 @@ export default function DairyPayments() {
   };
 
   const openEdit = (p) => {
-    setEditPayment(p);
-    setEditForm({
-      amount:      String(p.amount ?? ''),
-      paymentDate: p.paymentDate?.slice(0, 10) ?? today,
-      paymentMode: p.paymentMode ?? 'Cash',
-      reference:   p.reference ?? '',
-    });
+    setPendingAction({ type: 'edit', payment: p });
+    setPinOpen(true);
+  };
+
+  const openDelete = (p) => {
+    setPendingAction({ type: 'delete', payment: p });
+    setPinOpen(true);
+  };
+
+  const onPinSuccess = () => {
+    if (!pendingAction) return;
+    const { type, payment: p } = pendingAction;
+    if (type === 'edit') {
+      setEditPayment(p);
+      setEditForm({
+        amount:      String(p.amount ?? ''),
+        paymentDate: p.paymentDate?.slice(0, 10) ?? today,
+        paymentMode: p.paymentMode ?? 'Cash',
+        reference:   p.reference ?? '',
+      });
+    } else if (type === 'delete') {
+      setDeleteId(p.id);
+    }
+    setPendingAction(null);
   };
 
   const handleEditSave = async () => {
@@ -171,20 +204,29 @@ export default function DairyPayments() {
   };
 
   const hasFilters = filterFrom || filterTo || filterMode || filterRef;
+  const hasSearch  = searchQuery.trim().length > 0;
 
   const filteredPayments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return payments.filter(p => {
       const dateStr = p.paymentDate?.slice(0, 10) ?? '';
       if (filterFrom && dateStr < filterFrom) return false;
       if (filterTo   && dateStr > filterTo)   return false;
       if (filterMode && p.paymentMode !== filterMode) return false;
       if (filterRef  && !(p.reference ?? '').toLowerCase().includes(filterRef.toLowerCase())) return false;
+      if (q) {
+        const amount   = String(p.amount ?? '');
+        const ref      = (p.reference ?? '').toLowerCase();
+        const mode     = (p.paymentMode ?? '').toLowerCase();
+        const date     = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).toLowerCase();
+        if (!amount.includes(q) && !ref.includes(q) && !mode.includes(q) && !date.includes(q)) return false;
+      }
       return true;
     });
-  }, [payments, filterFrom, filterTo, filterMode, filterRef]);
+  }, [payments, searchQuery, filterFrom, filterTo, filterMode, filterRef]);
 
-  // Reset to page 1 when filters change
-  useEffect(() => { setHistoryPage(1); }, [filterFrom, filterTo, filterMode, filterRef, activeBrandId]);
+  // Reset to page 1 when filters/search change
+  useEffect(() => { setHistoryPage(1); }, [searchQuery, filterFrom, filterTo, filterMode, filterRef, activeBrandId]);
 
   const historyTotalPages = Math.max(1, Math.ceil(filteredPayments.length / HISTORY_PER_PAGE));
   const pagedPayments = filteredPayments.slice(
@@ -259,28 +301,46 @@ export default function DairyPayments() {
               <div className="lg:col-span-2 order-2 lg:order-2">
                 <div className="ddm-card overflow-hidden">
 
-                  {/* Header + filter toggle */}
-                  <div className="flex items-center justify-between px-5 py-3.5 bg-white border-b border-slate-200">
-                    <h3 className="font-bold text-slate-900 text-sm">
-                      Payment History
-                      {filteredPayments.length !== payments.length && (
-                        <span className="ml-2 text-xs font-normal text-slate-400">
-                          ({filteredPayments.length} of {payments.length})
-                        </span>
+                  {/* Header + search + filter toggle */}
+                  <div className="px-4 py-3 bg-white border-b border-slate-200 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900 text-sm">
+                        Payment History
+                        {(hasSearch || hasFilters) && filteredPayments.length !== payments.length && (
+                          <span className="ml-2 text-xs font-normal text-slate-400">
+                            ({filteredPayments.length} of {payments.length})
+                          </span>
+                        )}
+                      </h3>
+                      <button
+                        onClick={() => setShowFilter(v => !v)}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
+                          showFilter || hasFilters
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
+                        }`}
+                      >
+                        <Filter size={12} />
+                        Filter
+                        {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+                      </button>
+                    </div>
+                    {/* Quick search */}
+                    <div className="relative">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Search by amount, mode, reference, date…"
+                        className="w-full pl-8 pr-8 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50 placeholder:text-slate-400"
+                      />
+                      {hasSearch && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X size={12} />
+                        </button>
                       )}
-                    </h3>
-                    <button
-                      onClick={() => setShowFilter(v => !v)}
-                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
-                        showFilter || hasFilters
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
-                      }`}
-                    >
-                      <Filter size={12} />
-                      Filter
-                      {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
-                    </button>
+                    </div>
                   </div>
 
                   {/* Filter controls */}
@@ -291,7 +351,7 @@ export default function DairyPayments() {
                         <div className="relative">
                           <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                           <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
-                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                            className="w-full pl-7 pr-2 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none min-h-[34px]" />
                         </div>
                       </div>
                       <div>
@@ -299,7 +359,7 @@ export default function DairyPayments() {
                         <div className="relative">
                           <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
-                            className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                            className="w-full pl-7 pr-2 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none min-h-[34px]" />
                         </div>
                       </div>
                       <div>
@@ -341,7 +401,7 @@ export default function DairyPayments() {
                     <>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
-                          <thead className="bg-emerald-700 sticky top-0 z-10">
+                          <thead className="bg-emerald-700">
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                               <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
@@ -369,10 +429,10 @@ export default function DairyPayments() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center justify-end gap-1">
-                                    <button onClick={() => openEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                    <button onClick={() => openEdit(p)} className="p-1.5 text-emerald-600 hover:text-white hover:bg-emerald-600 rounded-lg transition" title="Edit">
                                       <Pencil size={12} />
                                     </button>
-                                    <button onClick={() => setDeleteId(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                    <button onClick={() => openDelete(p)} className="p-1.5 text-red-400 hover:text-white hover:bg-red-500 rounded-lg transition" title="Delete">
                                       <Trash2 size={12} />
                                     </button>
                                   </div>
@@ -415,19 +475,42 @@ export default function DairyPayments() {
         </div>
       )}
 
+      {/* ── PIN modal ────────────────────────────────────────── */}
+      <PinModal
+        isOpen={pinOpen}
+        onClose={() => { setPinOpen(false); setPendingAction(null); }}
+        onSuccess={onPinSuccess}
+        title="Enter PIN to Edit Payment"
+      />
+
       {/* ── Edit payment modal ───────────────────────────────── */}
       {editPayment && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
           onClick={() => setEditPayment(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            style={{ animation: 'popIn 0.2s ease' }}
             onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Edit Payment</h3>
-            <p className="text-xs text-slate-400 mb-5">Correct the details below and save.</p>
 
-            <div className="space-y-4">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-emerald-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
+                  <Pencil size={14} className="text-emerald-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">Edit Payment</p>
+                  <p className="text-emerald-300 text-[11px]">Correct the details below and save</p>
+                </div>
+              </div>
+              <button onClick={() => setEditPayment(null)} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
               {/* Amount */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Amount (₹)</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Amount (₹)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
                   <input
@@ -441,15 +524,15 @@ export default function DairyPayments() {
 
               {/* Mode */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Mode</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Mode</label>
                 <div className="flex flex-wrap gap-1.5">
                   {['Cash','UPI','NEFT','RTGS','Cheque'].map(mode => (
                     <button key={mode} type="button"
                       onClick={() => setEditForm(f => ({ ...f, paymentMode: mode }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${
                         editForm.paymentMode === mode
-                          ? 'bg-emerald-700 text-white border-emerald-700'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
+                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
                       }`}>
                       {mode}
                     </button>
@@ -457,19 +540,25 @@ export default function DairyPayments() {
                 </div>
               </div>
 
+              {/* Divider */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest whitespace-nowrap">Details</span>
+                <div className="flex-1 h-px bg-emerald-100" />
+              </div>
+
               {/* Date */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Date</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Date</label>
                 <input type="date"
                   value={editForm.paymentDate}
                   onChange={e => setEditForm(f => ({ ...f, paymentDate: e.target.value }))}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none"
                 />
               </div>
 
               {/* Reference */}
               <div>
-                <label className="ddm-section-label block mb-1.5">Reference</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Reference</label>
                 <input type="text" placeholder="Txn / cheque no."
                   value={editForm.reference}
                   onChange={e => setEditForm(f => ({ ...f, reference: e.target.value }))}
@@ -478,7 +567,7 @@ export default function DairyPayments() {
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 px-5 pb-5">
               <button onClick={() => setEditPayment(null)}
                 className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
                 Cancel

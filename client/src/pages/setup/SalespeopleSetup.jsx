@@ -133,33 +133,52 @@ export default function SalespeopleSetup() {
 
       {/* Add salesperson form */}
       {showAddSp && (
-        <div className="ddm-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-800">New Salesperson</h3>
-            <button onClick={() => setShowAddSp(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200" style={{ animation: 'popIn 0.2s ease' }}>
+          {/* Form header */}
+          <div className="flex items-center justify-between px-5 py-4 bg-emerald-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
+                <Users size={15} className="text-emerald-300" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white leading-tight">New Salesperson</p>
+                <p className="text-emerald-300 text-[11px]">Fill in the details below</p>
+              </div>
+            </div>
+            <button onClick={() => setShowAddSp(false)} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
               <X size={15} />
             </button>
           </div>
-          <form onSubmit={handleAddSalesperson} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[
-              { key: 'name',  label: 'Full Name',    req: true,  placeholder: 'e.g. Ramu' },
-              { key: 'phone', label: 'Phone',         req: false, placeholder: '+91 XXXXX' },
-              { key: 'route', label: 'Route / Area',  req: false, placeholder: 'e.g. North Zone' },
-            ].map(({ key, label, req, placeholder }) => (
-              <div key={key}>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>
-                <input
-                  value={newSp[key]}
-                  onChange={e => setNewSp(p => ({ ...p, [key]: e.target.value }))}
-                  required={req}
-                  placeholder={placeholder}
-                  className="ddm-input w-full"
-                />
-              </div>
-            ))}
-            <div className="sm:col-span-3 flex gap-3 justify-end pt-1">
-              <button type="button" onClick={() => setShowAddSp(false)} className="ddm-btn-secondary">Cancel</button>
-              <button type="submit" className="ddm-btn-primary"><Plus size={14} /> Add</button>
+
+          <form onSubmit={handleAddSalesperson} className="px-5 py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              {[
+                { key: 'name',  label: 'Full Name',   req: true,  placeholder: 'e.g. Ramu' },
+                { key: 'phone', label: 'Phone',        req: false, placeholder: '+91 XXXXX' },
+                { key: 'route', label: 'Route / Area', req: false, placeholder: 'e.g. North Zone' },
+              ].map(({ key, label, req, placeholder }) => (
+                <div key={key}>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    {label}{req && <span className="text-red-400 ml-1">*</span>}
+                  </label>
+                  <input
+                    value={newSp[key]}
+                    onChange={e => setNewSp(p => ({ ...p, [key]: e.target.value }))}
+                    required={req}
+                    placeholder={placeholder}
+                    className="ddm-input w-full"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 justify-end pt-1 border-t border-slate-100">
+              <button type="button" onClick={() => setShowAddSp(false)}
+                className="px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition">
+                Cancel
+              </button>
+              <button type="submit" className="ddm-btn-primary">
+                <Plus size={14} /> Add Salesperson
+              </button>
             </div>
           </form>
         </div>

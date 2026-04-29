@@ -22,6 +22,7 @@ const dispatchesRoutes          = require('./routes/dispatches');
 const salespersonBalanceRoutes  = require('./routes/salespersonBalance');
 const salespersonPaymentsRoutes = require('./routes/salespersonPayments');
 const reportsRoutes             = require('./routes/reports');
+const pinRoutes                 = require('./routes/pin');
 const { authenticate }          = require('./middleware/auth');
 
 const app = express();
@@ -91,6 +92,7 @@ app.use('/api/v1/dispatches',           dispatchesRoutes);
 app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
 app.use('/api/v1/reports',              reportsRoutes);
+app.use('/api/v1/pin',                  pinRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 // Must be the last middleware

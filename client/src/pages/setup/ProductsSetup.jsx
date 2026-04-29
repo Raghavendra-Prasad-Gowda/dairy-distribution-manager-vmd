@@ -317,58 +317,92 @@ export default function ProductsSetup() {
       {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" style={{ animation: 'popIn 0.2s ease' }}>
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">
-                {editingProduct ? 'Edit Product' : 'Add New Product'}
-              </h3>
-              <button onClick={closeModal} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
-                <X size={16} />
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh]" style={{ animation: 'popIn 0.2s ease' }}>
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
+                  <Package size={15} className="text-emerald-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">
+                    {editingProduct ? 'Edit Product' : 'Add New Product'}
+                  </p>
+                  <p className="text-emerald-300 text-[11px]">
+                    {editingProduct ? 'Update product details' : 'Fill in the details below'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeModal} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+                <X size={15} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Product Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  autoFocus required
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Homogenised Milk"
-                  className="ddm-input"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Category</label>
-                <select
-                  value={form.categoryId}
-                  onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
-                  className="ddm-input bg-white"
-                >
-                  <option value="">— No category —</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                {categories.length === 0 && (
-                  <p className="text-xs text-slate-400 mt-1">Add categories in <strong>Dairy → Categories</strong> first.</p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+
+            {/* Scrollable form body */}
+            <form onSubmit={handleSubmit} className="overflow-y-auto flex-1">
+              <div className="px-5 py-4 space-y-4">
+
+                {/* Product name */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Unit Type</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Product Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    autoFocus required
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Homogenised Milk"
+                    className="ddm-input"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Category</label>
                   <select
-                    value={form.unitType}
-                    onChange={e => setForm(f => ({ ...f, unitType: e.target.value, unitSize: e.target.value !== 'piece' ? (f.unitSize || '500') : '' }))}
+                    value={form.categoryId}
+                    onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
                     className="ddm-input bg-white"
                   >
-                    <option value="ml">ml</option>
-                    <option value="gram">gram</option>
-                    <option value="piece">piece</option>
+                    <option value="">— No category —</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
+                  {categories.length === 0 && (
+                    <p className="text-[11px] text-slate-400 mt-1">Add categories in <strong>Dairy → Categories</strong> first.</p>
+                  )}
                 </div>
+
+                {/* Divider: Unit & Container */}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest whitespace-nowrap">Unit & Container</span>
+                  <div className="flex-1 h-px bg-emerald-100" />
+                </div>
+
+                {/* Unit type — pill buttons */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Unit Type</label>
+                  <div className="flex gap-2">
+                    {['ml', 'gram', 'piece'].map(u => (
+                      <button
+                        key={u} type="button"
+                        onClick={() => setForm(f => ({ ...f, unitType: u, unitSize: u !== 'piece' ? (f.unitSize || '500') : '' }))}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${
+                          form.unitType === u
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Size per unit */}
                 {form.unitType !== 'piece' && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Size per unit ({form.unitType})
                     </label>
                     <select
@@ -376,28 +410,36 @@ export default function ProductsSetup() {
                       onChange={e => setForm(f => ({ ...f, unitSize: e.target.value }))}
                       className="ddm-input bg-white"
                     >
-                      <option value="">— Select —</option>
+                      <option value="">— Select size —</option>
                       {UNIT_SIZES.map(s => <option key={s} value={s}>{s} {form.unitType}</option>)}
                     </select>
                   </div>
                 )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+
+                {/* Container type — pill buttons */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Container Type</label>
-                  <select
-                    value={form.containerType}
-                    onChange={e => setForm(f => ({ ...f, containerType: e.target.value, unitsPerContainer: e.target.value ? f.unitsPerContainer : '' }))}
-                    className="ddm-input bg-white"
-                  >
-                    <option value="">— None —</option>
-                    <option value="crate">Crate</option>
-                    <option value="box">Box</option>
-                  </select>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Container</label>
+                  <div className="flex gap-2">
+                    {[{ val: '', label: 'None' }, { val: 'crate', label: 'Crate' }, { val: 'box', label: 'Box' }].map(({ val, label }) => (
+                      <button
+                        key={val} type="button"
+                        onClick={() => setForm(f => ({ ...f, containerType: val, unitsPerContainer: val ? f.unitsPerContainer : '' }))}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${
+                          form.containerType === val
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Units per container */}
                 {form.containerType && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Units per {form.containerType === 'crate' ? 'Crate' : 'Box'}
                     </label>
                     <input
@@ -409,38 +451,46 @@ export default function ProductsSetup() {
                     />
                   </div>
                 )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Cost Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={form.costPrice}
-                      onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
-                      placeholder="0.00"
-                      className="ddm-input pl-7 text-right tabular-nums"
-                    />
-                  </div>
+
+                {/* Divider: Pricing */}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest whitespace-nowrap">Pricing</span>
+                  <div className="flex-1 h-px bg-emerald-100" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Selling Price (₹) <span className="normal-case font-normal text-slate-400">per unit</span></label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={form.sellingPrice}
-                      onChange={e => setForm(f => ({ ...f, sellingPrice: e.target.value }))}
-                      placeholder="0.00"
-                      className="ddm-input pl-7 text-right tabular-nums"
-                    />
-                  </div>
+
+                {/* Cost + Selling price */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: 'costPrice',    label: 'Cost Price',    hint: 'What you pay' },
+                    { key: 'sellingPrice', label: 'Selling Price', hint: 'What you charge' },
+                  ].map(({ key, label, hint }) => (
+                    <div key={key} className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
+                      <p className="text-[10px] text-slate-400 mb-2">{hint}</p>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={form[key]}
+                          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-2 py-2 border border-slate-200 rounded-lg text-sm font-bold text-right tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={closeModal} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl transition">Cancel</button>
-                <button type="submit" disabled={submitting} className="ddm-btn-primary flex-1">
+
+              {/* Footer */}
+              <div className="flex gap-3 px-5 pb-5 pt-1">
+                <button
+                  type="button" onClick={closeModal}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={submitting} className="ddm-btn-primary flex-1 justify-center">
                   {editingProduct ? 'Save Changes' : 'Add Product'}
                 </button>
               </div>
