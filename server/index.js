@@ -28,6 +28,14 @@ const server = app.listen(PORT, async () => {
     process.exit(1);
   }
 
+  // Seed master data — idempotent upserts, safe on every deploy
+  try {
+    const { seedNandiniRoutes } = require('./scripts/seed-nandini');
+    await seedNandiniRoutes();
+  } catch (error) {
+    logger.warn('Non-critical: Failed to seed Nandini routes.', { message: error.message });
+  }
+
   // [DISABLED] reseed-nandini, seed-demo-data, migrate-container-fields, seed-nandini-prices, seed-jersey, seed-gowardhan
 
 });
