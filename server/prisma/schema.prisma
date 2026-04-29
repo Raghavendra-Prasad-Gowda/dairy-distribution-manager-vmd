@@ -90,6 +90,7 @@ model StockReceipt {
   id          Int      @id @default(autoincrement())
   brandId     Int      @map("brand_id")
   productId   Int      @map("product_id")
+  routeId     Int      @default(0) @map("route_id")  // 0 = no route (Jersey/Gowardhan); actual route ID for Nandini
   receiptDate DateTime @db.Date @map("receipt_date")
   quantity    Decimal  @default(0) @db.Decimal(10, 2)
   unitPrice   Decimal  @db.Decimal(10, 2) @map("unit_price")
@@ -98,7 +99,7 @@ model StockReceipt {
   brand   Brand   @relation(fields: [brandId], references: [id])
   product Product @relation(fields: [productId], references: [id])
 
-  @@unique([productId, receiptDate])
+  @@unique([productId, receiptDate, routeId])
   @@index([brandId, receiptDate])
   @@map("stock_receipts")
 }

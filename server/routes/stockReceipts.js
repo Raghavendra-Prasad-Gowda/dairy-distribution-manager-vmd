@@ -78,15 +78,17 @@ router.post('/bulk', asyncHandler(async (req, res) => {
   if (!data) return;
 
   const receiptDate = new Date(data.date);
+  const routeId = data.routeId ?? 0;
 
-  // Upsert each product's receipt
+  // Upsert each product's receipt — keyed by (productId, receiptDate, routeId)
   const upserts = data.items.map((item) =>
     prisma.stockReceipt.upsert({
-      where: { productId_receiptDate: { productId: item.productId, receiptDate } },
+      where: { productId_receiptDate_routeId: { productId: item.productId, receiptDate, routeId } },
       update: { quantity: item.quantity, unitPrice: item.unitPrice, brandId: data.brandId },
       create: {
-        brandId:  data.brandId,
+        brandId:   data.brandId,
         productId: item.productId,
+        routeId,
         receiptDate,
         quantity:  item.quantity,
         unitPrice: item.unitPrice,

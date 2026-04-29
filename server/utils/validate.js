@@ -69,6 +69,7 @@ const schemas = {
   bulkStockReceipt: z.object({
     brandId: z.number().int().positive(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+    routeId: z.number().int().nonnegative().optional().default(0),
     items: z.array(z.object({
       productId: z.number().int().positive(),
       quantity: z.number().min(0),
