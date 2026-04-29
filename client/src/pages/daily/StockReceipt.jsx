@@ -88,11 +88,18 @@ export default function StockReceipt() {
   const isNandini = activeBrand?.name?.toLowerCase() === 'nandini';
   const COL_COUNT = 5;
 
-  // Total quantity for a product across ALL routes (used for balance card + crates display)
+  // Sum across ALL routes — used only for balance card totals and route summary panel
   const getEffectiveQty = (productId) => {
     if (isNandini) {
       return Object.values(routeQty[productId] ?? {}).reduce((s, v) => s + (parseFloat(v) || 0), 0);
     }
+    return parseFloat(quantities[productId]) || 0;
+  };
+
+  // Quantity for the currently active route (or the only route for non-Nandini)
+  // Used for table display: input, amount column, crates column, category totals, footer
+  const getDisplayQty = (productId) => {
+    if (isNandini && activeRoute) return parseFloat(routeQty[productId]?.[activeRoute.id]) || 0;
     return parseFloat(quantities[productId]) || 0;
   };
 
@@ -287,9 +294,13 @@ export default function StockReceipt() {
     setCollapsedCategories(next);
   };
 
-  // Grand totals (all routes combined)
+  // Grand totals across ALL routes — used only in balance card
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
   const totalUnits  = products.reduce((s, p) => s + getEffectiveQty(p.id), 0);
+
+  // Display totals — active route only for Nandini, used in table footer and category headers
+  const displayTotalAmount = products.reduce((s, p) => s + getDisplayQty(p.id) * Number(p.costPrice), 0);
+  const displayTotalUnits  = products.reduce((s, p) => s + getDisplayQty(p.id), 0);
 
   // Per-route summary
   const routeSummary = routes.map((r, ri) => {
@@ -306,24 +317,21 @@ export default function StockReceipt() {
   });
   const hasRouteSummary = isNandini && routeSummary.some(r => r.units > 0);
 
-  // Active route total for footer
-  const activeRouteUnits = isNandini && activeRoute
-    ? products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[activeRoute.id]) || 0), 0)
-    : totalUnits;
-
-  const totalCrates = products.reduce((s, p) => {
-    const units = getEffectiveQty(p.id);
+  // Footer/table totals — based on display qty (active route for Nandini)
+  const displayTotalCrates = products.reduce((s, p) => {
+    const units = getDisplayQty(p.id);
     if (!p.containerType || !p.unitsPerContainer || !units) return s;
     return s + units / p.unitsPerContainer;
   }, 0);
 
-  const containerTypes = products
-    .filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0)
+  const displayContainerTypes = products
+    .filter(p => p.containerType && p.unitsPerContainer && getDisplayQty(p.id) > 0)
     .map(p => p.containerType);
-  const crateLabel = containerTypes.length > 0
-    ? (containerTypes[0].charAt(0).toUpperCase() + containerTypes[0].slice(1)) + 's'
+  const crateLabel = displayContainerTypes.length > 0
+    ? (displayContainerTypes[0].charAt(0).toUpperCase() + displayContainerTypes[0].slice(1)) + 's'
     : 'Crates';
 
+  // filledCount: count products with any quantity entered across all routes (for balance card badge)
   const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
   const isOwing = balance.closing > 0;
   const activeColor = isNandini ? (ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length]) : null;
@@ -536,12 +544,12 @@ export default function StockReceipt() {
                 <>
                   {filteredGrouped.map(([category, items], catIdx) => {
                     const isCollapsed   = collapsedCategories[category] ?? (catIdx !== 0);
-                    const catAmount     = items.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
-                    const catFilled     = items.filter(p => getEffectiveQty(p.id) > 0).length;
+                    const catAmount     = items.reduce((s, p) => s + getDisplayQty(p.id) * Number(p.costPrice), 0);
+                    const catFilled     = items.filter(p => getDisplayQty(p.id) > 0).length;
                     const filledPct     = items.length > 0 ? Math.round((catFilled / items.length) * 100) : 0;
-                    const catTotalUnits = items.reduce((s, p) => s + getEffectiveQty(p.id), 0);
-                    const catCrateItems = items.filter(p => p.containerType && p.unitsPerContainer && getEffectiveQty(p.id) > 0);
-                    const catCrateCount = catCrateItems.reduce((s, p) => s + getEffectiveQty(p.id) / p.unitsPerContainer, 0);
+                    const catTotalUnits = items.reduce((s, p) => s + getDisplayQty(p.id), 0);
+                    const catCrateItems = items.filter(p => p.containerType && p.unitsPerContainer && getDisplayQty(p.id) > 0);
+                    const catCrateCount = catCrateItems.reduce((s, p) => s + getDisplayQty(p.id) / p.unitsPerContainer, 0);
                     const catCrateType  = catCrateItems[0]?.containerType;
                     const catCrateLabel = catCrateType
                       ? `${Number.isInteger(catCrateCount) ? catCrateCount : catCrateCount.toFixed(1)} ${catCrateType.charAt(0).toUpperCase() + catCrateType.slice(1)}${catCrateCount !== 1 ? 's' : ''}`
@@ -582,13 +590,12 @@ export default function StockReceipt() {
                         </tr>
 
                         {!isCollapsed && items.map((p) => {
-                          // For display: show active route qty in input, but use total for amount/crates
-                          const inputVal    = isNandini && activeRoute
+                          const displayQty = getDisplayQty(p.id);
+                          const inputVal   = isNandini && activeRoute
                             ? getRouteQty(p.id, activeRoute.id)
                             : (quantities[p.id] ?? '');
-                          const effectiveQty = getEffectiveQty(p.id);
-                          const amount       = effectiveQty * Number(p.costPrice);
-                          const filled       = effectiveQty > 0;
+                          const amount = displayQty * Number(p.costPrice);
+                          const filled = displayQty > 0;
 
                           return (
                             <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
@@ -640,7 +647,7 @@ export default function StockReceipt() {
                                 ₹{Number(p.costPrice).toFixed(2)}
                               </td>
                               <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
-                                {calcContainerDisplay(effectiveQty, p.containerType, p.unitsPerContainer)}
+                                {calcContainerDisplay(displayQty, p.containerType, p.unitsPerContainer)}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
@@ -665,20 +672,20 @@ export default function StockReceipt() {
                 </td>
                 <td className="bg-emerald-800 px-4 py-3 text-center">
                   <span className="text-xs font-bold text-white tabular-nums">
-                    {activeRouteUnits > 0 ? activeRouteUnits : '—'}
+                    {displayTotalUnits > 0 ? displayTotalUnits : '—'}
                   </span>
                 </td>
                 <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
                 <td className="bg-emerald-800 px-4 py-3 text-center">
                   <span className="text-xs font-bold text-white tabular-nums">
-                    {totalCrates > 0
-                      ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} ${crateLabel}`
+                    {displayTotalCrates > 0
+                      ? `${Number.isInteger(displayTotalCrates) ? displayTotalCrates : displayTotalCrates.toFixed(2)} ${crateLabel}`
                       : '—'}
                   </span>
                 </td>
                 <td className="bg-emerald-800 px-4 py-3 text-center rounded-br-2xl">
                   <span className="text-sm font-bold text-amber-300 tabular-nums">
-                    {totalAmount > 0 ? formatCurrency(totalAmount) : '—'}
+                    {displayTotalAmount > 0 ? formatCurrency(displayTotalAmount) : '—'}
                   </span>
                 </td>
               </tr>
