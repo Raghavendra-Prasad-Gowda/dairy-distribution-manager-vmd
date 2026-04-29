@@ -6,6 +6,7 @@ import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { numberToWords } from '../../utils/numberToWords';
 import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
 
@@ -416,8 +417,9 @@ export default function DairyPayments() {
                                 <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
                                   {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                 </td>
-                                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
-                                  {formatCurrency(p.amount)}
+                                <td className="px-4 py-3 text-right">
+                                  <div className="text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">{formatCurrency(p.amount)}</div>
+                                  <div className="text-[10px] text-slate-400 italic mt-0.5 leading-tight">{numberToWords(p.amount)}</div>
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
@@ -520,6 +522,11 @@ export default function DairyPayments() {
                     className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
                   />
                 </div>
+                {parseFloat(editForm.amount) > 0 && (
+                  <p className="mt-1.5 text-[11px] text-slate-500 italic leading-snug">
+                    {numberToWords(parseFloat(editForm.amount))}
+                  </p>
+                )}
               </div>
 
               {/* Mode */}
