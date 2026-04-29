@@ -414,25 +414,25 @@ export default function DairyPayments() {
                           </thead>
                           <tbody className="bg-white divide-y divide-slate-100">
                             {pagedPayments.map((p) => (
-                              <tr key={p.id} className="hover:bg-slate-50/80 transition-colors align-top">
-                                <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+                              <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="px-4 py-3 align-top text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
                                   {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                 </td>
-                                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                                <td className="px-4 py-3 align-top text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                                   {formatCurrency(p.amount)}
                                 </td>
-                                <td className="px-4 py-3 text-xs text-slate-500 italic max-w-[220px]">
+                                <td className="px-4 py-3 align-top text-left text-xs text-slate-500 italic max-w-[220px]">
                                   {numberToWords(p.amount)}
                                 </td>
-                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                <td className="px-4 py-3 align-top text-center whitespace-nowrap">
                                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
                                     {p.paymentMode || 'Cash'}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-xs text-slate-400 max-w-[8rem] truncate">
+                                <td className="px-4 py-3 align-top text-xs text-slate-400 max-w-[8rem] truncate">
                                   {p.reference || <span className="text-slate-300">—</span>}
                                 </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
+                                <td className="px-4 py-3 align-top whitespace-nowrap">
                                   <div className="flex items-center justify-end gap-1">
                                     <button onClick={() => openEdit(p)} className="p-1.5 text-emerald-600 hover:text-white hover:bg-emerald-600 rounded-lg transition" title="Edit">
                                       <Pencil size={12} />
