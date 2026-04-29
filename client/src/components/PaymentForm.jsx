@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, CreditCard } from 'lucide-react';
 import { PAYMENT_MODES } from '../utils/constants';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
+import { numberToWords } from '../utils/numberToWords';
 
 /**
  * Props:
@@ -75,6 +76,13 @@ export default function PaymentForm({
             className={`w-full pl-8 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 bg-white tabular-nums ${isExcess ? 'border-red-400 focus:ring-red-400 text-red-600' : 'border-slate-200 focus:ring-emerald-400'}`}
           />
         </div>
+
+        {/* Amount in words */}
+        {enteredAmount > 0 && !isExcess && (
+          <p className="mt-1.5 text-[11px] text-slate-500 italic leading-snug">
+            {numberToWords(enteredAmount)}
+          </p>
+        )}
 
         {/* Excess payment warning */}
         {isExcess && (

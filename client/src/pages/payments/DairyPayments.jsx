@@ -6,6 +6,7 @@ import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { numberToWords } from '../../utils/numberToWords';
 import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
 
@@ -405,6 +406,7 @@ export default function DairyPayments() {
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                               <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Amount in Words</th>
                               <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Mode</th>
                               <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Reference</th>
                               <th className="px-4 py-3 w-20" />
@@ -413,21 +415,24 @@ export default function DairyPayments() {
                           <tbody className="bg-white divide-y divide-slate-100">
                             {pagedPayments.map((p) => (
                               <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+                                <td className="px-4 py-3 align-top text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
                                   {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                 </td>
-                                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                                <td className="px-4 py-3 align-top text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                                   {formatCurrency(p.amount)}
                                 </td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="px-4 py-3 align-top text-left text-xs text-slate-500 italic max-w-[220px]">
+                                  {numberToWords(p.amount)}
+                                </td>
+                                <td className="px-4 py-3 align-top text-center whitespace-nowrap">
                                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${MODE_COLORS[p.paymentMode] ?? 'bg-slate-100 text-slate-600'}`}>
                                     {p.paymentMode || 'Cash'}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-xs text-slate-400 max-w-[8rem] truncate">
+                                <td className="px-4 py-3 align-top text-xs text-slate-400 max-w-[8rem] truncate">
                                   {p.reference || <span className="text-slate-300">—</span>}
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-3 align-top whitespace-nowrap">
                                   <div className="flex items-center justify-end gap-1">
                                     <button onClick={() => openEdit(p)} className="p-1.5 text-emerald-600 hover:text-white hover:bg-emerald-600 rounded-lg transition" title="Edit">
                                       <Pencil size={12} />
@@ -520,6 +525,11 @@ export default function DairyPayments() {
                     className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
                   />
                 </div>
+                {parseFloat(editForm.amount) > 0 && (
+                  <p className="mt-1.5 text-[11px] text-slate-500 italic leading-snug">
+                    {numberToWords(parseFloat(editForm.amount))}
+                  </p>
+                )}
               </div>
 
               {/* Mode */}
