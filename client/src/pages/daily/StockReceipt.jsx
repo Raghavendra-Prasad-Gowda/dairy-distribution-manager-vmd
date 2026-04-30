@@ -337,7 +337,7 @@ export default function StockReceipt() {
   const activeColor = isNandini ? (ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length]) : null;
 
   return (
-    <div className="flex flex-col h-full bg-slate-100">
+    <div className="flex flex-col min-h-full bg-slate-100">
       {/* ── Saving overlay ──────────────────────────────────── */}
       {saving && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -521,7 +521,7 @@ export default function StockReceipt() {
 
       {/* ── Table ── */}
       {products.length > 0 && (
-        <div className="flex-1 min-h-0 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
+        <div className="flex-1 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto" style={{ minHeight: 400 }}>
           <table className="w-full table-fixed text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
             <colgroup>
               <col style={{ width: '38%' }} />
