@@ -60,6 +60,21 @@ test.describe('GET /api/v1/products', () => {
 
     expect(res.status()).toBe(200);
   });
+
+  test('returns 200 with date-resolved costPrice when ?date= provided', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
+    ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue([
+      { productId: 1, costPrice: 20, effectiveFrom: new Date('2026-04-01') },
+    ]);
+
+    const res = await request.get('/api/v1/products?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Number(body.data[0].costPrice)).toBe(20);
+  });
 });
 
 // ─── POST /api/v1/products ────────────────────────────────────────────────────
@@ -84,6 +99,18 @@ test.describe('POST /api/v1/products', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data).toHaveProperty('name', 'Milk 500ml');
+  });
+
+  test('returns 201 and seeds cost price history when costPrice > 0', async ({ request }) => {
+    ctx.mockPrisma.product.create.mockResolvedValue(PRODUCT);
+    ctx.mockPrisma.productCostPrice.create.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, name: 'Milk 500ml', costPrice: 22 },
+    });
+
+    expect(res.status()).toBe(201);
   });
 
   test('returns 400 when brandId is missing', async ({ request }) => {
@@ -162,6 +189,21 @@ test.describe('PUT /api/v1/products/:id', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveProperty('name', 'Updated');
+  });
+
+  test('returns 200 and records cost price history when costPrice changes', async ({ request }) => {
+    ctx.mockPrisma.product.update.mockResolvedValue({ ...PRODUCT, costPrice: 20 });
+    ctx.mockPrisma.productCostPrice.upsert.mockResolvedValue({});
+    ctx.mockPrisma.productCostPrice.findFirst.mockResolvedValue({ costPrice: 20 });
+
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { costPrice: 20, effectiveFrom: '2026-05-01' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
   });
 
   test('returns 404 when product does not exist', async ({ request }) => {

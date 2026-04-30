@@ -78,6 +78,12 @@ function createMockPrisma() {
       create:     mockFn(),
       update:     mockFn(),
     },
+    productCostPrice: {
+      findMany:   mockFn(),
+      findFirst:  mockFn(),
+      create:     mockFn(),
+      upsert:     mockFn(),
+    },
     salespersonPrice: {
       findMany:   mockFn(),
       findUnique: mockFn(),
@@ -119,6 +125,22 @@ function createMockPrisma() {
     },
     $transaction: mockFn(),
     $queryRaw:    mockFn(),
+  };
+
+  // Make $transaction execute callback-form transactions against the mock by default.
+  // Tests that need to override the return value can still call mockResolvedValue(),
+  // which clears _impl and returns the fixed value (skipping the callback).
+  const txDefault = async (arg) => {
+    if (typeof arg === 'function') return arg(mock);
+    return arg; // array form — each element is already a promise from mockFn calls
+  };
+  mock.$transaction.mockImplementation(txDefault);
+
+  // Ensure reset() restores the default transaction behavior
+  const origTxReset = mock.$transaction.reset;
+  mock.$transaction.reset = () => {
+    origTxReset();
+    mock.$transaction.mockImplementation(txDefault);
   };
 
   mock.reset = () => {

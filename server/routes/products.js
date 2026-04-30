@@ -5,7 +5,8 @@ const prisma = require('../lib/prisma');
 
 const router = express.Router();
 
-// GET /products?brandId=
+// GET /products?brandId=&date=YYYY-MM-DD
+// When ?date= is supplied, costPrice on each product reflects the price effective on that date.
 router.get('/', asyncHandler(async (req, res) => {
   const where = { isActive: true };
   if (req.query.brandId) where.brandId = parseId(req.query.brandId, 'Brand ID');
@@ -15,6 +16,25 @@ router.get('/', asyncHandler(async (req, res) => {
     include: { brand: { select: { id: true, name: true } } },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
+
+  if (req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+    const targetDate = new Date(req.query.date);
+    const priceRows = await prisma.productCostPrice.findMany({
+      where: {
+        productId:     { in: products.map(p => p.id) },
+        effectiveFrom: { lte: targetDate },
+      },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const priceMap = {};
+    for (const row of priceRows) {
+      if (!(row.productId in priceMap)) priceMap[row.productId] = row.costPrice;
+    }
+    for (const p of products) {
+      if (p.id in priceMap) p.costPrice = priceMap[p.id];
+    }
+  }
+
   res.json({ success: true, data: products });
 }));
 
@@ -34,9 +54,19 @@ router.patch('/reorder', asyncHandler(async (req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const data = validate(schemas.createProduct, req, res);
   if (!data) return;
-  const product = await prisma.product.create({
-    data,
-    include: { brand: { select: { id: true, name: true } } },
+  const product = await prisma.$transaction(async (tx) => {
+    const created = await tx.product.create({
+      data,
+      include: { brand: { select: { id: true, name: true } } },
+    });
+    if (data.costPrice > 0) {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      await tx.productCostPrice.create({
+        data: { productId: created.id, costPrice: data.costPrice, effectiveFrom: today },
+      });
+    }
+    return created;
   });
   res.status(201).json({ success: true, data: product });
 }));
@@ -46,7 +76,35 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Product ID');
   const data = validate(schemas.updateProduct, req, res);
   if (!data) return;
-  const product = await prisma.product.update({ where: { id }, data });
+
+  const { effectiveFrom: effectiveFromStr, ...productData } = data;
+
+  const product = await prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({ where: { id }, data: productData });
+
+    if (productData.costPrice !== undefined) {
+      const effectiveFrom = effectiveFromStr ? new Date(effectiveFromStr) : new Date();
+      effectiveFrom.setUTCHours(0, 0, 0, 0);
+
+      await tx.productCostPrice.upsert({
+        where:  { productId_effectiveFrom: { productId: id, effectiveFrom } },
+        update: { costPrice: productData.costPrice },
+        create: { productId: id, costPrice: productData.costPrice, effectiveFrom },
+      });
+
+      // Keep Product.costPrice in sync with the latest history entry
+      const latest = await tx.productCostPrice.findFirst({
+        where:   { productId: id },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+      if (latest) {
+        return tx.product.update({ where: { id }, data: { costPrice: latest.costPrice } });
+      }
+    }
+
+    return updated;
+  });
+
   res.json({ success: true, data: product });
 }));
 

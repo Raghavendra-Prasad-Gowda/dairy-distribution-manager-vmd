@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, Search, Loader2, X, Package } from 'lucide-react';
+import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -8,7 +9,7 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
-const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '' };
+const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: '' };
 
 export default function ProductsSetup() {
   const { notify } = useNotification();
@@ -101,7 +102,7 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
-    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice) });
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: getIndiaDate() });
     setIsModalOpen(true);
   };
 
@@ -120,6 +121,7 @@ export default function ProductsSetup() {
       unitsPerContainer: form.containerType && form.unitsPerContainer ? parseInt(form.unitsPerContainer, 10) : null,
       costPrice:         parseFloat(form.costPrice) || 0,
       sellingPrice:      parseFloat(form.sellingPrice) || 0,
+      ...(editingProduct && form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
     };
     try {
       if (editingProduct) {
@@ -480,6 +482,20 @@ export default function ProductsSetup() {
                     </div>
                   ))}
                 </div>
+
+                {/* Cost price effective date (edit only) */}
+                {editingProduct && (
+                  <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Cost Price Effective From</p>
+                    <p className="text-[10px] text-amber-600 mb-2">Price change is recorded from this date</p>
+                    <input
+                      type="date"
+                      value={form.effectiveFrom}
+                      onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                      className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
