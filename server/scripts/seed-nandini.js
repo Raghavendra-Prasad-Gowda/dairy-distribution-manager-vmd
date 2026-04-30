@@ -289,10 +289,40 @@ async function seedNandiniProducts() {
     })),
   });
   console.log(`✓ Created ${prodCount} products`);
+
+  // 6. Seed Nandini routes (idempotent upsert)
+  const NANDINI_ROUTES = ['220', '512', '127', '148', '155'];
+  for (let i = 0; i < NANDINI_ROUTES.length; i++) {
+    await prisma.route.upsert({
+      where: { brandId_routeNumber: { brandId: brand.id, routeNumber: NANDINI_ROUTES[i] } },
+      update: {},
+      create: { brandId: brand.id, routeNumber: NANDINI_ROUTES[i], displayOrder: i },
+    });
+  }
+  console.log(`✓ Seeded ${NANDINI_ROUTES.length} Nandini routes (${NANDINI_ROUTES.join(', ')})`);
   console.log('\nDone! Nandini product catalogue is ready.');
 }
 
-module.exports = { seedNandiniProducts };
+/**
+ * Idempotent: upserts the 5 Nandini route records.
+ * Safe to call on every server startup — skips gracefully if brand not found.
+ */
+async function seedNandiniRoutes() {
+  const brand = await prisma.brand.findFirst({ where: { name: 'Nandini' } });
+  if (!brand) return; // brand not seeded yet — skip silently
+
+  const NANDINI_ROUTES = ['220', '512', '127', '148', '155'];
+  for (let i = 0; i < NANDINI_ROUTES.length; i++) {
+    await prisma.route.upsert({
+      where: { brandId_routeNumber: { brandId: brand.id, routeNumber: NANDINI_ROUTES[i] } },
+      update: {},
+      create: { brandId: brand.id, routeNumber: NANDINI_ROUTES[i], displayOrder: i },
+    });
+  }
+  console.log(`✓ Nandini routes ensured (${NANDINI_ROUTES.join(', ')})`);
+}
+
+module.exports = { seedNandiniProducts, seedNandiniRoutes };
 
 // Allow direct execution: node scripts/seed-nandini.js
 if (require.main === module) {

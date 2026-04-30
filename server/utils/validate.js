@@ -69,6 +69,7 @@ const schemas = {
   bulkStockReceipt: z.object({
     brandId: z.number().int().positive(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+    routeId: z.number().int().nonnegative().optional().default(0),
     items: z.array(z.object({
       productId: z.number().int().positive(),
       quantity: z.number().min(0),
@@ -91,6 +92,18 @@ const schemas = {
     paymentMode: z.string().optional(),
     reference: z.string().optional(),
     notes: z.string().optional(),
+  }),
+
+  // Routes
+  createRoute: z.object({
+    brandId:      z.number().int().positive('Brand ID is required'),
+    routeNumber:  z.string().min(1, 'Route number is required'),
+    displayOrder: z.number().int().nonnegative().optional(),
+  }),
+  updateRoute: z.object({
+    routeNumber:  z.string().min(1).optional(),
+    displayOrder: z.number().int().nonnegative().optional(),
+    isActive:     z.boolean().optional(),
   }),
 
   // Salespeople
