@@ -102,7 +102,10 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
-    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: getIndiaDate() });
+    const currentEffectiveFrom = p.costPrices?.[0]?.effectiveFrom
+      ? new Date(p.costPrices[0].effectiveFrom).toISOString().slice(0, 10)
+      : getIndiaDate();
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: currentEffectiveFrom });
     setIsModalOpen(true);
   };
 
