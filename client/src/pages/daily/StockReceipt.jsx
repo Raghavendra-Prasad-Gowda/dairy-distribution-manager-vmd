@@ -376,7 +376,7 @@ export default function StockReceipt() {
                   <TrendingUp size={14} className="text-blue-200" />
                   <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Account Balance</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
                   {[
                     { label: 'Opening Balance', value: balance.opening,    color: 'text-white' },
                     { label: 'Stock Added',     value: balance.stockValue, color: 'text-blue-200' },
@@ -466,7 +466,12 @@ export default function StockReceipt() {
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
                           Route {r.routeNumber}
                           {hasFilled && !isActive && (
-                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
+                            <>
+                              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
+                              <span className="hidden lg:inline opacity-70">
+                                · {routeSummary[ri]?.units}u · {formatCurrency(routeSummary[ri]?.amount)}
+                              </span>
+                            </>
                           )}
                         </button>
                       );
@@ -480,9 +485,9 @@ export default function StockReceipt() {
 
         </div>{/* end desktop 2-col */}
 
-        {/* Route Summary — full width below the 2-col section */}
+        {/* Route Summary — full width below the 2-col section; hidden on desktop to save space */}
         {hasRouteSummary && (
-          <div className="mx-4 mt-2">
+          <div className="mx-4 mt-2 lg:hidden">
             <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Route Summary</p>
               <div className="flex gap-2 flex-wrap">
