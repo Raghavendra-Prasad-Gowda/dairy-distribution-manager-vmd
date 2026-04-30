@@ -4,31 +4,43 @@ const { execSync } = require('child_process');
 const app = require('./app');
 const logger = require('./config/logger');
 
-/** Wait until Postgres accepts a connection — retries with exponential backoff. */
-async function waitForDb({ maxAttempts = 15, baseDelayMs = 2000 } = {}) {
+/** Try one DB connection with a hard timeout. Returns true on success. */
+async function tryConnect() {
   const { Client } = require('pg');
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
-    try {
-      await client.connect();
-      await client.query('SELECT 1');
-      await client.end();
-      logger.info(`Database ready (attempt ${attempt}).`);
-      return;
-    } catch (err) {
-      await client.end().catch(() => {});
-      const delay = Math.min(baseDelayMs * attempt, 30000);
-      logger.warn(`DB not ready (attempt ${attempt}/${maxAttempts}): ${err.message}. Retrying in ${delay}ms…`);
-      if (attempt === maxAttempts) throw new Error(`Database unavailable after ${maxAttempts} attempts.`);
-      await new Promise(r => setTimeout(r, delay));
-    }
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 5000,  // fail fast per attempt
+    query_timeout: 5000,
+  });
+  try {
+    await client.connect();
+    await client.query('SELECT 1');
+    await client.end();
+    return true;
+  } catch {
+    await client.end().catch(() => {});
+    return false;
   }
 }
 
-/** Resolve any migrations that started but never finished (e.g. from a previous crashed boot). */
+/** Wait until Postgres accepts a connection — retries with linear backoff. */
+async function waitForDb({ maxAttempts = 20, delayMs = 3000 } = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const ok = await tryConnect();
+    if (ok) { logger.info(`Database ready (attempt ${attempt}).`); return; }
+    logger.warn(`DB not ready (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms…`);
+    if (attempt === maxAttempts) throw new Error(`Database unavailable after ${maxAttempts} attempts.`);
+    await new Promise(r => setTimeout(r, delayMs));
+  }
+}
+
+/** Resolve any migrations that started but never finished. */
 async function resolveFailedMigrations() {
   const { Client } = require('pg');
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 5000,
+  });
   try {
     await client.connect();
     const { rows } = await client.query(
@@ -57,7 +69,6 @@ async function runMigrations({ maxAttempts = 3 } = {}) {
     } catch (err) {
       logger.error(`Migration attempt ${attempt} failed.`, { message: err.message });
       if (attempt === maxAttempts) throw err;
-      // Re-resolve any newly-failed migrations before retrying
       await resolveFailedMigrations();
       await new Promise(r => setTimeout(r, 3000));
     }
@@ -65,49 +76,47 @@ async function runMigrations({ maxAttempts = 3 } = {}) {
 }
 
 async function boot() {
-  // 1. Wait for DB to be reachable before doing anything
+  const PORT = process.env.PORT || 3001;
+
+  // 1. Start HTTP server immediately so Render/hosting detects the open port.
+  //    Requests are held off until startup completes via the `isReady` flag in app.
+  const server = app.listen(PORT, () => {
+    logger.info(`Server listening on port ${PORT} — running startup tasks…`);
+  });
+
+  // 2. Wait for DB
   try {
     await waitForDb();
   } catch (err) {
-    logger.error('Database never became available — cannot start.', { message: err.message });
+    logger.error('Database never became available.', { message: err.message });
     process.exit(1);
   }
 
-  // 2. Resolve any stuck migrations from previous crashed boots
+  // 3. Resolve stuck migrations, then deploy
   await resolveFailedMigrations();
-
-  // 3. Run migrations (with retry)
   try {
     await runMigrations();
   } catch (err) {
-    logger.error('Migrations failed after all retries — server will not start.', { message: err.message });
+    logger.error('Migrations failed after all retries.', { message: err.message });
     process.exit(1);
   }
 
-  // 4. Start HTTP server
-  const PORT = process.env.PORT || 3001;
-  const server = app.listen(PORT, async () => {
-    logger.info(`Dairy Distribution Manager API running on port ${PORT}`);
+  // 4. Seed admin user (idempotent)
+  try {
+    const { seedFoundationData } = require('./prisma/seed');
+    await seedFoundationData();
+  } catch (err) {
+    logger.error('Failed to seed admin user — shutting down.', { message: err.message });
+    process.exit(1);
+  }
 
-    // 5. Seed admin user (idempotent — no-op if already exists)
-    try {
-      const { seedFoundationData } = require('./prisma/seed');
-      await seedFoundationData();
-    } catch (error) {
-      logger.error('Critical: Failed to seed admin user — shutting down.', { message: error.message });
-      process.exit(1);
-    }
-  });
+  logger.info('Startup complete — server ready.');
 
   // Graceful shutdown
   const shutdown = (signal) => {
     logger.info(`Received ${signal}. Gracefully shutting down...`);
-    server.close(() => {
-      logger.info('HTTP server closed.');
-      process.exit(0);
-    });
+    server.close(() => { logger.info('HTTP server closed.'); process.exit(0); });
   };
-
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT',  () => shutdown('SIGINT'));
 }
