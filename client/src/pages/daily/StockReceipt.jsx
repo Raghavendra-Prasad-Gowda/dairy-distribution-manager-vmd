@@ -455,7 +455,7 @@ export default function StockReceipt() {
       {hasRoutes && products.length > 0 && (
         <div className="mx-4 mb-4 mt-3 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto max-h-[65vh]" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <table className="min-w-full text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
+            <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
               <colgroup>
                 <col style={{ width: '38%' }} />
                 <col style={{ width: '16%' }} />
