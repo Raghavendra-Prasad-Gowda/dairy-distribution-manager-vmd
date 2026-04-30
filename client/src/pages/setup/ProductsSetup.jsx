@@ -280,10 +280,10 @@ export default function ProductsSetup() {
                             : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.costPrice).toFixed(2)}
+                          ₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.sellingPrice).toFixed(2)}
+                          ₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
@@ -470,7 +470,7 @@ export default function ProductsSetup() {
                       <div className="relative">
                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
                         <input
-                          type="number" step="0.01" min="0"
+                          type="number" step="0.0001" min="0"
                           value={form[key]}
                           onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                           placeholder="0.00"

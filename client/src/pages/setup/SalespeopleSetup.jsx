@@ -278,7 +278,7 @@ export default function SalespeopleSetup() {
                           </td>
                           <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-500">
                             {hasPrice
-                              ? `₹${p.sellingPrice}`
+                              ? `₹${Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
                               : <span className="text-amber-600 font-semibold text-xs">Not set</span>
                             }
                           </td>
@@ -288,7 +288,7 @@ export default function SalespeopleSetup() {
                                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
                                 <input
                                   type="number"
-                                  step="0.01"
+                                  step="0.0001"
                                   min="0"
                                   value={editedPrices[p.productId] ?? ''}
                                   onChange={e => handlePriceChange(p.productId, e.target.value)}

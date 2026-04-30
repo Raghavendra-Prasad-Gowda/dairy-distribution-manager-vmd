@@ -37,8 +37,8 @@ model Product {
   unitSize            Int?     @map("unit_size")
   containerType       String?  @map("container_type")
   unitsPerContainer   Int?     @map("units_per_container")
-  costPrice           Decimal  @default(0) @db.Decimal(10, 2) @map("cost_price")
-  sellingPrice        Decimal  @default(0) @db.Decimal(10, 2) @map("selling_price")
+  costPrice           Decimal  @default(0) @db.Decimal(10, 4) @map("cost_price")
+  sellingPrice        Decimal  @default(0) @db.Decimal(10, 4) @map("selling_price")
   isActive            Boolean  @default(true) @map("is_active")
   showInStockReceipt  Boolean  @default(true) @map("show_in_stock_receipt")
   displayOrder        Int      @default(0) @map("display_order")
@@ -93,7 +93,7 @@ model StockReceipt {
   routeId     Int      @default(0) @map("route_id")  // 0 = no route (Jersey/Gowardhan); actual route ID for Nandini
   receiptDate DateTime @db.Date @map("receipt_date")
   quantity    Decimal  @default(0) @db.Decimal(10, 2)
-  unitPrice   Decimal  @db.Decimal(10, 2) @map("unit_price")
+  unitPrice   Decimal  @db.Decimal(10, 4) @map("unit_price")
   createdAt   DateTime @default(now()) @map("created_at")
 
   brand   Brand   @relation(fields: [brandId], references: [id])
@@ -164,7 +164,7 @@ model SalespersonPrice {
   id            Int      @id @default(autoincrement())
   salespersonId Int      @map("salesperson_id")
   productId     Int      @map("product_id")
-  sellingPrice  Decimal  @db.Decimal(10, 2) @map("selling_price")
+  sellingPrice  Decimal  @db.Decimal(10, 4) @map("selling_price")
   effectiveFrom DateTime @db.Date @default(now()) @map("effective_from")
   createdAt     DateTime @default(now()) @map("created_at")
 
@@ -197,7 +197,7 @@ model StockDispatchItem {
   dispatchId  Int     @map("dispatch_id")
   productId   Int     @map("product_id")
   quantity    Decimal @db.Decimal(10, 2)
-  unitPrice   Decimal @db.Decimal(10, 2) @map("unit_price")
+  unitPrice   Decimal @db.Decimal(10, 4) @map("unit_price")
   totalAmount Decimal @db.Decimal(10, 2) @map("total_amount")
 
   dispatch StockDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)

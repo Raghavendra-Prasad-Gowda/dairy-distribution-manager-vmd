@@ -7,7 +7,7 @@ if (!import.meta.env.VITE_API_BASE_URL && !import.meta.env.DEV) {
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1',
   headers: { 'Content-Type': 'application/json' },
-  timeout: 90000, // 90s — handles Render free-tier cold starts
+  timeout: 30000, // 30s
   withCredentials: true,
 });
 

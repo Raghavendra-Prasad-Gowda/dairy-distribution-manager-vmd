@@ -70,7 +70,7 @@ app.use('/api/v1/auth/login', rateLimit({
 app.use(cookieParser());
 
 // ─── 7. Body parser ──────────────────────────────────────────────────────────
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 
 // ─── Root & Health check ──────────────────────────────────────────────────────
 app.get('/', (req, res) => res.json({ name: 'Dairy Distribution Manager API', status: 'ok' }));

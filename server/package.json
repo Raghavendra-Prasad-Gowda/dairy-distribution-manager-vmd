@@ -6,12 +6,12 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
+    "test": "playwright test",
     "build": "npx prisma generate",
     "deploy": "npx prisma migrate deploy",
     "start:prod": "node index.js",
     "postinstall": "npx prisma generate",
-    "seed": "node prisma/seed.js",
-    "seed:demo": "node scripts/seed-demo-data.js"
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
@@ -31,6 +31,9 @@
     "prisma": "^5.22.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
