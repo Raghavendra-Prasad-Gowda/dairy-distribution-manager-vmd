@@ -403,83 +403,84 @@ export default function StockReceipt() {
             </div>
           )}
 
-          {/* Right column: route strip (top) + action bar (bottom) */}
+          {/* Right column — single unified card */}
           {products.length > 0 && (
-            <div className="flex flex-col gap-2 mt-3 lg:mt-0 lg:w-72 lg:flex-shrink-0">
+            <div className="mt-3 lg:mt-0 lg:w-72 lg:flex-shrink-0">
+              <div className="bg-white rounded-2xl border border-slate-200 flex flex-col divide-y divide-slate-100">
 
-              {/* Route Strip — shown first so operator picks route before filling data */}
-              {isNandini && routes.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 px-3 py-2.5">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {routes.map((r, ri) => {
-                      const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-                      const isActive  = ri === activeRouteIdx;
-                      const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[r.id]) > 0);
-                      return (
-                        <button
-                          key={r.id}
-                          onClick={() => setActiveRouteIdx(ri)}
-                          className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
-                        >
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
-                          Route {r.routeNumber}
-                          {hasFilled && !isActive && (
-                            <>
-                              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
-                              <span className="hidden lg:inline opacity-70">
-                                · {routeSummary[ri]?.units}u · {formatCurrency(routeSummary[ri]?.amount)}
-                              </span>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Action bar: search + expand/collapse + save */}
-              <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3 flex flex-col gap-2.5">
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search by product or category…"
-                    className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
-                  />
-                  {search && (
-                    <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                {filteredGrouped.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <button onClick={expandAll} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
-                      <ChevronsUpDown size={14} /> Expand All
-                    </button>
-                    <button onClick={collapseAll} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
-                      <ChevronsDownUp size={14} /> Collapse All
-                    </button>
+                {/* Route selector (Nandini only) */}
+                {isNandini && routes.length > 0 && (
+                  <div className="px-3 py-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {routes.map((r, ri) => {
+                        const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+                        const isActive  = ri === activeRouteIdx;
+                        const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[r.id]) > 0);
+                        return (
+                          <button
+                            key={r.id}
+                            onClick={() => setActiveRouteIdx(ri)}
+                            className={`relative flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
+                            {r.routeNumber}
+                            {hasFilled && !isActive && (
+                              <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border-2 border-white ${color.dot}`} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || loading || (isNandini ? !activeRoute : filledCount === 0)}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  {saving
-                    ? 'Saving…'
-                    : isNandini && activeRoute
-                      ? `Save Route ${activeRoute.routeNumber} Receipt`
-                      : 'Save Receipt'}
-                </button>
-              </div>
 
+                {/* Search */}
+                <div className="px-3 py-2.5">
+                  <div className="relative">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Search by product or category…"
+                      className="w-full pl-8 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+                    />
+                    {search && (
+                      <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expand / Collapse + Save */}
+                <div className="px-3 py-2.5 flex flex-col gap-2">
+                  {filteredGrouped.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <button onClick={expandAll} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
+                        <ChevronsUpDown size={12} /> Expand All
+                      </button>
+                      <button onClick={collapseAll} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
+                        <ChevronsDownUp size={12} /> Collapse All
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || loading || (isNandini ? !activeRoute : filledCount === 0)}
+                    className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
+                  >
+                    {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                    {saving
+                      ? 'Saving…'
+                      : isNandini && activeRoute
+                        ? `Save Route ${activeRoute.routeNumber} Receipt`
+                        : 'Save Receipt'}
+                  </button>
+                </div>
+
+              </div>
             </div>
           )}
 
