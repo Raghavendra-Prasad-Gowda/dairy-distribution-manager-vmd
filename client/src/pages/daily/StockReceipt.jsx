@@ -365,118 +365,126 @@ export default function StockReceipt() {
       {/* ── Fixed top section ── */}
       <div className="flex-shrink-0">
 
-        {/* Balance card */}
-        {activeBrand && (
-          <div className="mx-4 mt-4 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }}>
-            <div className="px-4 pt-4 pb-3">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp size={14} className="text-blue-200" />
-                <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Account Balance</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {[
-                  { label: 'Opening Balance', value: balance.opening,    color: 'text-white' },
-                  { label: 'Stock Added',     value: balance.stockValue, color: 'text-blue-200' },
-                  { label: 'Amount Paid',     value: balance.paid,       color: 'text-emerald-300' },
-                  { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing), color: isOwing ? 'text-red-300' : 'text-emerald-300' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-white/10 rounded-xl px-3 py-2.5">
-                    <p className="text-[10px] text-blue-200 font-medium mb-0.5">{label}</p>
-                    <p className={`text-base font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
+        {/* Desktop: balance card + controls side-by-side; Mobile: stacked */}
+        <div className="lg:flex lg:gap-3 lg:items-start mx-4 mt-4">
+
+          {/* Balance card */}
+          {activeBrand && (
+            <div className="lg:flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }}>
+              <div className="px-4 pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={14} className="text-blue-200" />
+                  <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Account Balance</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {[
+                    { label: 'Opening Balance', value: balance.opening,    color: 'text-white' },
+                    { label: 'Stock Added',     value: balance.stockValue, color: 'text-blue-200' },
+                    { label: 'Amount Paid',     value: balance.paid,       color: 'text-emerald-300' },
+                    { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing), color: isOwing ? 'text-red-300' : 'text-emerald-300' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-white/10 rounded-xl px-3 py-2.5">
+                      <p className="text-[10px] text-blue-200 font-medium mb-0.5">{label}</p>
+                      <p className={`text-base font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
+                    <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
+                    <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
                   </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
-                  <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
-                  <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
-                </div>
-                <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
-                  <span className="text-xs font-bold text-white">{filledCount}</span>
-                  <span className="text-xs text-emerald-100">/ {products.length} items</span>
+                  <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
+                    <span className="text-xs font-bold text-white">{filledCount}</span>
+                    <span className="text-xs text-emerald-100">/ {products.length} items</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Action bar */}
-        {products.length > 0 && (
-          <div className="mx-4 mt-3 bg-white rounded-2xl border border-slate-200 px-3 py-3 flex flex-col gap-2.5">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by product or category…"
-                className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            {filteredGrouped.length > 1 && (
-              <div className="flex items-center gap-2">
-                <button onClick={expandAll} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
-                  <ChevronsUpDown size={14} /> Expand All
-                </button>
-                <button onClick={collapseAll} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
-                  <ChevronsDownUp size={14} /> Collapse All
-                </button>
-              </div>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving || loading || (isNandini ? !activeRoute : filledCount === 0)}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
-            >
-              {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-              {saving
-                ? 'Saving…'
-                : isNandini && activeRoute
-                  ? `Save Route ${activeRoute.routeNumber} Receipt`
-                  : 'Save Receipt'}
-            </button>
-          </div>
-        )}
+          {/* Right column: action bar + route strip (stacks vertically within column) */}
+          {products.length > 0 && (
+            <div className="flex flex-col gap-2 mt-3 lg:mt-0 lg:w-72 lg:flex-shrink-0">
 
-        {/* Route Strip (Nandini only) */}
-        {isNandini && routes.length > 0 && (
-          <div className="mx-4 mt-2">
-            <div className="bg-white rounded-2xl border border-slate-200 px-3 py-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {routes.map((r, ri) => {
-                  const color    = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-                  const isActive = ri === activeRouteIdx;
-                  const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[r.id]) > 0);
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => setActiveRouteIdx(ri)}
-                      className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
-                    >
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
-                      Route {r.routeNumber}
-                      {hasFilled && !isActive && (
-                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
-                      )}
+              {/* Action bar */}
+              <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3 flex flex-col gap-2.5">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search by product or category…"
+                    className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={14} />
                     </button>
-                  );
-                })}
+                  )}
+                </div>
+                {filteredGrouped.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={expandAll} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
+                      <ChevronsUpDown size={14} /> Expand All
+                    </button>
+                    <button onClick={collapseAll} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
+                      <ChevronsDownUp size={14} /> Collapse All
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={saving || loading || (isNandini ? !activeRoute : filledCount === 0)}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
+                >
+                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  {saving
+                    ? 'Saving…'
+                    : isNandini && activeRoute
+                      ? `Save Route ${activeRoute.routeNumber} Receipt`
+                      : 'Save Receipt'}
+                </button>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* Route Summary Panel */}
+              {/* Route Strip (Nandini only) */}
+              {isNandini && routes.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 px-3 py-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {routes.map((r, ri) => {
+                      const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+                      const isActive  = ri === activeRouteIdx;
+                      const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[r.id]) > 0);
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => setActiveRouteIdx(ri)}
+                          className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
+                          Route {r.routeNumber}
+                          {hasFilled && !isActive && (
+                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
+        </div>{/* end desktop 2-col */}
+
+        {/* Route Summary — full width below the 2-col section */}
         {hasRouteSummary && (
           <div className="mx-4 mt-2">
             <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Route Summary</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Route Summary</p>
               <div className="flex gap-2 flex-wrap">
                 {routeSummary.map((r, ri) => {
                   const hasData  = r.units > 0;
@@ -487,19 +495,19 @@ export default function StockReceipt() {
                     <button
                       key={r.routeId}
                       onClick={() => setActiveRouteIdx(ri)}
-                      className={`flex-1 min-w-[80px] rounded-xl border px-3 py-2.5 text-left transition-all ${hasData ? r.color.summaryCard : 'border-slate-100 bg-slate-50/60 opacity-40'}`}
+                      className={`flex-1 min-w-[80px] rounded-xl border px-2.5 py-2 text-left transition-all ${hasData ? r.color.summaryCard : 'border-slate-100 bg-slate-50/60 opacity-40'}`}
                     >
-                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${hasData ? r.color.summaryTitle : 'text-slate-400'}`}>
-                        Route {r.routeNumber}
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${hasData ? r.color.summaryTitle : 'text-slate-400'}`}>
+                        {r.routeNumber}
                       </p>
                       {hasData ? (
-                        <div className="space-y-1">
-                          <div><span className={`text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded-md ${r.color.badge}`}>{r.units} units</span></div>
-                          {crateStr && <div><span className="text-[11px] font-bold tabular-nums text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md">{crateStr}</span></div>}
-                          <div><span className="text-[11px] font-bold tabular-nums text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">{formatCurrency(r.amount)}</span></div>
+                        <div className="flex flex-wrap gap-1">
+                          <span className={`text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md ${r.color.badge}`}>{r.units}u</span>
+                          {crateStr && <span className="text-[10px] font-bold tabular-nums text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md">{crateStr}</span>}
+                          <span className="text-[10px] font-bold tabular-nums text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">{formatCurrency(r.amount)}</span>
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-300 font-medium">—</p>
+                        <p className="text-[10px] text-slate-300 font-medium">—</p>
                       )}
                     </button>
                   );
