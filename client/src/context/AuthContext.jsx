@@ -3,7 +3,7 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
-const SESSION_MS = 2 * 60 * 60 * 1000; // 2 hours
+const SESSION_MS = 12 * 60 * 60 * 1000; // 12 hours — matches JWT expiry
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser]     = useState(null);
@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
   };
 
-  /** Schedule auto-logout at (loginTime + 2h). Returns false if already expired. */
+  /** Schedule auto-logout at (loginTime + 12h). Returns false if already expired. */
   const scheduleExpiry = (loginTime, doLogout) => {
     clearTimer();
     const remaining = SESSION_MS - (Date.now() - loginTime);

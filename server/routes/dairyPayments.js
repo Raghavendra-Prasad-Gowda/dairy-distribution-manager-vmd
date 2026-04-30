@@ -4,6 +4,7 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.post('/', asyncHandler(async (req, res) => {
     data: { ...data, paymentDate: new Date(data.paymentDate) },
   });
   await recalculateDairyBalance(data.brandId, data.paymentDate);
+  logger.info('Dairy payment created', { id: payment.id, brandId: data.brandId, amount: data.amount, date: data.paymentDate });
   res.status(201).json({ success: true, data: payment });
 }));
 
@@ -56,7 +58,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const newDate = data.paymentDate;
   await recalculateDairyBalance(existing.brandId, oldDate);
   if (newDate !== oldDate) await recalculateDairyBalance(existing.brandId, newDate);
-
+  logger.info('Dairy payment updated', { id, brandId: existing.brandId, amount: data.amount, date: newDate });
   res.json({ success: true, data: updated });
 }));
 
@@ -67,10 +69,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   if (!payment) throw new AppError('Payment not found', 404);
 
   await prisma.dairyPayment.delete({ where: { id } });
-  // Recalculate balance for the affected date
   const dateStr = payment.paymentDate.toISOString().slice(0, 10);
   await recalculateDairyBalance(payment.brandId, dateStr);
-
+  logger.info('Dairy payment deleted', { id, brandId: payment.brandId, amount: Number(payment.amount), date: dateStr });
   res.json({ success: true, data: { message: 'Payment deleted' } });
 }));
 

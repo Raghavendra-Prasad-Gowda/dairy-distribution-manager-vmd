@@ -4,6 +4,7 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.post('/', asyncHandler(async (req, res) => {
     data: { ...data, paymentDate: new Date(data.paymentDate) },
   });
   await recalculateSalespersonBalance(data.salespersonId, data.paymentDate);
+  logger.info('Salesperson payment created', { id: payment.id, salespersonId: data.salespersonId, amount: data.amount, date: data.paymentDate });
   res.status(201).json({ success: true, data: payment });
 }));
 
@@ -46,7 +48,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   await prisma.salespersonPayment.delete({ where: { id } });
   const dateStr = payment.paymentDate.toISOString().slice(0, 10);
   await recalculateSalespersonBalance(payment.salespersonId, dateStr);
-
+  logger.info('Salesperson payment deleted', { id, salespersonId: payment.salespersonId, amount: Number(payment.amount), date: dateStr });
   res.json({ success: true, data: { message: 'Payment deleted' } });
 }));
 

@@ -5,6 +5,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { validateDispatchStock } = require('../services/stockGuard');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -136,7 +137,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
   // Recalculate salesperson balance
   await recalculateSalespersonBalance(data.salespersonId, data.dispatchDate);
-
+  logger.info('Dispatch saved', { id: dispatch.id, salespersonId: data.salespersonId, date: data.dispatchDate, total: totalAmount, action: existing ? 'update' : 'create' });
   res.status(existing ? 200 : 201).json({ success: true, data: dispatch });
 }));
 
@@ -147,10 +148,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   if (!dispatch) throw new AppError('Dispatch not found', 404);
 
   await prisma.stockDispatch.delete({ where: { id } });
-
   const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
   await recalculateSalespersonBalance(dispatch.salespersonId, dateStr);
-
+  logger.info('Dispatch deleted', { id, salespersonId: dispatch.salespersonId, date: dateStr });
   res.json({ success: true, data: { message: 'Dispatch deleted' } });
 }));
 
