@@ -1,50 +1,11 @@
-import { Component, lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import { Loader2 } from 'lucide-react';
-
-class ErrorBoundary extends Component {
-  state = { hasError: false, chunkError: false };
-
-  static getDerivedStateFromError(error) {
-    // Chunk load errors happen when Vercel deploys a new version and old JS chunks are gone
-    const isChunkError = error?.name === 'ChunkLoadError'
-      || error?.message?.includes('Failed to fetch dynamically imported module')
-      || error?.message?.includes('Importing a module script failed');
-    return { hasError: true, chunkError: isChunkError };
-  }
-
-  componentDidCatch(error, info) {
-    // Auto-reload once on chunk errors — the new chunk URL will work after reload
-    if (this.state.chunkError && !sessionStorage.getItem('chunk-reload')) {
-      sessionStorage.setItem('chunk-reload', '1');
-      window.location.reload();
-    }
-  }
-
-  render() {
-    if (this.state.hasError && !this.state.chunkError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center px-6">
-            <h1 className="text-xl font-bold text-slate-900 mb-2">Something went wrong</h1>
-            <p className="text-slate-500 text-sm mb-6">An unexpected error occurred. Please refresh the page.</p>
-            <button
-              onClick={() => { sessionStorage.removeItem('chunk-reload'); window.location.reload(); }}
-              className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-sm transition"
-            >
-              Reload Page
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 // Lazy-loaded pages (code-split per route for faster initial load)
 const Dashboard              = lazy(() => import('./pages/Dashboard'));
