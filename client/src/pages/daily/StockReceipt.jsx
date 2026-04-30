@@ -265,176 +265,132 @@ export default function StockReceipt() {
         <DateSelector date={date} onChange={setDate} dark />
       </div>
 
-      {/* ── Top section: balance card + controls ── */}
-      <div className="lg:flex lg:gap-3 lg:items-start mx-4 mt-4">
-
-        {/* Balance card */}
-        {activeBrand && (
-          <div className="lg:flex-1 min-w-0 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }}>
-            <div className="px-4 pt-4 pb-3">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp size={14} className="text-blue-200" />
-                <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Account Balance</p>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-                {[
-                  { label: 'Opening Balance', value: balance.opening,              color: 'text-white' },
-                  { label: 'Stock Added',     value: balance.stockValue,           color: 'text-blue-200' },
-                  { label: 'Amount Paid',     value: balance.paid,                 color: 'text-emerald-300' },
-                  { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing), color: isOwing ? 'text-red-300' : 'text-emerald-300' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-white/10 rounded-xl px-3 py-2.5">
-                    <p className="text-[10px] text-blue-200 font-medium mb-0.5">{label}</p>
-                    <p className={`text-base font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
-                  <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
-                  <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
+      {/* ── Balance card (full width) ── */}
+      {activeBrand && (
+        <div className="mx-4 mt-4 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }}>
+          <div className="px-4 pt-4 pb-3">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp size={14} className="text-blue-200" />
+              <p className="text-xs font-bold text-blue-200 uppercase tracking-widest">Account Balance</p>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+              {[
+                { label: 'Opening Balance', value: balance.opening,                                    color: 'text-white' },
+                { label: 'Stock Added',     value: balance.stockValue,                                 color: 'text-blue-200' },
+                { label: 'Amount Paid',     value: balance.paid,                                       color: 'text-emerald-300' },
+                { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing),            color: isOwing ? 'text-red-300' : 'text-emerald-300' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-white/10 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] text-blue-200 font-medium mb-0.5">{label}</p>
+                  <p className={`text-base font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
                 </div>
-                <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
-                  <span className="text-xs font-bold text-white">{filledCount}</span>
-                  <span className="text-xs text-emerald-100">/ {products.length} items</span>
-                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
+                <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
+                <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
+              </div>
+              <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
+                <span className="text-xs font-bold text-white">{filledCount}</span>
+                <span className="text-xs text-emerald-100">/ {products.length} items</span>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Right column — unified controls card */}
-        {products.length > 0 && hasRoutes && (
-          <div className="mt-3 lg:mt-0 lg:w-72 lg:flex-shrink-0">
-            <div className="bg-white rounded-2xl border border-slate-200 flex flex-col divide-y divide-slate-100">
+      {/* ── Controls bar: routes + search + save (below balance) ── */}
+      {products.length > 0 && hasRoutes && (
+        <div className="mx-4 mt-2 bg-white rounded-2xl border border-slate-200 overflow-hidden">
 
-              {/* Route selector */}
-              <div className="px-3 py-2.5">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-                  {routes.length === 1 ? 'Route' : 'Select Route'}
-                </p>
-                <div className={`grid gap-1.5 ${routes.length <= 3 ? 'grid-cols-3' : 'grid-cols-3'}`}>
-                  {routes.map((r, ri) => {
-                    const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-                    const isActive  = ri === activeRouteIdx;
-                    const summary   = routeSummary[ri];
-                    const hasFilled = summary?.units > 0;
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => setActiveRouteIdx(ri)}
-                        className={`relative flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
-                        {r.routeNumber}
-                        {hasFilled && !isActive && (
-                          <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border-2 border-white ${color.dot}`} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+          {/* Main row: route pills + search + expand/collapse + save */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
 
-              {/* Active route detail */}
-              {activeRoute && (() => {
-                const s = routeSummary[activeRouteIdx];
-                if (!s || s.units === 0) return (
-                  <div className="px-3 py-2 text-[11px] text-slate-400 italic">No data saved for Route {activeRoute.routeNumber} yet</div>
-                );
-                const crateStr = s.crateType
-                  ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
-                  : null;
+            {/* Route pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {routes.map((r, ri) => {
+                const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+                const isActive  = ri === activeRouteIdx;
+                const hasFilled = routeSummary[ri]?.units > 0;
                 return (
-                  <div className="px-3 py-2.5 bg-slate-50">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Route {activeRoute.routeNumber} — This Session</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className={`text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-md ${activeColor.ring.replace('focus:ring', 'bg').replace('-400', '-50')} text-slate-700`}>
-                        {s.units} units
-                      </span>
-                      {crateStr && <span className="text-[11px] font-bold tabular-nums text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">{crateStr}</span>}
-                      <span className="text-[11px] font-bold tabular-nums text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">{formatCurrency(s.amount)}</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Search */}
-              <div className="px-3 py-2.5">
-                <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search product or category…"
-                    className="w-full pl-8 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
-                  />
-                  {search && (
-                    <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Expand / Collapse + Save */}
-              <div className="px-3 py-2.5 flex flex-col gap-2">
-                {groupedData.length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <button onClick={expandAll} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
-                      <ChevronsUpDown size={12} /> Expand All
-                    </button>
-                    <button onClick={collapseAll} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition">
-                      <ChevronsDownUp size={12} /> Collapse All
-                    </button>
-                  </div>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || loading || !activeRoute || displayTotalUnits === 0}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm shadow-sm"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  {saving ? 'Saving…' : `Save Route ${activeRoute?.routeNumber ?? '—'} Receipt`}
-                </button>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-      </div>{/* end top section */}
-
-      {/* Route Summary (mobile only) */}
-      {hasRoutes && routeSummary.some(r => r.units > 0) && (
-        <div className="mx-4 mt-2 lg:hidden">
-          <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Route Summary</p>
-            <div className="flex gap-2 flex-wrap">
-              {routeSummary.map((r, ri) => {
-                const color    = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-                const hasData  = r.units > 0;
-                const crateStr = r.crateType
-                  ? `${Number.isInteger(r.crates) ? r.crates : r.crates.toFixed(1)} ${r.crateType.charAt(0).toUpperCase() + r.crateType.slice(1)}${r.crates !== 1 ? 's' : ''}`
-                  : null;
-                return (
-                  <button key={r.routeId} onClick={() => setActiveRouteIdx(ri)}
-                    className={`flex-1 min-w-[80px] rounded-xl border px-2.5 py-2 text-left transition-all ${hasData ? `${color.pillInactive} border-opacity-100` : 'border-slate-100 bg-slate-50/60 opacity-40'}`}
+                  <button
+                    key={r.id}
+                    onClick={() => setActiveRouteIdx(ri)}
+                    className={`relative flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
                   >
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-slate-600">{r.routeNumber}</p>
-                    {hasData ? (
-                      <div className="flex flex-wrap gap-1">
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md tabular-nums">{r.units}u</span>
-                        {crateStr && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-md tabular-nums">{crateStr}</span>}
-                        <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md tabular-nums">{formatCurrency(r.amount)}</span>
-                      </div>
-                    ) : <p className="text-[10px] text-slate-300">—</p>}
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
+                    {r.routeNumber}
+                    {hasFilled && !isActive && (
+                      <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border-2 border-white ${color.dot}`} />
+                    )}
                   </button>
                 );
               })}
             </div>
+
+            {/* Divider */}
+            <div className="hidden sm:block w-px h-5 bg-slate-200" />
+
+            {/* Search */}
+            <div className="relative flex-1 min-w-[160px] max-w-xs">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Expand / Collapse */}
+            {groupedData.length > 1 && (
+              <div className="flex items-center gap-1">
+                <button onClick={expandAll} className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap">
+                  <ChevronsUpDown size={12} /> Expand
+                </button>
+                <button onClick={collapseAll} className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap">
+                  <ChevronsDownUp size={12} /> Collapse
+                </button>
+              </div>
+            )}
+
+            {/* Save button */}
+            <button
+              onClick={handleSave}
+              disabled={saving || loading || !activeRoute || displayTotalUnits === 0}
+              className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-1.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap ml-auto"
+            >
+              {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              {saving ? 'Saving…' : `Save Route ${activeRoute?.routeNumber ?? '—'}`}
+            </button>
           </div>
+
+          {/* Active route detail strip */}
+          {activeRoute && (() => {
+            const s = routeSummary[activeRouteIdx];
+            if (!s || s.units === 0) return null;
+            const crateStr = s.crateType
+              ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
+              : null;
+            return (
+              <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Route {activeRoute.routeNumber}</span>
+                <span className="text-slate-300 text-xs">·</span>
+                <span className="text-[11px] font-bold tabular-nums text-slate-700">{s.units} units</span>
+                {crateStr && <><span className="text-slate-300 text-xs">·</span><span className="text-[11px] font-bold tabular-nums text-amber-700">{crateStr}</span></>}
+                <span className="text-slate-300 text-xs">·</span>
+                <span className="text-[11px] font-bold tabular-nums text-emerald-700">{formatCurrency(s.amount)}</span>
+              </div>
+            );
+          })()}
+
         </div>
       )}
 
