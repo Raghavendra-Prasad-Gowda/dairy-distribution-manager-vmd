@@ -103,6 +103,68 @@ test.describe('GET /api/v1/dairy-payments', () => {
   });
 });
 
+// ─── PUT /api/v1/dairy-payments/:id ──────────────────────────────────────────
+
+test.describe('PUT /api/v1/dairy-payments/:id', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      data: { amount: 6000, paymentDate: '2026-04-30' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 when payment is updated', async ({ request }) => {
+    const updated = { ...PAYMENT, amount: 6000 };
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.dairyPayment.update.mockResolvedValue(updated);
+    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 6000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('returns 404 when payment does not exist', async ({ request }) => {
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(null);
+
+    const res = await request.put('/api/v1/dairy-payments/999', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 6000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(404);
+  });
+
+  test('returns 400 when amount is missing', async ({ request }) => {
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when amount is negative', async ({ request }) => {
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: -500, paymentDate: '2026-04-30' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 for non-numeric payment ID', async ({ request }) => {
+    const res = await request.put('/api/v1/dairy-payments/abc', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 6000, paymentDate: '2026-04-30' },
+    });
+    expect(res.status()).toBe(400);
+  });
+});
+
 // ─── DELETE /api/v1/dairy-payments/:id ───────────────────────────────────────
 
 test.describe('DELETE /api/v1/dairy-payments/:id', () => {

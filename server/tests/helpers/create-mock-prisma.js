@@ -26,6 +26,7 @@ function createMockPrisma() {
       findUnique: mockFn(),
       create:     mockFn(),
       update:     mockFn(),
+      updateMany: mockFn(),
       delete:     mockFn(),
     },
     category: {
@@ -52,6 +53,7 @@ function createMockPrisma() {
       delete:     mockFn(),
       deleteMany: mockFn(),
       aggregate:  mockFn(),
+      groupBy:    mockFn(),
     },
     dairyBalance: {
       findMany:   mockFn(),
@@ -68,6 +70,7 @@ function createMockPrisma() {
       create:     mockFn(),
       update:     mockFn(),
       delete:     mockFn(),
+      aggregate:  mockFn(),
     },
     salesperson: {
       findMany:   mockFn(),
@@ -96,6 +99,7 @@ function createMockPrisma() {
       createMany: mockFn(),
       deleteMany: mockFn(),
       aggregate:  mockFn(),
+      groupBy:    mockFn(),
     },
     salespersonBalance: {
       findMany:   mockFn(),
@@ -111,6 +115,7 @@ function createMockPrisma() {
       findUnique: mockFn(),
       create:     mockFn(),
       delete:     mockFn(),
+      aggregate:  mockFn(),
     },
     $transaction: mockFn(),
     $queryRaw:    mockFn(),

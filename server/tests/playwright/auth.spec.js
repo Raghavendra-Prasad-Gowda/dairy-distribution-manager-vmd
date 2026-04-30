@@ -2,7 +2,7 @@
 
 /**
  * Auth API Tests
- * Covers: POST /api/v1/auth/login, POST /api/v1/auth/logout
+ * Covers: POST /api/v1/auth/login, POST /api/v1/auth/logout, POST /api/v1/auth/change-password
  */
 
 const { expect } = require('@playwright/test');
@@ -66,6 +66,62 @@ test.describe('POST /api/v1/auth/login', () => {
   test('returns 400 when password is missing', async ({ request }) => {
     const res = await request.post('/api/v1/auth/login', {
       data: { username: 'admin' },
+    });
+    expect(res.status()).toBe(400);
+  });
+});
+
+// ─── POST /api/v1/auth/change-password ───────────────────────────────────────
+
+test.describe('POST /api/v1/auth/change-password', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/change-password', {
+      data: { currentPassword: 'old', newPassword: 'newpass123' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 when password is changed successfully', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockBcrypt.compare = async () => true;
+    ctx.mockBcrypt.hash = async () => 'new_hashed_password';
+    ctx.mockPrisma.appSettings.update.mockResolvedValue({ ...ADMIN_SETTINGS, passwordHash: 'new_hashed_password' });
+
+    const res = await request.post('/api/v1/auth/change-password', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { currentPassword: 'correctpass', newPassword: 'newpass123' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.message).toMatch(/changed/i);
+  });
+
+  test('returns 401 when current password is wrong', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockBcrypt.compare = async () => false;
+
+    const res = await request.post('/api/v1/auth/change-password', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { currentPassword: 'wrongpass', newPassword: 'newpass123' },
+    });
+
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 400 when newPassword is too short', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/change-password', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { currentPassword: 'correctpass', newPassword: '123' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when currentPassword is missing', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/change-password', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { newPassword: 'newpass123' },
     });
     expect(res.status()).toBe(400);
   });
