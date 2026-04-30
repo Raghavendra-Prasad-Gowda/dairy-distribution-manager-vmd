@@ -304,56 +304,69 @@ export default function StockReceipt() {
       {products.length > 0 && hasRoutes && (
         <div className="mx-4 mt-2 bg-white rounded-2xl border border-slate-200 overflow-hidden">
 
-          {/* Route summary cards (also act as route selector) */}
-          <div className="px-3 pt-3 pb-3 flex gap-2 flex-wrap">
-            {routeSummary.map((s, ri) => {
-              const color    = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-              const isActive = ri === activeRouteIdx;
-              const hasData  = s.units > 0;
-              const crateVal = s.crateType && s.crates > 0
-                ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
-                : null;
-              return (
-                <button
-                  key={s.routeId}
-                  onClick={() => setActiveRouteIdx(ri)}
-                  className={`flex-1 min-w-[110px] text-left rounded-xl px-3.5 py-3 border-2 transition-all ${
-                    isActive
-                      ? color.pill
-                      : hasData
-                        ? 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'
-                        : 'border-dashed border-slate-200 bg-white hover:border-slate-300 opacity-70 hover:opacity-100'
-                  }`}
-                >
-                  {/* Route number */}
-                  <p className={`text-base font-extrabold tracking-tight mb-2 ${isActive ? 'text-white' : 'text-slate-700'}`}>
-                    Route {s.routeNumber}
-                  </p>
-
-                  {hasData ? (
-                    <div className="space-y-0.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Units</span>
-                        <span className={`text-[13px] font-bold tabular-nums ${isActive ? 'text-white' : 'text-slate-800'}`}>{s.units}</span>
-                      </div>
-                      {crateVal && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Crates</span>
-                          <span className={`text-[13px] font-bold tabular-nums ${isActive ? 'text-white' : 'text-amber-600'}`}>{crateVal}</span>
+          {/* Route summary cards — equal-width grid, always same height */}
+          {(() => {
+            const n = routes.length;
+            const gridClass =
+              n === 1 ? 'grid-cols-1' :
+              n === 2 ? 'grid-cols-2' :
+              n === 3 ? 'grid-cols-3' :
+              n === 4 ? 'grid-cols-2 sm:grid-cols-4' :
+                        'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5';
+            // Check if ANY route has crate data — if so all cards show that row
+            const showCratesRow = routeSummary.some(s => s.crateType && s.crates > 0);
+            return (
+              <div className={`grid ${gridClass} gap-2 px-3 pt-3 pb-3`}>
+                {routeSummary.map((s, ri) => {
+                  const color    = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+                  const isActive = ri === activeRouteIdx;
+                  const hasData  = s.units > 0;
+                  const crateVal = s.crateType && s.crates > 0
+                    ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
+                    : null;
+                  return (
+                    <button
+                      key={s.routeId}
+                      onClick={() => setActiveRouteIdx(ri)}
+                      className={`text-left rounded-xl px-3.5 py-3 border-2 transition-all ${
+                        isActive
+                          ? color.pill
+                          : hasData
+                            ? 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
+                            : 'border-dashed border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <p className={`text-sm font-extrabold tracking-tight mb-2.5 ${isActive ? 'text-white' : 'text-slate-700'}`}>
+                        Route {s.routeNumber}
+                      </p>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Units</span>
+                          <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-slate-800'}`}>
+                            {hasData ? s.units : <span className="text-slate-300">—</span>}
+                          </span>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Amount</span>
-                        <span className={`text-[13px] font-bold tabular-nums ${isActive ? 'text-white' : 'text-emerald-700'}`}>{formatCurrency(s.amount)}</span>
+                        {showCratesRow && (
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Crates</span>
+                            <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-amber-600'}`}>
+                              {crateVal ?? <span className={isActive ? 'text-white/30' : 'text-slate-300'}>—</span>}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Amount</span>
+                          <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-emerald-700'}`}>
+                            {hasData ? formatCurrency(s.amount) : <span className={isActive ? 'text-white/30' : 'text-slate-300'}>—</span>}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <p className={`text-xs mt-1 ${isActive ? 'text-white/50' : 'text-slate-300'}`}>No data entered</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Row 3: Search + Expand/Collapse + Save */}
           <div className="border-t border-slate-100 px-3 py-2 flex items-center gap-2">
