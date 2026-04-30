@@ -403,11 +403,43 @@ export default function StockReceipt() {
             </div>
           )}
 
-          {/* Right column: action bar + route strip (stacks vertically within column) */}
+          {/* Right column: route strip (top) + action bar (bottom) */}
           {products.length > 0 && (
             <div className="flex flex-col gap-2 mt-3 lg:mt-0 lg:w-72 lg:flex-shrink-0">
 
-              {/* Action bar */}
+              {/* Route Strip — shown first so operator picks route before filling data */}
+              {isNandini && routes.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 px-3 py-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {routes.map((r, ri) => {
+                      const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+                      const isActive  = ri === activeRouteIdx;
+                      const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[r.id]) > 0);
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => setActiveRouteIdx(ri)}
+                          className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
+                          Route {r.routeNumber}
+                          {hasFilled && !isActive && (
+                            <>
+                              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
+                              <span className="hidden lg:inline opacity-70">
+                                · {routeSummary[ri]?.units}u · {formatCurrency(routeSummary[ri]?.amount)}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Action bar: search + expand/collapse + save */}
               <div className="bg-white rounded-2xl border border-slate-200 px-3 py-3 flex flex-col gap-2.5">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -447,38 +479,6 @@ export default function StockReceipt() {
                       : 'Save Receipt'}
                 </button>
               </div>
-
-              {/* Route Strip (Nandini only) */}
-              {isNandini && routes.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 px-3 py-2.5">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Select Route</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {routes.map((r, ri) => {
-                      const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-                      const isActive  = ri === activeRouteIdx;
-                      const hasFilled = products.some(p => parseFloat(routeQty[p.id]?.[r.id]) > 0);
-                      return (
-                        <button
-                          key={r.id}
-                          onClick={() => setActiveRouteIdx(ri)}
-                          className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
-                        >
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
-                          Route {r.routeNumber}
-                          {hasFilled && !isActive && (
-                            <>
-                              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${color.dot}`} />
-                              <span className="hidden lg:inline opacity-70">
-                                · {routeSummary[ri]?.units}u · {formatCurrency(routeSummary[ri]?.amount)}
-                              </span>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
             </div>
           )}
