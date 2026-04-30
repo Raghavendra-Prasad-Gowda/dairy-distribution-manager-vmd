@@ -13,6 +13,12 @@ const logger = createLogger({
     format.json()
   ),
   transports: [
+    // Always log to stdout so Render / any host captures output
+    new transports.Console({
+      format: process.env.NODE_ENV === 'production'
+        ? format.combine(format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), format.json())
+        : format.combine(format.colorize(), format.simple()),
+    }),
     new transports.File({
       filename: path.join(logsDir, 'error.log'),
       level: 'error',
@@ -26,13 +32,5 @@ const logger = createLogger({
     }),
   ],
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(
-    new transports.Console({
-      format: format.combine(format.colorize(), format.simple()),
-    })
-  );
-}
 
 module.exports = logger;
