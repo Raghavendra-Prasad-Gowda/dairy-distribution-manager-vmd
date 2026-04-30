@@ -136,7 +136,7 @@ const schemas = {
       productId: z.number().int().positive(),
       quantity: z.number().positive(),
       unitPrice: z.number().min(0),
-    })),
+    })).min(1, 'At least one item is required'),
     notes: z.string().optional(),
   }),
 
