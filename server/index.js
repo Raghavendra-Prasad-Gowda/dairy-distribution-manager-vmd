@@ -4,36 +4,6 @@ const { execSync } = require('child_process');
 const app = require('./app');
 const logger = require('./config/logger');
 
-/** Try one DB connection with a hard timeout. Returns true on success. */
-async function tryConnect() {
-  const { Client } = require('pg');
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 5000,  // fail fast per attempt
-    query_timeout: 5000,
-  });
-  try {
-    await client.connect();
-    await client.query('SELECT 1');
-    await client.end();
-    return true;
-  } catch {
-    await client.end().catch(() => {});
-    return false;
-  }
-}
-
-/** Wait until Postgres accepts a connection — retries with linear backoff. */
-async function waitForDb({ maxAttempts = 20, delayMs = 3000 } = {}) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const ok = await tryConnect();
-    if (ok) { logger.info(`Database ready (attempt ${attempt}).`); return; }
-    logger.warn(`DB not ready (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms…`);
-    if (attempt === maxAttempts) throw new Error(`Database unavailable after ${maxAttempts} attempts.`);
-    await new Promise(r => setTimeout(r, delayMs));
-  }
-}
-
 /** Resolve any migrations that started but never finished. */
 async function resolveFailedMigrations() {
   const { Client } = require('pg');
@@ -78,22 +48,10 @@ async function runMigrations({ maxAttempts = 3 } = {}) {
 async function boot() {
   const PORT = process.env.PORT || 3001;
 
-  // 1. Start HTTP server immediately so Render/hosting detects the open port.
-  //    Requests are held off until startup completes via the `isReady` flag in app.
   const server = app.listen(PORT, () => {
     logger.info(`Server listening on port ${PORT} — running startup tasks…`);
   });
 
-  // 2. Wait for DB
-  try {
-    await waitForDb();
-  } catch (err) {
-    logger.error('Database never became available.', { message: err.message });
-    process.exit(1);
-  }
-
-  // 3. Resolve stuck migrations, then deploy
-  await resolveFailedMigrations();
   try {
     await runMigrations();
   } catch (err) {
@@ -101,7 +59,6 @@ async function boot() {
     process.exit(1);
   }
 
-  // 4. Seed admin user (idempotent)
   try {
     const { seedFoundationData } = require('./prisma/seed');
     await seedFoundationData();
@@ -112,7 +69,6 @@ async function boot() {
 
   logger.info('Startup complete — server ready.');
 
-  // Graceful shutdown
   const shutdown = (signal) => {
     logger.info(`Received ${signal}. Gracefully shutting down...`);
     server.close(() => { logger.info('HTTP server closed.'); process.exit(0); });
