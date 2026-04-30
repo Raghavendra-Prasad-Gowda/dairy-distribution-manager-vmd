@@ -304,68 +304,51 @@ export default function StockReceipt() {
       {products.length > 0 && hasRoutes && (
         <div className="mx-4 mt-2 bg-white rounded-2xl border border-slate-200 overflow-hidden">
 
-          {/* Row 1: Route pills */}
-          <div className="flex items-center gap-1.5 flex-wrap px-3 pt-2.5 pb-1.5">
-            {routes.map((r, ri) => {
-              const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-              const isActive  = ri === activeRouteIdx;
-              const hasFilled = routeSummary[ri]?.units > 0;
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => setActiveRouteIdx(ri)}
-                  className={`relative flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
-                  {r.routeNumber}
-                  {hasFilled && !isActive && (
-                    <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border-2 border-white ${color.dot}`} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Row 2: Per-route summary cards */}
-          <div className="px-3 pb-3 flex gap-2 flex-wrap">
+          {/* Route summary cards (also act as route selector) */}
+          <div className="px-3 pt-3 pb-3 flex gap-2 flex-wrap">
             {routeSummary.map((s, ri) => {
               const color    = ROUTE_COLORS[ri % ROUTE_COLORS.length];
               const isActive = ri === activeRouteIdx;
               const hasData  = s.units > 0;
-              const crateStr = s.crateType
+              const crateVal = s.crateType && s.crates > 0
                 ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
                 : null;
               return (
                 <button
                   key={s.routeId}
                   onClick={() => setActiveRouteIdx(ri)}
-                  className={`flex-1 min-w-[100px] text-left rounded-xl px-3 py-2 border transition-all ${
+                  className={`flex-1 min-w-[110px] text-left rounded-xl px-3.5 py-3 border-2 transition-all ${
                     isActive
-                      ? 'border-2 ' + color.pill.replace('shadow-sm', '') + ' bg-opacity-100'
+                      ? color.pill
                       : hasData
-                        ? 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                        : 'border-dashed border-slate-200 bg-white opacity-60 hover:opacity-80'
+                        ? 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                        : 'border-dashed border-slate-200 bg-white hover:border-slate-300 opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
+                  {/* Route number */}
+                  <p className={`text-base font-extrabold tracking-tight mb-2 ${isActive ? 'text-white' : 'text-slate-700'}`}>
                     Route {s.routeNumber}
                   </p>
+
                   {hasData ? (
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                      <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-slate-800'}`}>
-                        {s.units} <span className={`text-[10px] font-medium ${isActive ? 'text-white/70' : 'text-slate-400'}`}>units</span>
-                      </span>
-                      {crateStr && (
-                        <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-amber-600'}`}>
-                          {crateStr}
-                        </span>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Units</span>
+                        <span className={`text-[13px] font-bold tabular-nums ${isActive ? 'text-white' : 'text-slate-800'}`}>{s.units}</span>
+                      </div>
+                      {crateVal && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Crates</span>
+                          <span className={`text-[13px] font-bold tabular-nums ${isActive ? 'text-white' : 'text-amber-600'}`}>{crateVal}</span>
+                        </div>
                       )}
-                      <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-emerald-700'}`}>
-                        {formatCurrency(s.amount)}
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] ${isActive ? 'text-white/70' : 'text-slate-400'}`}>Total Amount</span>
+                        <span className={`text-[13px] font-bold tabular-nums ${isActive ? 'text-white' : 'text-emerald-700'}`}>{formatCurrency(s.amount)}</span>
+                      </div>
                     </div>
                   ) : (
-                    <p className={`text-xs ${isActive ? 'text-white/60' : 'text-slate-300'}`}>No data</p>
+                    <p className={`text-xs mt-1 ${isActive ? 'text-white/50' : 'text-slate-300'}`}>No data entered</p>
                   )}
                 </button>
               );
