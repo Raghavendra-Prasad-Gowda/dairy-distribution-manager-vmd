@@ -326,27 +326,51 @@ export default function StockReceipt() {
             })}
           </div>
 
-          {/* Row 2: Active route summary */}
-          {activeRoute && (() => {
-            const s = routeSummary[activeRouteIdx];
-            const crateStr = s?.crateType
-              ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
-              : null;
-            return (
-              <div className="px-3 pb-2 flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Route {activeRoute.routeNumber}</span>
-                {s?.units > 0 ? (
-                  <>
-                    <span className="text-[11px] font-bold tabular-nums text-slate-700">{s.units} units</span>
-                    {crateStr && <span className="text-[11px] font-bold tabular-nums text-amber-600">{crateStr}</span>}
-                    <span className="text-[11px] font-bold tabular-nums text-emerald-700">{formatCurrency(s.amount)}</span>
-                  </>
-                ) : (
-                  <span className="text-[11px] text-slate-400 italic">No data entered yet</span>
-                )}
-              </div>
-            );
-          })()}
+          {/* Row 2: Per-route summary cards */}
+          <div className="px-3 pb-3 flex gap-2 flex-wrap">
+            {routeSummary.map((s, ri) => {
+              const color    = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+              const isActive = ri === activeRouteIdx;
+              const hasData  = s.units > 0;
+              const crateStr = s.crateType
+                ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
+                : null;
+              return (
+                <button
+                  key={s.routeId}
+                  onClick={() => setActiveRouteIdx(ri)}
+                  className={`flex-1 min-w-[100px] text-left rounded-xl px-3 py-2 border transition-all ${
+                    isActive
+                      ? 'border-2 ' + color.pill.replace('shadow-sm', '') + ' bg-opacity-100'
+                      : hasData
+                        ? 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                        : 'border-dashed border-slate-200 bg-white opacity-60 hover:opacity-80'
+                  }`}
+                >
+                  <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
+                    Route {s.routeNumber}
+                  </p>
+                  {hasData ? (
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-slate-800'}`}>
+                        {s.units} <span className={`text-[10px] font-medium ${isActive ? 'text-white/70' : 'text-slate-400'}`}>units</span>
+                      </span>
+                      {crateStr && (
+                        <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-amber-600'}`}>
+                          {crateStr}
+                        </span>
+                      )}
+                      <span className={`text-sm font-bold tabular-nums ${isActive ? 'text-white' : 'text-emerald-700'}`}>
+                        {formatCurrency(s.amount)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className={`text-xs ${isActive ? 'text-white/60' : 'text-slate-300'}`}>No data</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Row 3: Search + Expand/Collapse + Save */}
           <div className="border-t border-slate-100 px-3 py-2 flex items-center gap-2">
