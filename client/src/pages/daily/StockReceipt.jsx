@@ -300,46 +300,65 @@ export default function StockReceipt() {
         </div>
       )}
 
-      {/* ── Controls bar: routes + search + save (below balance) ── */}
+      {/* ── Controls bar (below balance) ── */}
       {products.length > 0 && hasRoutes && (
         <div className="mx-4 mt-2 bg-white rounded-2xl border border-slate-200 overflow-hidden">
 
-          {/* Main row: route pills + search + expand/collapse + save */}
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+          {/* Row 1: Route pills */}
+          <div className="flex items-center gap-1.5 flex-wrap px-3 pt-2.5 pb-1.5">
+            {routes.map((r, ri) => {
+              const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
+              const isActive  = ri === activeRouteIdx;
+              const hasFilled = routeSummary[ri]?.units > 0;
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => setActiveRouteIdx(ri)}
+                  className={`relative flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
+                  {r.routeNumber}
+                  {hasFilled && !isActive && (
+                    <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border-2 border-white ${color.dot}`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Route pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {routes.map((r, ri) => {
-                const color     = ROUTE_COLORS[ri % ROUTE_COLORS.length];
-                const isActive  = ri === activeRouteIdx;
-                const hasFilled = routeSummary[ri]?.units > 0;
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => setActiveRouteIdx(ri)}
-                    className={`relative flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${isActive ? color.pill : color.pillInactive}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/70' : color.dot}`} />
-                    {r.routeNumber}
-                    {hasFilled && !isActive && (
-                      <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border-2 border-white ${color.dot}`} />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+          {/* Row 2: Active route summary */}
+          {activeRoute && (() => {
+            const s = routeSummary[activeRouteIdx];
+            const crateStr = s?.crateType
+              ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
+              : null;
+            return (
+              <div className="px-3 pb-2 flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Route {activeRoute.routeNumber}</span>
+                {s?.units > 0 ? (
+                  <>
+                    <span className="text-[11px] font-bold tabular-nums text-slate-700">{s.units} units</span>
+                    {crateStr && <span className="text-[11px] font-bold tabular-nums text-amber-600">{crateStr}</span>}
+                    <span className="text-[11px] font-bold tabular-nums text-emerald-700">{formatCurrency(s.amount)}</span>
+                  </>
+                ) : (
+                  <span className="text-[11px] text-slate-400 italic">No data entered yet</span>
+                )}
+              </div>
+            );
+          })()}
 
-            {/* Divider */}
-            <div className="hidden sm:block w-px h-5 bg-slate-200" />
+          {/* Row 3: Search + Expand/Collapse + Save */}
+          <div className="border-t border-slate-100 px-3 py-2 flex items-center gap-2">
 
             {/* Search */}
-            <div className="relative flex-1 min-w-[160px] max-w-xs">
+            <div className="relative flex-1 min-w-0">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
+                placeholder="Search product or category…"
                 className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-300"
               />
               {search && (
@@ -351,45 +370,26 @@ export default function StockReceipt() {
 
             {/* Expand / Collapse */}
             {groupedData.length > 1 && (
-              <div className="flex items-center gap-1">
+              <>
                 <button onClick={expandAll} className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap">
                   <ChevronsUpDown size={12} /> Expand
                 </button>
                 <button onClick={collapseAll} className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap">
                   <ChevronsDownUp size={12} /> Collapse
                 </button>
-              </div>
+              </>
             )}
 
             {/* Save button */}
             <button
               onClick={handleSave}
               disabled={saving || loading || !activeRoute || displayTotalUnits === 0}
-              className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-1.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap ml-auto"
+              className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-1.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
             >
               {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
               {saving ? 'Saving…' : `Save Route ${activeRoute?.routeNumber ?? '—'}`}
             </button>
           </div>
-
-          {/* Active route detail strip */}
-          {activeRoute && (() => {
-            const s = routeSummary[activeRouteIdx];
-            if (!s || s.units === 0) return null;
-            const crateStr = s.crateType
-              ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
-              : null;
-            return (
-              <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Route {activeRoute.routeNumber}</span>
-                <span className="text-slate-300 text-xs">·</span>
-                <span className="text-[11px] font-bold tabular-nums text-slate-700">{s.units} units</span>
-                {crateStr && <><span className="text-slate-300 text-xs">·</span><span className="text-[11px] font-bold tabular-nums text-amber-700">{crateStr}</span></>}
-                <span className="text-slate-300 text-xs">·</span>
-                <span className="text-[11px] font-bold tabular-nums text-emerald-700">{formatCurrency(s.amount)}</span>
-              </div>
-            );
-          })()}
 
         </div>
       )}
