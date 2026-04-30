@@ -526,7 +526,7 @@ export default function DairyPayments() {
                   />
                 </div>
                 {parseFloat(editForm.amount) > 0 && (
-                  <p className="mt-1.5 text-[11px] text-slate-500 italic leading-snug">
+                  <p className="mt-1.5 text-[11px] text-slate-700 font-semibold italic leading-snug">
                     {numberToWords(parseFloat(editForm.amount))}
                   </p>
                 )}
