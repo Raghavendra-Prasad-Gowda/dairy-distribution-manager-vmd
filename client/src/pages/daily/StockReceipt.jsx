@@ -337,7 +337,7 @@ export default function StockReceipt() {
   const activeColor = isNandini ? (ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length]) : null;
 
   return (
-    <div className="flex flex-col h-full bg-slate-100">
+    <div className="bg-slate-100 pb-6">
       {/* ── Saving overlay ──────────────────────────────────── */}
       {saving && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -526,8 +526,9 @@ export default function StockReceipt() {
 
       {/* ── Table ── */}
       {products.length > 0 && (
-        <div className="flex-1 min-h-0 mx-4 mb-4 mt-3 rounded-2xl border border-slate-200 overflow-auto">
-          <table className="w-full table-fixed text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
+        <div className="mx-4 mb-4 mt-3 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto overflow-y-auto max-h-[65vh]" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="min-w-full text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
             <colgroup>
               <col style={{ width: '38%' }} />
               <col style={{ width: '16%' }} />
@@ -537,13 +538,13 @@ export default function StockReceipt() {
             </colgroup>
             <thead className="sticky top-0 z-10">
               <tr>
-                <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider rounded-tl-2xl">Product</th>
-                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Product</th>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">
                   {isNandini && activeRoute ? `Route ${activeRoute.routeNumber}` : 'Units'}
                 </th>
-                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Rate</th>
-                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Crates/Boxes</th>
-                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider rounded-tr-2xl">Amount</th>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Rate</th>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Crates/Boxes</th>
+                <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Amount</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -578,33 +579,41 @@ export default function StockReceipt() {
                     return (
                       <React.Fragment key={category}>
                         <tr
-                          className="cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
+                          className="cursor-pointer select-none hover:bg-gray-100 transition-colors"
                           onClick={() => setCollapsedCategories(prev => ({ ...prev, [category]: !isCollapsed }))}
                         >
-                          <td colSpan={COL_COUNT} className="border-l-4 border-emerald-500 bg-slate-100 border-b border-slate-200">
-                            <div className="flex items-center gap-2 px-4 pt-2.5 pb-1">
+                          <td colSpan={COL_COUNT} className="border-l-4 border-emerald-500 bg-gray-50 border-b border-gray-200 px-4 py-2.5">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {isCollapsed
-                                ? <ChevronRight size={14} className="text-slate-400 flex-shrink-0" />
-                                : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />
+                                ? <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
+                                : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />
                               }
-                              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">{category}</span>
-                              <span className="text-[10px] font-semibold text-slate-400 uppercase">{items.length} items</span>
+                              <span className="text-xs font-bold uppercase tracking-wide text-gray-800">{category}</span>
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">
+                                {items.length} items
+                              </span>
                               {catTotalUnits > 0 && (
-                                <div className="ml-auto flex items-center gap-1.5">
-                                  <span className="text-[11px] font-bold text-blue-600 tabular-nums bg-blue-50 px-2 py-0.5 rounded-lg">{catTotalUnits} units</span>
+                                <>
+                                  <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">
+                                    {catTotalUnits} units
+                                  </span>
                                   {catCrateLabel && (
-                                    <span className="text-[11px] font-bold text-amber-600 tabular-nums bg-amber-50 px-2 py-0.5 rounded-lg">{catCrateLabel}</span>
+                                    <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">
+                                      {catCrateLabel}
+                                    </span>
                                   )}
                                   {catAmount > 0 && (
-                                    <span className="text-[11px] font-bold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-lg">{formatCurrency(catAmount)}</span>
+                                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold tabular-nums ml-auto">
+                                      {formatCurrency(catAmount)}
+                                    </span>
                                   )}
-                                </div>
+                                </>
                               )}
-                            </div>
-                            <div className="px-4 pb-2">
-                              <span className={`text-[10px] font-semibold tabular-nums ${filledPct === 100 ? 'text-emerald-600' : filledPct > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                                {catFilled}/{items.length} FILLED ({filledPct}%)
-                              </span>
+                              {catTotalUnits === 0 && (
+                                <span className={`text-[10px] font-semibold ml-auto ${filledPct === 100 ? 'text-emerald-600' : filledPct > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                  {catFilled}/{items.length} filled
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -618,15 +627,15 @@ export default function StockReceipt() {
                           const filled = displayQty > 0;
 
                           return (
-                            <tr key={p.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-100">
-                              <td className="px-4 py-3">
-                                <div className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</div>
-                                <div className="text-[10px] text-slate-400 mt-0.5">
+                            <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-2.5 border-b border-gray-200">
+                                <div className="text-sm font-medium text-gray-900 leading-tight">{p.name}</div>
+                                <div className="text-[10px] text-gray-400 mt-0.5">
                                   {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}
                                 </div>
                               </td>
 
-                              <td className="px-4 py-3 text-center">
+                              <td className="px-4 py-2.5 text-center border-b border-gray-200 border-r border-gray-100">
                                 <div className="inline-flex items-center gap-1.5">
                                   <input
                                     ref={el => {
@@ -649,29 +658,29 @@ export default function StockReceipt() {
                                     step="1"
                                     min="0"
                                     placeholder="0"
-                                    className={`w-16 text-center px-1.5 py-2 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:border-transparent tabular-nums transition-all placeholder:text-slate-300 bg-white text-slate-700 ${
+                                    className={`w-16 text-center px-1.5 py-1.5 border rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:border-transparent tabular-nums transition-all placeholder:text-gray-300 bg-white text-gray-800 ${
                                       isNandini && activeColor
-                                        ? `border-slate-200 ${activeColor.ring}`
-                                        : 'border-slate-200 focus:ring-emerald-500'
+                                        ? `border-gray-200 ${activeColor.ring}`
+                                        : 'border-gray-200 focus:ring-emerald-500'
                                     }`}
                                   />
                                   {!isNandini && (
-                                    <span className="text-xs text-slate-400">
+                                    <span className="text-xs text-gray-400">
                                       {p.unitType === 'piece' ? 'pcs' : p.unitType === 'gram' ? 'pkts' : 'units'}
                                     </span>
                                   )}
                                 </div>
                               </td>
 
-                              <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-500 whitespace-nowrap">
+                              <td className="px-4 py-2.5 text-center text-xs tabular-nums text-gray-600 whitespace-nowrap border-b border-gray-200 border-r border-gray-100 bg-slate-50">
                                 ₹{Number(p.costPrice).toFixed(2)}
                               </td>
-                              <td className="px-4 py-3 text-center text-xs tabular-nums text-slate-600 whitespace-nowrap">
+                              <td className="px-4 py-2.5 text-center text-xs tabular-nums text-amber-700 whitespace-nowrap border-b border-gray-200 border-r border-gray-100 bg-amber-50/40">
                                 {calcContainerDisplay(displayQty, p.containerType, p.unitsPerContainer)}
                               </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-slate-800' : 'text-slate-300'}`}>
-                                  {filled ? formatCurrency(amount) : '₹0.00'}
+                              <td className="px-4 py-2.5 text-center border-b border-gray-200 bg-yellow-50/50">
+                                <span className={`text-sm font-bold tabular-nums whitespace-nowrap ${filled ? 'text-gray-900' : 'text-gray-300'}`}>
+                                  {filled ? formatCurrency(amount) : '—'}
                                 </span>
                               </td>
                             </tr>
@@ -687,23 +696,23 @@ export default function StockReceipt() {
             {/* Sticky footer */}
             <tfoot className="sticky bottom-0 z-10">
               <tr>
-                <td className="bg-emerald-800 px-4 py-3 text-xs font-bold text-white rounded-bl-2xl">
-                  {isNandini && activeRoute ? `Route ${activeRoute.routeNumber}` : 'Total'}
+                <td className="bg-emerald-800 px-4 py-3 text-xs font-bold text-white border-r border-emerald-700">
+                  {isNandini && activeRoute ? `Route ${activeRoute.routeNumber}` : 'TOTALS'}
                 </td>
-                <td className="bg-emerald-800 px-4 py-3 text-center">
+                <td className="bg-emerald-800 px-4 py-3 text-center border-r border-emerald-700">
                   <span className="text-xs font-bold text-white tabular-nums">
                     {displayTotalUnits > 0 ? displayTotalUnits : '—'}
                   </span>
                 </td>
-                <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-300" />
-                <td className="bg-emerald-800 px-4 py-3 text-center">
+                <td className="bg-emerald-800 px-4 py-3 text-center text-xs text-emerald-400 border-r border-emerald-700" />
+                <td className="bg-emerald-800 px-4 py-3 text-center border-r border-emerald-700">
                   <span className="text-xs font-bold text-white tabular-nums">
                     {displayTotalCrates > 0
                       ? `${Number.isInteger(displayTotalCrates) ? displayTotalCrates : displayTotalCrates.toFixed(2)} ${crateLabel}`
                       : '—'}
                   </span>
                 </td>
-                <td className="bg-emerald-800 px-4 py-3 text-center rounded-br-2xl">
+                <td className="bg-emerald-800 px-4 py-3 text-center">
                   <span className="text-sm font-bold text-amber-300 tabular-nums">
                     {displayTotalAmount > 0 ? formatCurrency(displayTotalAmount) : '—'}
                   </span>
@@ -711,6 +720,7 @@ export default function StockReceipt() {
               </tr>
             </tfoot>
           </table>
+          </div>{/* end scroll container */}
         </div>
       )}
     </div>
