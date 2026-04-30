@@ -28,21 +28,11 @@ async function resolveFailedMigrations() {
   }
 }
 
-/** Run prisma migrate deploy — retries up to maxAttempts times. */
-async function runMigrations({ maxAttempts = 3 } = {}) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      logger.info(`Running database migrations (attempt ${attempt})…`);
-      execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-      logger.info('Migrations complete.');
-      return;
-    } catch (err) {
-      logger.error(`Migration attempt ${attempt} failed.`, { message: err.message });
-      if (attempt === maxAttempts) throw err;
-      await resolveFailedMigrations();
-      await new Promise(r => setTimeout(r, 3000));
-    }
-  }
+/** Run prisma migrate deploy. */
+async function runMigrations() {
+  logger.info('Running database migrations…');
+  execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+  logger.info('Migrations complete.');
 }
 
 async function boot() {
@@ -55,7 +45,7 @@ async function boot() {
   try {
     await runMigrations();
   } catch (err) {
-    logger.error('Migrations failed after all retries.', { message: err.message });
+    logger.error('Migrations failed.', { message: err.message });
     process.exit(1);
   }
 
