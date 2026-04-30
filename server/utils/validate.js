@@ -40,6 +40,7 @@ const schemas = {
     unitsPerContainer: z.number().int().positive().optional().nullable(),
     costPrice:         z.number().min(0).default(0),
     sellingPrice:      z.number().min(0).default(0),
+    effectiveFrom:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
   updateProduct: z.object({
     name:               z.string().min(1).optional(),

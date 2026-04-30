@@ -9,7 +9,7 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
-const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: '' };
+const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
 
 export default function ProductsSetup() {
   const { notify } = useNotification();
@@ -121,7 +121,7 @@ export default function ProductsSetup() {
       unitsPerContainer: form.containerType && form.unitsPerContainer ? parseInt(form.unitsPerContainer, 10) : null,
       costPrice:         parseFloat(form.costPrice) || 0,
       sellingPrice:      parseFloat(form.sellingPrice) || 0,
-      ...(editingProduct && form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
+      ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
     };
     try {
       if (editingProduct) {
@@ -243,6 +243,7 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Container</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Cost Price</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Cost From</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Sell Price</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
@@ -251,13 +252,13 @@ export default function ProductsSetup() {
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center">
+                  <td colSpan={9} className="px-6 py-16 text-center">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
@@ -265,7 +266,7 @@ export default function ProductsSetup() {
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
                     <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={8} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={9} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
@@ -283,6 +284,11 @@ export default function ProductsSetup() {
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
                           ₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-center tabular-nums">
+                          {p.costPrices?.[0]?.effectiveFrom
+                            ? <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
                           ₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
@@ -483,23 +489,23 @@ export default function ProductsSetup() {
                   ))}
                 </div>
 
-                {/* Cost price effective date (edit only) */}
-                {editingProduct && (
-                  <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Cost Price Effective From</p>
-                    <p className="text-[10px] text-amber-600 mb-2">Price change is recorded from this date</p>
-                    <input
-                      type="date"
-                      value={form.effectiveFrom}
-                      onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))}
-                      className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                )}
+                {/* Cost price effective date */}
+                <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
+                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Cost Price Effective From</p>
+                  <p className="text-[10px] text-amber-600 mb-2">
+                    {editingProduct ? 'Price change is recorded from this date' : 'Date this cost price takes effect'}
+                  </p>
+                  <input
+                    type="date"
+                    value={form.effectiveFrom}
+                    onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                    className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
               </div>
 
               {/* Footer */}
-              <div className="flex gap-3 px-5 pb-5 pt-1">
+              <div className="flex gap-3 px-5 pb-5 pt-4">
                 <button
                   type="button" onClick={closeModal}
                   className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition"

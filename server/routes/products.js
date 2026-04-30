@@ -13,7 +13,10 @@ router.get('/', asyncHandler(async (req, res) => {
   if (req.query.all === 'true') delete where.isActive;
   const products = await prisma.product.findMany({
     where,
-    include: { brand: { select: { id: true, name: true } } },
+    include: {
+      brand:      { select: { id: true, name: true } },
+      costPrices: { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true } },
+    },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
 
@@ -55,15 +58,16 @@ router.post('/', asyncHandler(async (req, res) => {
   const data = validate(schemas.createProduct, req, res);
   if (!data) return;
   const product = await prisma.$transaction(async (tx) => {
+    const { effectiveFrom: effectiveFromStr, ...productData } = data;
     const created = await tx.product.create({
-      data,
+      data:    productData,
       include: { brand: { select: { id: true, name: true } } },
     });
-    if (data.costPrice > 0) {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
+    if (productData.costPrice > 0) {
+      const effectiveFrom = effectiveFromStr ? new Date(effectiveFromStr) : new Date();
+      effectiveFrom.setUTCHours(0, 0, 0, 0);
       await tx.productCostPrice.create({
-        data: { productId: created.id, costPrice: data.costPrice, effectiveFrom: today },
+        data: { productId: created.id, costPrice: productData.costPrice, effectiveFrom },
       });
     }
     return created;
