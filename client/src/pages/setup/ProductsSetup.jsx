@@ -9,7 +9,7 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
-const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate(), sellingPriceEffectiveFrom: getIndiaDate() };
+const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
 
 export default function ProductsSetup() {
   const { notify } = useNotification();
@@ -105,10 +105,7 @@ export default function ProductsSetup() {
     const currentEffectiveFrom = p.costPrices?.[0]?.effectiveFrom
       ? new Date(p.costPrices[0].effectiveFrom).toISOString().slice(0, 10)
       : getIndiaDate();
-    const currentSpEffectiveFrom = p.sellingPrices?.[0]?.effectiveFrom
-      ? new Date(p.sellingPrices[0].effectiveFrom).toISOString().slice(0, 10)
-      : getIndiaDate();
-    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: currentEffectiveFrom, sellingPriceEffectiveFrom: currentSpEffectiveFrom });
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: currentEffectiveFrom });
     setIsModalOpen(true);
   };
 
@@ -127,8 +124,7 @@ export default function ProductsSetup() {
       unitsPerContainer: form.containerType && form.unitsPerContainer ? parseInt(form.unitsPerContainer, 10) : null,
       costPrice:         parseFloat(form.costPrice) || 0,
       sellingPrice:      parseFloat(form.sellingPrice) || 0,
-      ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
-      ...(form.sellingPriceEffectiveFrom ? { sellingPriceEffectiveFrom: form.sellingPriceEffectiveFrom } : {}),
+      ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom, sellingPriceEffectiveFrom: form.effectiveFrom } : {}),
     };
     try {
       if (editingProduct) {
@@ -250,9 +246,8 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Container</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Cost Price</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Cost From</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Prices From</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Sell Price</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Sell From</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
@@ -260,13 +255,13 @@ export default function ProductsSetup() {
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-16 text-center">
+                  <td colSpan={9} className="px-6 py-16 text-center">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
@@ -274,7 +269,7 @@ export default function ProductsSetup() {
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
                     <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={10} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={9} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
@@ -300,11 +295,6 @@ export default function ProductsSetup() {
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
                           ₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-center tabular-nums">
-                          {p.sellingPrices?.[0]?.effectiveFrom
-                            ? <span className="text-violet-700 font-semibold">{new Date(p.sellingPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                            : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
@@ -502,31 +492,15 @@ export default function ProductsSetup() {
                   ))}
                 </div>
 
-                {/* Cost price effective date */}
+                {/* Price effective date (applies to both cost and selling price) */}
                 <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
-                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Cost Price Effective From</p>
-                  <p className="text-[10px] text-amber-600 mb-2">
-                    {editingProduct ? 'Price change is recorded from this date' : 'Date this cost price takes effect'}
-                  </p>
+                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Price Change Effective From</p>
+                  <p className="text-[10px] text-amber-600 mb-2">Applies to both cost and selling price</p>
                   <input
                     type="date"
                     value={form.effectiveFrom}
                     onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))}
                     className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-
-                {/* Selling price effective date */}
-                <div className="bg-violet-50 rounded-xl border border-violet-200 p-3">
-                  <p className="text-[10px] font-bold text-violet-700 uppercase tracking-widest mb-0.5">Selling Price Effective From</p>
-                  <p className="text-[10px] text-violet-600 mb-2">
-                    {editingProduct ? 'Price change is recorded from this date' : 'Date this selling price takes effect'}
-                  </p>
-                  <input
-                    type="date"
-                    value={form.sellingPriceEffectiveFrom}
-                    onChange={e => setForm(f => ({ ...f, sellingPriceEffectiveFrom: e.target.value }))}
-                    className="w-full px-3 py-2 border border-violet-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-violet-400"
                   />
                 </div>
               </div>
