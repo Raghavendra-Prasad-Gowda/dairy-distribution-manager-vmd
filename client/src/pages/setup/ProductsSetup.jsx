@@ -290,7 +290,14 @@ export default function ProductsSetup() {
                         </td>
                         <td className="px-6 py-4 text-xs text-center tabular-nums">
                           {p.costPrices?.[0]?.effectiveFrom
-                            ? <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            ? <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                {p.costPrices[0].createdAt && (
+                                  <span className="text-slate-400 text-[10px]">
+                                    {new Date(p.costPrices[0].createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
+                                  </span>
+                                )}
+                              </div>
                             : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
