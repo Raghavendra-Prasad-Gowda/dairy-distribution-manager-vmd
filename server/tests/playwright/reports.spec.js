@@ -48,6 +48,7 @@ test.describe('GET /api/v1/reports/dairy-statement', () => {
     ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([balance]);
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/dairy-statement?brandId=1&from=2026-04-01&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -64,6 +65,7 @@ test.describe('GET /api/v1/reports/dairy-statement', () => {
     ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/dairy-statement?brandId=1&from=2026-04-01&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -150,6 +152,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
   test('returns 200 with stock summary', async ({ request }) => {
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
