@@ -98,14 +98,11 @@ export default function DairyPayments() {
   const [historyPage, setHistoryPage] = useState(1);
 
   const today = getIndiaDate();
-  const firstOfMonth = today.substring(0, 7) + '-01';
 
   // Breakdown panel state
   const [breakdown,        setBreakdown]        = useState(null);   // null=not fetched, []=no routes
   const [breakdownOpen,    setBreakdownOpen]    = useState(false);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
-  const [breakdownFrom,    setBreakdownFrom]    = useState(firstOfMonth);
-  const [breakdownTo,      setBreakdownTo]      = useState(today);
 
   // Prefill state wired into PaymentForm
   const [paymentPrefill,   setPaymentPrefill]   = useState(null);
@@ -130,11 +127,6 @@ export default function DairyPayments() {
     fetchBreakdown();
   }, [activeBrandId]);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchBreakdown();
-  }, [breakdownFrom, breakdownTo]);
-
   async function fetchAll() {
     setLoading(true);
     try {
@@ -152,10 +144,10 @@ export default function DairyPayments() {
   }
 
   async function fetchBreakdown() {
-    if (!activeBrandId || !breakdownFrom || !breakdownTo) return;
+    if (!activeBrandId) return;
     setBreakdownLoading(true);
     try {
-      const res = await api.get(`/dairy-balance/route-breakdown?brandId=${activeBrandId}&from=${breakdownFrom}&to=${breakdownTo}`);
+      const res = await api.get(`/dairy-balance/route-breakdown?brandId=${activeBrandId}&from=${today}&to=${today}`);
       setBreakdown(res.data.data);
     } catch {
       setBreakdown([]);
@@ -327,7 +319,7 @@ export default function DairyPayments() {
                     >
                       <span className="flex items-center gap-2">
                         <ListOrdered size={14} className="text-emerald-600" />
-                        Bill Breakdown by Route
+                        Today's Route Breakdown
                       </span>
                       {breakdownLoading
                         ? <Loader2 size={14} className="animate-spin text-slate-400" />
@@ -339,20 +331,6 @@ export default function DairyPayments() {
                       const total = breakdown.reduce((s, r) => s + r.totalAmount, 0);
                       return (
                         <div className="px-4 pb-4">
-                          {/* Date range pickers */}
-                          <div className="flex gap-2 mb-3">
-                            <div className="flex-1">
-                              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">From</label>
-                              <input type="date" value={breakdownFrom} onChange={e => setBreakdownFrom(e.target.value)} max={today}
-                                className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none" />
-                            </div>
-                            <div className="flex-1">
-                              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">To</label>
-                              <input type="date" value={breakdownTo} onChange={e => setBreakdownTo(e.target.value)} max={today}
-                                className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none" />
-                            </div>
-                          </div>
-
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-100">
