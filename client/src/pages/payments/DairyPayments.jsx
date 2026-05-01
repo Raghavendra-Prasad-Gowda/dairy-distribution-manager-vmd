@@ -10,6 +10,15 @@ import { numberToWords } from '../../utils/numberToWords';
 import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
 
+// Matches the cycling palette used in StockReceipt for route pills
+const ROUTE_COLORS = [
+  { bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
+  { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-400'  },
+  { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400'   },
+  { bg: 'bg-rose-50',    text: 'text-rose-700',    dot: 'bg-rose-400'    },
+  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+];
+
 const MODE_COLORS = {
   Cash:   'bg-emerald-100 text-emerald-700',
   UPI:    'bg-blue-100   text-blue-700',
@@ -329,12 +338,18 @@ export default function DairyPayments() {
                             </tr>
                           </thead>
                           <tbody>
-                            {breakdown.map(row => (
-                              <tr key={row.routeId} className="border-b border-slate-50">
-                                <td className="py-1.5 text-slate-700 text-xs">{row.routeNumber}</td>
-                                <td className="py-1.5 text-right font-mono text-slate-800 text-xs tabular-nums">{formatCurrency(row.totalAmount)}</td>
-                              </tr>
-                            ))}
+                            {breakdown.map((row, i) => {
+                              const c = ROUTE_COLORS[i % ROUTE_COLORS.length];
+                              return (
+                                <tr key={row.routeId} className={`${c.bg} border-b border-white`}>
+                                  <td className={`py-1.5 px-2 text-xs font-semibold ${c.text} flex items-center gap-1.5`}>
+                                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${c.dot}`} />
+                                    {row.routeNumber}
+                                  </td>
+                                  <td className={`py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold ${c.text}`}>{formatCurrency(row.totalAmount)}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                           <tfoot>
                             <tr className="font-bold text-slate-900">
