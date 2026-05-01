@@ -60,4 +60,40 @@ const getByBrand = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { brandId, brandName: brand.name, ...bal } });
 });
 
-module.exports = { getAll, getByBrand };
+const getRouteBreakdown = asyncHandler(async (req, res) => {
+  const { brandId, from, to } = req.query;
+  const brandIdInt = parseId(brandId, 'Brand ID');
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  if (!from || !dateRe.test(from)) throw new AppError('from date is required (YYYY-MM-DD)', 400);
+  if (!to   || !dateRe.test(to))   throw new AppError('to date is required (YYYY-MM-DD)', 400);
+  if (from > to) throw new AppError('from must be on or before to', 400);
+
+  const rows = await prisma.$queryRaw`
+    SELECT
+      sr.route_id                                              AS "routeId",
+      r.route_number                                           AS "routeNumber",
+      r.display_order                                          AS "displayOrder",
+      SUM(sr.quantity * sr.unit_price)::numeric(12,2)          AS "totalAmount",
+      SUM(sr.quantity)::numeric(12,2)                          AS "totalQuantity"
+    FROM   stock_receipts sr
+    LEFT JOIN routes r ON r.id = sr.route_id
+    WHERE  sr.brand_id     = ${brandIdInt}
+      AND  sr.receipt_date >= ${from}::date
+      AND  sr.receipt_date <= ${to}::date
+    GROUP BY sr.route_id, r.route_number, r.display_order
+    ORDER BY r.display_order, r.route_number
+  `;
+
+  // Prisma returns BigInt/Decimal objects from $queryRaw — normalise to numbers
+  const data = rows.map(r => ({
+    routeId:       Number(r.routeId),
+    routeNumber:   r.routeNumber ?? (Number(r.routeId) === 0 ? 'General' : `Route ${r.routeId}`),
+    displayOrder:  Number(r.displayOrder ?? 0),
+    totalAmount:   Number(r.totalAmount),
+    totalQuantity: Number(r.totalQuantity),
+  }));
+
+  res.json({ success: true, data });
+});
+
+module.exports = { getAll, getByBrand, getRouteBreakdown };
