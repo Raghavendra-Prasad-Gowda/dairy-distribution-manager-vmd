@@ -276,7 +276,7 @@ export default function StockReceipt() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
               {[
                 { label: 'Opening Balance', value: balance.opening,                                    color: 'text-white' },
-                { label: 'Stock Added',     value: balance.stockValue,                                 color: 'text-blue-200' },
+                { label: "Today's Amount",  value: balance.stockValue,                                 color: 'text-blue-200' },
                 { label: 'Amount Paid',     value: balance.paid,                                       color: 'text-emerald-300' },
                 { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing),            color: isOwing ? 'text-red-300' : 'text-emerald-300' },
               ].map(({ label, value, color }) => (

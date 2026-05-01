@@ -11,7 +11,7 @@ const dairyStatement = asyncHandler(async (req, res) => {
   const fromDate = new Date(from);
   const toDate = new Date(to);
 
-  const [balances, allReceipts, allPayments] = await Promise.all([
+  const [balances, allReceipts, allPayments, brandRoutes] = await Promise.all([
     prisma.dairyBalance.findMany({
       where: { brandId: id, balanceDate: { gte: fromDate, lte: toDate } },
       include: { brand: { select: { name: true } } },
@@ -20,13 +20,15 @@ const dairyStatement = asyncHandler(async (req, res) => {
     prisma.stockReceipt.findMany({
       where: { brandId: id, receiptDate: { gte: fromDate, lte: toDate } },
       include: { product: { select: { name: true } } },
-      orderBy: { productId: 'asc' },
+      orderBy: [{ routeId: 'asc' }, { productId: 'asc' }],
     }),
     prisma.dairyPayment.findMany({
       where: { brandId: id, paymentDate: { gte: fromDate, lte: toDate } },
       orderBy: { createdAt: 'asc' },
     }),
+    prisma.route.findMany({ where: { brandId: id }, select: { id: true, routeNumber: true, displayOrder: true } }),
   ]);
+  const routeMap = new Map(brandRoutes.map(r => [r.id, r.routeNumber]));
 
   const receiptsByDate = new Map();
   for (const r of allReceipts) {
@@ -54,6 +56,8 @@ const dairyStatement = asyncHandler(async (req, res) => {
         quantity:    Number(r.quantity),
         unitPrice:   Number(r.unitPrice),
         amount:      Number(r.quantity) * Number(r.unitPrice),
+        routeId:     r.routeId,
+        routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
       })),
       payments: (paymentsByDate.get(key) ?? []).map((p) => ({
         amount: Number(p.amount),
@@ -130,11 +134,11 @@ const stockSummary = asyncHandler(async (req, res) => {
   if (!date) throw new AppError('date query param is required', 400);
 
   const receiptDate = new Date(date);
-  const [receipts, dispatches] = await Promise.all([
+  const [receipts, dispatches, allRoutes] = await Promise.all([
     prisma.stockReceipt.findMany({
       where: { receiptDate },
       include: { product: { select: { name: true } }, brand: { select: { name: true } } },
-      orderBy: [{ brandId: 'asc' }, { productId: 'asc' }],
+      orderBy: [{ brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
     }),
     prisma.stockDispatch.findMany({
       where: { dispatchDate: receiptDate },
@@ -143,7 +147,9 @@ const stockSummary = asyncHandler(async (req, res) => {
         items: { include: { product: { include: { brand: { select: { name: true } } } } } },
       },
     }),
+    prisma.route.findMany({ select: { id: true, routeNumber: true } }),
   ]);
+  const routeMap = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
 
   res.json({
     success: true,
@@ -155,6 +161,8 @@ const stockSummary = asyncHandler(async (req, res) => {
         quantity:    Number(r.quantity),
         unitPrice:   Number(r.unitPrice),
         amount:      Number(r.quantity) * Number(r.unitPrice),
+        routeId:     r.routeId,
+        routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
       })),
       dispatches: dispatches.map((d) => ({
         salespersonName: d.salesperson.name,

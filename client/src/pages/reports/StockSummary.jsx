@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, Package, Truck } from 'lucide-react';
+
+const ROUTE_COLORS = [
+  { bg: 'bg-sky-100',     text: 'text-sky-700'     },
+  { bg: 'bg-violet-100',  text: 'text-violet-700'  },
+  { bg: 'bg-amber-100',   text: 'text-amber-700'   },
+  { bg: 'bg-rose-100',    text: 'text-rose-700'    },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+];
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -85,41 +93,89 @@ export default function StockSummary() {
           </div>
 
           {/* ── Receipts table ─────────────────────────────────────── */}
-          <div className="ddm-card overflow-hidden">
-            <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-              <Package size={14} className="text-blue-600" />
-              <h3 className="font-bold text-slate-900 text-sm">Stock Received</h3>
-            </div>
+          {(() => {
+            const receipts = data.receipts;
+            const hasRoutes = receipts.some(r => r.routeNumber);
 
-            {data.receipts.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700 sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-100">
-                    {data.receipts.map((r, i) => (
-                      <tr key={i} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-4 py-2.5 text-xs text-slate-400">{r.brandName}</td>
-                        <td className="px-4 py-2.5 text-sm font-medium text-slate-800">{r.productName}</td>
-                        <td className="px-4 py-2.5 text-right text-sm text-slate-600 tabular-nums">{r.quantity}</td>
-                        <td className="px-4 py-2.5 text-right text-xs text-slate-500 tabular-nums whitespace-nowrap">₹{r.unitPrice}</td>
-                        <td className="px-4 py-2.5 text-right text-sm font-semibold text-blue-700 tabular-nums whitespace-nowrap">{formatCurrency(r.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            // Build route → color index map (stable per route name)
+            const routeNames = [...new Set(receipts.map(r => r.routeNumber).filter(Boolean))];
+            const routeColorIdx = new Map(routeNames.map((n, i) => [n, i]));
+
+            // Group into brand sections for sub-totals
+            const brandSections = [];
+            let current = null;
+            for (const r of receipts) {
+              if (!current || current.brandName !== r.brandName) {
+                current = { brandName: r.brandName, items: [] };
+                brandSections.push(current);
+              }
+              current.items.push(r);
+            }
+
+            return (
+              <div className="ddm-card overflow-hidden">
+                <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
+                  <Package size={14} className="text-blue-600" />
+                  <h3 className="font-bold text-slate-900 text-sm">Stock Received</h3>
+                </div>
+
+                {receipts.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
+                      <thead className="bg-emerald-700 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
+                          {hasRoutes && <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Route</th>}
+                          <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100">
+                        {brandSections.map(({ brandName, items }) => (
+                          <>
+                            {items.map((r, i) => (
+                              <tr key={`${brandName}-${i}`} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="px-4 py-2.5 text-xs text-slate-400">{i === 0 ? brandName : ''}</td>
+                                {hasRoutes && (
+                                  <td className="px-4 py-2.5">
+                                    {r.routeNumber ? (() => {
+                                      const c = ROUTE_COLORS[routeColorIdx.get(r.routeNumber) % ROUTE_COLORS.length];
+                                      return (
+                                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
+                                          {r.routeNumber}
+                                        </span>
+                                      );
+                                    })() : <span className="text-xs text-slate-300">—</span>}
+                                  </td>
+                                )}
+                                <td className="px-4 py-2.5 text-sm font-medium text-slate-800">{r.productName}</td>
+                                <td className="px-4 py-2.5 text-right text-sm text-slate-600 tabular-nums">{r.quantity}</td>
+                                <td className="px-4 py-2.5 text-right text-xs text-slate-500 tabular-nums whitespace-nowrap">₹{r.unitPrice}</td>
+                                <td className="px-4 py-2.5 text-right text-sm font-semibold text-blue-700 tabular-nums whitespace-nowrap">{formatCurrency(r.amount)}</td>
+                              </tr>
+                            ))}
+                            {/* Brand sub-total — only shown when multiple brands present */}
+                            {brandSections.length > 1 && (
+                              <tr className="bg-slate-50 border-t border-slate-200">
+                                <td colSpan={hasRoutes ? 5 : 4} className="px-4 py-1.5 text-xs font-semibold text-slate-500 text-right">{brandName} total</td>
+                                <td className="px-4 py-1.5 text-right text-sm font-bold text-blue-700 tabular-nums whitespace-nowrap">
+                                  {formatCurrency(items.reduce((s, r) => s + r.amount, 0))}
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* ── Dispatches table ───────────────────────────────────── */}
           <div className="ddm-card overflow-hidden">
