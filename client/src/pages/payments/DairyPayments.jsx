@@ -362,7 +362,7 @@ export default function DairyPayments() {
                           onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
                           className="mt-3 w-full ddm-btn-primary text-xs justify-center"
                         >
-                          Use Total {formatCurrency(total)}
+                          Pay Today's Bill — {formatCurrency(total)}
                         </button>
                       </div>
                     </div>
