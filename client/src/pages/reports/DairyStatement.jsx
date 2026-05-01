@@ -17,6 +17,70 @@ function exportCSV(rows, brandName) {
   const a = document.createElement('a'); a.href = url; a.download = `dairy-statement-${brandName}.csv`; a.click();
 }
 
+const ROUTE_COLORS = [
+  { bg: 'bg-sky-100',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
+  { bg: 'bg-violet-100',  text: 'text-violet-700',  dot: 'bg-violet-400'  },
+  { bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-400'   },
+  { bg: 'bg-rose-100',    text: 'text-rose-700',    dot: 'bg-rose-400'    },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+];
+
+function ReceiptsDetail({ receipts }) {
+  const hasRoutes = receipts.some(r => r.routeNumber);
+
+  if (!hasRoutes) {
+    return (
+      <div className="space-y-1">
+        {receipts.map((r, i) => (
+          <div key={i} className="grid grid-cols-3 text-xs">
+            <span className="font-medium text-slate-700">{r.productName}</span>
+            <span className="text-right text-slate-500">{r.quantity} × ₹{r.unitPrice}</span>
+            <span className="text-right font-semibold text-slate-700">{formatCurrency(r.amount)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Group by routeNumber, preserving insertion order (receipts are ordered by routeId asc)
+  const groups = [];
+  const seen = new Map();
+  for (const r of receipts) {
+    const key = r.routeNumber ?? 'General';
+    if (!seen.has(key)) { seen.set(key, []); groups.push({ routeNumber: key, items: seen.get(key) }); }
+    seen.get(key).push(r);
+  }
+
+  return (
+    <div className="space-y-3">
+      {groups.map(({ routeNumber, items }, gi) => {
+        const c = ROUTE_COLORS[gi % ROUTE_COLORS.length];
+        const subtotal = items.reduce((s, r) => s + r.amount, 0);
+        return (
+          <div key={routeNumber}>
+            <div className={`flex items-center justify-between px-2 py-1 rounded-lg mb-1 ${c.bg}`}>
+              <span className={`flex items-center gap-1.5 text-[11px] font-bold ${c.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                {routeNumber}
+              </span>
+              <span className={`text-[11px] font-bold tabular-nums ${c.text}`}>{formatCurrency(subtotal)}</span>
+            </div>
+            <div className="space-y-0.5 pl-2">
+              {items.map((r, i) => (
+                <div key={i} className="grid grid-cols-3 text-xs">
+                  <span className="font-medium text-slate-700">{r.productName}</span>
+                  <span className="text-right text-slate-500">{r.quantity} × ₹{r.unitPrice}</span>
+                  <span className="text-right font-semibold text-slate-700">{formatCurrency(r.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ExpandableRow({ row }) {
   const [open, setOpen] = useState(false);
   const isOwing = row.closingBalance > 0;
@@ -52,15 +116,7 @@ function ExpandableRow({ row }) {
               {row.receipts?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-600 mb-1.5">Stock Received</p>
-                  <div className="space-y-1">
-                    {row.receipts.map((r, i) => (
-                      <div key={i} className="grid grid-cols-3 text-xs">
-                        <span className="font-medium text-slate-700">{r.productName}</span>
-                        <span className="text-right text-slate-500">{r.quantity} × ₹{r.unitPrice}</span>
-                        <span className="text-right font-semibold text-slate-700">{formatCurrency(r.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <ReceiptsDetail receipts={row.receipts} />
                 </div>
               )}
               {row.payments?.length > 0 && (
