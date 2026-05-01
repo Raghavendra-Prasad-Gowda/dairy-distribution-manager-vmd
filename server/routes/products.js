@@ -14,8 +14,9 @@ router.get('/', asyncHandler(async (req, res) => {
   const products = await prisma.product.findMany({
     where,
     include: {
-      brand:      { select: { id: true, name: true } },
-      costPrices: { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true } },
+      brand:         { select: { id: true, name: true } },
+      costPrices:    { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true } },
+      sellingPrices: { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true } },
     },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
@@ -58,7 +59,7 @@ router.post('/', asyncHandler(async (req, res) => {
   const data = validate(schemas.createProduct, req, res);
   if (!data) return;
   const product = await prisma.$transaction(async (tx) => {
-    const { effectiveFrom: effectiveFromStr, ...productData } = data;
+    const { effectiveFrom: effectiveFromStr, sellingPriceEffectiveFrom: spEffectiveFromStr, ...productData } = data;
     const created = await tx.product.create({
       data:    productData,
       include: { brand: { select: { id: true, name: true } } },
@@ -68,6 +69,13 @@ router.post('/', asyncHandler(async (req, res) => {
       effectiveFrom.setUTCHours(0, 0, 0, 0);
       await tx.productCostPrice.create({
         data: { productId: created.id, costPrice: productData.costPrice, effectiveFrom },
+      });
+    }
+    if (productData.sellingPrice > 0) {
+      const effectiveFrom = spEffectiveFromStr ? new Date(spEffectiveFromStr) : new Date();
+      effectiveFrom.setUTCHours(0, 0, 0, 0);
+      await tx.productSellingPrice.create({
+        data: { productId: created.id, sellingPrice: productData.sellingPrice, effectiveFrom },
       });
     }
     return created;
@@ -81,28 +89,40 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const data = validate(schemas.updateProduct, req, res);
   if (!data) return;
 
-  const { effectiveFrom: effectiveFromStr, ...productData } = data;
+  const { effectiveFrom: effectiveFromStr, sellingPriceEffectiveFrom: spEffectiveFromStr, ...productData } = data;
 
   const product = await prisma.$transaction(async (tx) => {
-    const updated = await tx.product.update({ where: { id }, data: productData });
+    let updated = await tx.product.update({ where: { id }, data: productData });
 
     if (productData.costPrice !== undefined) {
       const effectiveFrom = effectiveFromStr ? new Date(effectiveFromStr) : new Date();
       effectiveFrom.setUTCHours(0, 0, 0, 0);
-
       await tx.productCostPrice.upsert({
         where:  { productId_effectiveFrom: { productId: id, effectiveFrom } },
         update: { costPrice: productData.costPrice },
         create: { productId: id, costPrice: productData.costPrice, effectiveFrom },
       });
-
-      // Keep Product.costPrice in sync with the latest history entry
-      const latest = await tx.productCostPrice.findFirst({
-        where:   { productId: id },
-        orderBy: { effectiveFrom: 'desc' },
+      const latestCost = await tx.productCostPrice.findFirst({
+        where: { productId: id }, orderBy: { effectiveFrom: 'desc' },
       });
-      if (latest) {
-        return tx.product.update({ where: { id }, data: { costPrice: latest.costPrice } });
+      if (latestCost) {
+        updated = await tx.product.update({ where: { id }, data: { costPrice: latestCost.costPrice } });
+      }
+    }
+
+    if (productData.sellingPrice !== undefined) {
+      const effectiveFrom = spEffectiveFromStr ? new Date(spEffectiveFromStr) : new Date();
+      effectiveFrom.setUTCHours(0, 0, 0, 0);
+      await tx.productSellingPrice.upsert({
+        where:  { productId_effectiveFrom: { productId: id, effectiveFrom } },
+        update: { sellingPrice: productData.sellingPrice },
+        create: { productId: id, sellingPrice: productData.sellingPrice, effectiveFrom },
+      });
+      const latestSelling = await tx.productSellingPrice.findFirst({
+        where: { productId: id }, orderBy: { effectiveFrom: 'desc' },
+      });
+      if (latestSelling) {
+        updated = await tx.product.update({ where: { id }, data: { sellingPrice: latestSelling.sellingPrice } });
       }
     }
 

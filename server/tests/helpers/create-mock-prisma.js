@@ -84,6 +84,12 @@ function createMockPrisma() {
       create:     mockFn(),
       upsert:     mockFn(),
     },
+    productSellingPrice: {
+      findMany:   mockFn(),
+      findFirst:  mockFn(),
+      create:     mockFn(),
+      upsert:     mockFn(),
+    },
     salespersonPrice: {
       findMany:   mockFn(),
       findUnique: mockFn(),
