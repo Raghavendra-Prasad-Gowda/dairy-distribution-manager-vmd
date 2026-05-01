@@ -108,7 +108,7 @@ export default function StockReceipt() {
     if (!activeBrand) return;
     setLoading(true);
     Promise.all([
-      api.get(`/products?brandId=${activeBrand.id}`),
+      api.get(`/products?brandId=${activeBrand.id}&date=${date}`),
       api.get(`/stock-receipts?date=${date}&brandId=${activeBrand.id}`),
     ])
       .then(([prodRes, receiptRes]) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -9,6 +9,15 @@ import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
 import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
+
+// Matches the cycling palette used in StockReceipt for route pills
+const ROUTE_COLORS = [
+  { bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
+  { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-400'  },
+  { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400'   },
+  { bg: 'bg-rose-50',    text: 'text-rose-700',    dot: 'bg-rose-400'    },
+  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+];
 
 const MODE_COLORS = {
   Cash:   'bg-emerald-100 text-emerald-700',
@@ -99,6 +108,13 @@ export default function DairyPayments() {
 
   const today = getIndiaDate();
 
+  // Breakdown panel state
+  const [breakdown,        setBreakdown]        = useState(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+
+  // Prefill state wired into PaymentForm
+  const [paymentPrefill,   setPaymentPrefill]   = useState(null);
+
   useEffect(() => {
     const preferredId = searchParams.get('brandId');
     api.get('/brands')
@@ -116,6 +132,7 @@ export default function DairyPayments() {
   useEffect(() => {
     if (!activeBrandId) return;
     fetchAll();
+    fetchBreakdown();
   }, [activeBrandId]);
 
   async function fetchAll() {
@@ -131,6 +148,19 @@ export default function DairyPayments() {
       notify(e.response?.data?.error ?? 'Failed to load data', 'error');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchBreakdown() {
+    if (!activeBrandId) return;
+    setBreakdownLoading(true);
+    try {
+      const res = await api.get(`/dairy-balance/route-breakdown?brandId=${activeBrandId}&from=${today}&to=${today}`);
+      setBreakdown(res.data.data);
+    } catch {
+      setBreakdown([]);
+    } finally {
+      setBreakdownLoading(false);
     }
   }
 
@@ -288,12 +318,65 @@ export default function DairyPayments() {
                   />
                 )}
 
+                {/* Bill Breakdown panel — only visible when routes exist */}
+                {breakdown && breakdown.length > 0 && (() => {
+                  const total = breakdown.reduce((s, r) => s + r.totalAmount, 0);
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+                        <ListOrdered size={14} className="text-emerald-600" />
+                        <span className="text-sm font-semibold text-slate-700">
+                          Route Breakdown — {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <div className="px-4 py-3">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                              <th className="text-left py-1.5 font-semibold">Route</th>
+                              <th className="text-right py-1.5 font-semibold">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {breakdown.map((row, i) => {
+                              const c = ROUTE_COLORS[i % ROUTE_COLORS.length];
+                              return (
+                                <tr key={row.routeId} className={`${c.bg} border-b border-white`}>
+                                  <td className={`py-1.5 px-2 text-xs font-semibold ${c.text} flex items-center gap-1.5`}>
+                                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${c.dot}`} />
+                                    {row.routeNumber}
+                                  </td>
+                                  <td className={`py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold ${c.text}`}>{formatCurrency(row.totalAmount)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="font-bold text-slate-900">
+                              <td className="pt-2 text-xs">Total</td>
+                              <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(total)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        <button
+                          onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                          className="mt-3 w-full ddm-btn-primary text-xs justify-center"
+                        >
+                          Pay Today's Bill — {formatCurrency(total)}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="ddm-card p-5">
                   <h3 className="ddm-section-label mb-4">Record Payment</h3>
                   <PaymentForm
                     onSubmit={handlePayment}
                     closingBalance={balance?.closingBalance ?? 0}
                     loading={saving}
+                    prefill={paymentPrefill}
+                    onClearPrefill={() => setPaymentPrefill(null)}
                   />
                 </div>
               </div>
@@ -526,7 +609,7 @@ export default function DairyPayments() {
                   />
                 </div>
                 {parseFloat(editForm.amount) > 0 && (
-                  <p className="mt-1.5 text-[11px] text-slate-500 italic leading-snug">
+                  <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
                     {numberToWords(parseFloat(editForm.amount))}
                   </p>
                 )}

@@ -26,6 +26,7 @@ function createMockPrisma() {
       findUnique: mockFn(),
       create:     mockFn(),
       update:     mockFn(),
+      updateMany: mockFn(),
       delete:     mockFn(),
     },
     category: {
@@ -52,6 +53,7 @@ function createMockPrisma() {
       delete:     mockFn(),
       deleteMany: mockFn(),
       aggregate:  mockFn(),
+      groupBy:    mockFn(),
     },
     dairyBalance: {
       findMany:   mockFn(),
@@ -68,12 +70,19 @@ function createMockPrisma() {
       create:     mockFn(),
       update:     mockFn(),
       delete:     mockFn(),
+      aggregate:  mockFn(),
     },
     salesperson: {
       findMany:   mockFn(),
       findUnique: mockFn(),
       create:     mockFn(),
       update:     mockFn(),
+    },
+    productCostPrice: {
+      findMany:   mockFn(),
+      findFirst:  mockFn(),
+      create:     mockFn(),
+      upsert:     mockFn(),
     },
     salespersonPrice: {
       findMany:   mockFn(),
@@ -96,6 +105,7 @@ function createMockPrisma() {
       createMany: mockFn(),
       deleteMany: mockFn(),
       aggregate:  mockFn(),
+      groupBy:    mockFn(),
     },
     salespersonBalance: {
       findMany:   mockFn(),
@@ -111,9 +121,26 @@ function createMockPrisma() {
       findUnique: mockFn(),
       create:     mockFn(),
       delete:     mockFn(),
+      aggregate:  mockFn(),
     },
     $transaction: mockFn(),
     $queryRaw:    mockFn(),
+  };
+
+  // Make $transaction execute callback-form transactions against the mock by default.
+  // Tests that need to override the return value can still call mockResolvedValue(),
+  // which clears _impl and returns the fixed value (skipping the callback).
+  const txDefault = async (arg) => {
+    if (typeof arg === 'function') return arg(mock);
+    return arg; // array form — each element is already a promise from mockFn calls
+  };
+  mock.$transaction.mockImplementation(txDefault);
+
+  // Ensure reset() restores the default transaction behavior
+  const origTxReset = mock.$transaction.reset;
+  mock.$transaction.reset = () => {
+    origTxReset();
+    mock.$transaction.mockImplementation(txDefault);
   };
 
   mock.reset = () => {

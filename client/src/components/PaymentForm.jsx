@@ -79,7 +79,7 @@ export default function PaymentForm({
 
         {/* Amount in words */}
         {enteredAmount > 0 && !isExcess && (
-          <p className="mt-1.5 text-[11px] text-slate-500 italic leading-snug">
+          <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
             {numberToWords(enteredAmount)}
           </p>
         )}
