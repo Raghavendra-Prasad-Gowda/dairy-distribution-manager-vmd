@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ChevronDown, ListOrdered } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -100,8 +100,7 @@ export default function DairyPayments() {
   const today = getIndiaDate();
 
   // Breakdown panel state
-  const [breakdown,        setBreakdown]        = useState(null);   // null=not fetched, []=no routes
-  const [breakdownOpen,    setBreakdownOpen]    = useState(false);
+  const [breakdown,        setBreakdown]        = useState(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
 
   // Prefill state wired into PaymentForm
@@ -311,60 +310,47 @@ export default function DairyPayments() {
                 )}
 
                 {/* Bill Breakdown panel — only visible when routes exist */}
-                {(breakdown === null ? breakdownLoading : breakdown.length > 0) && (
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => setBreakdownOpen(o => !o)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
-                    >
-                      <span className="flex items-center gap-2">
+                {breakdown && breakdown.length > 0 && (() => {
+                  const total = breakdown.reduce((s, r) => s + r.totalAmount, 0);
+                  return (
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
                         <ListOrdered size={14} className="text-emerald-600" />
-                        Today's Route Breakdown
-                      </span>
-                      {breakdownLoading
-                        ? <Loader2 size={14} className="animate-spin text-slate-400" />
-                        : <ChevronDown size={14} className={`text-slate-400 transition-transform ${breakdownOpen ? 'rotate-180' : ''}`} />
-                      }
-                    </button>
-
-                    {breakdownOpen && breakdown && breakdown.length > 0 && (() => {
-                      const total = breakdown.reduce((s, r) => s + r.totalAmount, 0);
-                      return (
-                        <div className="px-4 pb-4">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-100">
-                                <th className="text-left py-1.5 font-semibold">Route</th>
-                                <th className="text-right py-1.5 font-semibold">Amount</th>
+                        <span className="text-sm font-semibold text-slate-700">Today's Route Breakdown</span>
+                      </div>
+                      <div className="px-4 py-3">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                              <th className="text-left py-1.5 font-semibold">Route</th>
+                              <th className="text-right py-1.5 font-semibold">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {breakdown.map(row => (
+                              <tr key={row.routeId} className="border-b border-slate-50">
+                                <td className="py-1.5 text-slate-700 text-xs">{row.routeNumber}</td>
+                                <td className="py-1.5 text-right font-mono text-slate-800 text-xs tabular-nums">{formatCurrency(row.totalAmount)}</td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {breakdown.map(row => (
-                                <tr key={row.routeId} className="border-b border-slate-50">
-                                  <td className="py-1.5 text-slate-700 text-xs">{row.routeNumber}</td>
-                                  <td className="py-1.5 text-right font-mono text-slate-800 text-xs tabular-nums">{formatCurrency(row.totalAmount)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className="font-bold text-slate-900">
-                                <td className="pt-2 text-xs">Total</td>
-                                <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(total)}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-
-                          <button
-                            onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
-                            className="mt-3 w-full ddm-btn-secondary text-xs justify-center"
-                          >
-                            Use Total {formatCurrency(total)}
-                          </button>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="font-bold text-slate-900">
+                              <td className="pt-2 text-xs">Total</td>
+                              <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(total)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        <button
+                          onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                          className="mt-3 w-full ddm-btn-secondary text-xs justify-center"
+                        >
+                          Use Total {formatCurrency(total)}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="ddm-card p-5">
                   <h3 className="ddm-section-label mb-4">Record Payment</h3>
