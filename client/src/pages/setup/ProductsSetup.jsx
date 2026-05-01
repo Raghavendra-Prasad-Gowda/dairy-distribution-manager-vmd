@@ -285,23 +285,30 @@ export default function ProductsSetup() {
                             ? <span className="inline-flex items-center gap-1"><span className="font-semibold text-slate-700">{p.unitsPerContainer}</span><span className="text-slate-400">/ {p.containerType}</span></span>
                             : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        <td className="px-6 py-4 text-right tabular-nums">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-sm font-semibold text-slate-800">₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            {p.costPrices?.[0]?.createdAt && (
+                              <span className="text-slate-400 text-[10px]">
+                                {new Date(p.costPrices[0].createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-xs text-center tabular-nums">
                           {p.costPrices?.[0]?.effectiveFrom
-                            ? <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                {p.costPrices[0].createdAt && (
-                                  <span className="text-slate-400 text-[10px]">
-                                    {new Date(p.costPrices[0].createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
-                                  </span>
-                                )}
-                              </div>
+                            ? <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                             : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        <td className="px-6 py-4 text-right tabular-nums">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            {p.sellingPrices?.[0]?.createdAt && (
+                              <span className="text-slate-400 text-[10px]">
+                                {new Date(p.sellingPrices[0].createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
