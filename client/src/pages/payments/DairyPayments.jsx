@@ -316,7 +316,9 @@ export default function DairyPayments() {
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
                         <ListOrdered size={14} className="text-emerald-600" />
-                        <span className="text-sm font-semibold text-slate-700">Today's Route Breakdown</span>
+                        <span className="text-sm font-semibold text-slate-700">
+                          Route Breakdown — {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
                       </div>
                       <div className="px-4 py-3">
                         <table className="w-full text-sm">
@@ -343,7 +345,7 @@ export default function DairyPayments() {
                         </table>
                         <button
                           onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
-                          className="mt-3 w-full ddm-btn-secondary text-xs justify-center"
+                          className="mt-3 w-full ddm-btn-primary text-xs justify-center"
                         >
                           Use Total {formatCurrency(total)}
                         </button>
