@@ -246,7 +246,7 @@ export default function BrandsSetup() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-700">Charge deposit</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Calculate deposit on every litre of ml products received</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Calculate deposit on ml/gram crate products — ₹X per 1000ml or 1kg</p>
                 </div>
                 <button
                   type="button"
@@ -260,7 +260,7 @@ export default function BrandsSetup() {
               {brand.depositEnabled && (
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Deposit rate (₹ per litre)
+                    Deposit rate (₹ per 1000ml / 1kg)
                   </label>
                   <div className="relative max-w-xs">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
@@ -272,7 +272,7 @@ export default function BrandsSetup() {
                       className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-400"
                     />
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">e.g. ₹0.20 means 20 paise per litre received</p>
+                  <p className="text-[11px] text-slate-400 mt-1">e.g. ₹0.20 means 20 paise per 1000ml (or per 1kg) received</p>
                 </div>
               )}
 
