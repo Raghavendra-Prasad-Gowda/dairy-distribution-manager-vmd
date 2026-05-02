@@ -49,6 +49,7 @@ model Product {
   salespersonPrices SalespersonPrice[]
   dispatchItems     StockDispatchItem[]
   costPrices        ProductCostPrice[]
+  sellingPrices     ProductSellingPrice[]
 
   @@unique([brandId, name])
   @@map("products")
@@ -67,6 +68,21 @@ model ProductCostPrice {
 
   @@unique([productId, effectiveFrom])
   @@map("product_cost_prices")
+}
+
+// ─── Product Selling Price History ───────────────────────────────────────────
+
+model ProductSellingPrice {
+  id            Int      @id @default(autoincrement())
+  productId     Int      @map("product_id")
+  sellingPrice  Decimal  @db.Decimal(10, 4) @map("selling_price")
+  effectiveFrom DateTime @db.Date @map("effective_from")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, effectiveFrom])
+  @@map("product_selling_prices")
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────

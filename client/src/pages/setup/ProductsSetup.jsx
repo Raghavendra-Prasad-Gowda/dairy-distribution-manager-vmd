@@ -8,6 +8,14 @@ import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
+
+function fmtPriceDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return { date, time };
+}
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
 const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
 
@@ -124,7 +132,7 @@ export default function ProductsSetup() {
       unitsPerContainer: form.containerType && form.unitsPerContainer ? parseInt(form.unitsPerContainer, 10) : null,
       costPrice:         parseFloat(form.costPrice) || 0,
       sellingPrice:      parseFloat(form.sellingPrice) || 0,
-      ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom } : {}),
+      ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom, sellingPriceEffectiveFrom: form.effectiveFrom } : {}),
     };
     try {
       if (editingProduct) {
@@ -245,9 +253,9 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Container</th>
-                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Cost Price</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Cost From</th>
-                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Sell Price</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Cost Price</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider min-w-[7rem]">Prices From</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Sell Price</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
@@ -285,16 +293,32 @@ export default function ProductsSetup() {
                             ? <span className="inline-flex items-center gap-1"><span className="font-semibold text-slate-700">{p.unitsPerContainer}</span><span className="text-slate-400">/ {p.containerType}</span></span>
                             : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        <td className="px-6 py-4 text-right tabular-nums">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-sm font-semibold text-slate-800">₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            {(() => { const f = fmtPriceDate(p.costPrices?.[0]?.createdAt); return f
+                              ? <div className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+                                  <span className="text-amber-700 text-[10px] font-bold leading-tight whitespace-nowrap">{f.date}</span>
+                                  <span className="text-amber-500 text-[9px] leading-tight whitespace-nowrap">{f.time}</span>
+                                </div>
+                              : null; })()}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-xs text-center tabular-nums">
                           {p.costPrices?.[0]?.effectiveFrom
                             ? <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                             : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-800 text-right tabular-nums">
-                          ₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        <td className="px-6 py-4 text-right tabular-nums">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            {(() => { const f = fmtPriceDate(p.sellingPrices?.[0]?.createdAt); return f
+                              ? <div className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-200">
+                                  <span className="text-violet-700 text-[10px] font-bold leading-tight whitespace-nowrap">{f.date}</span>
+                                  <span className="text-violet-400 text-[9px] leading-tight whitespace-nowrap">{f.time}</span>
+                                </div>
+                              : null; })()}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
@@ -492,12 +516,10 @@ export default function ProductsSetup() {
                   ))}
                 </div>
 
-                {/* Cost price effective date */}
+                {/* Price effective date (applies to both cost and selling price) */}
                 <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
-                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Cost Price Effective From</p>
-                  <p className="text-[10px] text-amber-600 mb-2">
-                    {editingProduct ? 'Price change is recorded from this date' : 'Date this cost price takes effect'}
-                  </p>
+                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Price Change Effective From</p>
+                  <p className="text-[10px] text-amber-600 mb-2">Applies to both cost and selling price</p>
                   <input
                     type="date"
                     value={form.effectiveFrom}
