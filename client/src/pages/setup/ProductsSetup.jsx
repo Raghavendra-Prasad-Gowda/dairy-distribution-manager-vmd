@@ -8,6 +8,14 @@ import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
+
+function fmtPriceDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+  const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return { label: date, title: `Recorded: ${date}, ${time}` };
+}
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
 const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
 
@@ -286,13 +294,11 @@ export default function ProductsSetup() {
                             : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-right tabular-nums">
-                          <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-                            {p.costPrices?.[0]?.createdAt && (
-                              <span className="text-slate-400 text-[10px]">
-                                {new Date(p.costPrices[0].createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
-                              </span>
-                            )}
+                            {(() => { const f = fmtPriceDate(p.costPrices?.[0]?.createdAt); return f
+                              ? <span title={f.title} className="inline-block px-1.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-medium cursor-default">{f.label}</span>
+                              : null; })()}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-xs text-center tabular-nums">
@@ -301,13 +307,11 @@ export default function ProductsSetup() {
                             : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-right tabular-nums">
-                          <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-                            {p.sellingPrices?.[0]?.createdAt && (
-                              <span className="text-slate-400 text-[10px]">
-                                {new Date(p.sellingPrices[0].createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}
-                              </span>
-                            )}
+                            {(() => { const f = fmtPriceDate(p.sellingPrices?.[0]?.createdAt); return f
+                              ? <span title={f.title} className="inline-block px-1.5 py-0.5 rounded-md bg-violet-50 border border-violet-200 text-violet-700 text-[10px] font-medium cursor-default">{f.label}</span>
+                              : null; })()}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-center">
