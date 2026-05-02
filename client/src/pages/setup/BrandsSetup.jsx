@@ -121,11 +121,19 @@ export default function BrandsSetup() {
       const rawBrands = brandsRes.data.data ?? [];
       const allCats   = catsRes.data.data ?? [];
       const allProds  = (prodsRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
-      const enriched  = rawBrands.map(b => ({
-        ...b,
-        categories: allCats.filter(c => c.brandId === b.id),
-        products:   allProds.filter(p => p.brandId === b.id),
-      }));
+      const enriched  = rawBrands.map(b => {
+        const qualifyingProds = allProds.filter(p =>
+          p.brandId === b.id &&
+          (p.unitType === 'ml' || p.unitType === 'gram') &&
+          p.containerType === 'crate'
+        );
+        const qualifyingCatNames = new Set(qualifyingProds.map(p => p.category || 'Other'));
+        return {
+          ...b,
+          categories: allCats.filter(c => c.brandId === b.id && qualifyingCatNames.has(c.name)),
+          products:   qualifyingProds,
+        };
+      });
       setBrands(enriched);
       if (enriched.length) setActive(enriched[0].id);
     }).catch(() => notify('Failed to load brands', 'error'))
@@ -156,15 +164,30 @@ export default function BrandsSetup() {
 
   const handleCategoryToggle = async (cat) => {
     const next = !cat.depositEnabled;
+    // Optimistically update category + all products in that category
     setBrands(prev => prev.map(b => b.id === activeBrandId
-      ? { ...b, categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c) }
+      ? {
+          ...b,
+          categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c),
+          products:   b.products.map(p => (p.category || 'Other') === cat.name ? { ...p, depositEnabled: next } : p),
+        }
       : b
     ));
     try {
-      await api.put(`/categories/${cat.id}`, { depositEnabled: next });
+      const brand = brands.find(b => b.id === activeBrandId);
+      const prodsInCat = (brand?.products ?? []).filter(p => (p.category || 'Other') === cat.name);
+      await Promise.all([
+        api.put(`/categories/${cat.id}`, { depositEnabled: next }),
+        ...prodsInCat.map(p => api.put(`/products/${p.id}`, { depositEnabled: next })),
+      ]);
     } catch {
+      // Revert
       setBrands(prev => prev.map(b => b.id === activeBrandId
-        ? { ...b, categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c) }
+        ? {
+            ...b,
+            categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c),
+            products:   b.products.map(p => (p.category || 'Other') === cat.name ? { ...p, depositEnabled: cat.depositEnabled } : p),
+          }
         : b
       ));
       notify('Failed to update deposit setting', 'error');

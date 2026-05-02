@@ -16,7 +16,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
 
   const receipts = await tx.stockReceipt.findMany({
     where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, category: true, depositEnabled: true } } },
+    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
   });
   const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
@@ -39,15 +39,18 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
       categories.filter(c => c.depositEnabled).map(c => c.name)
     );
     depositValue = receipts.reduce((sum, r) => {
-      if (
-        r.product.unitType === 'ml' &&
-        r.product.unitSize &&
-        r.product.depositEnabled &&
-        enabledCategories.has(r.product.category ?? '')
-      ) {
-        return sum + Number(r.quantity) * (Number(r.product.unitSize) / 1000) * depositPerLitre;
-      }
-      return sum;
+      const { unitType, unitSize, containerType, depositEnabled, category } = r.product;
+      const qualifies =
+        (unitType === 'ml' || unitType === 'gram') &&
+        containerType === 'crate' &&
+        unitSize &&
+        depositEnabled &&
+        enabledCategories.has(category ?? '');
+      if (!qualifies) return sum;
+      const litres = unitType === 'ml'
+        ? Number(unitSize) / 1000
+        : Number(unitSize) / 1000; // gram: treat as per-litre-equivalent (same formula)
+      return sum + Number(r.quantity) * litres * depositPerLitre;
     }, 0);
   }
 
