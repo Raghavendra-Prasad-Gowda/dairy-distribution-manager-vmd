@@ -323,9 +323,11 @@ export default function DairyPayments() {
                   />
                 )}
 
-                {/* Bill Breakdown panel — only visible when routes exist */}
+                {/* Bill Breakdown panel — routes + deposit, shown when routes exist */}
                 {breakdown && breakdown.length > 0 && (() => {
-                  const total = breakdown.reduce((s, r) => s + r.totalAmount, 0);
+                  const routeTotal   = breakdown.reduce((s, r) => s + r.totalAmount, 0);
+                  const depositValue = Number(balance?.depositValue ?? 0);
+                  const grandTotal   = routeTotal + depositValue;
                   return (
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
@@ -355,40 +357,33 @@ export default function DairyPayments() {
                                 </tr>
                               );
                             })}
+                            {depositValue > 0 && (
+                              <tr className="bg-orange-50 border-b border-white">
+                                <td className="py-1.5 px-2 text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+                                  <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-orange-400" />
+                                  Deposit
+                                </td>
+                                <td className="py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold text-orange-700">{formatCurrency(depositValue)}</td>
+                              </tr>
+                            )}
                           </tbody>
                           <tfoot>
                             <tr className="font-bold text-slate-900">
                               <td className="pt-2 text-xs">Total</td>
-                              <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(total)}</td>
+                              <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(grandTotal)}</td>
                             </tr>
                           </tfoot>
                         </table>
                         <button
-                          onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                          onClick={() => setPaymentPrefill({ amount: String(grandTotal.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
                           className="mt-3 w-full ddm-btn-primary text-xs justify-center"
                         >
-                          Pay Today's Bill — {formatCurrency(total)}
+                          Pay Today's Bill — {formatCurrency(grandTotal)}
                         </button>
                       </div>
                     </div>
                   );
                 })()}
-
-                {/* Deposit panel — shown when today's balance has deposit */}
-                {balance && Number(balance.depositValue) > 0 && (
-                  <div className="bg-white border border-orange-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border-b border-orange-100">
-                      <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-orange-800">
-                        Deposit — {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </span>
-                    </div>
-                    <div className="px-4 py-3 flex items-center justify-between">
-                      <p className="text-xs text-slate-500">Based on today's ml receipts</p>
-                      <p className="text-sm font-bold tabular-nums text-orange-700">{formatCurrency(Number(balance.depositValue))}</p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="ddm-card p-5">
                   <h3 className="ddm-section-label mb-4">Record Payment</h3>
