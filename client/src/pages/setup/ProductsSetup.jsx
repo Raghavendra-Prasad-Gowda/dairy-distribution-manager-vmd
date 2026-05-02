@@ -253,9 +253,9 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Container</th>
-                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Cost Price</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Prices From</th>
-                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Sell Price</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Cost Price</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider min-w-[7rem]">Prices From</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Sell Price</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
@@ -297,9 +297,9 @@ export default function ProductsSetup() {
                           <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                             {(() => { const f = fmtPriceDate(p.costPrices?.[0]?.createdAt); return f
-                              ? <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg bg-amber-50 border border-amber-200">
-                                  <span className="text-amber-700 text-[10px] font-bold leading-tight">{f.date}</span>
-                                  <span className="text-amber-500 text-[9px] leading-tight">{f.time}</span>
+                              ? <div className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+                                  <span className="text-amber-700 text-[10px] font-bold leading-tight whitespace-nowrap">{f.date}</span>
+                                  <span className="text-amber-500 text-[9px] leading-tight whitespace-nowrap">{f.time}</span>
                                 </div>
                               : null; })()}
                           </div>
@@ -313,9 +313,9 @@ export default function ProductsSetup() {
                           <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                             {(() => { const f = fmtPriceDate(p.sellingPrices?.[0]?.createdAt); return f
-                              ? <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg bg-violet-50 border border-violet-200">
-                                  <span className="text-violet-700 text-[10px] font-bold leading-tight">{f.date}</span>
-                                  <span className="text-violet-400 text-[9px] leading-tight">{f.time}</span>
+                              ? <div className="inline-flex flex-col items-center px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-200">
+                                  <span className="text-violet-700 text-[10px] font-bold leading-tight whitespace-nowrap">{f.date}</span>
+                                  <span className="text-violet-400 text-[9px] leading-tight whitespace-nowrap">{f.time}</span>
                                 </div>
                               : null; })()}
                           </div>
