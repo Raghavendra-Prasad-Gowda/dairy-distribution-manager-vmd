@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Store, Loader2, Save } from 'lucide-react';
+import BrandTabs from '../../components/BrandTabs';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -19,11 +20,10 @@ function DepositToggle({ enabled, disabled, onToggle }) {
   );
 }
 
-// ── Category + products section for a brand ───────────────────────────────────
+// ── Category + products deposit config ────────────────────────────────────────
 function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
   const [expanded, setExpanded] = useState({});
 
-  // Group products by category
   const grouped = {};
   for (const p of brand.products ?? []) {
     const key = p.category || 'Other';
@@ -31,9 +31,8 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
     grouped[key].push(p);
   }
 
-  // Sort by category display order from brand.categories
   const catOrderMap = Object.fromEntries(
-    (brand.categories ?? []).map((c, i) => [c.name, c.displayOrder ?? i])
+    (brand.categories ?? []).map(c => [c.name, c.displayOrder ?? 0])
   );
   const entries = Object.entries(grouped).sort(([a], [b]) => {
     const oa = catOrderMap[a] ?? 9999;
@@ -42,9 +41,7 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
   });
 
   if (entries.length === 0) {
-    return (
-      <p className="text-xs text-slate-400 italic">No products enabled in stock receipt</p>
-    );
+    return <p className="text-xs text-slate-400 italic">No products enabled in stock receipt</p>;
   }
 
   return (
@@ -54,22 +51,18 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
         const isOpen = expanded[catName] ?? true;
         return (
           <div key={catName}>
-            {/* Category row */}
             <div
               className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer select-none"
               onClick={() => setExpanded(prev => ({ ...prev, [catName]: !isOpen }))}
             >
               <span className="flex-1 text-sm font-bold text-slate-700">{catName}</span>
-              <div
-                className="flex items-center gap-1.5"
-                onClick={e => e.stopPropagation()}
-              >
+              <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Deposit</span>
                 {cat ? (
                   <DepositToggle
                     enabled={cat.depositEnabled}
                     disabled={!brand.depositEnabled}
-                    onToggle={() => onCategoryToggle(brand.id, cat)}
+                    onToggle={() => onCategoryToggle(cat)}
                   />
                 ) : (
                   <span className="text-[10px] text-slate-300">—</span>
@@ -78,14 +71,10 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
               <span className="text-xs text-slate-400 ml-1">{isOpen ? '▲' : '▼'}</span>
             </div>
 
-            {/* Products */}
             {isOpen && (
               <div className="ml-5 mt-1 space-y-1">
                 {catProds.map(p => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2"
-                  >
+                  <div key={p.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
                     <span className="flex-1 text-sm text-slate-700">{p.name}</span>
                     <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
                       {p.unitType === 'ml'
@@ -99,7 +88,7 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
                       <DepositToggle
                         enabled={p.depositEnabled}
                         disabled={!brand.depositEnabled}
-                        onToggle={() => onProductToggle(brand.id, p)}
+                        onToggle={() => onProductToggle(p)}
                       />
                     </div>
                   </div>
@@ -116,10 +105,12 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function BrandsSetup() {
   const { notify } = useNotification();
-  const [brands, setBrands]   = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving]   = useState(null); // brandId being saved
+  const [brands, setBrands]         = useState([]);
+  const [activeBrandId, setActive]  = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [saving, setSaving]         = useState(false);
 
+  // Load all brands with their categories + products on mount
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -130,24 +121,26 @@ export default function BrandsSetup() {
       const rawBrands = brandsRes.data.data ?? [];
       const allCats   = catsRes.data.data ?? [];
       const allProds  = (prodsRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
-
-      // Attach categories and products to each brand
-      const enriched = rawBrands.map(b => ({
+      const enriched  = rawBrands.map(b => ({
         ...b,
         categories: allCats.filter(c => c.brandId === b.id),
         products:   allProds.filter(p => p.brandId === b.id),
       }));
       setBrands(enriched);
+      if (enriched.length) setActive(enriched[0].id);
     }).catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
   }, []);
 
-  const updateBrandField = (id, field, value) => {
-    setBrands(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
+  const brand = brands.find(b => b.id === activeBrandId) ?? null;
+
+  const updateBrandField = (field, value) => {
+    setBrands(prev => prev.map(b => b.id === activeBrandId ? { ...b, [field]: value } : b));
   };
 
-  const handleSave = async (brand) => {
-    setSaving(brand.id);
+  const handleSave = async () => {
+    if (!brand) return;
+    setSaving(true);
     try {
       await api.put(`/brands/${brand.id}`, {
         depositEnabled:  brand.depositEnabled,
@@ -157,22 +150,20 @@ export default function BrandsSetup() {
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to save', 'error');
     } finally {
-      setSaving(null);
+      setSaving(false);
     }
   };
 
-  // Immediate toggle — no save button needed
-  const handleCategoryToggle = async (brandId, cat) => {
+  const handleCategoryToggle = async (cat) => {
     const next = !cat.depositEnabled;
-    setBrands(prev => prev.map(b => b.id === brandId
+    setBrands(prev => prev.map(b => b.id === activeBrandId
       ? { ...b, categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c) }
       : b
     ));
     try {
       await api.put(`/categories/${cat.id}`, { depositEnabled: next });
     } catch {
-      // revert
-      setBrands(prev => prev.map(b => b.id === brandId
+      setBrands(prev => prev.map(b => b.id === activeBrandId
         ? { ...b, categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c) }
         : b
       ));
@@ -180,17 +171,16 @@ export default function BrandsSetup() {
     }
   };
 
-  const handleProductToggle = async (brandId, prod) => {
+  const handleProductToggle = async (prod) => {
     const next = !prod.depositEnabled;
-    setBrands(prev => prev.map(b => b.id === brandId
+    setBrands(prev => prev.map(b => b.id === activeBrandId
       ? { ...b, products: b.products.map(p => p.id === prod.id ? { ...p, depositEnabled: next } : p) }
       : b
     ));
     try {
       await api.put(`/products/${prod.id}`, { depositEnabled: next });
     } catch {
-      // revert
-      setBrands(prev => prev.map(b => b.id === brandId
+      setBrands(prev => prev.map(b => b.id === activeBrandId
         ? { ...b, products: b.products.map(p => p.id === prod.id ? { ...p, depositEnabled: prod.depositEnabled } : p) }
         : b
       ));
@@ -210,92 +200,84 @@ export default function BrandsSetup() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 md:p-8 max-w-2xl mx-auto w-full space-y-4">
+      {/* Brand tabs strip */}
+      {!loading && brands.length > 0 && (
+        <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-3 pb-0">
+          <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5 md:p-8">
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
           </div>
-        ) : (
-          brands.map(brand => (
-            <div key={brand.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        ) : !brand ? null : (
+          <div className="max-w-xl space-y-6">
 
-              {/* Brand name bar */}
-              <div className="flex items-center gap-2.5 px-5 py-3.5 bg-emerald-50 border-b border-emerald-100">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                <span className="font-bold text-emerald-800 text-sm">{brand.name}</span>
+            {/* Deposit toggle */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Deposit settings</p>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Charge deposit</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Calculate deposit on every litre of ml products received</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateBrandField('depositEnabled', !brand.depositEnabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${brand.depositEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${brand.depositEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
               </div>
 
-              <div className="px-5 py-4 space-y-4">
-
-                {/* Deposit toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">Charge deposit</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Calculate deposit on every litre of ml products received</p>
+              {brand.depositEnabled && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Deposit rate (₹ per litre)
+                  </label>
+                  <div className="relative max-w-xs">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={brand.depositPerLitre ?? ''}
+                      onChange={e => updateBrandField('depositPerLitre', e.target.value)}
+                      placeholder="e.g. 0.20"
+                      className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => updateBrandField(brand.id, 'depositEnabled', !brand.depositEnabled)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${brand.depositEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${brand.depositEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
+                  <p className="text-[11px] text-slate-400 mt-1">e.g. ₹0.20 means 20 paise per litre received</p>
                 </div>
+              )}
 
-                {/* Deposit rate — only when enabled */}
-                {brand.depositEnabled && (
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                      Deposit rate (₹ per litre)
-                    </label>
-                    <div className="relative max-w-xs">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={brand.depositPerLitre ?? ''}
-                        onChange={e => updateBrandField(brand.id, 'depositPerLitre', e.target.value)}
-                        placeholder="e.g. 0.20"
-                        className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      e.g. ₹0.20 means 20 paise per litre received
-                    </p>
-                  </div>
-                )}
-
-                {/* Save button */}
-                <div className="pt-1">
-                  <button
-                    onClick={() => handleSave(brand)}
-                    disabled={saving === brand.id}
-                    className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm"
-                  >
-                    {saving === brand.id
-                      ? <><Loader2 className="animate-spin" size={14} /> Saving…</>
-                      : <><Save size={14} /> Save</>
-                    }
-                  </button>
-                </div>
-
-                {/* Category + product deposit toggles */}
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-                    Deposit by category &amp; product
-                    {!brand.depositEnabled && (
-                      <span className="ml-2 normal-case font-normal text-slate-300">(enable deposit above to configure)</span>
-                    )}
-                  </p>
-                  <BrandDepositConfig
-                    brand={brand}
-                    onCategoryToggle={handleCategoryToggle}
-                    onProductToggle={handleProductToggle}
-                  />
-                </div>
-
-              </div>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm"
+              >
+                {saving ? <><Loader2 className="animate-spin" size={14} /> Saving…</> : <><Save size={14} /> Save</>}
+              </button>
             </div>
-          ))
+
+            {/* Category + product toggles */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Deposit by category &amp; product
+                {!brand.depositEnabled && (
+                  <span className="ml-2 normal-case font-normal text-slate-300">(enable deposit above to configure)</span>
+                )}
+              </p>
+              <BrandDepositConfig
+                brand={brand}
+                onCategoryToggle={handleCategoryToggle}
+                onProductToggle={handleProductToggle}
+              />
+            </div>
+
+          </div>
         )}
       </div>
     </div>
