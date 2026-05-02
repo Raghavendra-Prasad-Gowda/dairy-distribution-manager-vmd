@@ -358,13 +358,24 @@ export default function DairyPayments() {
                               );
                             })}
                             {depositValue > 0 && (
-                              <tr className="bg-orange-50 border-b border-white">
-                                <td className="py-1.5 px-2 text-xs font-semibold text-orange-700 flex items-center gap-1.5">
-                                  <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-orange-400" />
-                                  Deposit
-                                </td>
-                                <td className="py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold text-orange-700">{formatCurrency(depositValue)}</td>
-                              </tr>
+                              <>
+                                <tr>
+                                  <td colSpan={2} className="pt-3 pb-1 px-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Deposit</span>
+                                      <div className="flex-1 h-px bg-orange-100" />
+                                      <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Amount</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                                <tr className="bg-orange-50">
+                                  <td className="py-1.5 px-2 text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+                                    <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-orange-400" />
+                                    Based on today's ml receipts
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold text-orange-700">{formatCurrency(depositValue)}</td>
+                                </tr>
+                              </>
                             )}
                           </tbody>
                           <tfoot>
