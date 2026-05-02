@@ -15,7 +15,7 @@ const BRAND = { id: 1, name: 'Nandini' };
 const BALANCE = {
   id: 1, brandId: 1,
   balanceDate: new Date('2026-04-30'),
-  openingBalance: 1000, stockValue: 5000,
+  openingBalance: 1000, stockValue: 5000, depositValue: 0,
   amountPaid: 2000, closingBalance: 4000,
 };
 

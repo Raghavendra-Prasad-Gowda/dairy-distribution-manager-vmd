@@ -177,6 +177,28 @@ test.describe('PUT /api/v1/categories/:id', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('returns 200 when depositEnabled is updated without name', async ({ request }) => {
+    ctx.mockPrisma.category.findUnique.mockResolvedValue(CATEGORY);
+    ctx.mockPrisma.category.update.mockResolvedValue({ ...CATEGORY, depositEnabled: false });
+
+    const res = await request.put('/api/v1/categories/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { depositEnabled: false },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('depositEnabled', false);
+  });
+
+  test('returns 400 when neither name nor depositEnabled is provided', async ({ request }) => {
+    const res = await request.put('/api/v1/categories/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {},
+    });
+    expect(res.status()).toBe(400);
+  });
 });
 
 // ─── DELETE /api/v1/categories/:id ───────────────────────────────────────────
