@@ -16,7 +16,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
 
   const receipts = await tx.stockReceipt.findMany({
     where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, category: true } } },
+    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, category: true, depositEnabled: true } } },
   });
   const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
@@ -42,6 +42,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
       if (
         r.product.unitType === 'ml' &&
         r.product.unitSize &&
+        r.product.depositEnabled &&
         enabledCategories.has(r.product.category ?? '')
       ) {
         return sum + Number(r.quantity) * (Number(r.product.unitSize) / 1000) * depositPerLitre;

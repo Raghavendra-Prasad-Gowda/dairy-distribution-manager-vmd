@@ -57,6 +57,7 @@ const schemas = {
     sellingPrice:               z.number().min(0).optional(),
     isActive:                   z.boolean().optional(),
     showInStockReceipt:         z.boolean().optional(),
+    depositEnabled:             z.boolean().optional(),
     effectiveFrom:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     sellingPriceEffectiveFrom:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
