@@ -18,7 +18,7 @@ import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 // ── Category row with up/down buttons ─────────────────────────────────────────
-function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDown, isFirst, isLast, children }) {
+function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDown, isFirst, isLast, onDepositToggle, children }) {
   return (
     <div>
       <div
@@ -42,7 +42,19 @@ function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDow
           </button>
         </div>
         <span className="flex-1 text-sm font-bold text-slate-700">{category.name}</span>
-        <span className="text-xs text-slate-400">{isExpanded ? '▲' : '▼'}</span>
+        {/* Deposit toggle */}
+        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Deposit</span>
+          <button
+            type="button"
+            onClick={() => onDepositToggle(category)}
+            className={`relative inline-flex h-4.5 w-8 items-center rounded-full transition-colors focus:outline-none ${category.depositEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            title={category.depositEnabled ? 'Exclude from deposit' : 'Include in deposit'}
+          >
+            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${category.depositEnabled ? 'translate-x-4' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <span className="text-xs text-slate-400 ml-1">{isExpanded ? '▲' : '▼'}</span>
       </div>
       {isExpanded && (
         <div className="ml-6 mt-1 space-y-1">
@@ -181,6 +193,19 @@ export default function LayoutSettings() {
     setDirty(true);
   }, []);
 
+  // ── Deposit toggle — fires immediately, no save needed ──────────────────────
+  const handleDepositToggle = async (cat) => {
+    const next = !cat.depositEnabled;
+    setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c));
+    try {
+      await api.put(`/categories/${cat.id}`, { depositEnabled: next });
+    } catch {
+      // revert on error
+      setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c));
+      notify('Failed to update deposit setting', 'error');
+    }
+  };
+
   // ── Save layout ─────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
@@ -266,6 +291,7 @@ export default function LayoutSettings() {
                   onMoveDown={() => moveCategory(catIdx, 1)}
                   isFirst={catIdx === 0}
                   isLast={catIdx === grouped.length - 1}
+                  onDepositToggle={handleDepositToggle}
                 >
                   {/* ── Product drag-and-drop within this category ── */}
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>

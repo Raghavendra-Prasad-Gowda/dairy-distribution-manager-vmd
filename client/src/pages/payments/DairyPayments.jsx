@@ -28,9 +28,17 @@ const MODE_COLORS = {
 };
 
 /** Premium brand balance card — matches Dashboard DairyPayableCard style */
-function BrandBalanceCard({ brandName, opening, stockValue, paid, closing }) {
+function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
+  const hasDeposit = depositValue > 0;
+
+  const tiles = [
+    { label: 'Opening', value: opening,      cls: 'text-slate-600'  },
+    { label: 'Stock',   value: stockValue,   cls: 'text-blue-600'   },
+    ...(hasDeposit ? [{ label: 'Deposit', value: depositValue, cls: 'text-orange-600' }] : []),
+    { label: 'Paid',    value: paid,         cls: 'text-emerald-600' },
+  ];
 
   return (
     <div className="ddm-card overflow-hidden">
@@ -56,13 +64,9 @@ function BrandBalanceCard({ brandName, opening, stockValue, paid, closing }) {
       </div>
 
       {/* Breakdown tiles */}
-      <div className="grid grid-cols-3 border-t border-slate-100 bg-slate-50/60">
-        {[
-          { label: 'Opening',   value: opening,    cls: 'text-slate-600' },
-          { label: 'Stock',     value: stockValue, cls: 'text-blue-600'  },
-          { label: 'Paid',      value: paid,       cls: 'text-emerald-600' },
-        ].map(({ label, value, cls }, i) => (
-          <div key={label} className={`py-2.5 text-center ${i < 2 ? 'border-r border-slate-200' : ''}`}>
+      <div className={`grid border-t border-slate-100 bg-slate-50/60`} style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
+        {tiles.map(({ label, value, cls }, i) => (
+          <div key={label} className={`py-2.5 text-center ${i < tiles.length - 1 ? 'border-r border-slate-200' : ''}`}>
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-0.5">{label}</p>
             <p className={`text-xs font-bold tabular-nums ${cls}`}>{formatCurrency(value)}</p>
           </div>
@@ -313,6 +317,7 @@ export default function DairyPayments() {
                     brandName={activeBrand?.name ?? ''}
                     opening={balance.openingBalance}
                     stockValue={balance.stockValue}
+                    depositValue={Number(balance.depositValue ?? 0)}
                     paid={balance.amountPaid}
                     closing={balance.closingBalance}
                   />
@@ -368,6 +373,22 @@ export default function DairyPayments() {
                     </div>
                   );
                 })()}
+
+                {/* Deposit panel — shown when today's balance has deposit */}
+                {balance && Number(balance.depositValue) > 0 && (
+                  <div className="bg-white border border-orange-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border-b border-orange-100">
+                      <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+                      <span className="text-sm font-semibold text-orange-800">
+                        Deposit — {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <p className="text-xs text-slate-500">Based on today's ml receipts</p>
+                      <p className="text-sm font-bold tabular-nums text-orange-700">{formatCurrency(Number(balance.depositValue))}</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="ddm-card p-5">
                   <h3 className="ddm-section-label mb-4">Record Payment</h3>

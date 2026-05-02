@@ -19,7 +19,9 @@ const schemas = {
     name: z.string().min(1, 'Brand name is required'),
   }),
   updateBrand: z.object({
-    name: z.string().min(1, 'Brand name is required'),
+    name:            z.string().min(1, 'Brand name is required').optional(),
+    depositEnabled:  z.boolean().optional(),
+    depositPerLitre: z.number().min(0).optional(),
   }),
 
   // Categories

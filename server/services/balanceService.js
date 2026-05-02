@@ -16,24 +16,51 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
 
   const receipts = await tx.stockReceipt.findMany({
     where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true },
+    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, category: true } } },
   });
   const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
     0
   );
 
+  // Deposit calculation — only when brand has deposit enabled
+  const brand = await tx.brand.findUnique({
+    where: { id: brandId },
+    select: { depositEnabled: true, depositPerLitre: true },
+  });
+  let depositValue = 0;
+  if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
+    const depositPerLitre = Number(brand.depositPerLitre);
+    const categories = await tx.category.findMany({
+      where: { brandId },
+      select: { name: true, depositEnabled: true },
+    });
+    const enabledCategories = new Set(
+      categories.filter(c => c.depositEnabled).map(c => c.name)
+    );
+    depositValue = receipts.reduce((sum, r) => {
+      if (
+        r.product.unitType === 'ml' &&
+        r.product.unitSize &&
+        enabledCategories.has(r.product.category ?? '')
+      ) {
+        return sum + Number(r.quantity) * (Number(r.product.unitSize) / 1000) * depositPerLitre;
+      }
+      return sum;
+    }, 0);
+  }
+
   const paymentAgg = await tx.dairyPayment.aggregate({
     where: { brandId, paymentDate: balanceDate },
     _sum: { amount: true },
   });
   const amountPaid = Number(paymentAgg._sum.amount ?? 0);
-  const closingBalance = openingBalance + stockValue - amountPaid;
+  const closingBalance = openingBalance + stockValue + depositValue - amountPaid;
 
   return tx.dairyBalance.upsert({
     where: { brandId_balanceDate: { brandId, balanceDate } },
-    update: { openingBalance, stockValue, amountPaid, closingBalance },
-    create: { brandId, balanceDate, openingBalance, stockValue, amountPaid, closingBalance },
+    update: { openingBalance, stockValue, depositValue, amountPaid, closingBalance },
+    create: { brandId, balanceDate, openingBalance, stockValue, depositValue, amountPaid, closingBalance },
   });
 }
 
@@ -78,7 +105,7 @@ async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) 
  * Runs in a serializable transaction so concurrent saves on overlapping date
  * ranges don't produce write-skew in the cascade.
  *
- * Formula: closing = opening + stockValue − amountPaid
+ * Formula: closing = opening + stockValue + depositValue − amountPaid
  */
 async function recalculateDairyBalance(brandId, date) {
   const balanceDate = new Date(date);

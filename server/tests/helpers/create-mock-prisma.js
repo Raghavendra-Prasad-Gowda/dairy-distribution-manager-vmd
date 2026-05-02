@@ -20,6 +20,7 @@ function createMockPrisma() {
       findUnique: mockFn(),
       create:     mockFn(),
       update:     mockFn(),
+      findFirst:  mockFn(),
     },
     product: {
       findMany:   mockFn(),
