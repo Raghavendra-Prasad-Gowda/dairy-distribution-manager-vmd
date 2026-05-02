@@ -14,7 +14,7 @@ function fmtPriceDate(iso) {
   const d = new Date(iso);
   const date = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
   const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-  return { label: date, title: `Recorded: ${date}, ${time}` };
+  return { date, time };
 }
 const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
 const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
@@ -297,7 +297,10 @@ export default function ProductsSetup() {
                           <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.costPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                             {(() => { const f = fmtPriceDate(p.costPrices?.[0]?.createdAt); return f
-                              ? <span title={f.title} className="inline-block px-1.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-medium cursor-default">{f.label}</span>
+                              ? <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg bg-amber-50 border border-amber-200">
+                                  <span className="text-amber-700 text-[10px] font-bold leading-tight">{f.date}</span>
+                                  <span className="text-amber-500 text-[9px] leading-tight">{f.time}</span>
+                                </div>
                               : null; })()}
                           </div>
                         </td>
@@ -310,7 +313,10 @@ export default function ProductsSetup() {
                           <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                             {(() => { const f = fmtPriceDate(p.sellingPrices?.[0]?.createdAt); return f
-                              ? <span title={f.title} className="inline-block px-1.5 py-0.5 rounded-md bg-violet-50 border border-violet-200 text-violet-700 text-[10px] font-medium cursor-default">{f.label}</span>
+                              ? <div className="inline-flex flex-col items-center px-2 py-1 rounded-lg bg-violet-50 border border-violet-200">
+                                  <span className="text-violet-700 text-[10px] font-bold leading-tight">{f.date}</span>
+                                  <span className="text-violet-400 text-[9px] leading-tight">{f.time}</span>
+                                </div>
                               : null; })()}
                           </div>
                         </td>
