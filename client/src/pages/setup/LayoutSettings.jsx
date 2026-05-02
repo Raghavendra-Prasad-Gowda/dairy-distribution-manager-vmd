@@ -17,27 +17,8 @@ import { GripVertical, LayoutGrid, Save, Loader2, ChevronUp, ChevronDown } from 
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
-// ── Deposit toggle pill ───────────────────────────────────────────────────────
-function DepositToggle({ enabled, disabled, onToggle }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className={`text-[10px] font-semibold uppercase tracking-wide ${disabled ? 'text-slate-300' : 'text-slate-400'}`}>Deposit</span>
-      <button
-        type="button"
-        onClick={disabled ? undefined : onToggle}
-        disabled={disabled}
-        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none ${
-          disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-        } ${enabled && !disabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-      >
-        <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${enabled && !disabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
-      </button>
-    </div>
-  );
-}
-
 // ── Category row with up/down buttons ─────────────────────────────────────────
-function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDown, isFirst, isLast, onDepositToggle, brandDepositEnabled, children }) {
+function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDown, isFirst, isLast, children }) {
   return (
     <div>
       <div
@@ -61,13 +42,6 @@ function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDow
           </button>
         </div>
         <span className="flex-1 text-sm font-bold text-slate-700">{category.name}</span>
-        <div onClick={e => e.stopPropagation()}>
-          <DepositToggle
-            enabled={category.depositEnabled}
-            disabled={!brandDepositEnabled}
-            onToggle={() => onDepositToggle(category)}
-          />
-        </div>
         <span className="text-xs text-slate-400 ml-1">{isExpanded ? '▲' : '▼'}</span>
       </div>
       {isExpanded && (
@@ -80,7 +54,7 @@ function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDow
 }
 
 // ── Sortable product row ───────────────────────────────────────────────────────
-function SortableProductRow({ product, onDepositToggle, brandDepositEnabled }) {
+function SortableProductRow({ product }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: `prod-${product.id}` });
 
@@ -111,13 +85,6 @@ function SortableProductRow({ product, onDepositToggle, brandDepositEnabled }) {
           ? `${product.unitSize ?? '?'}g`
           : 'piece'}
       </span>
-      <div onPointerDown={e => e.stopPropagation()}>
-        <DepositToggle
-          enabled={product.depositEnabled}
-          disabled={!brandDepositEnabled}
-          onToggle={() => onDepositToggle(product)}
-        />
-      </div>
     </div>
   );
 }
@@ -169,7 +136,6 @@ export default function LayoutSettings() {
   }, [activeBrandId]);
 
   // Products grouped by category, sorted by the current index in the categories array
-  // (not displayOrder from DB — that only reflects saved state; array position reflects live drag order)
   const grouped = React.useMemo(() => {
     const catIndex = Object.fromEntries(categories.map((c, i) => [c.name, i]));
     const map = {};
@@ -186,8 +152,6 @@ export default function LayoutSettings() {
   }, [categories, products]);
 
   // ── Category move up/down ────────────────────────────────────────────────────
-  // Uses visible grouped order to find adjacent category, then swaps
-  // their actual positions in the categories array (handles hidden categories)
   const moveCategory = useCallback((fromVisibleIdx, direction) => {
     const toVisibleIdx = fromVisibleIdx + direction;
     const fromName = grouped[fromVisibleIdx]?.[0];
@@ -213,29 +177,6 @@ export default function LayoutSettings() {
     });
     setDirty(true);
   }, []);
-
-  // ── Deposit toggles — fire immediately, no save needed ──────────────────────
-  const handleDepositToggle = async (cat) => {
-    const next = !cat.depositEnabled;
-    setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c));
-    try {
-      await api.put(`/categories/${cat.id}`, { depositEnabled: next });
-    } catch {
-      setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c));
-      notify('Failed to update deposit setting', 'error');
-    }
-  };
-
-  const handleProductDepositToggle = async (prod) => {
-    const next = !prod.depositEnabled;
-    setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, depositEnabled: next } : p));
-    try {
-      await api.put(`/products/${prod.id}`, { depositEnabled: next });
-    } catch {
-      setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, depositEnabled: prod.depositEnabled } : p));
-      notify('Failed to update deposit setting', 'error');
-    }
-  };
 
   // ── Save layout ─────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -322,8 +263,6 @@ export default function LayoutSettings() {
                   onMoveDown={() => moveCategory(catIdx, 1)}
                   isFirst={catIdx === 0}
                   isLast={catIdx === grouped.length - 1}
-                  onDepositToggle={handleDepositToggle}
-                  brandDepositEnabled={brands.find(b => b.id === activeBrandId)?.depositEnabled ?? false}
                 >
                   {/* ── Product drag-and-drop within this category ── */}
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>
@@ -335,8 +274,6 @@ export default function LayoutSettings() {
                         <SortableProductRow
                           key={p.id}
                           product={p}
-                          onDepositToggle={handleProductDepositToggle}
-                          brandDepositEnabled={brands.find(b => b.id === activeBrandId)?.depositEnabled ?? false}
                         />
                       ))}
                     </SortableContext>

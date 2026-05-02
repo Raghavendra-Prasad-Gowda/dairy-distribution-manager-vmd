@@ -3,6 +3,117 @@ import { Store, Loader2, Save } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
+// ── Small deposit toggle pill ─────────────────────────────────────────────────
+function DepositToggle({ enabled, disabled, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onToggle}
+      disabled={disabled}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
+        disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+      } ${enabled && !disabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+    >
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${enabled && !disabled ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
+    </button>
+  );
+}
+
+// ── Category + products section for a brand ───────────────────────────────────
+function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
+  const [expanded, setExpanded] = useState({});
+
+  // Group products by category
+  const grouped = {};
+  for (const p of brand.products ?? []) {
+    const key = p.category || 'Other';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  }
+
+  // Sort by category display order from brand.categories
+  const catOrderMap = Object.fromEntries(
+    (brand.categories ?? []).map((c, i) => [c.name, c.displayOrder ?? i])
+  );
+  const entries = Object.entries(grouped).sort(([a], [b]) => {
+    const oa = catOrderMap[a] ?? 9999;
+    const ob = catOrderMap[b] ?? 9999;
+    return oa !== ob ? oa - ob : a.localeCompare(b);
+  });
+
+  if (entries.length === 0) {
+    return (
+      <p className="text-xs text-slate-400 italic">No products enabled in stock receipt</p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {entries.map(([catName, catProds]) => {
+        const cat = (brand.categories ?? []).find(c => c.name === catName);
+        const isOpen = expanded[catName] ?? true;
+        return (
+          <div key={catName}>
+            {/* Category row */}
+            <div
+              className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer select-none"
+              onClick={() => setExpanded(prev => ({ ...prev, [catName]: !isOpen }))}
+            >
+              <span className="flex-1 text-sm font-bold text-slate-700">{catName}</span>
+              <div
+                className="flex items-center gap-1.5"
+                onClick={e => e.stopPropagation()}
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Deposit</span>
+                {cat ? (
+                  <DepositToggle
+                    enabled={cat.depositEnabled}
+                    disabled={!brand.depositEnabled}
+                    onToggle={() => onCategoryToggle(brand.id, cat)}
+                  />
+                ) : (
+                  <span className="text-[10px] text-slate-300">—</span>
+                )}
+              </div>
+              <span className="text-xs text-slate-400 ml-1">{isOpen ? '▲' : '▼'}</span>
+            </div>
+
+            {/* Products */}
+            {isOpen && (
+              <div className="ml-5 mt-1 space-y-1">
+                {catProds.map(p => (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2"
+                  >
+                    <span className="flex-1 text-sm text-slate-700">{p.name}</span>
+                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                      {p.unitType === 'ml'
+                        ? `${p.unitSize ?? '?'}ml`
+                        : p.unitType === 'gram'
+                        ? `${p.unitSize ?? '?'}g`
+                        : 'piece'}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Deposit</span>
+                      <DepositToggle
+                        enabled={p.depositEnabled}
+                        disabled={!brand.depositEnabled}
+                        onToggle={() => onProductToggle(brand.id, p)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function BrandsSetup() {
   const { notify } = useNotification();
   const [brands, setBrands]   = useState([]);
@@ -11,13 +122,27 @@ export default function BrandsSetup() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/brands')
-      .then(r => setBrands(r.data.data ?? []))
-      .catch(() => notify('Failed to load brands', 'error'))
+    Promise.all([
+      api.get('/brands'),
+      api.get('/categories'),
+      api.get('/products?all=true'),
+    ]).then(([brandsRes, catsRes, prodsRes]) => {
+      const rawBrands = brandsRes.data.data ?? [];
+      const allCats   = catsRes.data.data ?? [];
+      const allProds  = (prodsRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
+
+      // Attach categories and products to each brand
+      const enriched = rawBrands.map(b => ({
+        ...b,
+        categories: allCats.filter(c => c.brandId === b.id),
+        products:   allProds.filter(p => p.brandId === b.id),
+      }));
+      setBrands(enriched);
+    }).catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
   }, []);
 
-  const updateField = (id, field, value) => {
+  const updateBrandField = (id, field, value) => {
     setBrands(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
   };
 
@@ -33,6 +158,43 @@ export default function BrandsSetup() {
       notify(e.response?.data?.error ?? 'Failed to save', 'error');
     } finally {
       setSaving(null);
+    }
+  };
+
+  // Immediate toggle — no save button needed
+  const handleCategoryToggle = async (brandId, cat) => {
+    const next = !cat.depositEnabled;
+    setBrands(prev => prev.map(b => b.id === brandId
+      ? { ...b, categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c) }
+      : b
+    ));
+    try {
+      await api.put(`/categories/${cat.id}`, { depositEnabled: next });
+    } catch {
+      // revert
+      setBrands(prev => prev.map(b => b.id === brandId
+        ? { ...b, categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c) }
+        : b
+      ));
+      notify('Failed to update deposit setting', 'error');
+    }
+  };
+
+  const handleProductToggle = async (brandId, prod) => {
+    const next = !prod.depositEnabled;
+    setBrands(prev => prev.map(b => b.id === brandId
+      ? { ...b, products: b.products.map(p => p.id === prod.id ? { ...p, depositEnabled: next } : p) }
+      : b
+    ));
+    try {
+      await api.put(`/products/${prod.id}`, { depositEnabled: next });
+    } catch {
+      // revert
+      setBrands(prev => prev.map(b => b.id === brandId
+        ? { ...b, products: b.products.map(p => p.id === prod.id ? { ...p, depositEnabled: prod.depositEnabled } : p) }
+        : b
+      ));
+      notify('Failed to update deposit setting', 'error');
     }
   };
 
@@ -73,7 +235,7 @@ export default function BrandsSetup() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => updateField(brand.id, 'depositEnabled', !brand.depositEnabled)}
+                    onClick={() => updateBrandField(brand.id, 'depositEnabled', !brand.depositEnabled)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${brand.depositEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
                   >
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${brand.depositEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -91,7 +253,7 @@ export default function BrandsSetup() {
                       <input
                         type="number" step="0.01" min="0"
                         value={brand.depositPerLitre ?? ''}
-                        onChange={e => updateField(brand.id, 'depositPerLitre', e.target.value)}
+                        onChange={e => updateBrandField(brand.id, 'depositPerLitre', e.target.value)}
                         placeholder="e.g. 0.20"
                         className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-400"
                       />
@@ -102,6 +264,7 @@ export default function BrandsSetup() {
                   </div>
                 )}
 
+                {/* Save button */}
                 <div className="pt-1">
                   <button
                     onClick={() => handleSave(brand)}
@@ -114,6 +277,22 @@ export default function BrandsSetup() {
                     }
                   </button>
                 </div>
+
+                {/* Category + product deposit toggles */}
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+                    Deposit by category &amp; product
+                    {!brand.depositEnabled && (
+                      <span className="ml-2 normal-case font-normal text-slate-300">(enable deposit above to configure)</span>
+                    )}
+                  </p>
+                  <BrandDepositConfig
+                    brand={brand}
+                    onCategoryToggle={handleCategoryToggle}
+                    onProductToggle={handleProductToggle}
+                  />
+                </div>
+
               </div>
             </div>
           ))
