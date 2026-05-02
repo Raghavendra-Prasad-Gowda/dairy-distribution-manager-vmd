@@ -35,7 +35,7 @@ export default function StockReceipt() {
   const [routes, setRoutes]                     = useState([]);
   const [routesLoading, setRoutesLoading]       = useState(false);
   const [activeRouteIdx, setActiveRouteIdx]     = useState(0);
-  const [balance, setBalance]                   = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
+  const [balance, setBalance]                   = useState({ opening: 0, stockValue: 0, depositValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]                   = useState(false);
   const [saving, setSaving]                     = useState(false);
@@ -89,8 +89,8 @@ export default function StockReceipt() {
       .then(r => {
         const entry = (r.data.data?.brands ?? []).find(b => b.brandId === activeBrand.id);
         setBalance(entry
-          ? { opening: entry.openingBalance, stockValue: entry.stockValue, paid: entry.amountPaid, closing: entry.closingBalance }
-          : { opening: 0, stockValue: 0, paid: 0, closing: 0 });
+          ? { opening: entry.openingBalance, stockValue: entry.stockValue, depositValue: Number(entry.depositValue ?? 0), paid: entry.amountPaid, closing: entry.closingBalance }
+          : { opening: 0, stockValue: 0, depositValue: 0, paid: 0, closing: 0 });
       })
       .catch(() => {});
   }, [activeBrand, date]);
@@ -194,7 +194,7 @@ export default function StockReceipt() {
       notify(`Route ${activeRoute.routeNumber} receipt saved!`, 'success');
       api.get(`/dairy-balance?date=${date}`).then(r => {
         const entry = (r.data.data?.brands ?? []).find(b => b.brandId === activeBrand.id);
-        if (entry) setBalance({ opening: entry.openingBalance, stockValue: entry.stockValue, paid: entry.amountPaid, closing: entry.closingBalance });
+        if (entry) setBalance({ opening: entry.openingBalance, stockValue: entry.stockValue, depositValue: Number(entry.depositValue ?? 0), paid: entry.amountPaid, closing: entry.closingBalance });
       }).catch(() => {});
     } catch (e) {
       notify(e.response?.data?.error ?? 'Save failed.', 'error');
@@ -291,6 +291,12 @@ export default function StockReceipt() {
                 <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
                 <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
               </div>
+              {balance.depositValue > 0 && (
+                <div className="flex items-center justify-between bg-orange-400 rounded-xl px-3 py-2 gap-2">
+                  <span className="text-xs font-bold text-orange-900">Deposit</span>
+                  <span className="text-sm font-bold text-orange-900 tabular-nums">{formatCurrency(balance.depositValue)}</span>
+                </div>
+              )}
               <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
                 <span className="text-xs font-bold text-white">{filledCount}</span>
                 <span className="text-xs text-emerald-100">/ {products.length} items</span>
