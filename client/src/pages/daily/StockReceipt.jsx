@@ -286,21 +286,26 @@ export default function StockReceipt() {
                 </div>
               ))}
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2 gap-2">
-                <span className="text-xs font-bold text-amber-900 flex-shrink-0">Today's Bill</span>
-                {balance.depositValue > 0 ? (
-                  <span className="text-xs font-bold text-amber-900 tabular-nums text-right">
-                    {formatCurrency(totalAmount)} + {formatCurrency(balance.depositValue)} deposit = <span className="text-sm">{formatCurrency(totalAmount + balance.depositValue)}</span>
-                  </span>
-                ) : (
-                  <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
+            <div className="bg-amber-400 rounded-xl px-3 py-2.5">
+              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-2">Today's Bill</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-amber-300/60 rounded-lg px-3 py-2 text-center">
+                  <p className="text-[10px] font-semibold text-amber-800 mb-0.5">Stock</p>
+                  <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</p>
+                </div>
+                {balance.depositValue > 0 && (
+                  <>
+                    <span className="text-amber-700 font-bold text-sm">+</span>
+                    <div className="flex-1 bg-amber-300/60 rounded-lg px-3 py-2 text-center">
+                      <p className="text-[10px] font-semibold text-amber-800 mb-0.5">Deposit</p>
+                      <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(balance.depositValue)}</p>
+                    </div>
+                    <span className="text-amber-700 font-bold text-sm">=</span>
+                    <p className="text-base font-bold text-amber-900 tabular-nums flex-shrink-0">{formatCurrency(totalAmount + balance.depositValue)}</p>
+                  </>
                 )}
               </div>
-              <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
-                <span className="text-xs font-bold text-white">{filledCount}</span>
-                <span className="text-xs text-emerald-100">/ {products.length} items</span>
-              </div>
+            </div>
             </div>
           </div>
         </div>
