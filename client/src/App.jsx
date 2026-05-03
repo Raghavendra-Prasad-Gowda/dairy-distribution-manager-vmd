@@ -16,12 +16,14 @@ const SalespersonCollections = lazy(() => import('./pages/payments/SalespersonCo
 const DairyStatement         = lazy(() => import('./pages/reports/DairyStatement'));
 const SalespersonStatement   = lazy(() => import('./pages/reports/SalespersonStatement'));
 const StockSummary           = lazy(() => import('./pages/reports/StockSummary'));
+const DepositReport          = lazy(() => import('./pages/reports/DepositReport'));
 const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
 const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
 const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
+const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
 
 function PageLoader() {
   return (
@@ -60,6 +62,7 @@ function AppRoutes() {
         <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
         <Route path="dairy/setup/layout"     element={S(LayoutSettings)} />
         <Route path="dairy/setup/routes"     element={S(RouteSetup)} />
+        <Route path="dairy/setup/brands"     element={S(BrandsSetup)} />
 
         {/* ── SALESMAN MODULE ── */}
         <Route path="salesman/dispatch"  element={S(Dispatch)} />
@@ -70,6 +73,7 @@ function AppRoutes() {
         <Route path="reports/dairy"          element={S(DairyStatement)} />
         <Route path="reports/salespeople"    element={S(SalespersonStatement)} />
         <Route path="reports/stock"          element={S(StockSummary)} />
+        <Route path="reports/deposit"        element={S(DepositReport)} />
         <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
 
         {/* Legacy redirects — old URLs still work */}

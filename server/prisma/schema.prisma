@@ -11,9 +11,11 @@ datasource db {
 // ─── Brands ───────────────────────────────────────────────────────────────────
 
 model Brand {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  depositEnabled  Boolean  @default(false) @map("deposit_enabled")
+  depositPerLitre Decimal  @default(0) @db.Decimal(10, 4) @map("deposit_per_litre")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   products      Product[]
   categories    Category[]
@@ -41,6 +43,7 @@ model Product {
   sellingPrice        Decimal  @default(0) @db.Decimal(10, 4) @map("selling_price")
   isActive            Boolean  @default(true) @map("is_active")
   showInStockReceipt  Boolean  @default(true) @map("show_in_stock_receipt")
+  depositEnabled      Boolean  @default(false) @map("deposit_enabled")
   displayOrder        Int      @default(0) @map("display_order")
   createdAt           DateTime @default(now()) @map("created_at")
 
@@ -63,6 +66,7 @@ model ProductCostPrice {
   costPrice     Decimal  @db.Decimal(10, 4) @map("cost_price")
   effectiveFrom DateTime @db.Date @map("effective_from")
   createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -78,6 +82,7 @@ model ProductSellingPrice {
   sellingPrice  Decimal  @db.Decimal(10, 4) @map("selling_price")
   effectiveFrom DateTime @db.Date @map("effective_from")
   createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -88,11 +93,12 @@ model ProductSellingPrice {
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 model Category {
-  id           Int      @id @default(autoincrement())
-  brandId      Int      @map("brand_id")
-  name         String
-  displayOrder Int      @default(0) @map("display_order")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id             Int      @id @default(autoincrement())
+  brandId        Int      @map("brand_id")
+  name           String
+  displayOrder   Int      @default(0) @map("display_order")
+  depositEnabled Boolean  @default(false) @map("deposit_enabled")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
@@ -144,6 +150,7 @@ model DairyBalance {
   balanceDate    DateTime @db.Date @map("balance_date")
   openingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("opening_balance")
   stockValue     Decimal  @default(0) @db.Decimal(10, 2) @map("stock_value")
+  depositValue   Decimal  @default(0) @db.Decimal(10, 2) @map("deposit_value")
   amountPaid     Decimal  @default(0) @db.Decimal(10, 2) @map("amount_paid")
   closingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("closing_balance")
   createdAt      DateTime @default(now()) @map("created_at")

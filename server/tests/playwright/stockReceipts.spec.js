@@ -173,10 +173,37 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('returns 400 when items array is missing', async ({ request }) => {
+  test('returns 200 when items is omitted — defaults to empty array (clears route)', async ({ request }) => {
+    // items has .default([]) — omitting it is valid and means "clear this route"
+    ctx.mockPrisma.$transaction.mockResolvedValue([]);
+
     const res = await request.post('/api/v1/stock-receipts/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
-      data: { brandId: 1, date: '2026-04-30' },
+      data: { brandId: 1, date: '2026-04-30', routeId: 1 },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('returns 200 when items is an empty array (clears existing receipts for the route)', async ({ request }) => {
+    ctx.mockPrisma.$transaction.mockResolvedValue([]);
+
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, date: '2026-04-30', routeId: 1, items: [] },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('returns 400 when an item has a negative quantity', async ({ request }) => {
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, date: '2026-04-30', items: [{ productId: 1, quantity: -5, unitPrice: 22 }] },
     });
     expect(res.status()).toBe(400);
   });

@@ -210,3 +210,125 @@ test.describe('GET /api/v1/reports/outstanding', () => {
     expect(body.data.salespeople).toHaveLength(0);
   });
 });
+
+// ─── GET /api/v1/reports/deposit-summary ─────────────────────────────────────
+
+const DEPOSIT_BRAND = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.20 };
+
+test.describe('GET /api/v1/reports/deposit-summary', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when required params are missing', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 404 when brand does not exist', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=999&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('returns 200 with depositEnabled false and zero total when brand has no deposit', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ ...DEPOSIT_BRAND, depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.depositEnabled).toBe(false);
+    expect(body.data.totalDeposit).toBe(0);
+    expect(body.data.rows).toHaveLength(0);
+  });
+
+  test('calculates deposit correctly for qualifying crate receipts', async ({ request }) => {
+    // 1000 units × 500ml crate × ₹0.20/L = ₹100
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([{
+      receiptDate: new Date('2026-04-15'),
+      quantity: 1000, unitPrice: 22,
+      product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true },
+    }]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.rows).toHaveLength(1);
+    expect(body.data.rows[0].dailyDeposit).toBeCloseTo(100, 2);
+    expect(body.data.rows[0].items[0].litres).toBeCloseTo(500, 1);
+    expect(body.data.totalDeposit).toBeCloseTo(100, 2);
+  });
+
+  test('excludes non-crate products from deposit calculation', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { name: 'Milk', depositEnabled: true },
+      { name: 'Curd', depositEnabled: true },
+    ]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 1000, unitPrice: 22,
+        product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true },
+      },
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 500, unitPrice: 30,
+        product: { name: 'Curd 400g', category: 'Curd', unitType: 'gram', unitSize: 400, containerType: 'box', depositEnabled: true },
+      },
+    ]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // Only crate qualifies; box is excluded
+    expect(body.data.rows[0].items).toHaveLength(1);
+    expect(body.data.rows[0].items[0].productName).toBe('Milk 500ml');
+    expect(body.data.totalDeposit).toBeCloseTo(100, 2);
+  });
+
+  test('accumulates running total correctly across multiple days', async ({ request }) => {
+    // Day 1: 1000 × 0.5L × 0.20 = ₹100; Day 2: 500 × 0.5L × 0.20 = ₹50; running = ₹150
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-01'), quantity: 1000, unitPrice: 22,
+        product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true },
+      },
+      {
+        receiptDate: new Date('2026-04-02'), quantity: 500, unitPrice: 22,
+        product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true },
+      },
+    ]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.rows[0].runningTotal).toBeCloseTo(100, 2);
+    expect(body.data.rows[1].runningTotal).toBeCloseTo(150, 2);
+    expect(body.data.totalDeposit).toBeCloseTo(150, 2);
+  });
+});

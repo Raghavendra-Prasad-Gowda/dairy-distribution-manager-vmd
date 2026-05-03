@@ -102,4 +102,38 @@ test.describe('PUT /api/v1/brands/:id', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('returns 200 when depositEnabled is updated', async ({ request }) => {
+    ctx.mockPrisma.brand.update.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0 });
+
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { depositEnabled: true },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('depositEnabled', true);
+  });
+
+  test('returns 200 when depositPerLitre is updated', async ({ request }) => {
+    ctx.mockPrisma.brand.update.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.2 });
+
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { depositEnabled: true, depositPerLitre: 0.2 },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('depositPerLitre', 0.2);
+  });
+
+  test('returns 400 when depositPerLitre is negative', async ({ request }) => {
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { depositPerLitre: -1 },
+    });
+    expect(res.status()).toBe(400);
+  });
 });

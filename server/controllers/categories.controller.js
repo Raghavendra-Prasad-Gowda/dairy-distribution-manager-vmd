@@ -33,15 +33,27 @@ const create = asyncHandler(async (req, res) => {
 
 const update = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Category ID');
-  const { name } = req.body;
-  if (!name || !name.trim()) throw new AppError('Category name is required', 400);
+  const { name, depositEnabled } = req.body;
+
+  // Validate name early — before hitting DB — so empty-name returns 400 not 404
+  if (name !== undefined && !name.trim()) throw new AppError('Category name is required', 400);
+  if (!name?.trim() && depositEnabled === undefined) throw new AppError('Category name is required', 400);
+
   const category = await prisma.category.findUnique({ where: { id } });
   if (!category) throw new AppError('Category not found', 404);
+
+  // depositEnabled-only update (no name change)
+  if (depositEnabled !== undefined && !name?.trim()) {
+    const updated = await prisma.category.update({ where: { id }, data: { depositEnabled } });
+    return res.json({ success: true, data: updated });
+  }
+
   const oldName = category.name;
   const newName = name.trim();
+  const data = { name: newName, ...(depositEnabled !== undefined ? { depositEnabled } : {}) };
 
   const [updated] = await prisma.$transaction([
-    prisma.category.update({ where: { id }, data: { name: newName } }),
+    prisma.category.update({ where: { id }, data }),
     prisma.product.updateMany({ where: { brandId: category.brandId, category: oldName }, data: { category: newName } }),
   ]);
   res.json({ success: true, data: updated });

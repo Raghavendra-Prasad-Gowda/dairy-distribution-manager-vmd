@@ -49,6 +49,7 @@ const dairyStatement = asyncHandler(async (req, res) => {
       date:           b.balanceDate,
       openingBalance: Number(b.openingBalance),
       stockValue:     Number(b.stockValue),
+      depositValue:   Number(b.depositValue ?? 0),
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       receipts: (receiptsByDate.get(key) ?? []).map((r) => ({
@@ -211,4 +212,100 @@ const outstanding = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding };
+const depositSummary = asyncHandler(async (req, res) => {
+  const { brandId, from, to } = req.query;
+  if (!brandId || !from || !to) throw new AppError('brandId, from, and to are required', 400);
+
+  const id = parseId(brandId, 'Brand ID');
+  const fromDate = new Date(from);
+  const toDate   = new Date(to);
+
+  const [brand, categories, receipts] = await Promise.all([
+    prisma.brand.findUnique({
+      where:  { id },
+      select: { name: true, depositEnabled: true, depositPerLitre: true },
+    }),
+    prisma.category.findMany({
+      where:  { brandId: id },
+      select: { name: true, depositEnabled: true },
+    }),
+    prisma.stockReceipt.findMany({
+      where:   { brandId: id, receiptDate: { gte: fromDate, lte: toDate } },
+      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true } } },
+      orderBy: { receiptDate: 'asc' },
+    }),
+  ]);
+
+  if (!brand) throw new AppError('Brand not found', 404);
+
+  const depositPerLitre   = Number(brand.depositPerLitre ?? 0);
+  const enabledCategories = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
+
+  // Group by date
+  const byDate = new Map();
+  for (const r of receipts) {
+    const key = r.receiptDate.toISOString();
+    if (!byDate.has(key)) byDate.set(key, { date: r.receiptDate, items: [] });
+    byDate.get(key).items.push(r);
+  }
+
+  let runningTotal = 0;
+  const rows = [];
+
+  for (const { date, items } of byDate.values()) {
+    const depositItems = [];
+    let dailyDeposit = 0;
+
+    for (const r of items) {
+      const { name, category, unitType, unitSize, containerType, depositEnabled } = r.product;
+      const qualifies =
+        brand.depositEnabled &&
+        depositEnabled &&
+        (unitType === 'ml' || unitType === 'gram') &&
+        containerType === 'crate' &&
+        unitSize &&
+        depositPerLitre > 0 &&
+        enabledCategories.has(category ?? '');
+
+      const qty    = Number(r.quantity);
+      const litres = qualifies ? qty * (Number(unitSize) / 1000) : 0;
+      const depositAmount = qualifies ? litres * depositPerLitre : 0;
+
+      if (qualifies) {
+        dailyDeposit += depositAmount;
+        depositItems.push({
+          productName:    name,
+          category:       category ?? 'Other',
+          quantity:       qty,
+          unitSizeL:      Number(unitSize) / 1000,
+          litres:         parseFloat(litres.toFixed(3)),
+          depositPerLitre,
+          depositAmount:  parseFloat(depositAmount.toFixed(4)),
+        });
+      }
+    }
+
+    runningTotal += dailyDeposit;
+    rows.push({
+      date,
+      dailyDeposit:  parseFloat(dailyDeposit.toFixed(4)),
+      runningTotal:  parseFloat(runningTotal.toFixed(4)),
+      items:         depositItems,
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      brandName:      brand.name,
+      depositEnabled: brand.depositEnabled,
+      depositPerLitre,
+      from,
+      to,
+      totalDeposit: parseFloat(runningTotal.toFixed(4)),
+      rows,
+    },
+  });
+});
+
+module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding, depositSummary };

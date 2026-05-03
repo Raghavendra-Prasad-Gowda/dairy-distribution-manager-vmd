@@ -42,7 +42,7 @@ function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDow
           </button>
         </div>
         <span className="flex-1 text-sm font-bold text-slate-700">{category.name}</span>
-        <span className="text-xs text-slate-400">{isExpanded ? '▲' : '▼'}</span>
+        <span className="text-xs text-slate-400 ml-1">{isExpanded ? '▲' : '▼'}</span>
       </div>
       {isExpanded && (
         <div className="ml-6 mt-1 space-y-1">
@@ -78,7 +78,7 @@ function SortableProductRow({ product }) {
         <GripVertical size={14} />
       </button>
       <span className="flex-1 text-sm text-slate-700">{product.name}</span>
-      <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+      <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
         {product.unitType === 'ml'
           ? `${product.unitSize ?? '?'}ml`
           : product.unitType === 'gram'
@@ -136,7 +136,6 @@ export default function LayoutSettings() {
   }, [activeBrandId]);
 
   // Products grouped by category, sorted by the current index in the categories array
-  // (not displayOrder from DB — that only reflects saved state; array position reflects live drag order)
   const grouped = React.useMemo(() => {
     const catIndex = Object.fromEntries(categories.map((c, i) => [c.name, i]));
     const map = {};
@@ -153,8 +152,6 @@ export default function LayoutSettings() {
   }, [categories, products]);
 
   // ── Category move up/down ────────────────────────────────────────────────────
-  // Uses visible grouped order to find adjacent category, then swaps
-  // their actual positions in the categories array (handles hidden categories)
   const moveCategory = useCallback((fromVisibleIdx, direction) => {
     const toVisibleIdx = fromVisibleIdx + direction;
     const fromName = grouped[fromVisibleIdx]?.[0];
@@ -274,7 +271,10 @@ export default function LayoutSettings() {
                       strategy={verticalListSortingStrategy}
                     >
                       {catProducts.map(p => (
-                        <SortableProductRow key={p.id} product={p} />
+                        <SortableProductRow
+                          key={p.id}
+                          product={p}
+                        />
                       ))}
                     </SortableContext>
                   </DndContext>

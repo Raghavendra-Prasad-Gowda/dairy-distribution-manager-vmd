@@ -32,10 +32,11 @@ export default function StockReceipt() {
   const [products, setProducts]                 = useState([]);
   const [categories, setCategories]             = useState([]);
   const [routeQty, setRouteQty]                 = useState({}); // { productId: { routeId: qty } }
+  const [savedRouteIds, setSavedRouteIds]       = useState(new Set()); // route IDs that have saved receipts
   const [routes, setRoutes]                     = useState([]);
   const [routesLoading, setRoutesLoading]       = useState(false);
   const [activeRouteIdx, setActiveRouteIdx]     = useState(0);
-  const [balance, setBalance]                   = useState({ opening: 0, stockValue: 0, paid: 0, closing: 0 });
+  const [balance, setBalance]                   = useState({ opening: 0, stockValue: 0, depositValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [loading, setLoading]                   = useState(false);
   const [saving, setSaving]                     = useState(false);
@@ -43,6 +44,7 @@ export default function StockReceipt() {
   const inputRefs = useRef({});
 
   const COL_COUNT  = 5;
+  const today       = getIndiaDate();
   const activeRoute = routes[activeRouteIdx] ?? null;
   const activeColor = ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length];
   const hasRoutes   = routes.length > 0;
@@ -89,8 +91,8 @@ export default function StockReceipt() {
       .then(r => {
         const entry = (r.data.data?.brands ?? []).find(b => b.brandId === activeBrand.id);
         setBalance(entry
-          ? { opening: entry.openingBalance, stockValue: entry.stockValue, paid: entry.amountPaid, closing: entry.closingBalance }
-          : { opening: 0, stockValue: 0, paid: 0, closing: 0 });
+          ? { opening: entry.openingBalance, stockValue: entry.stockValue, depositValue: Number(entry.depositValue ?? 0), paid: entry.amountPaid, closing: entry.closingBalance }
+          : { opening: 0, stockValue: 0, depositValue: 0, paid: 0, closing: 0 });
       })
       .catch(() => {});
   }, [activeBrand, date]);
@@ -120,12 +122,15 @@ export default function StockReceipt() {
         // Map saved receipts back into routeQty (keyed by actual route DB id)
         const rqty = {};
         for (const p of prods) rqty[p.id] = {};
+        const routeIdsWithData = new Set();
         for (const r of receipts) {
           if (r.routeId && r.routeId !== 0 && rqty[r.productId] !== undefined) {
             rqty[r.productId][r.routeId] = String(r.quantity);
+            routeIdsWithData.add(r.routeId);
           }
         }
         setRouteQty(rqty);
+        setSavedRouteIds(routeIdsWithData);
         setCollapsedCategories({});
       })
       .catch(() => notify('Failed to load products', 'error'))
@@ -136,14 +141,20 @@ export default function StockReceipt() {
   const allFiltered = useMemo(
     () => filteredGrouped().flatMap(([, items]) => items),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [products, categories, search]
+    [products, categories, search, routeQty, date, savedRouteIds]
   );
 
   function filteredGrouped() {
     const q        = search.trim().toLowerCase();
+    // For past dates: show only purchased products — but only when data exists.
+    // If nothing was saved for this date (client forgot / was busy), show all
+    // products so they can still enter the missing data.
+    const isPast       = date < today;
+    const hasAnyData   = savedRouteIds.size > 0;
+    const base         = (isPast && hasAnyData) ? products.filter(p => getEffectiveQty(p.id) > 0) : products;
     const filtered = q
-      ? products.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
-      : products;
+      ? base.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
+      : base;
     const grouped  = filtered.reduce((acc, p) => {
       const key = p.category || 'Other';
       if (!acc[key]) acc[key] = [];
@@ -158,7 +169,7 @@ export default function StockReceipt() {
     });
   }
 
-  const groupedData = useMemo(filteredGrouped, [products, categories, search]);
+  const groupedData = useMemo(filteredGrouped, [products, categories, search, savedRouteIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKeyDown = (e, productId) => {
     if (e.key !== 'Enter' && e.key !== 'Tab') return;
@@ -181,7 +192,10 @@ export default function StockReceipt() {
       }))
       .filter(item => item.quantity > 0);
 
-    if (!items.length) { notify('Enter at least one quantity before saving.', 'warning'); return; }
+    if (!items.length && !savedRouteIds.has(activeRoute.id)) {
+      notify('Enter at least one quantity before saving.', 'warning');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -194,7 +208,7 @@ export default function StockReceipt() {
       notify(`Route ${activeRoute.routeNumber} receipt saved!`, 'success');
       api.get(`/dairy-balance?date=${date}`).then(r => {
         const entry = (r.data.data?.brands ?? []).find(b => b.brandId === activeBrand.id);
-        if (entry) setBalance({ opening: entry.openingBalance, stockValue: entry.stockValue, paid: entry.amountPaid, closing: entry.closingBalance });
+        if (entry) setBalance({ opening: entry.openingBalance, stockValue: entry.stockValue, depositValue: Number(entry.depositValue ?? 0), paid: entry.amountPaid, closing: entry.closingBalance });
       }).catch(() => {});
     } catch (e) {
       notify(e.response?.data?.error ?? 'Save failed.', 'error');
@@ -210,6 +224,26 @@ export default function StockReceipt() {
   // Balance card — sum across ALL routes
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
   const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
+
+  // Live deposit — recomputes as quantities are entered, mirrors balance service logic
+  const liveDepositValue = React.useMemo(() => {
+    if (!activeBrand?.depositEnabled || !Number(activeBrand.depositPerLitre)) return 0;
+    const depositPerLitre = Number(activeBrand.depositPerLitre);
+    const enabledCatNames = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
+    return products.reduce((sum, p) => {
+      if (
+        p.depositEnabled &&
+        (p.unitType === 'ml' || p.unitType === 'gram') &&
+        p.containerType === 'crate' &&
+        p.unitSize &&
+        enabledCatNames.has(p.category ?? '')
+      ) {
+        return sum + getEffectiveQty(p.id) * (Number(p.unitSize) / 1000) * depositPerLitre;
+      }
+      return sum;
+    }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBrand, categories, products, routeQty]);
 
   // Table / footer — active route only
   const displayTotalUnits  = products.reduce((s, p) => s + getDisplayQty(p.id), 0);
@@ -276,7 +310,7 @@ export default function StockReceipt() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
               {[
                 { label: 'Opening Balance', value: balance.opening,                                    color: 'text-white' },
-                { label: "Today's Amount",  value: balance.stockValue,                                 color: 'text-blue-200' },
+                { label: "Today's Amount",  value: balance.stockValue + balance.depositValue,           color: 'text-blue-200' },
                 { label: 'Amount Paid',     value: balance.paid,                                       color: 'text-emerald-300' },
                 { label: isOwing ? 'You Owe' : 'Settled', value: Math.abs(balance.closing),            color: isOwing ? 'text-red-300' : 'text-emerald-300' },
               ].map(({ label, value, color }) => (
@@ -286,14 +320,24 @@ export default function StockReceipt() {
                 </div>
               ))}
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
-                <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
-                <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
-              </div>
-              <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
-                <span className="text-xs font-bold text-white">{filledCount}</span>
-                <span className="text-xs text-emerald-100">/ {products.length} items</span>
+            <div className="bg-amber-400 rounded-xl px-3 py-2.5">
+              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-2">Today's Bill</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-amber-300/60 rounded-lg px-3 py-2 text-center">
+                  <p className="text-[10px] font-semibold text-amber-800 mb-0.5">Stock</p>
+                  <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</p>
+                </div>
+                {liveDepositValue > 0 && (
+                  <>
+                    <span className="text-amber-700 font-bold text-sm">+</span>
+                    <div className="flex-1 bg-amber-300/60 rounded-lg px-3 py-2 text-center">
+                      <p className="text-[10px] font-semibold text-amber-800 mb-0.5">Deposit</p>
+                      <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(liveDepositValue)}</p>
+                    </div>
+                    <span className="text-amber-700 font-bold text-sm">=</span>
+                    <p className="text-base font-bold text-amber-900 tabular-nums flex-shrink-0">{formatCurrency(totalAmount + liveDepositValue)}</p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -403,7 +447,7 @@ export default function StockReceipt() {
             {/* Save button */}
             <button
               onClick={handleSave}
-              disabled={saving || loading || !activeRoute || displayTotalUnits === 0}
+              disabled={saving || loading || !activeRoute || (displayTotalUnits === 0 && !savedRouteIds.has(activeRoute?.id))}
               className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-1.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
             >
               {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}

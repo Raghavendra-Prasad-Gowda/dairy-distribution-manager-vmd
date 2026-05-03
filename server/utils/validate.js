@@ -19,7 +19,9 @@ const schemas = {
     name: z.string().min(1, 'Brand name is required'),
   }),
   updateBrand: z.object({
-    name: z.string().min(1, 'Brand name is required'),
+    name:            z.string().min(1, 'Brand name is required').optional(),
+    depositEnabled:  z.boolean().optional(),
+    depositPerLitre: z.number().min(0).optional(),
   }),
 
   // Categories
@@ -55,6 +57,7 @@ const schemas = {
     sellingPrice:               z.number().min(0).optional(),
     isActive:                   z.boolean().optional(),
     showInStockReceipt:         z.boolean().optional(),
+    depositEnabled:             z.boolean().optional(),
     effectiveFrom:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     sellingPriceEffectiveFrom:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
@@ -78,7 +81,7 @@ const schemas = {
       productId: z.number().int().positive(),
       quantity: z.number().min(0),
       unitPrice: z.number().min(0),
-    })),
+    })).default([]),
   }),
 
   // Dairy Payment

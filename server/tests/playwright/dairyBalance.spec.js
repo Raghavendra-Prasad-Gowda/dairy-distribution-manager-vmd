@@ -15,7 +15,7 @@ const BRAND = { id: 1, name: 'Nandini' };
 const BALANCE = {
   id: 1, brandId: 1,
   balanceDate: new Date('2026-04-30'),
-  openingBalance: 1000, stockValue: 5000,
+  openingBalance: 1000, stockValue: 5000, depositValue: 0,
   amountPaid: 2000, closingBalance: 4000,
 };
 
@@ -123,5 +123,99 @@ test.describe('GET /api/v1/dairy-balance/:brandId', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('includes depositValue in response when it exists on saved record', async ({ request }) => {
+    const balanceWithDeposit = { ...BALANCE, depositValue: 100, closingBalance: 4100 };
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(BRAND);
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(balanceWithDeposit);
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.depositValue).toBe(100);
+    expect(body.data.closingBalance).toBe(4100);
+  });
+
+  test('calculates depositValue on-the-fly for deposit-enabled brand', async ({ request }) => {
+    // Brand: ₹0.20/litre deposit enabled
+    // Receipt: 1000 units of 500ml crate product in deposit-enabled category
+    // Expected deposit = 1000 × (500/1000) × 0.20 = ₹100
+    const brandWithDeposit = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.20 };
+    const receipt = {
+      quantity: 1000, unitPrice: 22,
+      product: { unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true, category: 'Milk' },
+    };
+
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(brandWithDeposit);
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null);  // no saved balance
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);   // no prior balance
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([receipt]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // stock = 1000 × 22 = 22000; deposit = 1000 × 0.5 × 0.20 = 100
+    expect(body.data.depositValue).toBeCloseTo(100, 2);
+    expect(body.data.stockValue).toBeCloseTo(22000, 2);
+    expect(body.data.closingBalance).toBeCloseTo(22100, 2);
+  });
+
+  test('depositValue is zero when product does not qualify (containerType is not crate)', async ({ request }) => {
+    const brandWithDeposit = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.20 };
+    const receipt = {
+      quantity: 1000, unitPrice: 22,
+      product: { unitType: 'ml', unitSize: 500, containerType: 'box', depositEnabled: true, category: 'Milk' },
+    };
+
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(brandWithDeposit);
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([receipt]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.depositValue).toBe(0);
+  });
+
+  test('depositValue is zero when category deposit is disabled', async ({ request }) => {
+    const brandWithDeposit = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.20 };
+    const receipt = {
+      quantity: 1000, unitPrice: 22,
+      product: { unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true, category: 'Ghee' },
+    };
+
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(brandWithDeposit);
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([receipt]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    // Ghee category has deposit disabled
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { name: 'Milk', depositEnabled: true },
+      { name: 'Ghee', depositEnabled: false },
+    ]);
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.depositValue).toBe(0);
   });
 });

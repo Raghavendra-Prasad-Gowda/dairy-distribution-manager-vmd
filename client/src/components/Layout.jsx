@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets
 } from 'lucide-react';
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
@@ -29,6 +29,7 @@ const DAIRY_MODULE = {
     {
       label: 'SETUP',
       items: [
+        { to: '/dairy/setup/brands',     icon: Store,       label: 'Brands' },
         { to: '/dairy/setup/products',   icon: Package,     label: 'Products' },
         { to: '/dairy/setup/categories', icon: Layers,      label: 'Categories' },
         { to: '/dairy/setup/routes',     icon: Navigation,  label: 'Routes' },
@@ -38,8 +39,9 @@ const DAIRY_MODULE = {
     {
       label: 'REPORTS',
       items: [
-        { to: '/reports/dairy', icon: FileText,  label: 'Dairy Statement' },
-        { to: '/reports/stock', icon: Warehouse, label: 'Stock Summary' },
+        { to: '/reports/dairy',    icon: FileText,  label: 'Dairy Statement' },
+        { to: '/reports/stock',    icon: Warehouse, label: 'Stock Summary' },
+        { to: '/reports/deposit',  icon: Droplets,  label: 'Deposit Report' },
       ],
     },
   ],

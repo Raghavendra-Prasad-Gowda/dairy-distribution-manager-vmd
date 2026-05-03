@@ -28,9 +28,15 @@ const MODE_COLORS = {
 };
 
 /** Premium brand balance card — matches Dashboard DairyPayableCard style */
-function BrandBalanceCard({ brandName, opening, stockValue, paid, closing }) {
+function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
+
+  const tiles = [
+    { label: 'Opening', value: opening,                  cls: 'text-slate-600'  },
+    { label: 'Stock',   value: stockValue + depositValue, cls: 'text-blue-600'   },
+    { label: 'Paid',    value: paid,                      cls: 'text-emerald-600' },
+  ];
 
   return (
     <div className="ddm-card overflow-hidden">
@@ -56,13 +62,9 @@ function BrandBalanceCard({ brandName, opening, stockValue, paid, closing }) {
       </div>
 
       {/* Breakdown tiles */}
-      <div className="grid grid-cols-3 border-t border-slate-100 bg-slate-50/60">
-        {[
-          { label: 'Opening',   value: opening,    cls: 'text-slate-600' },
-          { label: 'Stock',     value: stockValue, cls: 'text-blue-600'  },
-          { label: 'Paid',      value: paid,       cls: 'text-emerald-600' },
-        ].map(({ label, value, cls }, i) => (
-          <div key={label} className={`py-2.5 text-center ${i < 2 ? 'border-r border-slate-200' : ''}`}>
+      <div className={`grid border-t border-slate-100 bg-slate-50/60`} style={{ gridTemplateColumns: `repeat(${tiles.length}, 1fr)` }}>
+        {tiles.map(({ label, value, cls }, i) => (
+          <div key={label} className={`py-2.5 text-center ${i < tiles.length - 1 ? 'border-r border-slate-200' : ''}`}>
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-0.5">{label}</p>
             <p className={`text-xs font-bold tabular-nums ${cls}`}>{formatCurrency(value)}</p>
           </div>
@@ -313,14 +315,17 @@ export default function DairyPayments() {
                     brandName={activeBrand?.name ?? ''}
                     opening={balance.openingBalance}
                     stockValue={balance.stockValue}
+                    depositValue={Number(balance.depositValue ?? 0)}
                     paid={balance.amountPaid}
                     closing={balance.closingBalance}
                   />
                 )}
 
-                {/* Bill Breakdown panel — only visible when routes exist */}
+                {/* Bill Breakdown panel — routes + deposit, shown when routes exist */}
                 {breakdown && breakdown.length > 0 && (() => {
-                  const total = breakdown.reduce((s, r) => s + r.totalAmount, 0);
+                  const routeTotal   = breakdown.reduce((s, r) => s + r.totalAmount, 0);
+                  const depositValue = Number(balance?.depositValue ?? 0);
+                  const grandTotal   = routeTotal + depositValue;
                   return (
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
@@ -350,20 +355,45 @@ export default function DairyPayments() {
                                 </tr>
                               );
                             })}
+                            {depositValue > 0 && (
+                              <>
+                                <tr>
+                                  <td colSpan={2} className="pt-3 pb-1 px-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Deposit</span>
+                                      <div className="flex-1 h-px bg-orange-100" />
+                                      <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Amount</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                                <tr className="bg-orange-50">
+                                  <td className="py-1.5 px-2 text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+                                    <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-orange-400" />
+                                    Based on today's crate receipts
+                                  </td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold text-orange-700">{formatCurrency(depositValue)}</td>
+                                </tr>
+                              </>
+                            )}
                           </tbody>
                           <tfoot>
                             <tr className="font-bold text-slate-900">
                               <td className="pt-2 text-xs">Total</td>
-                              <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(total)}</td>
+                              <td className="pt-2 text-right font-mono text-xs tabular-nums text-emerald-700">{formatCurrency(grandTotal)}</td>
                             </tr>
                           </tfoot>
                         </table>
-                        <button
-                          onClick={() => setPaymentPrefill({ amount: String(total.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
-                          className="mt-3 w-full ddm-btn-primary text-xs justify-center"
-                        >
-                          Pay Today's Bill — {formatCurrency(total)}
-                        </button>
+                        {Number(balance?.closingBalance ?? 0) > 0 && (() => {
+                          const payAmount = Math.min(grandTotal, Number(balance.closingBalance));
+                          return (
+                            <button
+                              onClick={() => setPaymentPrefill({ amount: String(payAmount.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                              className="mt-3 w-full ddm-btn-primary text-xs justify-center"
+                            >
+                              Pay Today's Bill — {formatCurrency(payAmount)}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
