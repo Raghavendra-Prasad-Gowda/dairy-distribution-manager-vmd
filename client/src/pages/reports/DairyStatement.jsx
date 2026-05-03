@@ -234,7 +234,7 @@ export default function DairyStatement() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Stock</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Bill</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Paid</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Closing</th>
                 <th className="px-4 py-3 w-8" />
