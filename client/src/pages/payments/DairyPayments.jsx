@@ -33,9 +33,9 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
   const isOwing = closing > 0;
 
   const tiles = [
-    { label: 'Opening', value: opening,    cls: 'text-slate-600'  },
-    { label: 'Stock',   value: stockValue, cls: 'text-blue-600'   },
-    { label: 'Paid',    value: paid,       cls: 'text-emerald-600' },
+    { label: 'Opening', value: opening,                  cls: 'text-slate-600'  },
+    { label: 'Stock',   value: stockValue + depositValue, cls: 'text-blue-600'   },
+    { label: 'Paid',    value: paid,                      cls: 'text-emerald-600' },
   ];
 
   return (
