@@ -49,6 +49,7 @@ const dairyStatement = asyncHandler(async (req, res) => {
       date:           b.balanceDate,
       openingBalance: Number(b.openingBalance),
       stockValue:     Number(b.stockValue),
+      depositValue:   Number(b.depositValue ?? 0),
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       receipts: (receiptsByDate.get(key) ?? []).map((r) => ({

@@ -12,26 +12,59 @@ async function getOrBuildBalance(brandId, date) {
     ...existing,
     openingBalance: Number(existing.openingBalance),
     stockValue:     Number(existing.stockValue),
+    depositValue:   Number(existing.depositValue ?? 0),
     amountPaid:     Number(existing.amountPaid),
     closingBalance: Number(existing.closingBalance),
   };
 
+  // No saved balance — compute on the fly (same logic as balanceService)
   const prev = await prisma.dairyBalance.findFirst({
     where: { brandId, balanceDate: { lt: balanceDate } },
     orderBy: { balanceDate: 'desc' },
   });
   const receipts = await prisma.stockReceipt.findMany({
     where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true },
+    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
   });
   const paymentAgg = await prisma.dairyPayment.aggregate({
     where: { brandId, paymentDate: balanceDate },
     _sum: { amount: true },
   });
+
   const openingBalance = Number(prev?.closingBalance ?? 0);
   const stockValue = receipts.reduce((s, r) => s + Number(r.quantity) * Number(r.unitPrice), 0);
   const amountPaid = Number(paymentAgg._sum.amount ?? 0);
-  return { brandId, balanceDate, openingBalance, stockValue, amountPaid, closingBalance: openingBalance + stockValue - amountPaid };
+
+  // Deposit — mirrors balanceService._calcDairyBalance
+  const brand = await prisma.brand.findUnique({
+    where: { id: brandId },
+    select: { depositEnabled: true, depositPerLitre: true },
+  });
+  let depositValue = 0;
+  if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
+    const depositPerLitre = Number(brand.depositPerLitre);
+    const categories = await prisma.category.findMany({
+      where: { brandId },
+      select: { name: true, depositEnabled: true },
+    });
+    const enabledCategories = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
+    depositValue = receipts.reduce((sum, r) => {
+      const { unitType, unitSize, containerType, depositEnabled, category } = r.product;
+      if (
+        (unitType === 'ml' || unitType === 'gram') &&
+        containerType === 'crate' &&
+        unitSize &&
+        depositEnabled &&
+        enabledCategories.has(category ?? '')
+      ) {
+        return sum + Number(r.quantity) * (Number(unitSize) / 1000) * depositPerLitre;
+      }
+      return sum;
+    }, 0);
+  }
+
+  const closingBalance = openingBalance + stockValue + depositValue - amountPaid;
+  return { brandId, balanceDate, openingBalance, stockValue, depositValue, amountPaid, closingBalance };
 }
 
 const getAll = asyncHandler(async (req, res) => {
