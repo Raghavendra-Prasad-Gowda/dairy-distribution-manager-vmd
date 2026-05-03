@@ -288,15 +288,9 @@ export default function StockReceipt() {
             </div>
             <div className="flex gap-2">
               <div className="flex-1 flex items-center justify-between bg-amber-400 rounded-xl px-3 py-2">
-                <span className="text-xs font-bold text-amber-900">Today's Receipt</span>
-                <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</span>
+                <span className="text-xs font-bold text-amber-900">Today's Bill</span>
+                <span className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount + balance.depositValue)}</span>
               </div>
-              {balance.depositValue > 0 && (
-                <div className="flex items-center justify-between bg-orange-400 rounded-xl px-3 py-2 gap-2">
-                  <span className="text-xs font-bold text-orange-900">Deposit</span>
-                  <span className="text-sm font-bold text-orange-900 tabular-nums">{formatCurrency(balance.depositValue)}</span>
-                </div>
-              )}
               <div className="flex items-center bg-emerald-500 rounded-xl px-3 py-2 gap-1.5">
                 <span className="text-xs font-bold text-white">{filledCount}</span>
                 <span className="text-xs text-emerald-100">/ {products.length} items</span>
