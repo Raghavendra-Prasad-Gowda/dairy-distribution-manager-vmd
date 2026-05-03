@@ -371,7 +371,7 @@ export default function DairyPayments() {
                                 <tr className="bg-orange-50">
                                   <td className="py-1.5 px-2 text-xs font-semibold text-orange-700 flex items-center gap-1.5">
                                     <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-orange-400" />
-                                    Based on today's ml receipts
+                                    Based on today's crate receipts
                                   </td>
                                   <td className="py-1.5 px-2 text-right font-mono text-xs tabular-nums font-semibold text-orange-700">{formatCurrency(depositValue)}</td>
                                 </tr>
