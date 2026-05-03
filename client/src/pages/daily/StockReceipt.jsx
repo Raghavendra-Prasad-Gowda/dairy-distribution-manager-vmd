@@ -140,14 +140,16 @@ export default function StockReceipt() {
   const allFiltered = useMemo(
     () => filteredGrouped().flatMap(([, items]) => items),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [products, categories, search]
+    [products, categories, search, routeQty, date]
   );
 
   function filteredGrouped() {
     const q        = search.trim().toLowerCase();
+    const isPast   = date < today;
+    const base     = isPast ? products.filter(p => getEffectiveQty(p.id) > 0) : products;
     const filtered = q
-      ? products.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
-      : products;
+      ? base.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
+      : base;
     const grouped  = filtered.reduce((acc, p) => {
       const key = p.category || 'Other';
       if (!acc[key]) acc[key] = [];
