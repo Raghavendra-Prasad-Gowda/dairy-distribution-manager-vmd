@@ -218,6 +218,26 @@ export default function StockReceipt() {
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
   const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
 
+  // Live deposit — recomputes as quantities are entered, mirrors balance service logic
+  const liveDepositValue = React.useMemo(() => {
+    if (!activeBrand?.depositEnabled || !Number(activeBrand.depositPerLitre)) return 0;
+    const depositPerLitre = Number(activeBrand.depositPerLitre);
+    const enabledCatNames = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
+    return products.reduce((sum, p) => {
+      if (
+        p.depositEnabled &&
+        (p.unitType === 'ml' || p.unitType === 'gram') &&
+        p.containerType === 'crate' &&
+        p.unitSize &&
+        enabledCatNames.has(p.category ?? '')
+      ) {
+        return sum + getEffectiveQty(p.id) * (Number(p.unitSize) / 1000) * depositPerLitre;
+      }
+      return sum;
+    }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBrand, categories, products, routeQty]);
+
   // Table / footer — active route only
   const displayTotalUnits  = products.reduce((s, p) => s + getDisplayQty(p.id), 0);
   const displayTotalAmount = products.reduce((s, p) => s + getDisplayQty(p.id) * Number(p.costPrice), 0);
@@ -300,15 +320,15 @@ export default function StockReceipt() {
                   <p className="text-[10px] font-semibold text-amber-800 mb-0.5">Stock</p>
                   <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(totalAmount)}</p>
                 </div>
-                {balance.depositValue > 0 && (
+                {liveDepositValue > 0 && (
                   <>
                     <span className="text-amber-700 font-bold text-sm">+</span>
                     <div className="flex-1 bg-amber-300/60 rounded-lg px-3 py-2 text-center">
                       <p className="text-[10px] font-semibold text-amber-800 mb-0.5">Deposit</p>
-                      <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(balance.depositValue)}</p>
+                      <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(liveDepositValue)}</p>
                     </div>
                     <span className="text-amber-700 font-bold text-sm">=</span>
-                    <p className="text-base font-bold text-amber-900 tabular-nums flex-shrink-0">{formatCurrency(totalAmount + balance.depositValue)}</p>
+                    <p className="text-base font-bold text-amber-900 tabular-nums flex-shrink-0">{formatCurrency(totalAmount + liveDepositValue)}</p>
                   </>
                 )}
               </div>
