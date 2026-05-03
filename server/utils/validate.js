@@ -81,7 +81,7 @@ const schemas = {
       productId: z.number().int().positive(),
       quantity: z.number().min(0),
       unitPrice: z.number().min(0),
-    })),
+    })).default([]),
   }),
 
   // Dairy Payment

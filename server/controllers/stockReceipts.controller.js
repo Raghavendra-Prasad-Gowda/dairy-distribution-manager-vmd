@@ -70,19 +70,22 @@ const bulkCreate = asyncHandler(async (req, res) => {
 
   const receiptDate = new Date(data.date);
   const routeId = data.routeId ?? 0;
+  const nonZeroItems = data.items.filter(item => item.quantity > 0);
 
-  const upserts = data.items.map((item) =>
-    prisma.stockReceipt.upsert({
-      where: { productId_receiptDate_routeId: { productId: item.productId, receiptDate, routeId } },
-      update: { quantity: item.quantity, unitPrice: item.unitPrice, brandId: data.brandId },
-      create: { brandId: data.brandId, productId: item.productId, routeId, receiptDate, quantity: item.quantity, unitPrice: item.unitPrice },
-    })
-  );
+  // Full replace: delete all existing receipts for this brand+date+route, then insert non-zero
+  await prisma.$transaction([
+    prisma.stockReceipt.deleteMany({
+      where: { brandId: data.brandId, receiptDate, routeId },
+    }),
+    ...nonZeroItems.map(item =>
+      prisma.stockReceipt.create({
+        data: { brandId: data.brandId, productId: item.productId, routeId, receiptDate, quantity: item.quantity, unitPrice: item.unitPrice },
+      })
+    ),
+  ]);
 
-  const results = await prisma.$transaction(upserts);
   await recalculateDairyBalance(data.brandId, data.date);
-
-  res.json({ success: true, data: results });
+  res.json({ success: true, data: { saved: nonZeroItems.length } });
 });
 
 module.exports = { getAll, getAvailability, bulkCreate };

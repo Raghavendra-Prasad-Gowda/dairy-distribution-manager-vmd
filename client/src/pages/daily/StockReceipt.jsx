@@ -32,6 +32,7 @@ export default function StockReceipt() {
   const [products, setProducts]                 = useState([]);
   const [categories, setCategories]             = useState([]);
   const [routeQty, setRouteQty]                 = useState({}); // { productId: { routeId: qty } }
+  const [savedRouteIds, setSavedRouteIds]       = useState(new Set()); // route IDs that have saved receipts
   const [routes, setRoutes]                     = useState([]);
   const [routesLoading, setRoutesLoading]       = useState(false);
   const [activeRouteIdx, setActiveRouteIdx]     = useState(0);
@@ -120,12 +121,15 @@ export default function StockReceipt() {
         // Map saved receipts back into routeQty (keyed by actual route DB id)
         const rqty = {};
         for (const p of prods) rqty[p.id] = {};
+        const routeIdsWithData = new Set();
         for (const r of receipts) {
           if (r.routeId && r.routeId !== 0 && rqty[r.productId] !== undefined) {
             rqty[r.productId][r.routeId] = String(r.quantity);
+            routeIdsWithData.add(r.routeId);
           }
         }
         setRouteQty(rqty);
+        setSavedRouteIds(routeIdsWithData);
         setCollapsedCategories({});
       })
       .catch(() => notify('Failed to load products', 'error'))
@@ -181,7 +185,10 @@ export default function StockReceipt() {
       }))
       .filter(item => item.quantity > 0);
 
-    if (!items.length) { notify('Enter at least one quantity before saving.', 'warning'); return; }
+    if (!items.length && !savedRouteIds.has(activeRoute.id)) {
+      notify('Enter at least one quantity before saving.', 'warning');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -413,7 +420,7 @@ export default function StockReceipt() {
             {/* Save button */}
             <button
               onClick={handleSave}
-              disabled={saving || loading || !activeRoute || displayTotalUnits === 0}
+              disabled={saving || loading || !activeRoute || (displayTotalUnits === 0 && !savedRouteIds.has(activeRoute?.id))}
               className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-1.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
             >
               {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
