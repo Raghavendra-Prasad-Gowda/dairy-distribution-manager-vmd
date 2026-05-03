@@ -31,13 +31,11 @@ const MODE_COLORS = {
 function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
-  const hasDeposit = depositValue > 0;
 
   const tiles = [
-    { label: 'Opening', value: opening,      cls: 'text-slate-600'  },
-    { label: 'Stock',   value: stockValue,   cls: 'text-blue-600'   },
-    ...(hasDeposit ? [{ label: 'Deposit', value: depositValue, cls: 'text-orange-600' }] : []),
-    { label: 'Paid',    value: paid,         cls: 'text-emerald-600' },
+    { label: 'Opening', value: opening,    cls: 'text-slate-600'  },
+    { label: 'Stock',   value: stockValue, cls: 'text-blue-600'   },
+    { label: 'Paid',    value: paid,       cls: 'text-emerald-600' },
   ];
 
   return (
