@@ -157,7 +157,8 @@ export default function DepositReport() {
             </div>
           ) : (
             <div className="mx-4 mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <table className="w-full text-sm border-separate border-spacing-0">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 520 }}>
                 <thead>
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Date</th>
@@ -279,6 +280,7 @@ export default function DepositReport() {
                   </tr>
                 </tfoot>
               </table>
+              </div>
             </div>
           )}
         </>
