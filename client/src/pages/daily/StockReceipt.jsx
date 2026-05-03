@@ -44,6 +44,7 @@ export default function StockReceipt() {
   const inputRefs = useRef({});
 
   const COL_COUNT  = 5;
+  const today       = getIndiaDate();
   const activeRoute = routes[activeRouteIdx] ?? null;
   const activeColor = ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length];
   const hasRoutes   = routes.length > 0;
