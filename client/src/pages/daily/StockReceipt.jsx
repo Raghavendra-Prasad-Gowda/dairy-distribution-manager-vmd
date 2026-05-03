@@ -306,7 +306,6 @@ export default function StockReceipt() {
                 )}
               </div>
             </div>
-            </div>
           </div>
         </div>
       )}
