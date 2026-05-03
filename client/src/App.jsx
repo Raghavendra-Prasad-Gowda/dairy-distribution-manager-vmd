@@ -16,6 +16,7 @@ const SalespersonCollections = lazy(() => import('./pages/payments/SalespersonCo
 const DairyStatement         = lazy(() => import('./pages/reports/DairyStatement'));
 const SalespersonStatement   = lazy(() => import('./pages/reports/SalespersonStatement'));
 const StockSummary           = lazy(() => import('./pages/reports/StockSummary'));
+const DepositReport          = lazy(() => import('./pages/reports/DepositReport'));
 const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
@@ -72,6 +73,7 @@ function AppRoutes() {
         <Route path="reports/dairy"          element={S(DairyStatement)} />
         <Route path="reports/salespeople"    element={S(SalespersonStatement)} />
         <Route path="reports/stock"          element={S(StockSummary)} />
+        <Route path="reports/deposit"        element={S(DepositReport)} />
         <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
 
         {/* Legacy redirects — old URLs still work */}
