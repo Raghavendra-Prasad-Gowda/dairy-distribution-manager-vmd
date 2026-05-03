@@ -89,4 +89,35 @@ describe('StockReceipt', () => {
     const label = await screen.findByText('Account Balance');
     expect(label).toBeInTheDocument();
   });
+
+  it('shows all products on a past date when no receipts were saved (client forgot to enter)', async () => {
+    // When savedRouteIds is empty (no data saved for this date), all products
+    // should be visible so the user can still enter the missing data.
+    // Previously, the filter would hide everything and the user would see a
+    // blank table with no indication that data was missing.
+    const route  = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+    const product = {
+      id: 1, name: 'Milk 500ml', brandId: 1, costPrice: '22', sellingPrice: '25',
+      category: 'Milk', unitType: 'ml', unitSize: 500, isActive: true,
+      showInStockReceipt: true, displayOrder: 0, depositEnabled: false,
+      containerType: 'crate', unitsPerContainer: 20,
+      brand: { id: 1, name: 'Nandini' },
+      costPrices: [], sellingPrices: [],
+    };
+
+    // Return a past date via getIndiaDate mock stubbed to today=2026-05-03
+    // and API returns no receipts (empty savedRouteIds)
+    makeApiResponses({
+      brands:   [BRAND],
+      routes:   [route],
+      products: [product],
+      receipts: [],   // no saved data for this date
+    });
+
+    render(<StockReceipt />);
+
+    // Product should be visible even on a past date with no saved data
+    const productName = await screen.findByText('Milk 500ml');
+    expect(productName).toBeInTheDocument();
+  });
 });
