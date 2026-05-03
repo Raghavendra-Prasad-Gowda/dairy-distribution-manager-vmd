@@ -34,6 +34,27 @@ const getAll = asyncHandler(async (req, res) => {
   res.json({ success: true, data: payments });
 });
 
+const update = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Payment ID');
+  const data = validate(schemas.updateSalespersonPayment, req, res);
+  if (!data) return;
+
+  const existing = await prisma.salespersonPayment.findUnique({ where: { id } });
+  if (!existing) throw new AppError('Payment not found', 404);
+
+  const updated = await prisma.salespersonPayment.update({
+    where: { id },
+    data: { ...data, paymentDate: new Date(data.paymentDate) },
+  });
+
+  const oldDate = existing.paymentDate.toISOString().slice(0, 10);
+  const newDate = data.paymentDate;
+  await recalculateSalespersonBalance(existing.salespersonId, oldDate);
+  if (newDate !== oldDate) await recalculateSalespersonBalance(existing.salespersonId, newDate);
+  logger.info('Salesperson payment updated', { id, salespersonId: existing.salespersonId, amount: data.amount, date: newDate });
+  res.json({ success: true, data: updated });
+});
+
 const remove = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Payment ID');
   const payment = await prisma.salespersonPayment.findUnique({ where: { id } });
@@ -46,4 +67,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Payment deleted' } });
 });
 
-module.exports = { create, getAll, remove };
+module.exports = { create, getAll, update, remove };

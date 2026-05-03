@@ -83,8 +83,10 @@ export default function SalespersonCollections() {
   const [search, setSearch]           = useState('');
   const [filter, setFilter]           = useState('all');
 
-  // Edit-a-mistake state
-  const [prefill, setPrefill] = useState(null);
+  // Edit modal state
+  const [editPayment, setEditPayment] = useState(null);
+  const [editForm,    setEditForm]    = useState({});
+  const [editSaving,  setEditSaving]  = useState(false);
 
   // History filter state
   const [showFilter, setShowFilter]   = useState(false);
@@ -172,21 +174,32 @@ export default function SalespersonCollections() {
     }
   };
 
-  const handleEdit = async (p) => {
-    if (!window.confirm('Delete this record and re-enter corrected values?')) return;
+  const handleEdit = (p) => {
+    setEditPayment(p);
+    setEditForm({
+      amount:      String(p.amount ?? ''),
+      paymentDate: p.paymentDate?.slice(0, 10) ?? today,
+      paymentMode: p.paymentMode ?? 'Cash',
+      reference:   p.reference ?? '',
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editPayment) return;
+    setEditSaving(true);
     try {
-      await api.delete(`/salesperson-payments/${p.id}`);
-      setPrefill({
-        amount:      p.amount,
-        paymentDate: p.paymentDate?.slice(0, 10) ?? today,
-        paymentMode: p.paymentMode ?? 'Cash',
-        reference:   p.reference ?? '',
+      await api.put(`/salesperson-payments/${editPayment.id}`, {
+        ...editForm,
+        amount: parseFloat(editForm.amount),
       });
-      notify('Record removed — correct and re-submit below', 'info');
+      notify('Collection updated', 'success');
+      setEditPayment(null);
       fetchDetail();
       refreshAllBalances();
-    } catch {
-      notify('Failed to edit record', 'error');
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to update', 'error');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -253,7 +266,7 @@ export default function SalespersonCollections() {
         </label>
         <select
           value={selectedSpId ?? ''}
-          onChange={e => { setSelectedSp(Number(e.target.value)); setPrefill(null); }}
+          onChange={e => { setSelectedSp(Number(e.target.value)); }}
           className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
         >
           {salespeople.map(sp => {
@@ -312,7 +325,7 @@ export default function SalespersonCollections() {
               return (
                 <button
                   key={sp.id}
-                  onClick={() => { setSelectedSp(sp.id); setPrefill(null); }}
+                  onClick={() => { setSelectedSp(sp.id); }}
                   className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
                     isSelected
                       ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
@@ -362,16 +375,11 @@ export default function SalespersonCollections() {
                   {balance && <SpBalanceCard sp={selectedSp} balance={balance} />}
 
                   <div className="ddm-card p-4">
-                    <h3 className="ddm-section-label mb-3">
-                      {prefill ? 'Correct & Re-enter' : 'Record Collection'}
-                    </h3>
+                    <h3 className="ddm-section-label mb-3">Record Collection</h3>
                     <PaymentForm
                       onSubmit={handlePayment}
                       closingBalance={balance?.closingBalance ?? 0}
                       loading={saving}
-                      prefill={prefill}
-                      onClearPrefill={() => setPrefill(null)}
-                      submitLabel={prefill ? 'Save Correction' : 'Record Collection'}
                     />
                   </div>
                 </div>
@@ -540,6 +548,86 @@ export default function SalespersonCollections() {
           )}
         </div>
       </div>
+
+      {/* ── Edit payment modal ─────────────────────────────── */}
+      {editPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-800 text-sm">Edit Collection</h3>
+              <button onClick={() => setEditPayment(null)} className="text-slate-400 hover:text-slate-600 transition">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Amount */}
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Amount (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editForm.amount}
+                onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+
+            {/* Date */}
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date</label>
+              <input
+                type="date"
+                value={editForm.paymentDate}
+                max={today}
+                onChange={e => setEditForm(f => ({ ...f, paymentDate: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+
+            {/* Mode */}
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Payment Mode</label>
+              <select
+                value={editForm.paymentMode}
+                onChange={e => setEditForm(f => ({ ...f, paymentMode: e.target.value }))}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              >
+                {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            {/* Reference */}
+            <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Reference</label>
+              <input
+                type="text"
+                value={editForm.reference}
+                onChange={e => setEditForm(f => ({ ...f, reference: e.target.value }))}
+                placeholder="UPI ref / cheque no."
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setEditPayment(null)}
+                className="flex-1 px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving || !editForm.amount || parseFloat(editForm.amount) <= 0}
+                className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {editSaving && <Loader2 size={14} className="animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

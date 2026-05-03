@@ -32,32 +32,32 @@ function exportCSV(data) {
 }
 
 export default function DepositReport() {
-  const [brands, setBrands]           = useState([]);
-  const [activeBrand, setActiveBrand] = useState(null);
-  const [from, setFrom]               = useState(getFirstDayOfMonth());
-  const [to, setTo]                   = useState(getIndiaDate());
-  const [data, setData]               = useState(null);
-  const [loading, setLoading]         = useState(false);
-  const [expanded, setExpanded]       = useState({});
+  const [brands, setBrands]             = useState([]);
+  const [activeBrandId, setActiveBrandId] = useState(null);
+  const [from, setFrom]                 = useState(getFirstDayOfMonth());
+  const [to, setTo]                     = useState(getIndiaDate());
+  const [data, setData]                 = useState(null);
+  const [loading, setLoading]           = useState(false);
+  const [expanded, setExpanded]         = useState({});
 
   useEffect(() => {
     api.get('/brands').then(r => {
       const list = r.data.data ?? [];
       setBrands(list);
-      setActiveBrand(list[0] ?? null);
+      if (list.length) setActiveBrandId(list[0].id);
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!activeBrand) return;
+    if (!activeBrandId) return;
     setData(null);
     setExpanded({});
     setLoading(true);
-    api.get(`/reports/deposit-summary?brandId=${activeBrand.id}&from=${from}&to=${to}`)
+    api.get(`/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}`)
       .then(r => setData(r.data.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [activeBrand, from, to]);
+  }, [activeBrandId, from, to]);
 
   const toggleRow = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -88,7 +88,7 @@ export default function DepositReport() {
 
       {/* Brand tabs */}
       {brands.length > 0 && (
-        <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
+        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActiveBrandId} />
       )}
 
       {/* Date range */}

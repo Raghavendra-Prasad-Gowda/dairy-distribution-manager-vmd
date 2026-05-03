@@ -156,6 +156,13 @@ const schemas = {
     reference: z.string().optional(),
     notes: z.string().optional(),
   }),
+  updateSalespersonPayment: z.object({
+    paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    amount: z.number().positive('Amount must be positive'),
+    paymentMode: z.string().optional(),
+    reference: z.string().optional(),
+    notes: z.string().optional(),
+  }),
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
