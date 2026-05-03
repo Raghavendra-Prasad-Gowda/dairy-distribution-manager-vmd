@@ -385,12 +385,17 @@ export default function DairyPayments() {
                             </tr>
                           </tfoot>
                         </table>
-                        {Number(balance?.closingBalance ?? 0) > 0 && <button
-                          onClick={() => setPaymentPrefill({ amount: String(Math.min(grandTotal, Number(balance.closingBalance)).toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
-                          className="mt-3 w-full ddm-btn-primary text-xs justify-center"
-                        >
-                          Pay Today's Bill — {formatCurrency(grandTotal)}
-                        </button>}
+                        {Number(balance?.closingBalance ?? 0) > 0 && (() => {
+                          const payAmount = Math.min(grandTotal, Number(balance.closingBalance));
+                          return (
+                            <button
+                              onClick={() => setPaymentPrefill({ amount: String(payAmount.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                              className="mt-3 w-full ddm-btn-primary text-xs justify-center"
+                            >
+                              Pay Today's Bill — {formatCurrency(payAmount)}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
