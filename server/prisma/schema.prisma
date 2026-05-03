@@ -66,6 +66,7 @@ model ProductCostPrice {
   costPrice     Decimal  @db.Decimal(10, 4) @map("cost_price")
   effectiveFrom DateTime @db.Date @map("effective_from")
   createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -81,6 +82,7 @@ model ProductSellingPrice {
   sellingPrice  Decimal  @db.Decimal(10, 4) @map("selling_price")
   effectiveFrom DateTime @db.Date @map("effective_from")
   createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 

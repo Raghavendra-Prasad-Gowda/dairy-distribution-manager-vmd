@@ -15,8 +15,8 @@ router.get('/', asyncHandler(async (req, res) => {
     where,
     include: {
       brand:         { select: { id: true, name: true } },
-      costPrices:    { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true, createdAt: true } },
-      sellingPrices: { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true, createdAt: true } },
+      costPrices:    { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true, updatedAt: true } },
+      sellingPrices: { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true, updatedAt: true } },
     },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
