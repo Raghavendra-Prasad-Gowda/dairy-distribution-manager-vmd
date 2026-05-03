@@ -385,12 +385,12 @@ export default function DairyPayments() {
                             </tr>
                           </tfoot>
                         </table>
-                        <button
-                          onClick={() => setPaymentPrefill({ amount: String(grandTotal.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                        {Number(balance?.closingBalance ?? 0) > 0 && <button
+                          onClick={() => setPaymentPrefill({ amount: String(Math.min(grandTotal, Number(balance.closingBalance)).toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
                           className="mt-3 w-full ddm-btn-primary text-xs justify-center"
                         >
                           Pay Today's Bill — {formatCurrency(grandTotal)}
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   );
