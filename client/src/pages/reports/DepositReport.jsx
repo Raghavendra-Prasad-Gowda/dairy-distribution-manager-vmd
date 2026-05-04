@@ -6,17 +6,18 @@ import api from '../../api/axios';
 
 function exportCSV(data) {
   const lines = [
-    ['Date', 'Product', 'Category', 'Qty', 'Size (L)', 'Litres', `₹/Litre`, 'Deposit (₹)'].join(','),
+    ['Date', 'Product', 'Category', 'Unit Type', 'Qty', 'Size', 'L / kg', `₹/unit`, 'Deposit (₹)'].join(','),
   ];
   for (const row of data.rows) {
     const dateStr = new Date(row.date).toLocaleDateString('en-IN');
     if (row.items.length === 0) {
-      lines.push([dateStr, '', '', '', '', '', '', '0'].join(','));
+      lines.push([dateStr, '', '', '', '', '', '', '', '0'].join(','));
     } else {
       for (const item of row.items) {
+        const sizeStr = item.unitType === 'gram' ? `${item.unitSize}g` : `${item.unitSize}ml`;
         lines.push([
-          dateStr, item.productName, item.category,
-          item.quantity, item.unitSizeL, item.litres,
+          dateStr, item.productName, item.category, item.unitType,
+          item.quantity, sizeStr, item.volumeOrWeight,
           item.depositPerLitre, item.depositAmount,
         ].join(','));
       }
@@ -163,7 +164,7 @@ export default function DepositReport() {
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Date</th>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Products</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Litres</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">L / kg</th>
                     <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Daily Deposit</th>
                     <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Running Total</th>
                   </tr>
@@ -173,7 +174,7 @@ export default function DepositReport() {
                     const key     = row.date;
                     const isOpen  = expanded[key];
                     const dateStr = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', weekday: 'short' });
-                    const totalL  = row.items.reduce((s, it) => s + it.litres, 0);
+                    const totalL  = row.items.reduce((s, it) => s + it.volumeOrWeight, 0);
                     const hasDeposit = row.dailyDeposit > 0;
 
                     return (
@@ -208,7 +209,7 @@ export default function DepositReport() {
                           </td>
                           <td className="px-4 py-3 text-right border-r border-slate-100">
                             <span className={`text-xs tabular-nums font-semibold ${hasDeposit ? 'text-slate-600' : 'text-slate-300'}`}>
-                              {hasDeposit ? totalL.toFixed(1) + ' L' : '—'}
+                              {hasDeposit ? totalL.toFixed(1) + (row.items.every(it => it.unitType === 'gram') ? ' kg' : row.items.some(it => it.unitType === 'gram') ? ' L+kg' : ' L') : '—'}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right border-r border-slate-100">
@@ -231,28 +232,32 @@ export default function DepositReport() {
                                 <div className="grid grid-cols-5 text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-2 px-2">
                                   <span className="col-span-2">Product</span>
                                   <span className="text-right">Qty × Size</span>
-                                  <span className="text-right">Litres</span>
+                                  <span className="text-right">L / kg</span>
                                   <span className="text-right">Deposit</span>
                                 </div>
-                                {row.items.map((it, j) => (
+                                {row.items.map((it, j) => {
+                                  const unit    = it.unitType === 'gram' ? 'kg' : 'L';
+                                  const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
+                                  return (
                                   <div key={j} className="grid grid-cols-5 text-xs px-2 py-1 bg-white rounded-lg border border-emerald-100">
                                     <span className="col-span-2 font-semibold text-slate-700">{it.productName}
                                       <span className="ml-1 text-[10px] text-slate-400 font-normal">({it.category})</span>
                                     </span>
                                     <span className="text-right tabular-nums text-slate-500">
-                                      {it.quantity} × {it.unitSizeL}L
+                                      {it.quantity} × {sizeStr}
                                     </span>
                                     <span className="text-right tabular-nums text-slate-600 font-medium">
-                                      {it.litres.toFixed(2)} L
+                                      {it.volumeOrWeight.toFixed(2)} {unit}
                                     </span>
                                     <span className="text-right tabular-nums font-bold text-emerald-700">
                                       {formatCurrency(it.depositAmount)}
                                     </span>
                                   </div>
-                                ))}
+                                  );
+                                })}
                                 <div className="flex items-center justify-between px-2 pt-1 border-t border-emerald-200">
                                   <span className="text-[11px] font-bold text-emerald-700 uppercase">
-                                    Total — {row.items.reduce((s, it) => s + it.litres, 0).toFixed(2)} L × ₹{data.depositPerLitre}/L
+                                    Total — {row.items.reduce((s, it) => s + it.volumeOrWeight, 0).toFixed(2)} × ₹{data.depositPerLitre}/unit
                                   </span>
                                   <span className="text-sm font-bold text-emerald-700 tabular-nums">
                                     {formatCurrency(row.dailyDeposit)}

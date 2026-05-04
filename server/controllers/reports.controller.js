@@ -276,9 +276,10 @@ const depositSummary = asyncHandler(async (req, res) => {
         depositItems.push({
           productName:    name,
           category:       category ?? 'Other',
+          unitType,
           quantity:       qty,
-          unitSizeL:      Number(unitSize) / 1000,
-          litres:         parseFloat(litres.toFixed(3)),
+          unitSize:       Number(unitSize),
+          volumeOrWeight: parseFloat(litres.toFixed(3)), // litres for ml; kg for gram
           depositPerLitre,
           depositAmount:  parseFloat(depositAmount.toFixed(4)),
         });
