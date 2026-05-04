@@ -48,7 +48,8 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
         enabledCategories.has(category ?? '');
       if (!qualifies) return sum;
       const litres = Number(unitSize) / 1000; // ml and gram both divide by 1000 to get litre-equivalents
-      return sum + Number(r.quantity) * litres * depositPerLitre;
+      const lineDeposit = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100; // round per line to nearest paisa
+      return sum + lineDeposit;
     }, 0);
   }
 

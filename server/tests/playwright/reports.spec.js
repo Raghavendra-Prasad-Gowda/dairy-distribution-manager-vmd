@@ -273,7 +273,7 @@ test.describe('GET /api/v1/reports/deposit-summary', () => {
     const body = await res.json();
     expect(body.data.rows).toHaveLength(1);
     expect(body.data.rows[0].dailyDeposit).toBeCloseTo(100, 2);
-    expect(body.data.rows[0].items[0].litres).toBeCloseTo(500, 1);
+    expect(body.data.rows[0].items[0].volumeOrWeight).toBeCloseTo(500, 1);
     expect(body.data.totalDeposit).toBeCloseTo(100, 2);
   });
 
