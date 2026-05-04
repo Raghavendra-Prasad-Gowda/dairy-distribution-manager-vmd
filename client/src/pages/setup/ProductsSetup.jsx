@@ -526,6 +526,11 @@ export default function ProductsSetup() {
                     onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))}
                     className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
+                  {form.effectiveFrom && form.effectiveFrom < getIndiaDate() && (
+                    <p className="text-[10px] text-red-600 font-semibold mt-1.5">
+                      ⚠ Past date — stock receipts already saved from {new Date(form.effectiveFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} will show new amounts. Re-save those receipts to update their balances.
+                    </p>
+                  )}
                 </div>
               </div>
 
