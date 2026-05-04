@@ -550,7 +550,7 @@ export default function StockReceipt() {
 
                           return (
                             <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-2.5 border-b border-gray-200">
+                              <td className="px-4 py-2.5 border-b border-gray-200 border-r border-gray-100">
                                 <div className="text-sm font-medium text-gray-900 leading-tight">{p.name}</div>
                                 <div className="text-[10px] text-gray-400 mt-0.5">
                                   {p.unitType === 'ml' ? `${p.unitSize ?? '?'}ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'}g` : 'piece'}

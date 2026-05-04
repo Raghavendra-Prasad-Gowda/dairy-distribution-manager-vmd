@@ -47,9 +47,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
         depositEnabled &&
         enabledCategories.has(category ?? '');
       if (!qualifies) return sum;
-      const litres = unitType === 'ml'
-        ? Number(unitSize) / 1000
-        : Number(unitSize) / 1000; // gram: treat as per-litre-equivalent (same formula)
+      const litres = Number(unitSize) / 1000; // ml and gram both divide by 1000 to get litre-equivalents
       return sum + Number(r.quantity) * litres * depositPerLitre;
     }, 0);
   }
