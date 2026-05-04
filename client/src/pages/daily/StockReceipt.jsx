@@ -580,7 +580,7 @@ export default function StockReceipt() {
                                 </div>
                               </td>
                               <td className="px-4 py-2.5 text-center text-xs tabular-nums text-gray-600 whitespace-nowrap border-b border-gray-200 border-r border-gray-100 bg-slate-50">
-                                ₹{Number(p.costPrice).toFixed(2)}
+                                ₹{parseFloat(Number(p.costPrice).toFixed(4))}
                               </td>
                               <td className="px-4 py-2.5 text-center text-xs tabular-nums text-amber-700 whitespace-nowrap border-b border-gray-200 border-r border-gray-100 bg-amber-50/40">
                                 {calcContainerDisplay(displayQty, p.containerType, p.unitsPerContainer)}
