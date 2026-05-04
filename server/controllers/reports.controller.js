@@ -269,7 +269,7 @@ const depositSummary = asyncHandler(async (req, res) => {
 
       const qty    = Number(r.quantity);
       const litres = qualifies ? qty * (Number(unitSize) / 1000) : 0;
-      const depositAmount = qualifies ? litres * depositPerLitre : 0;
+      const depositAmount = qualifies ? Math.round(litres * depositPerLitre * 100) / 100 : 0; // round per line to nearest paisa
 
       if (qualifies) {
         dailyDeposit += depositAmount;

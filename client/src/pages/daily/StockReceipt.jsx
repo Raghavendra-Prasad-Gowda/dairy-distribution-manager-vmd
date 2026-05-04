@@ -238,7 +238,8 @@ export default function StockReceipt() {
         p.unitSize &&
         enabledCatNames.has(p.category ?? '')
       ) {
-        return sum + getEffectiveQty(p.id) * (Number(p.unitSize) / 1000) * depositPerLitre;
+        const lineDeposit = Math.round(getEffectiveQty(p.id) * (Number(p.unitSize) / 1000) * depositPerLitre * 100) / 100;
+        return sum + lineDeposit;
       }
       return sum;
     }, 0);
