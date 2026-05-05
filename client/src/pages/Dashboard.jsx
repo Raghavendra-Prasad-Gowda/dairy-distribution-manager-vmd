@@ -8,7 +8,7 @@ import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
 
 /** Premium dairy payable card — brand-colored header, large owe amount, breakdown row */
-function DairyPayableCard({ brandId, brandName, opening, stockValue, paid, closing }) {
+function DairyPayableCard({ brandId, brandName, opening, stockValue, depositValue, paid, closing }) {
   const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
   const isOwing = closing > 0;
 
@@ -38,9 +38,9 @@ function DairyPayableCard({ brandId, brandName, opening, stockValue, paid, closi
       {/* Breakdown row */}
       <div className="grid grid-cols-3 border-t border-slate-100 bg-slate-50/60">
         {[
-          { label: 'Opening', value: opening,    cls: 'text-slate-600' },
-          { label: 'Stock',   value: stockValue, cls: 'text-blue-600' },
-          { label: 'Paid',    value: paid,       cls: 'text-emerald-600' },
+          { label: 'Opening', value: opening,                  cls: 'text-slate-600' },
+          { label: 'Bill',    value: stockValue + depositValue, cls: 'text-blue-600' },
+          { label: 'Paid',    value: paid,                      cls: 'text-emerald-600' },
         ].map(({ label, value, cls }, i) => (
           <div key={label} className={`py-2.5 text-center ${i < 2 ? 'border-r border-slate-200' : ''}`}>
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-0.5">{label}</p>
@@ -161,6 +161,7 @@ export default function Dashboard() {
                   brandName={b.brandName}
                   opening={b.openingBalance}
                   stockValue={b.stockValue}
+                  depositValue={b.depositValue ?? 0}
                   paid={b.amountPaid}
                   closing={b.closingBalance}
                 />

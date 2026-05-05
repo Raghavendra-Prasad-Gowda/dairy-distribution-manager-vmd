@@ -5,11 +5,11 @@ import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/da
 import api from '../../api/axios';
 
 function exportCSV(rows, brandName) {
-  const lines = [['Date', 'Opening (₹)', 'Stock Value (₹)', 'Paid (₹)', 'Closing (₹)'].join(',')];
+  const lines = [['Date', 'Opening (₹)', 'Bill (₹)', 'Paid (₹)', 'Closing (₹)'].join(',')];
   rows.forEach((r) => {
     lines.push([
       new Date(r.date).toLocaleDateString('en-IN'),
-      r.openingBalance, r.stockValue, r.amountPaid, r.closingBalance,
+      r.openingBalance, r.stockValue + (r.depositValue ?? 0), r.amountPaid, r.closingBalance,
     ].join(','));
   });
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -97,7 +97,7 @@ function ExpandableRow({ row }) {
           {formatCurrency(row.openingBalance)}
         </td>
         <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
-          {formatCurrency(row.stockValue)}
+          {formatCurrency(row.stockValue + (row.depositValue ?? 0))}
         </td>
         <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.amountPaid)}
