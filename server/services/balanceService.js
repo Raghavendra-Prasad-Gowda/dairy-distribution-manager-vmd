@@ -26,11 +26,12 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
   // Deposit calculation — only when brand has deposit enabled
   const brand = await tx.brand.findUnique({
     where: { id: brandId },
-    select: { depositEnabled: true, depositPerLitre: true },
+    select: { depositEnabled: true, depositPerLitre: true, depositCalcMethod: true },
   });
   let depositValue = 0;
   if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
     const depositPerLitre = Number(brand.depositPerLitre);
+    const calcMethod      = brand.depositCalcMethod ?? 'litre';
     const categories = await tx.category.findMany({
       where: { brandId },
       select: { name: true, depositEnabled: true },
@@ -39,7 +40,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
       categories.filter(c => c.depositEnabled).map(c => c.name)
     );
     depositValue = receipts.reduce((sum, r) => {
-      const { unitType, unitSize, containerType, depositEnabled, category } = r.product;
+      const { unitType, unitSize, containerType, depositEnabled, category, unitsPerContainer } = r.product;
       const qualifies =
         (unitType === 'ml' || unitType === 'gram') &&
         containerType === 'crate' &&
@@ -47,8 +48,15 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
         depositEnabled &&
         enabledCategories.has(category ?? '');
       if (!qualifies) return sum;
-      const litres = Number(unitSize) / 1000; // ml and gram both divide by 1000 to get litre-equivalents
-      const lineDeposit = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100; // round per line to nearest paisa
+      let lineDeposit;
+      if (calcMethod === 'crate' && unitsPerContainer > 0) {
+        const crates         = Math.floor(Number(r.quantity) / unitsPerContainer);
+        const litresPerCrate = unitsPerContainer * (Number(unitSize) / 1000);
+        lineDeposit = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
+      } else {
+        const litres = Number(unitSize) / 1000;
+        lineDeposit  = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100;
+      }
       return sum + lineDeposit;
     }, 0);
   }

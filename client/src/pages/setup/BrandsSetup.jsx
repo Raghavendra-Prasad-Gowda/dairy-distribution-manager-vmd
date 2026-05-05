@@ -151,8 +151,9 @@ export default function BrandsSetup() {
     setSaving(true);
     try {
       await api.put(`/brands/${brand.id}`, {
-        depositEnabled:  brand.depositEnabled,
-        depositPerLitre: parseFloat(brand.depositPerLitre) || 0,
+        depositEnabled:    brand.depositEnabled,
+        depositPerLitre:   parseFloat(brand.depositPerLitre) || 0,
+        depositCalcMethod: brand.depositCalcMethod ?? 'litre',
       });
       notify(`${brand.name} deposit settings saved`, 'success');
     } catch (e) {
@@ -273,6 +274,37 @@ export default function BrandsSetup() {
                     />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">e.g. ₹0.20 means 20 paise per 1000ml (or per 1kg) received</p>
+                </div>
+              )}
+
+              {brand.depositEnabled && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Calculation method
+                  </label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'litre', label: 'Per litre', desc: 'qty × size × rate' },
+                      { value: 'crate', label: 'Per crate', desc: 'full crates only' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => updateBrandField('depositCalcMethod', opt.value)}
+                        className={`flex-1 rounded-xl border-2 px-3 py-2.5 text-left transition ${
+                          (brand.depositCalcMethod ?? 'litre') === opt.value
+                            ? 'border-emerald-500 bg-emerald-50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <p className={`text-sm font-bold ${(brand.depositCalcMethod ?? 'litre') === opt.value ? 'text-emerald-700' : 'text-slate-700'}`}>{opt.label}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                  {(brand.depositCalcMethod ?? 'litre') === 'crate' && (
+                    <p className="text-[11px] text-amber-600 mt-1.5 font-medium">Rounds down to full crates — partial crates not charged</p>
+                  )}
                 </div>
               )}
 
