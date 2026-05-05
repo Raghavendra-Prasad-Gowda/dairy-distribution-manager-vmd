@@ -251,7 +251,7 @@ export default function StockReceipt() {
   const displayTotalAmount = products.reduce((s, p) => s + getDisplayQty(p.id) * Number(p.costPrice), 0);
   const displayTotalCrates = products.reduce((s, p) => {
     const u = getDisplayQty(p.id);
-    return (!p.containerType || !p.unitsPerContainer || !u) ? s : s + u / p.unitsPerContainer;
+    return (!p.containerType || !p.unitsPerContainer || !u) ? s : s + Math.floor(u / p.unitsPerContainer);
   }, 0);
   const displayCrateTypes  = products.filter(p => p.containerType && p.unitsPerContainer && getDisplayQty(p.id) > 0).map(p => p.containerType);
   const crateLabel         = displayCrateTypes.length > 0
@@ -264,7 +264,7 @@ export default function StockReceipt() {
     const amount = products.reduce((s, p) => s + (parseFloat(routeQty[p.id]?.[r.id]) || 0) * Number(p.costPrice), 0);
     const crates = products.reduce((s, p) => {
       const q = parseFloat(routeQty[p.id]?.[r.id]) || 0;
-      return (!p.containerType || !p.unitsPerContainer || !q) ? s : s + q / p.unitsPerContainer;
+      return (!p.containerType || !p.unitsPerContainer || !q) ? s : s + Math.floor(q / p.unitsPerContainer);
     }, 0);
     const crateType = products.find(p => p.containerType && (parseFloat(routeQty[p.id]?.[r.id]) || 0) > 0)?.containerType;
     return { routeId: r.id, routeNumber: r.routeNumber, units, amount, crates, crateType };
@@ -508,7 +508,7 @@ export default function StockReceipt() {
                     const catAmount     = items.reduce((s, p) => s + getDisplayQty(p.id) * Number(p.costPrice), 0);
                     const catFilled     = items.filter(p => getDisplayQty(p.id) > 0).length;
                     const catCrateItems = items.filter(p => p.containerType && p.unitsPerContainer && getDisplayQty(p.id) > 0);
-                    const catCrateCount = catCrateItems.reduce((s, p) => s + getDisplayQty(p.id) / p.unitsPerContainer, 0);
+                    const catCrateCount = catCrateItems.reduce((s, p) => s + Math.floor(getDisplayQty(p.id) / p.unitsPerContainer), 0);
                     const catCrateType  = catCrateItems[0]?.containerType;
                     const catCrateLabel = catCrateType
                       ? `${Number.isInteger(catCrateCount) ? catCrateCount : catCrateCount.toFixed(1)} ${catCrateType.charAt(0).toUpperCase() + catCrateType.slice(1)}${catCrateCount !== 1 ? 's' : ''}`
