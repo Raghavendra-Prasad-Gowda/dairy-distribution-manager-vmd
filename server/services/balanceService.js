@@ -16,7 +16,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
 
   const receipts = await tx.stockReceipt.findMany({
     where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
+    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true, unitsPerContainer: true } } },
   });
   const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
