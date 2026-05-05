@@ -230,6 +230,7 @@ export default function StockReceipt() {
     if (!activeBrand?.depositEnabled || !Number(activeBrand.depositPerLitre)) return 0;
     const depositPerLitre = Number(activeBrand.depositPerLitre);
     const enabledCatNames = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
+    const isCrate = activeBrand.depositCalcMethod === 'crate';
     return products.reduce((sum, p) => {
       if (
         p.depositEnabled &&
@@ -238,7 +239,15 @@ export default function StockReceipt() {
         p.unitSize &&
         enabledCatNames.has(p.category ?? '')
       ) {
-        const lineDeposit = Math.round(getEffectiveQty(p.id) * (Number(p.unitSize) / 1000) * depositPerLitre * 100) / 100;
+        const qty = getEffectiveQty(p.id);
+        let lineDeposit;
+        if (isCrate && p.unitsPerContainer > 0) {
+          const crates         = Math.floor(qty / p.unitsPerContainer);
+          const litresPerCrate = p.unitsPerContainer * (Number(p.unitSize) / 1000);
+          lineDeposit = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
+        } else {
+          lineDeposit = Math.round(qty * (Number(p.unitSize) / 1000) * depositPerLitre * 100) / 100;
+        }
         return sum + lineDeposit;
       }
       return sum;
