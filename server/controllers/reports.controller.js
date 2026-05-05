@@ -271,11 +271,12 @@ const depositSummary = asyncHandler(async (req, res) => {
       if (!qualifies) continue;
 
       const qty = Number(r.quantity);
+      let crates = null;
       let volumeOrWeight;
       let depositAmount;
 
       if (calcMethod === 'crate' && unitsPerContainer > 0) {
-        const crates         = Math.floor(qty / unitsPerContainer);
+        crates               = Math.floor(qty / unitsPerContainer);
         const litresPerCrate = unitsPerContainer * (Number(unitSize) / 1000);
         volumeOrWeight = crates * litresPerCrate;
         depositAmount  = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
@@ -284,19 +285,29 @@ const depositSummary = asyncHandler(async (req, res) => {
         depositAmount  = Math.round(volumeOrWeight * depositPerLitre * 100) / 100;
       }
 
-      dailyDeposit += depositAmount;
-      depositItems.push({
-        productName:    name,
-        category:       category ?? 'Other',
-        unitType,
-        quantity:       qty,
-        unitSize:       Number(unitSize),
-        volumeOrWeight: parseFloat(volumeOrWeight.toFixed(3)),
-        depositPerLitre,
-        depositAmount:  parseFloat(depositAmount.toFixed(4)),
-      });
+      // Accumulate per product (multiple routes → single line)
+      const existing = depositItems.find(i => i.productName === name);
+      if (existing) {
+        existing.quantity      += qty;
+        existing.volumeOrWeight = parseFloat((existing.volumeOrWeight + volumeOrWeight).toFixed(3));
+        existing.depositAmount  = parseFloat((existing.depositAmount + depositAmount).toFixed(4));
+        if (crates !== null) existing.crates += crates;
+      } else {
+        depositItems.push({
+          productName:    name,
+          category:       category ?? 'Other',
+          unitType,
+          quantity:       qty,
+          unitSize:       Number(unitSize),
+          crates,
+          volumeOrWeight: parseFloat(volumeOrWeight.toFixed(3)),
+          depositPerLitre,
+          depositAmount:  parseFloat(depositAmount.toFixed(4)),
+        });
+      }
     }
 
+    dailyDeposit = depositItems.reduce((s, i) => s + i.depositAmount, 0);
     runningTotal += dailyDeposit;
     rows.push({
       date,
@@ -309,8 +320,9 @@ const depositSummary = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      brandName:      brand.name,
-      depositEnabled: brand.depositEnabled,
+      brandName:         brand.name,
+      depositEnabled:    brand.depositEnabled,
+      depositCalcMethod: calcMethod,
       depositPerLitre,
       from,
       to,

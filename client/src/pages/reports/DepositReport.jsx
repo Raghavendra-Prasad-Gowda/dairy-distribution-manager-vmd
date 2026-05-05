@@ -73,7 +73,7 @@ export default function DepositReport() {
           <Droplets size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Deposit Report</h1>
-            <p className="text-emerald-300 text-xs">Crate deposit charged per litre over time</p>
+            <p className="text-emerald-300 text-xs">Crate deposit {data?.depositCalcMethod === 'crate' ? 'per crate' : 'per litre'} over time</p>
           </div>
         </div>
         {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
@@ -154,91 +154,100 @@ export default function DepositReport() {
           ) : (
             <div className="mx-4 mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 560 }}>
-                  <thead className="sticky top-0 z-10">
-                    <tr>
-                      <th className="bg-emerald-700 px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Date</th>
-                      <th className="bg-emerald-700 px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Product</th>
-                      <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Qty</th>
-                      <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">L / kg</th>
-                      <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Deposit</th>
-                      <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Running Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white">
-                    {data.rows.map((row) => {
-                      const dateStr    = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
-                      const hasDeposit = row.dailyDeposit > 0;
+                {(() => {
+                  const isCrate   = data.depositCalcMethod === 'crate';
+                  const volHeader = isCrate ? 'Crates' : 'L / Kg';
+                  return (
+                    <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 520 }}>
+                      <thead className="sticky top-0 z-10">
+                        <tr>
+                          <th className="bg-emerald-700 px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Date</th>
+                          <th className="bg-emerald-700 px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Product</th>
+                          <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Qty</th>
+                          <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{volHeader}</th>
+                          <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Deposit</th>
+                          <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Running Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {data.rows.map((row) => {
+                          const dateStr    = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
+                          const hasDeposit = row.dailyDeposit > 0;
 
-                      if (!hasDeposit) {
-                        return (
-                          <tr key={row.date} className="border-b border-slate-100">
-                            <td className="px-3 py-2.5 border-r border-slate-100">
-                              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">{dateStr}</span>
-                            </td>
-                            <td colSpan={4} className="px-3 py-2.5 border-r border-slate-100">
-                              <span className="text-xs text-slate-300 italic">No qualifying receipts</span>
-                            </td>
-                            <td className="px-3 py-2.5 text-right">
-                              <span className="text-xs tabular-nums text-slate-400">{formatCurrency(row.runningTotal)}</span>
-                            </td>
-                          </tr>
-                        );
-                      }
+                          if (!hasDeposit) {
+                            return (
+                              <tr key={row.date} className="border-b border-slate-100">
+                                <td className="px-3 py-2.5 border-r border-slate-100">
+                                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">{dateStr}</span>
+                                </td>
+                                <td colSpan={4} className="px-3 py-2.5 border-r border-slate-100">
+                                  <span className="text-xs text-slate-300 italic">No qualifying receipts</span>
+                                </td>
+                                <td className="px-3 py-2.5 text-right">
+                                  <span className="text-xs tabular-nums text-slate-400">{formatCurrency(row.runningTotal)}</span>
+                                </td>
+                              </tr>
+                            );
+                          }
 
-                      return row.items.map((it, j) => {
-                        const unit    = it.unitType === 'gram' ? 'kg' : 'L';
-                        const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
-                        const isFirst = j === 0;
-                        const isLast  = j === row.items.length - 1;
+                          return row.items.map((it, j) => {
+                            const unit    = it.unitType === 'gram' ? 'kg' : 'L';
+                            const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
+                            const isFirst = j === 0;
+                            const isLast  = j === row.items.length - 1;
 
-                        return (
-                          <tr key={`${row.date}-${j}`} className={`border-b ${isLast ? 'border-emerald-100' : 'border-slate-50'} hover:bg-emerald-50/40 transition-colors`}>
-                            {/* Date — only on first product row, spans vertically via styling */}
-                            <td className={`px-3 py-2 border-r border-slate-100 whitespace-nowrap align-top ${isFirst ? '' : 'border-t-0'}`}>
-                              {isFirst && (
-                                <span className="text-xs font-bold text-slate-700">{dateStr}</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 border-r border-slate-100">
-                              <span className="text-xs font-semibold text-slate-800">{it.productName}</span>
-                              <span className="ml-1.5 text-[10px] text-slate-400">{it.category} · {sizeStr}</span>
-                            </td>
-                            <td className="px-3 py-2 text-right border-r border-slate-100">
-                              <span className="text-xs tabular-nums text-slate-600">{it.quantity}</span>
-                            </td>
-                            <td className="px-3 py-2 text-right border-r border-slate-100">
-                              <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>
-                            </td>
-                            <td className="px-3 py-2 text-right border-r border-slate-100">
-                              <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(it.depositAmount)}</span>
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              {isLast ? (
-                                <span className="text-sm tabular-nums font-bold text-slate-700">{formatCurrency(row.runningTotal)}</span>
-                              ) : (
-                                <span className="text-xs text-slate-200">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={4} className="bg-emerald-800 px-3 py-3 text-xs font-bold text-white border-r border-emerald-700">
-                        TOTAL — {daysWithDeposit} days with deposit
-                      </td>
-                      <td className="bg-emerald-800 px-3 py-3 text-right border-r border-emerald-700">
-                        <span className="text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(data.totalDeposit)}</span>
-                      </td>
-                      <td className="bg-emerald-800 px-3 py-3 text-right">
-                        <span className="text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(data.totalDeposit)}</span>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                            const volCell = isCrate
+                              ? <span className="text-xs tabular-nums font-medium text-slate-700">{it.crates ?? '—'}</span>
+                              : <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>;
+
+                            return (
+                              <tr key={`${row.date}-${j}`} className={`border-b ${isLast ? 'border-emerald-100' : 'border-slate-50'} hover:bg-emerald-50/40 transition-colors`}>
+                                <td className={`px-3 py-2 border-r border-slate-100 whitespace-nowrap align-top ${isFirst ? '' : 'border-t-0'}`}>
+                                  {isFirst && (
+                                    <span className="text-xs font-bold text-slate-700">{dateStr}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 border-r border-slate-100">
+                                  <span className="text-xs font-semibold text-slate-800">{it.productName}</span>
+                                  <span className="ml-1.5 text-[10px] text-slate-400">{it.category} · {sizeStr}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right border-r border-slate-100">
+                                  <span className="text-xs tabular-nums text-slate-600">{it.quantity}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right border-r border-slate-100">
+                                  {volCell}
+                                </td>
+                                <td className="px-3 py-2 text-right border-r border-slate-100">
+                                  <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(it.depositAmount)}</span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  {isLast ? (
+                                    <span className="text-sm tabular-nums font-bold text-slate-700">{formatCurrency(row.runningTotal)}</span>
+                                  ) : (
+                                    <span className="text-xs text-slate-200">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={4} className="bg-emerald-800 px-3 py-3 text-xs font-bold text-white border-r border-emerald-700">
+                            TOTAL — {daysWithDeposit} days with deposit
+                          </td>
+                          <td className="bg-emerald-800 px-3 py-3 text-right border-r border-emerald-700">
+                            <span className="text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(data.totalDeposit)}</span>
+                          </td>
+                          <td className="bg-emerald-800 px-3 py-3 text-right">
+                            <span className="text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(data.totalDeposit)}</span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  );
+                })()}
               </div>
             </div>
           )}
