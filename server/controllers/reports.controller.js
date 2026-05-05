@@ -223,7 +223,7 @@ const depositSummary = asyncHandler(async (req, res) => {
   const [brand, categories, receipts] = await Promise.all([
     prisma.brand.findUnique({
       where:  { id },
-      select: { name: true, depositEnabled: true, depositPerLitre: true },
+      select: { name: true, depositEnabled: true, depositPerLitre: true, depositCalcMethod: true },
     }),
     prisma.category.findMany({
       where:  { brandId: id },
@@ -231,7 +231,7 @@ const depositSummary = asyncHandler(async (req, res) => {
     }),
     prisma.stockReceipt.findMany({
       where:   { brandId: id, receiptDate: { gte: fromDate, lte: toDate } },
-      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true } } },
+      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true, unitsPerContainer: true } } },
       orderBy: { receiptDate: 'asc' },
     }),
   ]);
@@ -239,6 +239,7 @@ const depositSummary = asyncHandler(async (req, res) => {
   if (!brand) throw new AppError('Brand not found', 404);
 
   const depositPerLitre   = Number(brand.depositPerLitre ?? 0);
+  const calcMethod        = brand.depositCalcMethod ?? 'litre';
   const enabledCategories = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
 
   // Group by date
@@ -257,7 +258,7 @@ const depositSummary = asyncHandler(async (req, res) => {
     let dailyDeposit = 0;
 
     for (const r of items) {
-      const { name, category, unitType, unitSize, containerType, depositEnabled } = r.product;
+      const { name, category, unitType, unitSize, containerType, depositEnabled, unitsPerContainer } = r.product;
       const qualifies =
         brand.depositEnabled &&
         depositEnabled &&
@@ -267,23 +268,33 @@ const depositSummary = asyncHandler(async (req, res) => {
         depositPerLitre > 0 &&
         enabledCategories.has(category ?? '');
 
-      const qty    = Number(r.quantity);
-      const litres = qualifies ? qty * (Number(unitSize) / 1000) : 0;
-      const depositAmount = qualifies ? Math.round(litres * depositPerLitre * 100) / 100 : 0; // round per line to nearest paisa
+      if (!qualifies) continue;
 
-      if (qualifies) {
-        dailyDeposit += depositAmount;
-        depositItems.push({
-          productName:    name,
-          category:       category ?? 'Other',
-          unitType,
-          quantity:       qty,
-          unitSize:       Number(unitSize),
-          volumeOrWeight: parseFloat(litres.toFixed(3)), // litres for ml; kg for gram
-          depositPerLitre,
-          depositAmount:  parseFloat(depositAmount.toFixed(4)),
-        });
+      const qty = Number(r.quantity);
+      let volumeOrWeight;
+      let depositAmount;
+
+      if (calcMethod === 'crate' && unitsPerContainer > 0) {
+        const crates         = Math.floor(qty / unitsPerContainer);
+        const litresPerCrate = unitsPerContainer * (Number(unitSize) / 1000);
+        volumeOrWeight = crates * litresPerCrate;
+        depositAmount  = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
+      } else {
+        volumeOrWeight = qty * (Number(unitSize) / 1000);
+        depositAmount  = Math.round(volumeOrWeight * depositPerLitre * 100) / 100;
       }
+
+      dailyDeposit += depositAmount;
+      depositItems.push({
+        productName:    name,
+        category:       category ?? 'Other',
+        unitType,
+        quantity:       qty,
+        unitSize:       Number(unitSize),
+        volumeOrWeight: parseFloat(volumeOrWeight.toFixed(3)),
+        depositPerLitre,
+        depositAmount:  parseFloat(depositAmount.toFixed(4)),
+      });
     }
 
     runningTotal += dailyDeposit;
