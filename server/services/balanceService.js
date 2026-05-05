@@ -41,6 +41,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
     const enabledCategories = new Set(
       categories.filter(c => c.depositEnabled).map(c => c.name)
     );
+    const lineItems = [];
     depositValue = receipts.reduce((sum, r) => {
       const { unitType, unitSize, containerType, depositEnabled, category, unitsPerContainer } = r.product;
       const qualifies =
@@ -55,12 +56,15 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
         const crates         = Math.floor(Number(r.quantity) / unitsPerContainer);
         const litresPerCrate = unitsPerContainer * (Number(unitSize) / 1000);
         lineDeposit = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
+        lineItems.push({ qty: Number(r.quantity), unitsPerContainer, crates, lineDeposit });
       } else {
         const litres = Number(unitSize) / 1000;
         lineDeposit  = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100;
+        lineItems.push({ qty: Number(r.quantity), litres, lineDeposit });
       }
       return sum + lineDeposit;
     }, 0);
+    logger.info('deposit-lines', { brandId, balanceDate, depositValue, lineItems });
   }
 
   const paymentAgg = await tx.dairyPayment.aggregate({
