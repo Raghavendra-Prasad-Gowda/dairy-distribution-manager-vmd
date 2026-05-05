@@ -190,46 +190,68 @@ export default function DepositReport() {
                             );
                           }
 
-                          return row.items.map((it, j) => {
-                            const unit    = it.unitType === 'gram' ? 'kg' : 'L';
-                            const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
-                            const isFirst = j === 0;
-                            const isLast  = j === row.items.length - 1;
+                          // Group items by category (order preserved from backend sort)
+                          const catGroups = [];
+                          const catSeen = new Map();
+                          for (const it of row.items) {
+                            if (!catSeen.has(it.category)) {
+                              catSeen.set(it.category, []);
+                              catGroups.push({ category: it.category, items: catSeen.get(it.category) });
+                            }
+                            catSeen.get(it.category).push(it);
+                          }
 
-                            const volCell = isCrate
-                              ? <span className="text-xs tabular-nums font-medium text-slate-700">{it.crates ?? '—'}</span>
-                              : <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>;
-
-                            return (
-                              <tr key={`${row.date}-${j}`} className={`border-b ${isLast ? 'border-emerald-100' : 'border-slate-50'} hover:bg-emerald-50/40 transition-colors`}>
-                                <td className={`px-3 py-2 border-r border-slate-100 whitespace-nowrap align-top ${isFirst ? '' : 'border-t-0'}`}>
-                                  {isFirst && (
+                          let globalIdx = 0;
+                          const totalItems = row.items.length;
+                          return catGroups.map(({ category, items: catItems }) => (
+                            [
+                              <tr key={`${row.date}-cat-${category}`} className="border-b border-slate-50">
+                                <td className={`px-3 py-1 border-r border-slate-100 whitespace-nowrap align-top`}>
+                                  {globalIdx === 0 && (
                                     <span className="text-xs font-bold text-slate-700">{dateStr}</span>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 border-r border-slate-100">
-                                  <span className="text-xs font-semibold text-slate-800">{it.productName}</span>
-                                  <span className="ml-1.5 text-[10px] text-slate-400">{it.category} · {sizeStr}</span>
+                                <td colSpan={5} className="px-3 py-1 bg-slate-50">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{category}</span>
                                 </td>
-                                <td className="px-3 py-2 text-right border-r border-slate-100">
-                                  <span className="text-xs tabular-nums text-slate-600">{it.quantity}</span>
-                                </td>
-                                <td className="px-3 py-2 text-right border-r border-slate-100">
-                                  {volCell}
-                                </td>
-                                <td className="px-3 py-2 text-right border-r border-slate-100">
-                                  <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(it.depositAmount)}</span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  {isLast ? (
-                                    <span className="text-sm tabular-nums font-bold text-slate-700">{formatCurrency(row.runningTotal)}</span>
-                                  ) : (
-                                    <span className="text-xs text-slate-200">—</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          });
+                              </tr>,
+                              ...catItems.map((it) => {
+                                const localIdx = globalIdx++;
+                                const isLast   = localIdx === totalItems - 1;
+                                const unit     = it.unitType === 'gram' ? 'kg' : 'L';
+                                const sizeStr  = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
+                                const volCell  = isCrate
+                                  ? <span className="text-xs tabular-nums font-medium text-slate-700">{it.crates ?? '—'}</span>
+                                  : <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>;
+
+                                return (
+                                  <tr key={`${row.date}-${localIdx}`} className={`border-b ${isLast ? 'border-emerald-100' : 'border-slate-50'} hover:bg-emerald-50/40 transition-colors`}>
+                                    <td className="px-3 py-2 border-r border-slate-100 whitespace-nowrap" />
+                                    <td className="px-3 py-2 border-r border-slate-100">
+                                      <span className="text-xs font-semibold text-slate-800">{it.productName}</span>
+                                      <span className="ml-1.5 text-[10px] text-slate-400">{sizeStr}</span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right border-r border-slate-100">
+                                      <span className="text-xs tabular-nums text-slate-600">{it.quantity}</span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right border-r border-slate-100">
+                                      {volCell}
+                                    </td>
+                                    <td className="px-3 py-2 text-right border-r border-slate-100">
+                                      <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(it.depositAmount)}</span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      {isLast ? (
+                                        <span className="text-sm tabular-nums font-bold text-slate-700">{formatCurrency(row.runningTotal)}</span>
+                                      ) : (
+                                        <span className="text-xs text-slate-200">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              }),
+                            ]
+                          ));
                         })}
                       </tbody>
                       <tfoot>

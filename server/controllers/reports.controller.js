@@ -227,11 +227,11 @@ const depositSummary = asyncHandler(async (req, res) => {
     }),
     prisma.category.findMany({
       where:  { brandId: id },
-      select: { name: true, depositEnabled: true },
+      select: { name: true, depositEnabled: true, displayOrder: true },
     }),
     prisma.stockReceipt.findMany({
       where:   { brandId: id, receiptDate: { gte: fromDate, lte: toDate } },
-      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true, unitsPerContainer: true } } },
+      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true, unitsPerContainer: true, displayOrder: true } } },
       orderBy: { receiptDate: 'asc' },
     }),
   ]);
@@ -241,6 +241,7 @@ const depositSummary = asyncHandler(async (req, res) => {
   const depositPerLitre   = Number(brand.depositPerLitre ?? 0);
   const calcMethod        = brand.depositCalcMethod ?? 'litre';
   const enabledCategories = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
+  const categoryOrderMap  = new Map(categories.map(c => [c.name, c.displayOrder ?? 0]));
 
   // Group by date
   const byDate = new Map();
@@ -258,7 +259,7 @@ const depositSummary = asyncHandler(async (req, res) => {
     let dailyDeposit = 0;
 
     for (const r of items) {
-      const { name, category, unitType, unitSize, containerType, depositEnabled, unitsPerContainer } = r.product;
+      const { name, category, unitType, unitSize, containerType, depositEnabled, unitsPerContainer, displayOrder } = r.product;
       const qualifies =
         brand.depositEnabled &&
         depositEnabled &&
@@ -294,18 +295,26 @@ const depositSummary = asyncHandler(async (req, res) => {
         if (crates !== null) existing.crates += crates;
       } else {
         depositItems.push({
-          productName:    name,
-          category:       category ?? 'Other',
+          productName:          name,
+          category:             category ?? 'Other',
+          categoryDisplayOrder: categoryOrderMap.get(category ?? '') ?? 9999,
+          productDisplayOrder:  displayOrder ?? 0,
           unitType,
-          quantity:       qty,
-          unitSize:       Number(unitSize),
+          quantity:             qty,
+          unitSize:             Number(unitSize),
           crates,
-          volumeOrWeight: parseFloat(volumeOrWeight.toFixed(3)),
+          volumeOrWeight:       parseFloat(volumeOrWeight.toFixed(3)),
           depositPerLitre,
-          depositAmount:  parseFloat(depositAmount.toFixed(4)),
+          depositAmount:        parseFloat(depositAmount.toFixed(4)),
         });
       }
     }
+
+    depositItems.sort((a, b) =>
+      a.categoryDisplayOrder !== b.categoryDisplayOrder
+        ? a.categoryDisplayOrder - b.categoryDisplayOrder
+        : a.productDisplayOrder - b.productDisplayOrder
+    );
 
     dailyDeposit = depositItems.reduce((s, i) => s + i.depositAmount, 0);
     runningTotal += dailyDeposit;
