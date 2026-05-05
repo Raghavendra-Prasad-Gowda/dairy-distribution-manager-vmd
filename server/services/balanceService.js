@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const logger = require('../config/logger');
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
   if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
     const depositPerLitre = Number(brand.depositPerLitre);
     const calcMethod      = brand.depositCalcMethod ?? 'litre';
+    logger.info('deposit-calc', { brandId, balanceDate, calcMethod, depositCalcMethodRaw: brand.depositCalcMethod });
     const categories = await tx.category.findMany({
       where: { brandId },
       select: { name: true, depositEnabled: true },
