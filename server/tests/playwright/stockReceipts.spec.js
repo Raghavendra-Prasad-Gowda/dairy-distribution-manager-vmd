@@ -207,4 +207,85 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('returns 400 when unitPrice is negative', async ({ request }) => {
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, date: '2026-04-30', items: [{ productId: 1, quantity: 100, unitPrice: -5 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('triggers retroactive balance cascade for subsequent dates after bulk create', async ({ request }) => {
+    // Posting a receipt retroactively (2026-04-28) when balances for later dates already exist
+    // Expected: balanceService recalculates 2026-04-28 then cascades to 2026-04-29 and 2026-04-30
+    const recalcDates = [];
+
+    // The $transaction for deleteMany+create returns []
+    ctx.mockPrisma.$transaction.mockImplementation(async (arg) => {
+      if (typeof arg === 'function') return arg(ctx.mockPrisma);
+      return [];
+    });
+
+    // Cascade: two subsequent balance records exist
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([
+      { balanceDate: new Date('2026-04-29') },
+      { balanceDate: new Date('2026-04-30') },
+    ]);
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      { quantity: 100, unitPrice: 22, product: { unitType: 'ml', unitSize: 500, containerType: 'box', category: 'Milk', depositEnabled: false } },
+    ]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: null } };
+    });
+    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+    ctx.mockPrisma.stockReceipt.deleteMany.mockResolvedValue({ count: 0 });
+    ctx.mockPrisma.stockReceipt.create.mockResolvedValue(RECEIPT);
+
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, date: '2026-04-28', items: [{ productId: 1, quantity: 100, unitPrice: 22 }] },
+    });
+
+    expect(res.status()).toBe(200);
+    // The retroactive date AND both subsequent dates should all be recalculated
+    expect(recalcDates).toContain('2026-04-28');
+    expect(recalcDates).toContain('2026-04-29');
+    expect(recalcDates).toContain('2026-04-30');
+  });
+
+  test('items with zero quantity are filtered out and not inserted', async ({ request }) => {
+    // Mixed: qty=0 (should be deleted/ignored) and qty>0 (should be inserted)
+    let createCount = 0;
+    ctx.mockPrisma.stockReceipt.deleteMany.mockResolvedValue({ count: 1 });
+    ctx.mockPrisma.stockReceipt.create.mockImplementation(async () => {
+      createCount++;
+      return RECEIPT;
+    });
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        brandId: 1, date: '2026-04-30',
+        items: [
+          { productId: 1, quantity: 0, unitPrice: 22 },  // should be excluded
+          { productId: 2, quantity: 50, unitPrice: 25 },  // should be inserted
+        ],
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // Only 1 non-zero item saved
+    expect(body.data.saved).toBe(1);
+  });
 });

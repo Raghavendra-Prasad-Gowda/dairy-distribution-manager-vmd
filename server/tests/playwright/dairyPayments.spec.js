@@ -69,6 +69,38 @@ test.describe('POST /api/v1/dairy-payments', () => {
   });
 });
 
+  test('triggers balance recalculation on create (cascade runs)', async ({ request }) => {
+    // Verify that after creating a payment, _calcDairyBalance runs for that date
+    // and cascades forward to any subsequent stored balance records.
+    const recalcDates = [];
+    ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
+
+    // Simulate two subsequent balance records that should be cascaded
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);  // no prior balance
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([
+      { balanceDate: new Date('2026-05-01') },
+      { balanceDate: new Date('2026-05-02') },
+    ]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: 5000 } };
+    });
+    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/dairy-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, paymentDate: '2026-04-30', amount: 5000 },
+    });
+
+    expect(res.status()).toBe(201);
+    // Payment date + both subsequent dates should all be recalculated
+    expect(recalcDates).toContain('2026-04-30');
+    expect(recalcDates).toContain('2026-05-01');
+    expect(recalcDates).toContain('2026-05-02');
+  });
+
 // ─── GET /api/v1/dairy-payments ───────────────────────────────────────────────
 
 test.describe('GET /api/v1/dairy-payments', () => {
@@ -100,6 +132,38 @@ test.describe('GET /api/v1/dairy-payments', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
+  });
+
+  test('returns 200 filtered by brandId', async ({ request }) => {
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([PAYMENT]);
+
+    const res = await request.get('/api/v1/dairy-payments?brandId=1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toHaveProperty('brandId', 1);
+  });
+
+  test('returns 400 when brandId filter is non-numeric', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-payments?brandId=abc', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 filtered by date range', async ({ request }) => {
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([PAYMENT]);
+
+    const res = await request.get('/api/v1/dairy-payments?from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
   });
 });
 
@@ -163,6 +227,62 @@ test.describe('PUT /api/v1/dairy-payments/:id', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('triggers recalculation for both old and new date when date changes', async ({ request }) => {
+    // Payment originally on 2026-04-29, being moved to 2026-04-30
+    const existingOnOldDate = { ...PAYMENT, paymentDate: new Date('2026-04-29'), brandId: 1 };
+    const updated = { ...PAYMENT, amount: 6000, paymentDate: new Date('2026-04-30') };
+
+    const recalcDates = [];
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(existingOnOldDate);
+    ctx.mockPrisma.dairyPayment.update.mockResolvedValue(updated);
+
+    // Track which dates balanceService recalculates for
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: null } };
+    });
+    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 6000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+    // Both old date and new date must be recalculated when date changes
+    expect(recalcDates).toContain('2026-04-29');
+    expect(recalcDates).toContain('2026-04-30');
+  });
+
+  test('triggers recalculation once when date does not change', async ({ request }) => {
+    const recalcDates = [];
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.dairyPayment.update.mockResolvedValue({ ...PAYMENT, amount: 6000 });
+
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: null } };
+    });
+    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 6000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+    // Same date — recalculated exactly once
+    expect(recalcDates.filter(d => d === '2026-04-30')).toHaveLength(1);
+  });
 });
 
 // ─── DELETE /api/v1/dairy-payments/:id ───────────────────────────────────────
@@ -202,5 +322,37 @@ test.describe('DELETE /api/v1/dairy-payments/:id', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('triggers balance cascade for subsequent dates after delete', async ({ request }) => {
+    // Deleting a payment should recalculate the balance on that date AND cascade forward
+    const recalcDates = [];
+
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.dairyPayment.delete.mockResolvedValue(PAYMENT);
+
+    // Two subsequent balance records
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([
+      { balanceDate: new Date('2026-05-01') },
+      { balanceDate: new Date('2026-05-02') },
+    ]);
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: null } };
+    });
+    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+
+    const res = await request.delete('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    // Deleted date + both subsequent cascade dates
+    expect(recalcDates).toContain('2026-04-30');
+    expect(recalcDates).toContain('2026-05-01');
+    expect(recalcDates).toContain('2026-05-02');
   });
 });

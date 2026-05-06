@@ -218,4 +218,144 @@ test.describe('GET /api/v1/dairy-balance/:brandId', () => {
     const body = await res.json();
     expect(body.data.depositValue).toBe(0);
   });
+
+  test('opening balance comes from prior date closing balance', async ({ request }) => {
+    // Prior balance has closingBalance=8000; today has no receipts or payments
+    // → openingBalance should be 8000, closingBalance should be 8000
+    const priorBalance = { closingBalance: 8000 };
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null); // no record for today
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(priorBalance);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-05-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.openingBalance).toBe(8000);
+    expect(body.data.stockValue).toBe(0);
+    expect(body.data.amountPaid).toBe(0);
+    expect(body.data.closingBalance).toBe(8000);
+  });
+
+  test('formula: closingBalance = openingBalance + stockValue + depositValue - amountPaid', async ({ request }) => {
+    // opening=1000, stock=5000, deposit=100, paid=2000 → closing=4100
+    const savedBalance = {
+      id: 1, brandId: 1,
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 1000, stockValue: 5000, depositValue: 100,
+      amountPaid: 2000, closingBalance: 4100,
+    };
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ id: 1, name: 'Nandini' });
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(savedBalance);
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.openingBalance).toBe(1000);
+    expect(body.data.stockValue).toBe(5000);
+    expect(body.data.depositValue).toBe(100);
+    expect(body.data.amountPaid).toBe(2000);
+    expect(body.data.closingBalance).toBe(4100);
+    // Verify the formula explicitly
+    const { openingBalance, stockValue, depositValue, amountPaid, closingBalance } = body.data;
+    expect(closingBalance).toBe(openingBalance + stockValue + depositValue - amountPaid);
+  });
+});
+
+// ─── GET /api/v1/dairy-balance/route-breakdown ───────────────────────────────
+
+test.describe('GET /api/v1/dairy-balance/route-breakdown', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01&to=2026-04-30');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when brandId is missing', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when from is missing', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when to is missing', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when from is after to', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-30&to=2026-04-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 for non-numeric brandId', async ({ request }) => {
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=abc&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 with route breakdown data', async ({ request }) => {
+    // $queryRaw returns rows with BigInt/Decimal-like values (mocked as plain numbers here)
+    ctx.mockPrisma.$queryRaw.mockResolvedValue([
+      { routeId: 1n, routeNumber: 'R1', displayOrder: 1n, totalAmount: '25000.00', totalQuantity: '500.00' },
+      { routeId: 2n, routeNumber: 'R2', displayOrder: 2n, totalAmount: '18000.00', totalQuantity: '300.00' },
+    ]);
+
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveLength(2);
+    expect(body.data[0]).toHaveProperty('routeId', 1);
+    expect(body.data[0]).toHaveProperty('routeNumber', 'R1');
+    expect(body.data[0]).toHaveProperty('totalAmount', 25000);
+    expect(body.data[0]).toHaveProperty('totalQuantity', 500);
+  });
+
+  test('returns 200 with empty array when no receipts in range', async ({ request }) => {
+    ctx.mockPrisma.$queryRaw.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(0);
+  });
+
+  test('uses "General" label for routeId=0 when no route number', async ({ request }) => {
+    ctx.mockPrisma.$queryRaw.mockResolvedValue([
+      { routeId: 0n, routeNumber: null, displayOrder: 0n, totalAmount: '5000.00', totalQuantity: '100.00' },
+    ]);
+
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('routeNumber', 'General');
+  });
 });

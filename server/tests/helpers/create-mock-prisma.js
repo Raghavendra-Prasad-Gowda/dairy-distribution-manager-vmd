@@ -127,6 +127,7 @@ function createMockPrisma() {
       findMany:   mockFn(),
       findUnique: mockFn(),
       create:     mockFn(),
+      update:     mockFn(),
       delete:     mockFn(),
       aggregate:  mockFn(),
     },

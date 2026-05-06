@@ -124,4 +124,41 @@ test.describe('GET /api/v1/salesperson-balance/:id', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('opening balance comes from prior date closing balance', async ({ request }) => {
+    // Prior balance closingBalance=2500; today has no dispatches or payments
+    // → openingBalance should be 2500, closingBalance should be 2500
+    const priorBalance = { closingBalance: 2500 };
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(null); // no record for today
+    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(priorBalance);
+    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
+    ctx.mockPrisma.salespersonPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+
+    const res = await request.get('/api/v1/salesperson-balance/1?date=2026-05-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.openingBalance).toBe(2500);
+    expect(body.data.stockGiven).toBe(0);
+    expect(body.data.amountPaid).toBe(0);
+    expect(body.data.closingBalance).toBe(2500);
+  });
+
+  test('formula: closingBalance = openingBalance + stockGiven - amountPaid', async ({ request }) => {
+    // openingBalance=500, stockGiven=3000, amountPaid=1500 → closingBalance=2000
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(BALANCE);
+
+    const res = await request.get('/api/v1/salesperson-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const { openingBalance, stockGiven, amountPaid, closingBalance } = body.data;
+    expect(closingBalance).toBe(openingBalance + stockGiven - amountPaid);
+  });
 });

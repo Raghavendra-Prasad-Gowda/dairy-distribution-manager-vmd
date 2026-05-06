@@ -142,6 +142,79 @@ test.describe('POST /api/v1/dispatches', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('returns 400 when dispatchDate format is invalid', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '30-04-2026', items: [{ productId: 1, quantity: 5, unitPrice: 40 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 when updating an existing dispatch for the same salesperson+date', async ({ request }) => {
+    mockStockAvailable(ctx.mockPrisma);
+
+    // The controller calls findUnique twice: once to check for existing, once after update.
+    // Use a simple counter to return different values on successive calls.
+    let findUniqueCallCount = 0;
+    const updatedDispatch = { ...DISPATCH, totalAmount: 400, items: [] };
+    ctx.mockPrisma.stockDispatch.findUnique.mockImplementation(async () => {
+      findUniqueCallCount++;
+      return findUniqueCallCount === 1 ? DISPATCH : updatedDispatch;
+    });
+
+    ctx.mockPrisma.stockDispatchItem.deleteMany.mockResolvedValue({ count: 1 });
+    ctx.mockPrisma.stockDispatch.update.mockResolvedValue({ ...DISPATCH, totalAmount: 400 });
+    ctx.mockPrisma.stockDispatchItem.createMany.mockResolvedValue({ count: 1 });
+
+    // Set up balance recalc mocks
+    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: 400 } });
+    ctx.mockPrisma.salespersonPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    ctx.mockPrisma.salespersonBalance.upsert.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [{ productId: 1, quantity: 10, unitPrice: 40 }] },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('triggers balance cascade for subsequent dates after dispatch create', async ({ request }) => {
+    const recalcDates = [];
+
+    mockStockAvailable(ctx.mockPrisma);
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null); // no existing
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue(DISPATCH);
+
+    // Two subsequent balance records should cascade
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([
+      { balanceDate: new Date('2026-05-01') },
+      { balanceDate: new Date('2026-05-02') },
+    ]);
+    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
+    ctx.mockPrisma.salespersonPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: null } };
+    });
+    ctx.mockPrisma.salespersonBalance.upsert.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [{ productId: 1, quantity: 5, unitPrice: 40 }] },
+    });
+
+    expect(res.status()).toBe(201);
+    // The dispatch date + both subsequent cascade dates
+    expect(recalcDates).toContain('2026-04-30');
+    expect(recalcDates).toContain('2026-05-01');
+    expect(recalcDates).toContain('2026-05-02');
+  });
 });
 
 // ─── DELETE /api/v1/dispatches/:id ───────────────────────────────────────────
@@ -181,5 +254,84 @@ test.describe('DELETE /api/v1/dispatches/:id', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('triggers balance cascade for subsequent dates after dispatch delete', async ({ request }) => {
+    const recalcDates = [];
+
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH);
+    ctx.mockPrisma.stockDispatch.delete.mockResolvedValue(DISPATCH);
+
+    // Two subsequent balance records should cascade
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([
+      { balanceDate: new Date('2026-05-01') },
+      { balanceDate: new Date('2026-05-02') },
+    ]);
+    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
+    ctx.mockPrisma.salespersonPayment.aggregate.mockImplementation(async ({ where }) => {
+      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+      return { _sum: { amount: null } };
+    });
+    ctx.mockPrisma.salespersonBalance.upsert.mockResolvedValue({});
+
+    const res = await request.delete('/api/v1/dispatches/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    // Dispatch date + both subsequent cascade dates
+    expect(recalcDates).toContain('2026-04-30');
+    expect(recalcDates).toContain('2026-05-01');
+    expect(recalcDates).toContain('2026-05-02');
+  });
+});
+
+// ─── GET /api/v1/dispatches with filters ─────────────────────────────────────
+
+test.describe('GET /api/v1/dispatches with query filters', () => {
+  test('returns 200 filtered by date', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([DISPATCH]);
+
+    const res = await request.get('/api/v1/dispatches?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveLength(1);
+  });
+
+  test('returns 200 filtered by salespersonId', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([DISPATCH]);
+
+    const res = await request.get('/api/v1/dispatches?salespersonId=1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveLength(1);
+  });
+
+  test('returns 400 when salespersonId filter is non-numeric', async ({ request }) => {
+    const res = await request.get('/api/v1/dispatches?salespersonId=abc', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 with empty list when no dispatches', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(0);
   });
 });
