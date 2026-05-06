@@ -223,7 +223,7 @@ const depositSummary = asyncHandler(async (req, res) => {
   const [brand, categories, receipts] = await Promise.all([
     prisma.brand.findUnique({
       where:  { id },
-      select: { name: true, depositEnabled: true, depositPerLitre: true, depositCalcMethod: true },
+      select: { name: true, depositEnabled: true, depositPerLitre: true },
     }),
     prisma.category.findMany({
       where:  { brandId: id },
@@ -231,7 +231,7 @@ const depositSummary = asyncHandler(async (req, res) => {
     }),
     prisma.stockReceipt.findMany({
       where:   { brandId: id, receiptDate: { gte: fromDate, lte: toDate } },
-      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true, unitsPerContainer: true, displayOrder: true } } },
+      include: { product: { select: { name: true, category: true, unitType: true, unitSize: true, containerType: true, depositEnabled: true, displayOrder: true } } },
       orderBy: { receiptDate: 'asc' },
     }),
   ]);
@@ -239,7 +239,6 @@ const depositSummary = asyncHandler(async (req, res) => {
   if (!brand) throw new AppError('Brand not found', 404);
 
   const depositPerLitre   = Number(brand.depositPerLitre ?? 0);
-  const calcMethod        = brand.depositCalcMethod ?? 'litre';
   const enabledCategories = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
   const categoryOrderMap  = new Map(categories.map(c => [c.name, c.displayOrder ?? 0]));
 
@@ -259,7 +258,7 @@ const depositSummary = asyncHandler(async (req, res) => {
     let dailyDeposit = 0;
 
     for (const r of items) {
-      const { name, category, unitType, unitSize, containerType, depositEnabled, unitsPerContainer, displayOrder } = r.product;
+      const { name, category, unitType, unitSize, containerType, depositEnabled, displayOrder } = r.product;
       const qualifies =
         brand.depositEnabled &&
         depositEnabled &&
@@ -271,20 +270,9 @@ const depositSummary = asyncHandler(async (req, res) => {
 
       if (!qualifies) continue;
 
-      const qty = Number(r.quantity);
-      let crates = null;
-      let volumeOrWeight;
-      let depositAmount;
-
-      if (calcMethod === 'crate' && unitsPerContainer > 0) {
-        crates               = Math.floor(qty / unitsPerContainer);
-        const litresPerCrate = unitsPerContainer * (Number(unitSize) / 1000);
-        volumeOrWeight = crates * litresPerCrate;
-        depositAmount  = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
-      } else {
-        volumeOrWeight = qty * (Number(unitSize) / 1000);
-        depositAmount  = Math.round(volumeOrWeight * depositPerLitre * 100) / 100;
-      }
+      const qty          = Number(r.quantity);
+      const volumeOrWeight = qty * (Number(unitSize) / 1000);
+      const depositAmount  = Math.round(volumeOrWeight * depositPerLitre * 100) / 100;
 
       // Accumulate per product (multiple routes → single line)
       const existing = depositItems.find(i => i.productName === name);
@@ -292,7 +280,6 @@ const depositSummary = asyncHandler(async (req, res) => {
         existing.quantity      += qty;
         existing.volumeOrWeight = parseFloat((existing.volumeOrWeight + volumeOrWeight).toFixed(3));
         existing.depositAmount  = parseFloat((existing.depositAmount + depositAmount).toFixed(4));
-        if (crates !== null) existing.crates += crates;
       } else {
         depositItems.push({
           productName:          name,
@@ -302,7 +289,6 @@ const depositSummary = asyncHandler(async (req, res) => {
           unitType,
           quantity:             qty,
           unitSize:             Number(unitSize),
-          crates,
           volumeOrWeight:       parseFloat(volumeOrWeight.toFixed(3)),
           depositPerLitre,
           depositAmount:        parseFloat(depositAmount.toFixed(4)),
@@ -331,7 +317,6 @@ const depositSummary = asyncHandler(async (req, res) => {
     data: {
       brandName:         brand.name,
       depositEnabled:    brand.depositEnabled,
-      depositCalcMethod: calcMethod,
       depositPerLitre,
       from,
       to,
