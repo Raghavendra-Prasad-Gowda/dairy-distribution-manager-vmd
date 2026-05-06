@@ -16,7 +16,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
 
   const receipts = await tx.stockReceipt.findMany({
     where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true, unitsPerContainer: true } } },
+    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
   });
   const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
@@ -26,12 +26,11 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
   // Deposit calculation — only when brand has deposit enabled
   const brand = await tx.brand.findUnique({
     where: { id: brandId },
-    select: { depositEnabled: true, depositPerLitre: true, depositCalcMethod: true },
+    select: { depositEnabled: true, depositPerLitre: true },
   });
   let depositValue = 0;
   if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
     const depositPerLitre = Number(brand.depositPerLitre);
-    const calcMethod      = brand.depositCalcMethod ?? 'litre';
     const categories = await tx.category.findMany({
       where: { brandId },
       select: { name: true, depositEnabled: true },
@@ -40,7 +39,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
       categories.filter(c => c.depositEnabled).map(c => c.name)
     );
     depositValue = receipts.reduce((sum, r) => {
-      const { unitType, unitSize, containerType, depositEnabled, category, unitsPerContainer } = r.product;
+      const { unitType, unitSize, containerType, depositEnabled, category } = r.product;
       const qualifies =
         (unitType === 'ml' || unitType === 'gram') &&
         containerType === 'crate' &&
@@ -48,15 +47,8 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
         depositEnabled &&
         enabledCategories.has(category ?? '');
       if (!qualifies) return sum;
-      let lineDeposit;
-      if (calcMethod === 'crate' && unitsPerContainer > 0) {
-        const crates         = Math.floor(Number(r.quantity) / unitsPerContainer);
-        const litresPerCrate = unitsPerContainer * (Number(unitSize) / 1000);
-        lineDeposit = Math.round(crates * litresPerCrate * depositPerLitre * 100) / 100;
-      } else {
-        const litres = Number(unitSize) / 1000;
-        lineDeposit  = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100;
-      }
+      const litres    = Number(unitSize) / 1000;
+      const lineDeposit = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100;
       return sum + lineDeposit;
     }, 0);
   }

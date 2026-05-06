@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, Loader2, AlertCircle, Droplets } from 'lucide-react';
+import { Download, Loader2, AlertCircle, Droplets, ChevronDown, ChevronRight } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -42,6 +42,7 @@ export default function DepositReport() {
   const [to, setTo]                       = useState(getIndiaDate());
   const [data, setData]                   = useState(null);
   const [loading, setLoading]             = useState(false);
+  const [collapsed, setCollapsed]         = useState(new Set());
 
   useEffect(() => {
     api.get('/brands').then(r => {
@@ -54,6 +55,7 @@ export default function DepositReport() {
   useEffect(() => {
     if (!activeBrandId) return;
     setData(null);
+    setCollapsed(new Set());
     setLoading(true);
     api.get(`/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}`)
       .then(r => setData(r.data.data))
@@ -64,6 +66,25 @@ export default function DepositReport() {
   const daysWithDeposit = data?.rows.filter(r => r.dailyDeposit > 0).length ?? 0;
   const avgPerDay       = daysWithDeposit > 0 ? (data.totalDeposit / daysWithDeposit) : 0;
 
+  const depositRows     = data?.rows.filter(r => r.dailyDeposit > 0) ?? [];
+  const allCollapsed    = depositRows.length > 0 && depositRows.every(r => collapsed.has(r.date));
+
+  function toggleRow(dateKey) {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
+      return next;
+    });
+  }
+
+  function collapseAll() {
+    setCollapsed(new Set(depositRows.map(r => r.date)));
+  }
+
+  function expandAll() {
+    setCollapsed(new Set());
+  }
+
   return (
     <div className="bg-slate-100 min-h-screen pb-8">
 
@@ -73,7 +94,7 @@ export default function DepositReport() {
           <Droplets size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Deposit Report</h1>
-            <p className="text-emerald-300 text-xs">Crate deposit {data?.depositCalcMethod === 'crate' ? 'per crate' : 'per litre'} over time</p>
+            <p className="text-emerald-300 text-xs">Deposit per litre over time</p>
           </div>
         </div>
         {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
@@ -153,30 +174,42 @@ export default function DepositReport() {
             </div>
           ) : (
             <div className="mx-4 mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Expand / Collapse all */}
+              {depositRows.length > 0 && (
+                <div className="flex justify-end px-3 py-2 border-b border-slate-100 bg-slate-50">
+                  <button
+                    onClick={allCollapsed ? expandAll : collapseAll}
+                    className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
+                  >
+                    {allCollapsed
+                      ? <><ChevronDown size={13} /> Expand All</>
+                      : <><ChevronRight size={13} /> Collapse All</>
+                    }
+                  </button>
+                </div>
+              )}
               <div className="overflow-x-auto">
-                {(() => {
-                  const isCrate   = data.depositCalcMethod === 'crate';
-                  const volHeader = isCrate ? 'Crates' : 'L / Kg';
-                  return (
-                    <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 520 }}>
+                <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 520 }}>
                       <thead className="sticky top-0 z-10">
                         <tr>
                           <th className="bg-emerald-700 px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Date</th>
                           <th className="bg-emerald-700 px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Product</th>
                           <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Qty</th>
-                          <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{volHeader}</th>
+                          <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">L / Kg</th>
                           <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Deposit</th>
                           <th className="bg-emerald-700 px-3 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Running Total</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white">
                         {data.rows.map((row) => {
+                          const dateKey    = row.date;
                           const dateStr    = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
                           const hasDeposit = row.dailyDeposit > 0;
+                          const isCollapsed = collapsed.has(dateKey);
 
                           if (!hasDeposit) {
                             return (
-                              <tr key={row.date} className="border-b border-slate-100">
+                              <tr key={dateKey} className="border-b border-slate-100">
                                 <td className="px-3 py-2.5 border-r border-slate-100">
                                   <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">{dateStr}</span>
                                 </td>
@@ -190,6 +223,40 @@ export default function DepositReport() {
                             );
                           }
 
+                          // Summary row (always shown for deposit days)
+                          const summaryRow = (
+                            <tr
+                              key={`${dateKey}-summary`}
+                              className="border-b border-slate-100 cursor-pointer hover:bg-emerald-50/30 transition-colors"
+                              onClick={() => toggleRow(dateKey)}
+                            >
+                              <td className="px-3 py-2.5 border-r border-slate-100 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  {isCollapsed
+                                    ? <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
+                                    : <ChevronDown  size={13} className="text-slate-400 flex-shrink-0" />
+                                  }
+                                  <span className="text-xs font-bold text-slate-700">{dateStr}</span>
+                                </div>
+                              </td>
+                              <td colSpan={3} className="px-3 py-2.5 border-r border-slate-100">
+                                {isCollapsed && (
+                                  <span className="text-xs text-slate-400">
+                                    {row.items.length} product{row.items.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 text-right border-r border-slate-100">
+                                <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(row.dailyDeposit)}</span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <span className="text-sm tabular-nums font-bold text-slate-700">{formatCurrency(row.runningTotal)}</span>
+                              </td>
+                            </tr>
+                          );
+
+                          if (isCollapsed) return summaryRow;
+
                           // Group items by category (order preserved from backend sort)
                           const catGroups = [];
                           const catSeen = new Map();
@@ -202,56 +269,47 @@ export default function DepositReport() {
                           }
 
                           let globalIdx = 0;
-                          const totalItems = row.items.length;
-                          return catGroups.map(({ category, items: catItems }) => (
-                            [
-                              <tr key={`${row.date}-cat-${category}`} className="border-b border-slate-50">
-                                <td className={`px-3 py-1 border-r border-slate-100 whitespace-nowrap align-top`}>
-                                  {globalIdx === 0 && (
-                                    <span className="text-xs font-bold text-slate-700">{dateStr}</span>
-                                  )}
-                                </td>
-                                <td colSpan={5} className="px-3 py-1 bg-slate-50">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{category}</span>
-                                </td>
-                              </tr>,
-                              ...catItems.map((it) => {
-                                const localIdx = globalIdx++;
-                                const isLast   = localIdx === totalItems - 1;
-                                const unit     = it.unitType === 'gram' ? 'kg' : 'L';
-                                const sizeStr  = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
-                                const volCell  = isCrate
-                                  ? <span className="text-xs tabular-nums font-medium text-slate-700">{it.crates ?? '—'}</span>
-                                  : <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>;
+                          return [
+                            summaryRow,
+                            ...catGroups.map(({ category, items: catItems }) => (
+                              [
+                                <tr key={`${dateKey}-cat-${category}`} className="border-b border-slate-50">
+                                  <td className="px-3 py-1 border-r border-slate-100 whitespace-nowrap" />
+                                  <td colSpan={5} className="px-3 py-1 bg-slate-50">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{category}</span>
+                                  </td>
+                                </tr>,
+                                ...catItems.map((it) => {
+                                  const localIdx = globalIdx++;
+                                  const unit    = it.unitType === 'gram' ? 'kg' : 'L';
+                                  const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
+                                  const volCell = <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>;
 
-                                return (
-                                  <tr key={`${row.date}-${localIdx}`} className={`border-b ${isLast ? 'border-emerald-100' : 'border-slate-50'} hover:bg-emerald-50/40 transition-colors`}>
-                                    <td className="px-3 py-2 border-r border-slate-100 whitespace-nowrap" />
-                                    <td className="px-3 py-2 border-r border-slate-100">
-                                      <span className="text-xs font-semibold text-slate-800">{it.productName}</span>
-                                      <span className="ml-1.5 text-[10px] text-slate-400">{sizeStr}</span>
-                                    </td>
-                                    <td className="px-3 py-2 text-right border-r border-slate-100">
-                                      <span className="text-xs tabular-nums text-slate-600">{it.quantity}</span>
-                                    </td>
-                                    <td className="px-3 py-2 text-right border-r border-slate-100">
-                                      {volCell}
-                                    </td>
-                                    <td className="px-3 py-2 text-right border-r border-slate-100">
-                                      <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(it.depositAmount)}</span>
-                                    </td>
-                                    <td className="px-3 py-2 text-right">
-                                      {isLast ? (
-                                        <span className="text-sm tabular-nums font-bold text-slate-700">{formatCurrency(row.runningTotal)}</span>
-                                      ) : (
+                                  return (
+                                    <tr key={`${dateKey}-${localIdx}`} className="border-b border-slate-50 hover:bg-emerald-50/40 transition-colors">
+                                      <td className="px-3 py-2 border-r border-slate-100 whitespace-nowrap" />
+                                      <td className="px-3 py-2 border-r border-slate-100">
+                                        <span className="text-xs font-semibold text-slate-800">{it.productName}</span>
+                                        <span className="ml-1.5 text-[10px] text-slate-400">{sizeStr}</span>
+                                      </td>
+                                      <td className="px-3 py-2 text-right border-r border-slate-100">
+                                        <span className="text-xs tabular-nums text-slate-600">{it.quantity}</span>
+                                      </td>
+                                      <td className="px-3 py-2 text-right border-r border-slate-100">
+                                        {volCell}
+                                      </td>
+                                      <td className="px-3 py-2 text-right border-r border-slate-100">
+                                        <span className="text-xs tabular-nums font-bold text-emerald-700">{formatCurrency(it.depositAmount)}</span>
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
                                         <span className="text-xs text-slate-200">—</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              }),
-                            ]
-                          ));
+                                      </td>
+                                    </tr>
+                                  );
+                                }),
+                              ]
+                            )),
+                          ];
                         })}
                       </tbody>
                       <tfoot>
@@ -268,8 +326,6 @@ export default function DepositReport() {
                         </tr>
                       </tfoot>
                     </table>
-                  );
-                })()}
               </div>
             </div>
           )}
