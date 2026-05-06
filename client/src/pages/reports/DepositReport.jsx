@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, Loader2, AlertCircle, Droplets, ChevronDown, ChevronRight } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
-import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { getYesterday, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 function exportCSV(data) {
@@ -38,8 +38,8 @@ function exportCSV(data) {
 export default function DepositReport() {
   const [brands, setBrands]               = useState([]);
   const [activeBrandId, setActiveBrandId] = useState(null);
-  const [from, setFrom]                   = useState(getFirstDayOfMonth());
-  const [to, setTo]                       = useState(getIndiaDate());
+  const [from, setFrom]                   = useState(getYesterday());
+  const [to, setTo]                       = useState(getYesterday());
   const [data, setData]                   = useState(null);
   const [loading, setLoading]             = useState(false);
   const [collapsed, setCollapsed]         = useState(new Set());
@@ -58,7 +58,14 @@ export default function DepositReport() {
     setCollapsed(new Set());
     setLoading(true);
     api.get(`/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}`)
-      .then(r => setData(r.data.data))
+      .then(r => {
+        const d = r.data.data;
+        setData(d);
+        // Collapse all by default when viewing more than one day
+        if (from !== to) {
+          setCollapsed(new Set((d?.rows ?? []).filter(r => r.dailyDeposit > 0).map(r => r.date)));
+        }
+      })
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [activeBrandId, from, to]);
