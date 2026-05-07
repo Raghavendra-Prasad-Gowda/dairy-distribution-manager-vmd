@@ -1,0 +1,364 @@
+'use strict';
+const logger = require('../config/logger');
+const prisma  = require('../lib/prisma');
+
+const WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
+const APP_URL     = process.env.APP_URL || '';
+
+// ─── Event catalogue ──────────────────────────────────────────────────────────
+const SLACK_EVENTS = {
+  // System
+  SERVER_STARTED:  'SERVER_STARTED',
+  SERVER_SHUTDOWN: 'SERVER_SHUTDOWN',
+  SERVER_ERROR:    'SERVER_ERROR',
+  // Auth
+  LOGIN:        'LOGIN',
+  FAILED_LOGIN: 'FAILED_LOGIN',
+  // Stock receipts
+  STOCK_RECEIPT_SAVED: 'STOCK_RECEIPT_SAVED',
+  // Dairy payments
+  DAIRY_PAYMENT_RECORDED: 'DAIRY_PAYMENT_RECORDED',
+  DAIRY_PAYMENT_UPDATED:  'DAIRY_PAYMENT_UPDATED',
+  DAIRY_PAYMENT_DELETED:  'DAIRY_PAYMENT_DELETED',
+  // Dispatch
+  DISPATCH_SAVED:   'DISPATCH_SAVED',
+  DISPATCH_DELETED: 'DISPATCH_DELETED',
+  // Salesperson payments
+  SALESPERSON_PAYMENT_RECORDED: 'SALESPERSON_PAYMENT_RECORDED',
+  SALESPERSON_PAYMENT_UPDATED:  'SALESPERSON_PAYMENT_UPDATED',
+  SALESPERSON_PAYMENT_DELETED:  'SALESPERSON_PAYMENT_DELETED',
+  // Setup
+  SALESPERSON_CREATED: 'SALESPERSON_CREATED',
+  SALESPERSON_UPDATED: 'SALESPERSON_UPDATED',
+};
+
+// ─── Colors ───────────────────────────────────────────────────────────────────
+const COLORS = {
+  GREEN: '#2eb886',
+  BLUE:  '#1264a3',
+  AMBER: '#e8a838',
+  RED:   '#e01e5a',
+};
+
+const EVENT_COLOR = {
+  [SLACK_EVENTS.SERVER_STARTED]:  COLORS.GREEN,
+  [SLACK_EVENTS.SERVER_SHUTDOWN]: COLORS.AMBER,
+  [SLACK_EVENTS.SERVER_ERROR]:    COLORS.RED,
+  [SLACK_EVENTS.LOGIN]:           COLORS.GREEN,
+  [SLACK_EVENTS.FAILED_LOGIN]:    COLORS.RED,
+  [SLACK_EVENTS.STOCK_RECEIPT_SAVED]:         COLORS.BLUE,
+  [SLACK_EVENTS.DAIRY_PAYMENT_RECORDED]:      COLORS.GREEN,
+  [SLACK_EVENTS.DAIRY_PAYMENT_UPDATED]:       COLORS.AMBER,
+  [SLACK_EVENTS.DAIRY_PAYMENT_DELETED]:       COLORS.RED,
+  [SLACK_EVENTS.DISPATCH_SAVED]:              COLORS.BLUE,
+  [SLACK_EVENTS.DISPATCH_DELETED]:            COLORS.RED,
+  [SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED]: COLORS.GREEN,
+  [SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED]:  COLORS.AMBER,
+  [SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED]:  COLORS.RED,
+  [SLACK_EVENTS.SALESPERSON_CREATED]: COLORS.GREEN,
+  [SLACK_EVENTS.SALESPERSON_UPDATED]: COLORS.AMBER,
+};
+
+// ─── Formatting helpers ───────────────────────────────────────────────────────
+
+/** "YYYY-MM-DD" → "Mon, 6 May 2026" */
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
+/** Number → "₹1,22,750" */
+function formatINR(amount) {
+  return '₹' + Math.round(Number(amount)).toLocaleString('en-IN');
+}
+
+/** Current time as "7 May 2026, 09:53 AM" (IST) */
+function istNow() {
+  return new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+}
+
+// ─── Block-kit primitives ─────────────────────────────────────────────────────
+
+function headerBlock(text) {
+  return { type: 'header', text: { type: 'plain_text', text, emoji: true } };
+}
+
+function dividerBlock() {
+  return { type: 'divider' };
+}
+
+function fieldsBlock(pairs) {
+  const populated = pairs.filter(([, v]) => v != null && v !== '');
+  return {
+    type: 'section',
+    fields: populated.map(([label, value]) => ({
+      type: 'mrkdwn',
+      text: `*${label}*\n${value}`,
+    })),
+  };
+}
+
+function textBlock(md) {
+  return { type: 'section', text: { type: 'mrkdwn', text: md } };
+}
+
+function footerBlock() {
+  const ts      = istNow();
+  const appLink = APP_URL ? `<${APP_URL}|Open App>  •  ` : '';
+  return {
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: `🏪 *Vikas Milk Dairy*  •  ${appLink}${ts} IST` }],
+  };
+}
+
+function card(event, blocks, fallbackText) {
+  return {
+    text: fallbackText,
+    attachments: [{
+      color:  EVENT_COLOR[event] || COLORS.BLUE,
+      blocks: [...blocks, dividerBlock(), footerBlock()],
+    }],
+  };
+}
+
+// ─── Data enrichment ──────────────────────────────────────────────────────────
+
+async function enrichData(event, rawData) {
+  const data = { ...rawData };
+
+  if (data.brandId != null && !data.brandName) {
+    const b = await prisma.brand.findUnique({ where: { id: data.brandId }, select: { name: true } });
+    data.brandName = b?.name ?? `Brand #${data.brandId}`;
+  }
+
+  if (data.salespersonId != null && !data.salespersonName) {
+    const sp = await prisma.salesperson.findUnique({ where: { id: data.salespersonId }, select: { name: true } });
+    data.salespersonName = sp?.name ?? `Salesperson #${data.salespersonId}`;
+  }
+
+  return data;
+}
+
+// ─── Card builders ────────────────────────────────────────────────────────────
+
+function buildCard(event, data) {
+  switch (event) {
+
+    // ── System ─────────────────────────────────────────────────────────────
+    case SLACK_EVENTS.SERVER_STARTED:
+      return card(event, [
+        headerBlock('🟢 Server Online'),
+        fieldsBlock([
+          ['🔧 Environment', data.env || 'unknown'],
+          ['📡 App', 'Vikas Milk Dairy — Distribution Manager is running'],
+        ]),
+      ], `Server Online — ${data.env}`);
+
+    case SLACK_EVENTS.SERVER_SHUTDOWN:
+      return card(event, [
+        headerBlock('🟡 Server Shutting Down'),
+        fieldsBlock([
+          ['🔧 Environment', data.env || 'unknown'],
+          ['🛑 Signal', data.signal || 'SIGTERM'],
+        ]),
+      ], `Server Shutdown — ${data.env}`);
+
+    case SLACK_EVENTS.SERVER_ERROR:
+      return card(event, [
+        headerBlock('🔴 Server Error — 500'),
+        fieldsBlock([
+          ['📍 Request', `\`${data.method} ${data.path}\``],
+          ['❌ Message', data.message],
+        ]),
+      ], `Server Error: ${data.method} ${data.path} — ${data.message}`);
+
+    // ── Auth ───────────────────────────────────────────────────────────────
+    case SLACK_EVENTS.LOGIN:
+      return card(event, [
+        headerBlock('🔓 Admin Login'),
+        fieldsBlock([
+          ['🌐 IP Address', data.ip || 'unknown'],
+        ]),
+      ], `Admin Login from ${data.ip}`);
+
+    case SLACK_EVENTS.FAILED_LOGIN:
+      return card(event, [
+        headerBlock('⚠️ Failed Login Attempt'),
+        fieldsBlock([
+          ['👤 Username Tried', `\`${data.attemptedUsername}\``],
+          ['🌐 IP Address', data.ip || 'unknown'],
+          ['❌ Reason', data.reason || 'Invalid credentials'],
+        ]),
+      ], `Failed Login — "${data.attemptedUsername}" from ${data.ip}`);
+
+    // ── Stock Receipts ─────────────────────────────────────────────────────
+    case SLACK_EVENTS.STOCK_RECEIPT_SAVED:
+      return card(event, [
+        headerBlock('📦 Stock Receipt Saved'),
+        fieldsBlock([
+          ['🏷️ Brand',    data.brandName],
+          ['📅 Date',     formatDate(data.date)],
+          ['🛣️ Route',    data.routeNumber || 'General'],
+          ['📦 Products', String(data.savedCount)],
+          ['💰 Value',    formatINR(data.totalValue)],
+        ]),
+      ], `Stock Receipt — ${data.brandName} on ${data.date}`);
+
+    // ── Dairy Payments ─────────────────────────────────────────────────────
+    case SLACK_EVENTS.DAIRY_PAYMENT_RECORDED:
+      return card(event, [
+        headerBlock('✅ Dairy Payment Recorded'),
+        fieldsBlock([
+          ['🏷️ Brand',   data.brandName],
+          ['📅 Date',    formatDate(data.date)],
+          ['💰 Amount',  formatINR(data.amount)],
+          ['💳 Mode',    data.paymentMode || 'Cash'],
+          ['📝 Ref',     data.reference || null],
+        ]),
+      ], `Dairy Payment — ${data.brandName} — ${formatINR(data.amount)}`);
+
+    case SLACK_EVENTS.DAIRY_PAYMENT_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Dairy Payment Updated'),
+        fieldsBlock([
+          ['🏷️ Brand',   data.brandName],
+          ['📅 Date',    formatDate(data.date)],
+          ['💰 Amount',  formatINR(data.amount)],
+          ['💳 Mode',    data.paymentMode || 'Cash'],
+        ]),
+      ], `Dairy Payment Updated — ${data.brandName} — ${formatINR(data.amount)}`);
+
+    case SLACK_EVENTS.DAIRY_PAYMENT_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Dairy Payment Deleted'),
+        fieldsBlock([
+          ['🏷️ Brand',   data.brandName],
+          ['📅 Date',    formatDate(data.date)],
+          ['💰 Amount',  formatINR(data.amount)],
+        ]),
+      ], `Dairy Payment Deleted — ${data.brandName} — ${formatINR(data.amount)}`);
+
+    // ── Dispatches ─────────────────────────────────────────────────────────
+    case SLACK_EVENTS.DISPATCH_SAVED:
+      return card(event, [
+        headerBlock(`${data.isUpdate ? '✏️ Dispatch Updated' : '🚚 Dispatch Created'}`),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['📦 Items',       String(data.itemCount)],
+          ['💰 Total',       formatINR(data.totalAmount)],
+        ]),
+      ], `Dispatch ${data.isUpdate ? 'Updated' : 'Created'} — ${data.salespersonName} — ${formatINR(data.totalAmount)}`);
+
+    case SLACK_EVENTS.DISPATCH_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Dispatch Deleted'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['💰 Total',       formatINR(data.totalAmount)],
+        ]),
+      ], `Dispatch Deleted — ${data.salespersonName} on ${data.date}`);
+
+    // ── Salesperson Payments ───────────────────────────────────────────────
+    case SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED:
+      return card(event, [
+        headerBlock('✅ Collection Recorded'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['💰 Amount',      formatINR(data.amount)],
+          ['💳 Mode',        data.paymentMode || 'Cash'],
+          ['📝 Ref',         data.reference || null],
+        ]),
+      ], `Collection — ${data.salespersonName} — ${formatINR(data.amount)}`);
+
+    case SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Collection Updated'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['💰 Amount',      formatINR(data.amount)],
+          ['💳 Mode',        data.paymentMode || 'Cash'],
+        ]),
+      ], `Collection Updated — ${data.salespersonName} — ${formatINR(data.amount)}`);
+
+    case SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Collection Deleted'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['💰 Amount',      formatINR(data.amount)],
+        ]),
+      ], `Collection Deleted — ${data.salespersonName} — ${formatINR(data.amount)}`);
+
+    // ── Setup ──────────────────────────────────────────────────────────────
+    case SLACK_EVENTS.SALESPERSON_CREATED:
+      return card(event, [
+        headerBlock('👤 Salesperson Added'),
+        fieldsBlock([
+          ['👤 Name',  data.name],
+          ['🛣️ Route', data.route || '—'],
+        ]),
+      ], `Salesperson Added — ${data.name}`);
+
+    case SLACK_EVENTS.SALESPERSON_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Salesperson Updated'),
+        fieldsBlock([
+          ['👤 Name',   data.name],
+          ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+        ]),
+      ], `Salesperson Updated — ${data.name}`);
+
+    default:
+      return { text: `[VMD] Event: ${event}` };
+  }
+}
+
+// ─── HTTP POST ────────────────────────────────────────────────────────────────
+
+async function postToSlack(payload) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+      signal:  ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`Slack responded ${res.status}: ${await res.text()}`);
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Fire-and-forget Slack notification. Never throws.
+ * Set SLACK_WEBHOOK_URL env var to enable; unset = silent no-op.
+ * Set APP_URL env var to add an "Open App" link in every card footer.
+ */
+const notifySlack = async (event, rawData = {}) => {
+  if (!WEBHOOK_URL) return;
+  try {
+    const data    = await enrichData(event, rawData);
+    const payload = buildCard(event, data);
+    await postToSlack(payload);
+  } catch (err) {
+    logger.warn(`Slack [${event}]: ${err.message}`);
+  }
+};
+
+module.exports = { notifySlack, SLACK_EVENTS };

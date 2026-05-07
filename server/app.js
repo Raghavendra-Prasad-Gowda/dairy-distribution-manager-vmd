@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 
 const logger = require('./config/logger');
 const AppError = require('./utils/AppError');
+const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
 
 // ─── Route imports ────────────────────────────────────────────────────────────
 const authRoutes                = require('./routes/auth');
@@ -123,6 +124,7 @@ app.use((err, req, res, next) => {
 
   // Unexpected errors — log internally, return generic message
   logger.error('Unexpected error', { error: err.message, stack: err.stack });
+  void notifySlack(SLACK_EVENTS.SERVER_ERROR, { method: req.method, path: req.path, message: err.message });
   res.status(500).json({
     success: false,
     error: 'An unexpected error occurred. Please try again.',

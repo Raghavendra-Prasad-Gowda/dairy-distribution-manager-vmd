@@ -3,6 +3,7 @@ require('dotenv').config();
 const { execSync } = require('child_process');
 const app = require('./app');
 const logger = require('./config/logger');
+const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
 
 /** Resolve any migrations that started but never finished. */
 async function resolveFailedMigrations() {
@@ -58,9 +59,11 @@ async function boot() {
   }
 
   logger.info('Startup complete — server ready.');
+  void notifySlack(SLACK_EVENTS.SERVER_STARTED, { env: process.env.NODE_ENV });
 
-  const shutdown = (signal) => {
+  const shutdown = async (signal) => {
     logger.info(`Received ${signal}. Gracefully shutting down...`);
+    await notifySlack(SLACK_EVENTS.SERVER_SHUTDOWN, { env: process.env.NODE_ENV, signal });
     server.close(() => { logger.info('HTTP server closed.'); process.exit(0); });
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));

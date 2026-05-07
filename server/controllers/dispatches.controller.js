@@ -5,6 +5,7 @@ const prisma = require('../lib/prisma');
 const { validateDispatchStock } = require('../services/stockGuard');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const getAll = asyncHandler(async (req, res) => {
   const { date, salespersonId } = req.query;
@@ -107,6 +108,13 @@ const createOrUpdate = asyncHandler(async (req, res) => {
 
   await recalculateSalespersonBalance(data.salespersonId, data.dispatchDate);
   logger.info('Dispatch saved', { id: dispatch.id, salespersonId: data.salespersonId, date: data.dispatchDate, total: totalAmount, action: existing ? 'update' : 'create' });
+  void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
+    salespersonId: data.salespersonId,
+    date:          data.dispatchDate,
+    itemCount:     data.items.length,
+    totalAmount,
+    isUpdate:      !!existing,
+  });
   res.status(existing ? 200 : 201).json({ success: true, data: dispatch });
 });
 
@@ -119,6 +127,11 @@ const remove = asyncHandler(async (req, res) => {
   const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
   await recalculateSalespersonBalance(dispatch.salespersonId, dateStr);
   logger.info('Dispatch deleted', { id, salespersonId: dispatch.salespersonId, date: dateStr });
+  void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
+    salespersonId: dispatch.salespersonId,
+    date:          dateStr,
+    totalAmount:   Number(dispatch.totalAmount),
+  });
   res.json({ success: true, data: { message: 'Dispatch deleted' } });
 });
 

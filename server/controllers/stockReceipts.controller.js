@@ -3,6 +3,7 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const getAll = asyncHandler(async (req, res) => {
   const { date, brandId } = req.query;
@@ -85,6 +86,21 @@ const bulkCreate = asyncHandler(async (req, res) => {
   ]);
 
   await recalculateDairyBalance(data.brandId, data.date);
+
+  const totalValue = nonZeroItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+  let routeNumber = null;
+  if (routeId !== 0) {
+    const route = await prisma.route.findUnique({ where: { id: routeId }, select: { routeNumber: true } });
+    routeNumber = route?.routeNumber ?? null;
+  }
+  void notifySlack(SLACK_EVENTS.STOCK_RECEIPT_SAVED, {
+    brandId:     data.brandId,
+    date:        data.date,
+    routeNumber,
+    savedCount:  nonZeroItems.length,
+    totalValue,
+  });
+
   res.json({ success: true, data: { saved: nonZeroItems.length } });
 });
 

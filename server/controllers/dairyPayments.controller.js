@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createDairyPayment, req, res);
@@ -14,6 +15,13 @@ const create = asyncHandler(async (req, res) => {
   });
   await recalculateDairyBalance(data.brandId, data.paymentDate);
   logger.info('Dairy payment created', { id: payment.id, brandId: data.brandId, amount: data.amount, date: data.paymentDate });
+  void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_RECORDED, {
+    brandId:     data.brandId,
+    date:        data.paymentDate,
+    amount:      data.amount,
+    paymentMode: data.paymentMode,
+    reference:   data.reference,
+  });
   res.status(201).json({ success: true, data: payment });
 });
 
@@ -52,6 +60,12 @@ const update = asyncHandler(async (req, res) => {
   await recalculateDairyBalance(existing.brandId, oldDate);
   if (newDate !== oldDate) await recalculateDairyBalance(existing.brandId, newDate);
   logger.info('Dairy payment updated', { id, brandId: existing.brandId, amount: data.amount, date: newDate });
+  void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_UPDATED, {
+    brandId:     existing.brandId,
+    date:        newDate,
+    amount:      data.amount,
+    paymentMode: data.paymentMode,
+  });
   res.json({ success: true, data: updated });
 });
 
@@ -64,6 +78,11 @@ const remove = asyncHandler(async (req, res) => {
   const dateStr = payment.paymentDate.toISOString().slice(0, 10);
   await recalculateDairyBalance(payment.brandId, dateStr);
   logger.info('Dairy payment deleted', { id, brandId: payment.brandId, amount: Number(payment.amount), date: dateStr });
+  void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_DELETED, {
+    brandId: payment.brandId,
+    date:    dateStr,
+    amount:  Number(payment.amount),
+  });
   res.json({ success: true, data: { message: 'Payment deleted' } });
 });
 
