@@ -228,7 +228,7 @@ export default function DairyStatement() {
 
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[60vh]">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-emerald-700 sticky top-0 z-10">
               <tr>
