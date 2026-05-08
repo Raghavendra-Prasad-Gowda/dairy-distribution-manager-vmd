@@ -18,7 +18,7 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createRoute, req, res);
   if (!data) return;
   const route = await prisma.route.create({ data });
-  void notifySlack(SLACK_EVENTS.ROUTE_CREATED, { brandId: route.brandId, routeNumber: route.routeNumber, description: route.description });
+  void notifySlack(SLACK_EVENTS.ROUTE_CREATED, { brandId: route.brandId, routeNumber: route.routeNumber });
   res.status(201).json({ success: true, data: route });
 });
 
@@ -29,7 +29,7 @@ const update = asyncHandler(async (req, res) => {
   const route = await prisma.route.findUnique({ where: { id } });
   if (!route) throw new AppError('Route not found', 404);
   const updated = await prisma.route.update({ where: { id }, data });
-  void notifySlack(SLACK_EVENTS.ROUTE_UPDATED, { brandId: updated.brandId, routeNumber: updated.routeNumber, description: updated.description, isActive: updated.isActive });
+  void notifySlack(SLACK_EVENTS.ROUTE_UPDATED, { brandId: updated.brandId, routeNumber: updated.routeNumber, isActive: updated.isActive });
   res.json({ success: true, data: updated });
 });
 

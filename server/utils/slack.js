@@ -243,7 +243,7 @@ function buildCard(event, data) {
           ['🛣️ Route',    data.routeNumber || 'General'],
           ['📦 Products', String(data.savedCount)],
           ['🔢 Units',    data.totalUnits  != null ? String(data.totalUnits)  : null],
-          ['🧺 Crates',   data.totalCrates != null ? String(data.totalCrates) : null],
+          ['🧺 Crates',   data.totalCrates != null ? `${data.totalCrates} Crates` : null],
           ['💰 Value',    formatINR(data.totalValue)],
         ]),
       ], `Stock Receipt — ${data.brandName} on ${data.date}`);
@@ -424,9 +424,8 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('🆕 Route Added'),
         fieldsBlock([
-          ['🏷️ Brand',      data.brandName],
-          ['🛣️ Route No.',  String(data.routeNumber)],
-          ['📍 Description',data.description || '—'],
+          ['🏷️ Brand',     data.brandName],
+          ['🛣️ Route No.', String(data.routeNumber)],
         ]),
       ], `Route Added — ${data.routeNumber} (${data.brandName})`);
 
@@ -434,10 +433,9 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('✏️ Route Updated'),
         fieldsBlock([
-          ['🏷️ Brand',      data.brandName],
-          ['🛣️ Route No.',  String(data.routeNumber)],
-          ['📍 Description',data.description || '—'],
-          ['🔘 Status',     data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ['🏷️ Brand',     data.brandName],
+          ['🛣️ Route No.', String(data.routeNumber)],
+          ['🔘 Status',    data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
         ]),
       ], `Route Updated — ${data.routeNumber} (${data.brandName})`);
 
