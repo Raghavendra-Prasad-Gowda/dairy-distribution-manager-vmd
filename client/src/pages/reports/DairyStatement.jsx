@@ -260,7 +260,7 @@ export default function DairyStatement() {
               const totalPaid = rows.reduce((s, r) => s + r.amountPaid, 0);
               return (
                 <tfoot>
-                  <tr className="bg-emerald-700">
+                  <tr className="bg-emerald-700 sticky bottom-0">
                     <td className="px-4 py-3 text-xs font-bold text-white uppercase tracking-wider">Total</td>
                     <td className="px-4 py-3" />
                     <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalBill)}</td>
