@@ -88,6 +88,7 @@ const bulkCreate = asyncHandler(async (req, res) => {
   await recalculateDairyBalance(data.brandId, data.date);
 
   const totalValue = nonZeroItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+  const totalUnits = nonZeroItems.reduce((s, i) => s + i.quantity, 0);
 
   const [routeRow, products] = await Promise.all([
     routeId !== 0
@@ -110,6 +111,7 @@ const bulkCreate = asyncHandler(async (req, res) => {
     date:        data.date,
     routeNumber,
     savedCount:  nonZeroItems.length,
+    totalUnits,
     totalCrates: Math.round(totalCrates * 100) / 100,
     totalValue,
   });

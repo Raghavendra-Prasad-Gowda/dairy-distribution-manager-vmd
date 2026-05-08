@@ -2,6 +2,7 @@ const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const prisma = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const router = express.Router();
 
@@ -80,6 +81,7 @@ router.post('/', asyncHandler(async (req, res) => {
     }
     return created;
   });
+  void notifySlack(SLACK_EVENTS.PRODUCT_CREATED, { brandId: product.brandId, name: product.name, category: product.category, costPrice: Number(product.costPrice) });
   res.status(201).json({ success: true, data: product });
 }));
 
@@ -128,14 +130,15 @@ router.put('/:id', asyncHandler(async (req, res) => {
 
     return updated;
   });
-
+  void notifySlack(SLACK_EVENTS.PRODUCT_UPDATED, { brandId: product.brandId, name: product.name, category: product.category, costPrice: Number(product.costPrice), isActive: product.isActive });
   res.json({ success: true, data: product });
 }));
 
 // DELETE /products/:id (soft delete)
 router.delete('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Product ID');
-  await prisma.product.update({ where: { id }, data: { isActive: false } });
+  const product = await prisma.product.update({ where: { id }, data: { isActive: false }, include: { brand: { select: { name: true } } } });
+  void notifySlack(SLACK_EVENTS.PRODUCT_DELETED, { brandId: product.brandId, brandName: product.brand.name, name: product.name });
   res.json({ success: true, data: { message: 'Product deactivated' } });
 }));
 

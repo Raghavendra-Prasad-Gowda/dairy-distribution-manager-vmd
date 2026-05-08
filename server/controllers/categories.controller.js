@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const getAll = asyncHandler(async (req, res) => {
   const where = {};
@@ -28,6 +29,7 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createCategory, req, res);
   if (!data) return;
   const category = await prisma.category.create({ data });
+  void notifySlack(SLACK_EVENTS.CATEGORY_CREATED, { brandId: category.brandId, name: category.name });
   res.status(201).json({ success: true, data: category });
 });
 
@@ -45,6 +47,7 @@ const update = asyncHandler(async (req, res) => {
   // depositEnabled-only update (no name change)
   if (depositEnabled !== undefined && !name?.trim()) {
     const updated = await prisma.category.update({ where: { id }, data: { depositEnabled } });
+    void notifySlack(SLACK_EVENTS.CATEGORY_UPDATED, { brandId: category.brandId, name: category.name, depositEnabled: updated.depositEnabled });
     return res.json({ success: true, data: updated });
   }
 
@@ -56,6 +59,7 @@ const update = asyncHandler(async (req, res) => {
     prisma.category.update({ where: { id }, data }),
     prisma.product.updateMany({ where: { brandId: category.brandId, category: oldName }, data: { category: newName } }),
   ]);
+  void notifySlack(SLACK_EVENTS.CATEGORY_UPDATED, { brandId: category.brandId, name: newName, depositEnabled: updated.depositEnabled });
   res.json({ success: true, data: updated });
 });
 
@@ -64,6 +68,7 @@ const remove = asyncHandler(async (req, res) => {
   const category = await prisma.category.findUnique({ where: { id } });
   if (!category) throw new AppError('Category not found', 404);
   await prisma.category.delete({ where: { id } });
+  void notifySlack(SLACK_EVENTS.CATEGORY_DELETED, { brandId: category.brandId, name: category.name });
   res.json({ success: true, data: { message: 'Category deleted' } });
 });
 
