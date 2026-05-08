@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createSalespersonPayment, req, res);
@@ -14,6 +15,13 @@ const create = asyncHandler(async (req, res) => {
   });
   await recalculateSalespersonBalance(data.salespersonId, data.paymentDate);
   logger.info('Salesperson payment created', { id: payment.id, salespersonId: data.salespersonId, amount: data.amount, date: data.paymentDate });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED, {
+    salespersonId: data.salespersonId,
+    date:          data.paymentDate,
+    amount:        data.amount,
+    paymentMode:   data.paymentMode,
+    reference:     data.reference,
+  });
   res.status(201).json({ success: true, data: payment });
 });
 
@@ -52,6 +60,12 @@ const update = asyncHandler(async (req, res) => {
   await recalculateSalespersonBalance(existing.salespersonId, oldDate);
   if (newDate !== oldDate) await recalculateSalespersonBalance(existing.salespersonId, newDate);
   logger.info('Salesperson payment updated', { id, salespersonId: existing.salespersonId, amount: data.amount, date: newDate });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED, {
+    salespersonId: existing.salespersonId,
+    date:          newDate,
+    amount:        data.amount,
+    paymentMode:   data.paymentMode,
+  });
   res.json({ success: true, data: updated });
 });
 
@@ -64,6 +78,11 @@ const remove = asyncHandler(async (req, res) => {
   const dateStr = payment.paymentDate.toISOString().slice(0, 10);
   await recalculateSalespersonBalance(payment.salespersonId, dateStr);
   logger.info('Salesperson payment deleted', { id, salespersonId: payment.salespersonId, amount: Number(payment.amount), date: dateStr });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED, {
+    salespersonId: payment.salespersonId,
+    date:          dateStr,
+    amount:        Number(payment.amount),
+  });
   res.json({ success: true, data: { message: 'Payment deleted' } });
 });
 

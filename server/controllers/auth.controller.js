@@ -6,18 +6,27 @@ const { validate, schemas } = require('../utils/validate');
 const { BCRYPT_ROUNDS, JWT_EXPIRES_IN } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 const login = asyncHandler(async (req, res) => {
   const data = validate(schemas.login, req, res);
   if (!data) return;
 
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+
   const settings = await prisma.appSettings.findFirst({
     where: { username: data.username },
   });
-  if (!settings) throw new AppError('Invalid username or password', 401);
+  if (!settings) {
+    void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Username not found' });
+    throw new AppError('Invalid username or password', 401);
+  }
 
   const valid = await bcrypt.compare(data.password, settings.passwordHash);
-  if (!valid) throw new AppError('Invalid username or password', 401);
+  if (!valid) {
+    void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Wrong password' });
+    throw new AppError('Invalid username or password', 401);
+  }
 
   const token = jwt.sign({ id: settings.id }, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
@@ -29,6 +38,7 @@ const login = asyncHandler(async (req, res) => {
     maxAge: JWT_EXPIRES_IN * 1000,
   });
 
+  void notifySlack(SLACK_EVENTS.LOGIN, { username: settings.username, role: settings.role || 'Super Admin', ip });
   res.json({ success: true, data: { accessToken: token, businessName: settings.businessName } });
 });
 
@@ -48,9 +58,15 @@ const changePassword = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Password changed successfully' } });
 });
 
-const logout = (req, res) => {
+const logout = asyncHandler(async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const settings = req.user?.id
+    ? await prisma.appSettings.findFirst({ where: { id: req.user.id }, select: { username: true } })
+    : null;
+  const username = settings?.username ?? 'unknown';
   res.clearCookie('token');
+  void notifySlack(SLACK_EVENTS.LOGOUT, { username, role: 'Super Admin', ip });
   res.json({ success: true, data: { message: 'Logged out' } });
-};
+});
 
 module.exports = { login, changePassword, logout };

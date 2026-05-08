@@ -61,6 +61,13 @@ test.describe('GET /api/v1/reports/dairy-statement', () => {
     expect(body.data[0]).toHaveProperty('closingBalance', 4000);
   });
 
+  test('returns 400 when brandId is non-numeric', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/dairy-statement?brandId=abc&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
   test('returns 200 with empty array when no balance records', async ({ request }) => {
     ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
@@ -74,6 +81,62 @@ test.describe('GET /api/v1/reports/dairy-statement', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
+  });
+
+  test('returns 200 with receipts and payments mapped to each day', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 1000, stockValue: 2200, depositValue: 0, amountPaid: 1000, closingBalance: 2200,
+      brand: { name: 'Nandini' },
+    };
+    const receipt = {
+      receiptDate: new Date('2026-04-30'),
+      quantity: 100, unitPrice: 22, routeId: 0,
+      product: { name: 'Milk 500ml' },
+    };
+    const payment = {
+      paymentDate: new Date('2026-04-30'),
+      amount: 1000, paymentMode: 'cash', reference: null, createdAt: new Date('2026-04-30'),
+    };
+
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([receipt]);
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([payment]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/dairy-statement?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('stockValue', 2200);
+    expect(body.data[0].receipts).toHaveLength(1);
+    expect(body.data[0].receipts[0]).toHaveProperty('productName', 'Milk 500ml');
+    expect(body.data[0].receipts[0]).toHaveProperty('amount', 2200);
+    expect(body.data[0].payments).toHaveLength(1);
+    expect(body.data[0].payments[0]).toHaveProperty('amount', 1000);
+  });
+
+  test('includes depositValue in dairy statement rows', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockValue: 5000, depositValue: 100, amountPaid: 2000, closingBalance: 3100,
+      brand: { name: 'Nandini' },
+    };
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/dairy-statement?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('depositValue', 100);
+    expect(body.data[0]).toHaveProperty('closingBalance', 3100);
   });
 });
 
@@ -119,6 +182,20 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
     expect(body.data[0]).toHaveProperty('closingBalance', 1500);
   });
 
+  test('returns 400 when to is missing', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when salespersonId is non-numeric', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=abc&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
   test('returns 200 with empty array when no balance records', async ({ request }) => {
     ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
@@ -131,6 +208,42 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
+  });
+
+  test('returns 200 with items and payments mapped to each day', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 2400, amountPaid: 1200, closingBalance: 1200,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      items: [{
+        product: { name: 'Milk 500ml', brand: { name: 'Nandini' } },
+        quantity: 60, unitPrice: 40, totalAmount: 2400,
+      }],
+    };
+    const payment = {
+      salespersonId: 1,
+      paymentDate: new Date('2026-04-30'),
+      amount: 1200, paymentMode: 'cash', reference: null,
+    };
+
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([payment]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('stockGiven', 2400);
+    expect(body.data[0].items).toHaveLength(1);
+    expect(body.data[0].items[0]).toHaveProperty('productName', 'Milk 500ml');
+    expect(body.data[0].payments).toHaveLength(1);
+    expect(body.data[0].payments[0]).toHaveProperty('amount', 1200);
   });
 });
 
@@ -304,6 +417,80 @@ test.describe('GET /api/v1/reports/deposit-summary', () => {
     expect(body.data.rows[0].items).toHaveLength(1);
     expect(body.data.rows[0].items[0].productName).toBe('Milk 500ml');
     expect(body.data.totalDeposit).toBeCloseTo(100, 2);
+  });
+
+  test('includes gram-type products in deposit calculation', async ({ request }) => {
+    // 500 units × 400g crate × ₹0.20/L = 500 × 0.4 × 0.20 = ₹40
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Curd', depositEnabled: true }]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([{
+      receiptDate: new Date('2026-04-15'),
+      quantity: 500, unitPrice: 30,
+      product: { name: 'Curd 400g', category: 'Curd', unitType: 'gram', unitSize: 400, containerType: 'crate', depositEnabled: true },
+    }]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.rows).toHaveLength(1);
+    // 500 × (400/1000) × 0.20 = 40
+    expect(body.data.rows[0].dailyDeposit).toBeCloseTo(40, 2);
+    expect(body.data.totalDeposit).toBeCloseTo(40, 2);
+  });
+
+  test('merges same product from multiple routes into a single deposit line', async ({ request }) => {
+    // Route 1: 600 units, Route 2: 400 units of same product → total 1000 × 0.5L × 0.20 = ₹100
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 600, unitPrice: 22,
+        product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true, displayOrder: 1 },
+      },
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 400, unitPrice: 22,
+        product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true, displayOrder: 1 },
+      },
+    ]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // Two receipts for same product should be merged into a single line
+    expect(body.data.rows[0].items).toHaveLength(1);
+    expect(body.data.rows[0].items[0].quantity).toBe(1000);
+    expect(body.data.rows[0].dailyDeposit).toBeCloseTo(100, 2);
+  });
+
+  test('returns correct brandName and depositPerLitre in response', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('brandName', 'Nandini');
+    expect(body.data).toHaveProperty('depositEnabled', true);
+    expect(body.data).toHaveProperty('depositPerLitre', 0.20);
+    expect(body.data).toHaveProperty('from', '2026-04-01');
+    expect(body.data).toHaveProperty('to', '2026-04-30');
+  });
+
+  test('returns 400 for non-numeric brandId', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=abc&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
   });
 
   test('accumulates running total correctly across multiple days', async ({ request }) => {

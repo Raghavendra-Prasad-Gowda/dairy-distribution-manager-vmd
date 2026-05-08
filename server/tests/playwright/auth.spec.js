@@ -136,6 +136,7 @@ test.describe('POST /api/v1/auth/logout', () => {
   });
 
   test('returns 200 and clears the cookie with a valid token', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
     const res = await request.post('/api/v1/auth/logout', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
