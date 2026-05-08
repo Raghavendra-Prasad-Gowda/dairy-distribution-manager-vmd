@@ -38,7 +38,7 @@ const login = asyncHandler(async (req, res) => {
     maxAge: JWT_EXPIRES_IN * 1000,
   });
 
-  void notifySlack(SLACK_EVENTS.LOGIN, { ip });
+  void notifySlack(SLACK_EVENTS.LOGIN, { username: settings.username, role: settings.role || 'Super Admin', ip });
   res.json({ success: true, data: { accessToken: token, businessName: settings.businessName } });
 });
 
@@ -58,9 +58,15 @@ const changePassword = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Password changed successfully' } });
 });
 
-const logout = (req, res) => {
+const logout = asyncHandler(async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const settings = req.user?.id
+    ? await prisma.appSettings.findFirst({ where: { id: req.user.id }, select: { username: true } })
+    : null;
+  const username = settings?.username ?? 'unknown';
   res.clearCookie('token');
+  void notifySlack(SLACK_EVENTS.LOGOUT, { username, role: 'Super Admin', ip });
   res.json({ success: true, data: { message: 'Logged out' } });
-};
+});
 
 module.exports = { login, changePassword, logout };

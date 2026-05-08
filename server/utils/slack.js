@@ -13,6 +13,7 @@ const SLACK_EVENTS = {
   SERVER_ERROR:    'SERVER_ERROR',
   // Auth
   LOGIN:        'LOGIN',
+  LOGOUT:       'LOGOUT',
   FAILED_LOGIN: 'FAILED_LOGIN',
   // Stock receipts
   STOCK_RECEIPT_SAVED: 'STOCK_RECEIPT_SAVED',
@@ -45,6 +46,7 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SERVER_SHUTDOWN]: COLORS.AMBER,
   [SLACK_EVENTS.SERVER_ERROR]:    COLORS.RED,
   [SLACK_EVENTS.LOGIN]:           COLORS.GREEN,
+  [SLACK_EVENTS.LOGOUT]:          COLORS.BLUE,
   [SLACK_EVENTS.FAILED_LOGIN]:    COLORS.RED,
   [SLACK_EVENTS.STOCK_RECEIPT_SAVED]:         COLORS.BLUE,
   [SLACK_EVENTS.DAIRY_PAYMENT_RECORDED]:      COLORS.GREEN,
@@ -184,9 +186,21 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('🔓 Admin Login'),
         fieldsBlock([
-          ['🌐 IP Address', data.ip || 'unknown'],
+          ['👤 Username', data.username || 'unknown'],
+          ['👑 Role',     data.role     || 'Admin'],
+          ['🌐 IP Address', data.ip     || 'unknown'],
         ]),
-      ], `Admin Login from ${data.ip}`);
+      ], `Admin Login — ${data.username} from ${data.ip}`);
+
+    case SLACK_EVENTS.LOGOUT:
+      return card(event, [
+        headerBlock('🚪 Admin Logout'),
+        fieldsBlock([
+          ['👤 Username', data.username || 'unknown'],
+          ['👑 Role',     data.role     || 'Admin'],
+          ['🌐 IP Address', data.ip     || 'unknown'],
+        ]),
+      ], `Admin Logout — ${data.username} from ${data.ip}`);
 
     case SLACK_EVENTS.FAILED_LOGIN:
       return card(event, [
