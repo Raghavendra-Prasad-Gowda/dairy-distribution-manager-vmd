@@ -137,6 +137,7 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
 
   test('returns 200 when receipts are saved', async ({ request }) => {
     ctx.mockPrisma.$transaction.mockResolvedValue([RECEIPT]); // upserts
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1, unitsPerContainer: 24 }]);
     // balance recalc uses another $transaction call
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {
@@ -176,6 +177,7 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
   test('returns 200 when items is omitted — defaults to empty array (clears route)', async ({ request }) => {
     // items has .default([]) — omitting it is valid and means "clear this route"
     ctx.mockPrisma.$transaction.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([]);
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -189,6 +191,7 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
 
   test('returns 200 when items is an empty array (clears existing receipts for the route)', async ({ request }) => {
     ctx.mockPrisma.$transaction.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([]);
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -244,6 +247,7 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
     ctx.mockPrisma.stockReceipt.deleteMany.mockResolvedValue({ count: 0 });
     ctx.mockPrisma.stockReceipt.create.mockResolvedValue(RECEIPT);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1, unitsPerContainer: 24 }]);
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -271,6 +275,7 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
     ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 2, unitsPerContainer: 24 }]);
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

@@ -72,9 +72,9 @@ function formatDate(dateStr) {
   });
 }
 
-/** Number → "₹1,22,750" */
+/** Number → "₹1,22,750.40" */
 function formatINR(amount) {
-  return '₹' + Math.round(Number(amount)).toLocaleString('en-IN');
+  return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /** Current time as "7 May 2026, 09:53 AM" (IST) */
@@ -221,6 +221,7 @@ function buildCard(event, data) {
           ['📅 Date',     formatDate(data.date)],
           ['🛣️ Route',    data.routeNumber || 'General'],
           ['📦 Products', String(data.savedCount)],
+          ['🧺 Crates',   data.totalCrates != null ? String(data.totalCrates) : null],
           ['💰 Value',    formatINR(data.totalValue)],
         ]),
       ], `Stock Receipt — ${data.brandName} on ${data.date}`);
