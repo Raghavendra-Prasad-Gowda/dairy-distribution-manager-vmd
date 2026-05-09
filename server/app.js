@@ -25,6 +25,7 @@ const salespersonPaymentsRoutes = require('./routes/salespersonPayments');
 const reportsRoutes             = require('./routes/reports');
 const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
+const clientErrorsRoutes        = require('./routes/clientErrors');
 const { authenticate }          = require('./middleware/auth');
 
 const app = express();
@@ -79,6 +80,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime
 
 // ─── Public routes ───────────────────────────────────────────────────────────
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/errors/client', clientErrorsRoutes);
 
 // ─── Protected routes (all require authenticate) ─────────────────────────────
 app.use('/api/v1', authenticate);

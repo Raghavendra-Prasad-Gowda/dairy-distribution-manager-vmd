@@ -11,6 +11,7 @@ const SLACK_EVENTS = {
   SERVER_STARTED:  'SERVER_STARTED',
   SERVER_SHUTDOWN: 'SERVER_SHUTDOWN',
   SERVER_ERROR:    'SERVER_ERROR',
+  CLIENT_ERROR:    'CLIENT_ERROR',
   // Auth
   LOGIN:        'LOGIN',
   LOGOUT:       'LOGOUT',
@@ -57,6 +58,7 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SERVER_STARTED]:  COLORS.GREEN,
   [SLACK_EVENTS.SERVER_SHUTDOWN]: COLORS.AMBER,
   [SLACK_EVENTS.SERVER_ERROR]:    COLORS.RED,
+  [SLACK_EVENTS.CLIENT_ERROR]:    COLORS.RED,
   [SLACK_EVENTS.LOGIN]:           COLORS.GREEN,
   [SLACK_EVENTS.LOGOUT]:          COLORS.BLUE,
   [SLACK_EVENTS.FAILED_LOGIN]:    COLORS.RED,
@@ -201,6 +203,16 @@ function buildCard(event, data) {
           ['❌ Message', data.message],
         ]),
       ], `Server Error: ${data.method} ${data.path} — ${data.message}`);
+
+    case SLACK_EVENTS.CLIENT_ERROR:
+      return card(event, [
+        headerBlock('🔴 App Crash — Frontend Error'),
+        fieldsBlock([
+          ['📍 Page',    data.page    || 'unknown'],
+          ['❌ Message', data.message || 'unknown'],
+        ]),
+        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+      ], `Frontend crash on ${data.page}: ${data.message}`);
 
     // ── Auth ───────────────────────────────────────────────────────────────
     case SLACK_EVENTS.LOGIN:
