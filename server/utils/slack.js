@@ -208,8 +208,9 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('🔴 App Crash — Frontend Error'),
         fieldsBlock([
-          ['📍 Page',    data.page    || 'unknown'],
-          ['❌ Message', data.message || 'unknown'],
+          ['👤 User',    data.username || 'Not logged in'],
+          ['📍 Page',    data.page     || 'unknown'],
+          ['❌ Message', data.message  || 'unknown'],
         ]),
         ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
       ], `Frontend crash on ${data.page}: ${data.message}`);

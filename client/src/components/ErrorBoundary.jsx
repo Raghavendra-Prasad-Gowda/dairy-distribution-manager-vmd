@@ -23,6 +23,7 @@ class ErrorBoundary extends Component {
     const base = import.meta.env.VITE_API_BASE_URL ?? '';
     fetch(`${base}/errors/client`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: error?.message ?? String(error),
