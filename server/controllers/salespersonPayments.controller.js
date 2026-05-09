@@ -65,6 +65,7 @@ const update = asyncHandler(async (req, res) => {
     date:          newDate,
     amount:        data.amount,
     paymentMode:   data.paymentMode,
+    reference:     data.reference,
   });
   res.json({ success: true, data: updated });
 });

@@ -282,6 +282,7 @@ function buildCard(event, data) {
           ['📅 Date',    formatDate(data.date)],
           ['💰 Amount',  formatINR(data.amount)],
           ['💳 Mode',    data.paymentMode || 'Cash'],
+          ['📝 Ref',     data.reference || null],
         ]),
       ], `Dairy Payment Updated — ${data.brandName} — ${formatINR(data.amount)}`);
 
@@ -338,6 +339,7 @@ function buildCard(event, data) {
           ['📅 Date',        formatDate(data.date)],
           ['💰 Amount',      formatINR(data.amount)],
           ['💳 Mode',        data.paymentMode || 'Cash'],
+          ['📝 Ref',         data.reference || null],
         ]),
       ], `Collection Updated — ${data.salespersonName} — ${formatINR(data.amount)}`);
 
@@ -356,8 +358,9 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('👤 Salesperson Added'),
         fieldsBlock([
-          ['👤 Name',  data.name],
-          ['🛣️ Route', data.route || '—'],
+          ['👤 Name',    data.name],
+          ['📞 Phone',   data.phone  || null],
+          ['🛣️ Route',  data.route  || null],
         ]),
       ], `Salesperson Added — ${data.name}`);
 
@@ -365,8 +368,10 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('✏️ Salesperson Updated'),
         fieldsBlock([
-          ['👤 Name',   data.name],
-          ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ['👤 Name',    data.name],
+          ['📞 Phone',   data.phone  || null],
+          ['🛣️ Route',  data.route  || null],
+          ['🔘 Status',  data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
         ]),
       ], `Salesperson Updated — ${data.name}`);
 
@@ -375,10 +380,11 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('🆕 Product Added'),
         fieldsBlock([
-          ['🏷️ Brand',   data.brandName],
-          ['📦 Name',    data.name],
-          ['📂 Category',data.category || '—'],
-          ['💰 Cost',    formatINR(data.costPrice ?? 0)],
+          ['🏷️ Brand',      data.brandName],
+          ['📦 Name',       data.name],
+          ['📂 Category',   data.category   || null],
+          ['💰 Cost Price', formatINR(data.costPrice    ?? 0)],
+          ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
         ]),
       ], `Product Added — ${data.name} (${data.brandName})`);
 
@@ -386,11 +392,12 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('✏️ Product Updated'),
         fieldsBlock([
-          ['🏷️ Brand',   data.brandName],
-          ['📦 Name',    data.name],
-          ['📂 Category',data.category || '—'],
-          ['💰 Cost',    formatINR(data.costPrice ?? 0)],
-          ['🔘 Status',  data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ['🏷️ Brand',      data.brandName],
+          ['📦 Name',       data.name],
+          ['📂 Category',   data.category   || null],
+          ['💰 Cost Price', formatINR(data.costPrice    ?? 0)],
+          ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
+          ['🔘 Status',     data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
         ]),
       ], `Product Updated — ${data.name} (${data.brandName})`);
 
@@ -398,8 +405,9 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('🗑️ Product Deactivated'),
         fieldsBlock([
-          ['🏷️ Brand', data.brandName],
-          ['📦 Name',  data.name],
+          ['🏷️ Brand',    data.brandName],
+          ['📦 Name',     data.name],
+          ['📂 Category', data.category || null],
         ]),
       ], `Product Deactivated — ${data.name} (${data.brandName})`);
 
