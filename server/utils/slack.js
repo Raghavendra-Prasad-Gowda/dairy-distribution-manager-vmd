@@ -247,7 +247,27 @@ function buildCard(event, data) {
       ], `Failed Login — "${data.attemptedUsername}" from ${data.ip}`);
 
     // ── Stock Receipts ─────────────────────────────────────────────────────
-    case SLACK_EVENTS.STOCK_RECEIPT_SAVED:
+    case SLACK_EVENTS.STOCK_RECEIPT_SAVED: {
+      const stockVal  = data.stockValue  ?? 0;
+      const depositVal = data.depositValue ?? 0;
+      const billTotal  = stockVal + depositVal;
+
+      const billFields = data.depositEnabled
+        ? [
+            ['📦 Stock',      formatINR(stockVal)],
+            ['💧 Deposit',    formatINR(depositVal)],
+            ['🧾 Bill Total', formatINR(billTotal)],
+            ['🏦 Opening',    formatINR(data.openingBalance ?? 0)],
+            ['💳 Paid',       formatINR(data.amountPaid ?? 0)],
+            ['💸 You Owe',    formatINR(data.closingBalance ?? 0)],
+          ]
+        : [
+            ['📦 Stock',   formatINR(stockVal)],
+            ['🏦 Opening', formatINR(data.openingBalance ?? 0)],
+            ['💳 Paid',    formatINR(data.amountPaid ?? 0)],
+            ['💸 You Owe', formatINR(data.closingBalance ?? 0)],
+          ];
+
       return card(event, [
         headerBlock('📦 Stock Receipt Saved'),
         fieldsBlock([
@@ -259,7 +279,10 @@ function buildCard(event, data) {
           ['🧺 Crates',   data.totalCrates != null ? `${data.totalCrates} Crates` : null],
           ['💰 Value',    formatINR(data.totalValue)],
         ]),
+        textBlock('*💳 Today\'s Bill*'),
+        fieldsBlock(billFields),
       ], `Stock Receipt — ${data.brandName} on ${data.date}`);
+    }
 
     // ── Dairy Payments ─────────────────────────────────────────────────────
     case SLACK_EVENTS.DAIRY_PAYMENT_RECORDED:
