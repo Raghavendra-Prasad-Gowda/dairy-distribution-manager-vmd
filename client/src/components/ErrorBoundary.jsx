@@ -20,6 +20,17 @@ class ErrorBoundary extends Component {
       return;
     }
     console.error('ErrorBoundary caught:', error, info.componentStack);
+    const base = import.meta.env.VITE_API_BASE_URL ?? '';
+    fetch(`${base}/errors/client`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: error?.message ?? String(error),
+        stack:   (error?.stack ?? '') + '\n\nComponent stack:' + (info?.componentStack ?? ''),
+        page:    window.location.pathname,
+      }),
+    }).catch(() => {});
   }
 
   render() {

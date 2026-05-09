@@ -21,7 +21,7 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createSalesperson, req, res);
   if (!data) return;
   const sp = await prisma.salesperson.create({ data });
-  void notifySlack(SLACK_EVENTS.SALESPERSON_CREATED, { name: sp.name, route: sp.route });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_CREATED, { name: sp.name, phone: sp.phone, route: sp.route });
   res.status(201).json({ success: true, data: sp });
 });
 
@@ -30,7 +30,7 @@ const update = asyncHandler(async (req, res) => {
   const data = validate(schemas.updateSalesperson, req, res);
   if (!data) return;
   const sp = await prisma.salesperson.update({ where: { id }, data });
-  void notifySlack(SLACK_EVENTS.SALESPERSON_UPDATED, { name: sp.name, isActive: sp.isActive });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_UPDATED, { name: sp.name, phone: sp.phone, route: sp.route, isActive: sp.isActive });
   res.json({ success: true, data: sp });
 });
 

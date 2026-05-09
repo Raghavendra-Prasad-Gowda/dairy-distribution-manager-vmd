@@ -11,6 +11,7 @@ const SLACK_EVENTS = {
   SERVER_STARTED:  'SERVER_STARTED',
   SERVER_SHUTDOWN: 'SERVER_SHUTDOWN',
   SERVER_ERROR:    'SERVER_ERROR',
+  CLIENT_ERROR:    'CLIENT_ERROR',
   // Auth
   LOGIN:        'LOGIN',
   LOGOUT:       'LOGOUT',
@@ -28,9 +29,21 @@ const SLACK_EVENTS = {
   SALESPERSON_PAYMENT_RECORDED: 'SALESPERSON_PAYMENT_RECORDED',
   SALESPERSON_PAYMENT_UPDATED:  'SALESPERSON_PAYMENT_UPDATED',
   SALESPERSON_PAYMENT_DELETED:  'SALESPERSON_PAYMENT_DELETED',
-  // Setup
+  // Setup — salespeople
   SALESPERSON_CREATED: 'SALESPERSON_CREATED',
   SALESPERSON_UPDATED: 'SALESPERSON_UPDATED',
+  // Setup — products
+  PRODUCT_CREATED: 'PRODUCT_CREATED',
+  PRODUCT_UPDATED: 'PRODUCT_UPDATED',
+  PRODUCT_DELETED: 'PRODUCT_DELETED',
+  // Setup — categories
+  CATEGORY_CREATED: 'CATEGORY_CREATED',
+  CATEGORY_UPDATED: 'CATEGORY_UPDATED',
+  CATEGORY_DELETED: 'CATEGORY_DELETED',
+  // Setup — routes
+  ROUTE_CREATED: 'ROUTE_CREATED',
+  ROUTE_UPDATED: 'ROUTE_UPDATED',
+  ROUTE_DELETED: 'ROUTE_DELETED',
 };
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -45,6 +58,7 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SERVER_STARTED]:  COLORS.GREEN,
   [SLACK_EVENTS.SERVER_SHUTDOWN]: COLORS.AMBER,
   [SLACK_EVENTS.SERVER_ERROR]:    COLORS.RED,
+  [SLACK_EVENTS.CLIENT_ERROR]:    COLORS.RED,
   [SLACK_EVENTS.LOGIN]:           COLORS.GREEN,
   [SLACK_EVENTS.LOGOUT]:          COLORS.BLUE,
   [SLACK_EVENTS.FAILED_LOGIN]:    COLORS.RED,
@@ -59,6 +73,15 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED]:  COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.PRODUCT_CREATED]: COLORS.GREEN,
+  [SLACK_EVENTS.PRODUCT_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.PRODUCT_DELETED]: COLORS.RED,
+  [SLACK_EVENTS.CATEGORY_CREATED]: COLORS.GREEN,
+  [SLACK_EVENTS.CATEGORY_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.CATEGORY_DELETED]: COLORS.RED,
+  [SLACK_EVENTS.ROUTE_CREATED]: COLORS.GREEN,
+  [SLACK_EVENTS.ROUTE_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.ROUTE_DELETED]: COLORS.RED,
 };
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -72,9 +95,9 @@ function formatDate(dateStr) {
   });
 }
 
-/** Number → "₹1,22,750" */
+/** Number → "₹1,22,750.40" */
 function formatINR(amount) {
-  return '₹' + Math.round(Number(amount)).toLocaleString('en-IN');
+  return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /** Current time as "7 May 2026, 09:53 AM" (IST) */
@@ -181,6 +204,17 @@ function buildCard(event, data) {
         ]),
       ], `Server Error: ${data.method} ${data.path} — ${data.message}`);
 
+    case SLACK_EVENTS.CLIENT_ERROR:
+      return card(event, [
+        headerBlock('🔴 App Crash — Frontend Error'),
+        fieldsBlock([
+          ['👤 User',    data.username || 'Not logged in'],
+          ['📍 Page',    data.page     || 'unknown'],
+          ['❌ Message', data.message  || 'unknown'],
+        ]),
+        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+      ], `Frontend crash on ${data.page}: ${data.message}`);
+
     // ── Auth ───────────────────────────────────────────────────────────────
     case SLACK_EVENTS.LOGIN:
       return card(event, [
@@ -221,6 +255,8 @@ function buildCard(event, data) {
           ['📅 Date',     formatDate(data.date)],
           ['🛣️ Route',    data.routeNumber || 'General'],
           ['📦 Products', String(data.savedCount)],
+          ['🔢 Units',    data.totalUnits  != null ? String(data.totalUnits)  : null],
+          ['🧺 Crates',   data.totalCrates != null ? `${data.totalCrates} Crates` : null],
           ['💰 Value',    formatINR(data.totalValue)],
         ]),
       ], `Stock Receipt — ${data.brandName} on ${data.date}`);
@@ -246,6 +282,7 @@ function buildCard(event, data) {
           ['📅 Date',    formatDate(data.date)],
           ['💰 Amount',  formatINR(data.amount)],
           ['💳 Mode',    data.paymentMode || 'Cash'],
+          ['📝 Ref',     data.reference || null],
         ]),
       ], `Dairy Payment Updated — ${data.brandName} — ${formatINR(data.amount)}`);
 
@@ -302,6 +339,7 @@ function buildCard(event, data) {
           ['📅 Date',        formatDate(data.date)],
           ['💰 Amount',      formatINR(data.amount)],
           ['💳 Mode',        data.paymentMode || 'Cash'],
+          ['📝 Ref',         data.reference || null],
         ]),
       ], `Collection Updated — ${data.salespersonName} — ${formatINR(data.amount)}`);
 
@@ -320,8 +358,9 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('👤 Salesperson Added'),
         fieldsBlock([
-          ['👤 Name',  data.name],
-          ['🛣️ Route', data.route || '—'],
+          ['👤 Name',    data.name],
+          ['📞 Phone',   data.phone  || null],
+          ['🛣️ Route',  data.route  || null],
         ]),
       ], `Salesperson Added — ${data.name}`);
 
@@ -329,10 +368,106 @@ function buildCard(event, data) {
       return card(event, [
         headerBlock('✏️ Salesperson Updated'),
         fieldsBlock([
-          ['👤 Name',   data.name],
-          ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ['👤 Name',    data.name],
+          ['📞 Phone',   data.phone  || null],
+          ['🛣️ Route',  data.route  || null],
+          ['🔘 Status',  data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
         ]),
       ], `Salesperson Updated — ${data.name}`);
+
+    // ── Products ───────────────────────────────────────────────────────────
+    case SLACK_EVENTS.PRODUCT_CREATED:
+      return card(event, [
+        headerBlock('🆕 Product Added'),
+        fieldsBlock([
+          ['🏷️ Brand',      data.brandName],
+          ['📦 Name',       data.name],
+          ['📂 Category',   data.category   || null],
+          ['💰 Cost Price', formatINR(data.costPrice    ?? 0)],
+          ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
+        ]),
+      ], `Product Added — ${data.name} (${data.brandName})`);
+
+    case SLACK_EVENTS.PRODUCT_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Product Updated'),
+        fieldsBlock([
+          ['🏷️ Brand',      data.brandName],
+          ['📦 Name',       data.name],
+          ['📂 Category',   data.category   || null],
+          ['💰 Cost Price', formatINR(data.costPrice    ?? 0)],
+          ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
+          ['🔘 Status',     data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+        ]),
+      ], `Product Updated — ${data.name} (${data.brandName})`);
+
+    case SLACK_EVENTS.PRODUCT_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Product Deactivated'),
+        fieldsBlock([
+          ['🏷️ Brand',    data.brandName],
+          ['📦 Name',     data.name],
+          ['📂 Category', data.category || null],
+        ]),
+      ], `Product Deactivated — ${data.name} (${data.brandName})`);
+
+    // ── Categories ─────────────────────────────────────────────────────────
+    case SLACK_EVENTS.CATEGORY_CREATED:
+      return card(event, [
+        headerBlock('🆕 Category Added'),
+        fieldsBlock([
+          ['🏷️ Brand', data.brandName],
+          ['📂 Name',  data.name],
+        ]),
+      ], `Category Added — ${data.name} (${data.brandName})`);
+
+    case SLACK_EVENTS.CATEGORY_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Category Updated'),
+        fieldsBlock([
+          ['🏷️ Brand',   data.brandName],
+          ['📂 Name',    data.name],
+          ['💧 Deposit', data.depositEnabled ? 'Enabled ✅' : 'Disabled ❌'],
+        ]),
+      ], `Category Updated — ${data.name} (${data.brandName})`);
+
+    case SLACK_EVENTS.CATEGORY_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Category Deleted'),
+        fieldsBlock([
+          ['🏷️ Brand', data.brandName],
+          ['📂 Name',  data.name],
+        ]),
+      ], `Category Deleted — ${data.name} (${data.brandName})`);
+
+    // ── Routes ─────────────────────────────────────────────────────────────
+    case SLACK_EVENTS.ROUTE_CREATED:
+      return card(event, [
+        headerBlock('🆕 Route Added'),
+        fieldsBlock([
+          ['🏷️ Brand',     data.brandName],
+          ['🛣️ Route No.', String(data.routeNumber)],
+        ]),
+      ], `Route Added — ${data.routeNumber} (${data.brandName})`);
+
+    case SLACK_EVENTS.ROUTE_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Route Updated'),
+        fieldsBlock([
+          ['🏷️ Brand',     data.brandName],
+          ['🛣️ Route No.', String(data.routeNumber)],
+          ['🔘 Status',    data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+        ]),
+      ], `Route Updated — ${data.routeNumber} (${data.brandName})`);
+
+    case SLACK_EVENTS.ROUTE_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Route Deleted'),
+        fieldsBlock([
+          ['🏷️ Brand',     data.brandName],
+          ['🛣️ Route No.', String(data.routeNumber)],
+        ]),
+      ], `Route Deleted — ${data.routeNumber} (${data.brandName})`);
 
     default:
       return { text: `[VMD] Event: ${event}` };
