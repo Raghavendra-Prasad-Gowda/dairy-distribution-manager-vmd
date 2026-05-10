@@ -248,25 +248,13 @@ function buildCard(event, data) {
 
     // ── Stock Receipts ─────────────────────────────────────────────────────
     case SLACK_EVENTS.STOCK_RECEIPT_SAVED: {
-      const stockVal  = data.stockValue  ?? 0;
-      const depositVal = data.depositValue ?? 0;
+      const stockVal   = Number(data.stockValue   ?? 0);
+      const depositVal = Number(data.depositValue ?? 0);
       const billTotal  = stockVal + depositVal;
 
-      const billFields = data.depositEnabled
-        ? [
-            ['📦 Stock',      formatINR(stockVal)],
-            ['💧 Deposit',    formatINR(depositVal)],
-            ['🧾 Bill Total', formatINR(billTotal)],
-            ['🏦 Opening',    formatINR(data.openingBalance ?? 0)],
-            ['💳 Paid',       formatINR(data.amountPaid ?? 0)],
-            ['💸 You Owe',    formatINR(data.closingBalance ?? 0)],
-          ]
-        : [
-            ['📦 Stock',   formatINR(stockVal)],
-            ['🏦 Opening', formatINR(data.openingBalance ?? 0)],
-            ['💳 Paid',    formatINR(data.amountPaid ?? 0)],
-            ['💸 You Owe', formatINR(data.closingBalance ?? 0)],
-          ];
+      const billLine = (data.depositEnabled && depositVal > 0)
+        ? `${formatINR(stockVal)}  +  ${formatINR(depositVal)}  =  *${formatINR(billTotal)}*`
+        : `*${formatINR(stockVal)}*`;
 
       return card(event, [
         headerBlock('📦 Stock Receipt Saved'),
@@ -279,8 +267,13 @@ function buildCard(event, data) {
           ['🧺 Crates',   data.totalCrates != null ? `${data.totalCrates} Crates` : null],
           ['💰 Value',    formatINR(data.totalValue)],
         ]),
-        textBlock('*💳 Today\'s Bill*'),
-        fieldsBlock(billFields),
+        dividerBlock(),
+        textBlock(`*💳 Today's Bill*\n${billLine}`),
+        fieldsBlock([
+          ['🏦 Opening',  formatINR(data.openingBalance ?? 0)],
+          ['💳 Paid',     formatINR(data.amountPaid    ?? 0)],
+          ['💸 You Owe',  formatINR(data.closingBalance ?? 0)],
+        ]),
       ], `Stock Receipt — ${data.brandName} on ${data.date}`);
     }
 
