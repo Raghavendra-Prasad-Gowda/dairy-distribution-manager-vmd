@@ -90,13 +90,21 @@ const bulkCreate = asyncHandler(async (req, res) => {
   const totalValue = nonZeroItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const totalUnits = nonZeroItems.reduce((s, i) => s + i.quantity, 0);
 
-  const [routeRow, products] = await Promise.all([
+  const [routeRow, products, balance, brandRow] = await Promise.all([
     routeId !== 0
       ? prisma.route.findUnique({ where: { id: routeId }, select: { routeNumber: true } })
       : Promise.resolve(null),
     prisma.product.findMany({
       where: { id: { in: nonZeroItems.map(i => i.productId) } },
       select: { id: true, unitsPerContainer: true },
+    }),
+    prisma.dairyBalance.findUnique({
+      where: { brandId_balanceDate: { brandId: data.brandId, balanceDate: receiptDate } },
+      select: { openingBalance: true, stockValue: true, depositValue: true, amountPaid: true, closingBalance: true },
+    }),
+    prisma.brand.findUnique({
+      where: { id: data.brandId },
+      select: { depositEnabled: true },
     }),
   ]);
   const routeNumber = routeRow?.routeNumber ?? null;
@@ -107,13 +115,19 @@ const bulkCreate = asyncHandler(async (req, res) => {
   }, 0);
 
   void notifySlack(SLACK_EVENTS.STOCK_RECEIPT_SAVED, {
-    brandId:     data.brandId,
-    date:        data.date,
+    brandId:        data.brandId,
+    date:           data.date,
     routeNumber,
-    savedCount:  nonZeroItems.length,
+    savedCount:     nonZeroItems.length,
     totalUnits,
-    totalCrates: Math.round(totalCrates * 100) / 100,
+    totalCrates:    Math.round(totalCrates * 100) / 100,
     totalValue,
+    depositEnabled: brandRow?.depositEnabled ?? false,
+    openingBalance: Number(balance?.openingBalance ?? 0),
+    stockValue:     Number(balance?.stockValue ?? 0),
+    depositValue:   Number(balance?.depositValue ?? 0),
+    amountPaid:     Number(balance?.amountPaid ?? 0),
+    closingBalance: Number(balance?.closingBalance ?? 0),
   });
 
   res.json({ success: true, data: { saved: nonZeroItems.length } });
