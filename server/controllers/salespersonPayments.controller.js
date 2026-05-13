@@ -6,7 +6,10 @@ const { recalculateSalespersonBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
+// Admin only — records payment received from salesperson
 const create = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
   const data = validate(schemas.createSalespersonPayment, req, res);
   if (!data) return;
 
@@ -25,15 +28,23 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: payment });
 });
 
+// Salesman sees only their own payments; admin sees all
 const getAll = asyncHandler(async (req, res) => {
   const { salespersonId, from, to } = req.query;
   const where = {};
-  if (salespersonId) where.salespersonId = parseId(salespersonId, 'Salesperson ID');
+
+  if (req.user.role === 'salesman') {
+    where.salespersonId = req.user.salespersonId;
+  } else if (salespersonId) {
+    where.salespersonId = parseId(salespersonId, 'Salesperson ID');
+  }
+
   if (from || to) {
     where.paymentDate = {};
     if (from) where.paymentDate.gte = new Date(from);
     if (to)   where.paymentDate.lte = new Date(to);
   }
+
   const payments = await prisma.salespersonPayment.findMany({
     where,
     include: { salesperson: { select: { id: true, name: true } } },
@@ -42,7 +53,10 @@ const getAll = asyncHandler(async (req, res) => {
   res.json({ success: true, data: payments });
 });
 
+// Admin only
 const update = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
   const id = parseId(req.params.id, 'Payment ID');
   const data = validate(schemas.updateSalespersonPayment, req, res);
   if (!data) return;
@@ -70,7 +84,10 @@ const update = asyncHandler(async (req, res) => {
   res.json({ success: true, data: updated });
 });
 
+// Admin only
 const remove = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
   const id = parseId(req.params.id, 'Payment ID');
   const payment = await prisma.salespersonPayment.findUnique({ where: { id } });
   if (!payment) throw new AppError('Payment not found', 404);

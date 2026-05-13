@@ -1,10 +1,6 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
 
-/**
- * authenticate — verifies JWT from Authorization header or httpOnly cookie.
- * Sets req.user = { id: 1 } (single-user app).
- */
 const authenticate = (req, res, next) => {
   const token =
     req.cookies?.token ||
@@ -19,9 +15,20 @@ const authenticate = (req, res, next) => {
     if (err) {
       return next(new AppError('Unauthorized. Token is invalid or expired.', 401));
     }
-    req.user = { id: decoded.id };
+    req.user = {
+      id: decoded.id,
+      role: decoded.role ?? 'admin',
+      salespersonId: decoded.salespersonId ?? null,
+    };
     next();
   });
 };
 
-module.exports = { authenticate };
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return next(new AppError('Admin access required.', 403));
+  }
+  next();
+};
+
+module.exports = { authenticate, requireAdmin };
