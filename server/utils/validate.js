@@ -63,6 +63,10 @@ const schemas = {
   }),
 
   // Layout reordering
+  reorderBrands: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
   reorderProducts: z.array(z.object({
     id:           z.number().int().positive(),
     displayOrder: z.number().int().nonnegative(),

@@ -17,6 +17,34 @@ import { GripVertical, LayoutGrid, Save, Loader2, ChevronUp, ChevronDown } from 
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
+// ── Brand row with up/down arrows ─────────────────────────────────────────────
+function BrandOrderRow({ brand, onMoveUp, onMoveDown, isFirst, isLast }) {
+  return (
+    <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3">
+      <div className="flex flex-col gap-0.5">
+        <button
+          onClick={onMoveUp}
+          disabled={isFirst}
+          className="text-slate-400 hover:text-emerald-600 disabled:opacity-20 disabled:cursor-not-allowed p-0.5 leading-none"
+        >
+          <ChevronUp size={14} />
+        </button>
+        <button
+          onClick={onMoveDown}
+          disabled={isLast}
+          className="text-slate-400 hover:text-emerald-600 disabled:opacity-20 disabled:cursor-not-allowed p-0.5 leading-none"
+        >
+          <ChevronDown size={14} />
+        </button>
+      </div>
+      <span className="flex-1 text-sm font-bold text-slate-800">{brand.name}</span>
+      <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">
+        Position {brand._order + 1}
+      </span>
+    </div>
+  );
+}
+
 // ── Category row with up/down buttons ─────────────────────────────────────────
 function CategoryRow({ category, isExpanded, onToggleExpand, onMoveUp, onMoveDown, isFirst, isLast, children }) {
   return (
@@ -92,23 +120,23 @@ function SortableProductRow({ product }) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function LayoutSettings() {
   const { notify } = useNotification();
-  const [brands, setBrands]           = useState([]);
+  const [brands, setBrands]               = useState([]);   // [{ id, name, displayOrder, _order }]
   const [activeBrandId, setActiveBrandId] = useState(null);
-  const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
-  const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
-  const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
-  const [loading, setLoading]         = useState(false);
-  const [saving, setSaving]           = useState(false);
-  const [dirty, setDirty]             = useState(false);
+  const [categories, setCategories]       = useState([]);   // [{ id, name, displayOrder }]
+  const [products, setProducts]           = useState([]);   // [{ id, name, category, displayOrder, ... }]
+  const [expanded, setExpanded]           = useState({});   // { categoryName: bool }
+  const [loading, setLoading]             = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [dirty, setDirty]                 = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  // Load brands
+  // Load brands (sorted by displayOrder)
   useEffect(() => {
     api.get('/brands').then(r => {
-      const b = r.data.data ?? [];
+      const b = (r.data.data ?? []).map((br, i) => ({ ...br, _order: i }));
       setBrands(b);
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
@@ -126,7 +154,6 @@ export default function LayoutSettings() {
       const prods = (prodRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
       setCategories(cats);
       setProducts(prods);
-      // Expand all categories by default
       const exp = {};
       cats.forEach(c => { exp[c.name] = true; });
       setExpanded(exp);
@@ -150,6 +177,16 @@ export default function LayoutSettings() {
       return oa !== ob ? oa - ob : a.localeCompare(b);
     });
   }, [categories, products]);
+
+  // ── Brand move up/down ───────────────────────────────────────────────────────
+  const moveBrand = useCallback((fromIdx, direction) => {
+    const toIdx = fromIdx + direction;
+    setBrands(prev => {
+      const next = arrayMove(prev, fromIdx, toIdx).map((b, i) => ({ ...b, _order: i }));
+      return next;
+    });
+    setDirty(true);
+  }, []);
 
   // ── Category move up/down ────────────────────────────────────────────────────
   const moveCategory = useCallback((fromVisibleIdx, direction) => {
@@ -182,10 +219,12 @@ export default function LayoutSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const brandOrders    = brands.map((b, i) => ({ id: b.id, displayOrder: i }));
       const categoryOrders = categories.map((c, i) => ({ id: c.id, displayOrder: i }));
       const productOrders  = products.map((p, i) => ({ id: p.id, displayOrder: i }));
 
       await Promise.all([
+        api.patch('/brands/reorder', brandOrders),
         api.patch('/categories/reorder', categoryOrders),
         api.patch('/products/reorder', productOrders),
       ]);
@@ -217,72 +256,101 @@ export default function LayoutSettings() {
         <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
         <div>
           <h1 className="text-sm font-bold text-white leading-tight">Layout Settings</h1>
-          <p className="text-emerald-300 text-xs">Drag to reorder categories and visible products.</p>
+          <p className="text-emerald-300 text-xs">Configure display order for brands, categories, and products.</p>
         </div>
       </div>
 
-      {/* ── Brand tabs ───────────────────────────────────────────────────────── */}
-      {brands.length > 1 && (
-        <div className="flex gap-2 px-4 pt-4">
-          {brands.map(b => (
-            <button
-              key={b.id}
-              onClick={() => setActiveBrandId(b.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
-                activeBrandId === b.id
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {b.name}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* ── Content ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto px-4 py-4 space-y-2">
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {grouped.map(([catName, catProducts], catIdx) => {
-              const cat = categories.find(c => c.name === catName);
-              if (!cat) return null;
-              return (
-                <CategoryRow
-                  key={cat.id}
-                  category={cat}
-                  isExpanded={expanded[catName] ?? true}
-                  onToggleExpand={() =>
-                    setExpanded(prev => ({ ...prev, [catName]: !prev[catName] }))
-                  }
-                  onMoveUp={() => moveCategory(catIdx, -1)}
-                  onMoveDown={() => moveCategory(catIdx, 1)}
-                  isFirst={catIdx === 0}
-                  isLast={catIdx === grouped.length - 1}
-                >
-                  {/* ── Product drag-and-drop within this category ── */}
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>
-                    <SortableContext
-                      items={catProducts.map(p => `prod-${p.id}`)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {catProducts.map(p => (
-                        <SortableProductRow
-                          key={p.id}
-                          product={p}
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                </CategoryRow>
-              );
-            })}
+      <div className="flex-1 overflow-auto px-4 py-4 space-y-4">
+
+        {/* ── Brand order section ──────────────────────────────────────────── */}
+        {brands.length > 1 && (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex-1">Brand Order</span>
+              <span className="text-[11px] text-slate-400">Drag ↕ arrows to reorder</span>
+            </div>
+            <div className="p-3 space-y-2">
+              {brands.map((brand, idx) => (
+                <BrandOrderRow
+                  key={brand.id}
+                  brand={brand}
+                  onMoveUp={() => moveBrand(idx, -1)}
+                  onMoveDown={() => moveBrand(idx, 1)}
+                  isFirst={idx === 0}
+                  isLast={idx === brands.length - 1}
+                />
+              ))}
+            </div>
           </div>
         )}
+
+        {/* ── Category & product order per brand ───────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex-1">Categories &amp; Products</span>
+            <span className="text-[11px] text-slate-400">↕ arrows for categories · drag for products</span>
+          </div>
+
+          {/* Brand tabs */}
+          {brands.length > 1 && (
+            <div className="flex gap-2 px-4 pt-3 pb-1 border-b border-slate-100 overflow-x-auto">
+              {brands.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setActiveBrandId(b.id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-semibold transition flex-shrink-0 ${
+                    activeBrandId === b.id
+                      ? 'bg-emerald-700 text-white'
+                      : 'bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="p-3 space-y-2">
+            {loading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
+              </div>
+            ) : grouped.length === 0 ? (
+              <p className="py-8 text-center text-slate-400 text-sm">No products configured for this brand.</p>
+            ) : (
+              grouped.map(([catName, catProducts], catIdx) => {
+                const cat = categories.find(c => c.name === catName);
+                if (!cat) return null;
+                return (
+                  <CategoryRow
+                    key={cat.id}
+                    category={cat}
+                    isExpanded={expanded[catName] ?? true}
+                    onToggleExpand={() =>
+                      setExpanded(prev => ({ ...prev, [catName]: !prev[catName] }))
+                    }
+                    onMoveUp={() => moveCategory(catIdx, -1)}
+                    onMoveDown={() => moveCategory(catIdx, 1)}
+                    isFirst={catIdx === 0}
+                    isLast={catIdx === grouped.length - 1}
+                  >
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProductDragEnd}>
+                      <SortableContext
+                        items={catProducts.map(p => `prod-${p.id}`)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {catProducts.map(p => (
+                          <SortableProductRow key={p.id} product={p} />
+                        ))}
+                      </SortableContext>
+                    </DndContext>
+                  </CategoryRow>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Footer / Save bar ────────────────────────────────────────────────── */}

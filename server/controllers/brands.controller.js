@@ -3,8 +3,19 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const prisma = require('../lib/prisma');
 
 const getAll = asyncHandler(async (req, res) => {
-  const brands = await prisma.brand.findMany({ orderBy: { name: 'asc' } });
+  const brands = await prisma.brand.findMany({ orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] });
   res.json({ success: true, data: brands });
+});
+
+const reorder = asyncHandler(async (req, res) => {
+  const items = validate(schemas.reorderBrands, req, res);
+  if (!items) return;
+  await prisma.$transaction(
+    items.map(({ id, displayOrder }) =>
+      prisma.brand.update({ where: { id }, data: { displayOrder } })
+    )
+  );
+  res.json({ success: true, data: { message: `${items.length} brands reordered` } });
 });
 
 const create = asyncHandler(async (req, res) => {
@@ -22,4 +33,4 @@ const update = asyncHandler(async (req, res) => {
   res.json({ success: true, data: brand });
 });
 
-module.exports = { getAll, create, update };
+module.exports = { getAll, reorder, create, update };

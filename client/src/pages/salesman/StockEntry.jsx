@@ -111,30 +111,48 @@ export default function SalespersonStockEntry() {
       ? products.filter(p => p.productName.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q) || p.brandName.toLowerCase().includes(q))
       : products;
 
-    // Group by brand
+    // Group by brand, preserving first-seen display order
     const brandMap = {};
     for (const p of base) {
-      if (!brandMap[p.brandId]) brandMap[p.brandId] = { brandId: p.brandId, brandName: p.brandName, categories: {} };
+      if (!brandMap[p.brandId]) {
+        brandMap[p.brandId] = {
+          brandId: p.brandId,
+          brandName: p.brandName,
+          brandDisplayOrder: p.brandDisplayOrder ?? 0,
+          categories: {},
+        };
+      }
       const catKey = p.category || 'General';
       if (!brandMap[p.brandId].categories[catKey]) {
-        brandMap[p.brandId].categories[catKey] = { name: catKey, products: [] };
+        brandMap[p.brandId].categories[catKey] = {
+          name: catKey,
+          categoryDisplayOrder: p.categoryDisplayOrder ?? 999,
+          products: [],
+        };
       }
       brandMap[p.brandId].categories[catKey].products.push(p);
     }
 
-    // Sort products by displayOrder within each category
+    // Sort products within each category by displayOrder
     for (const brand of Object.values(brandMap)) {
       for (const cat of Object.values(brand.categories)) {
         cat.products.sort((a, b) => a.displayOrder - b.displayOrder || a.productName.localeCompare(b.productName));
       }
     }
 
-    return Object.values(brandMap).sort((a, b) => a.brandName.localeCompare(b.brandName));
+    // Sort brands by displayOrder, then name as tiebreaker
+    return Object.values(brandMap).sort(
+      (a, b) => a.brandDisplayOrder - b.brandDisplayOrder || a.brandName.localeCompare(b.brandName)
+    );
   }, [products, search]);
 
-  // Flat product list for keyboard nav
+  // Flat product list for keyboard nav (respects category display order)
   const flatProducts = useMemo(
-    () => hierarchy.flatMap(br => Object.values(br.categories).flatMap(c => c.products)),
+    () => hierarchy.flatMap(br =>
+      Object.values(br.categories)
+        .sort((a, b) => a.categoryDisplayOrder - b.categoryDisplayOrder || a.name.localeCompare(b.name))
+        .flatMap(c => c.products)
+    ),
     [hierarchy]
   );
 
@@ -424,7 +442,9 @@ export default function SalespersonStockEntry() {
                     const brandCollapsed = collapsedBrands[brand.brandId] ?? false;
                     const bt = brandTotals.find(b => b.brandId === brand.brandId);
                     const brandUnits = Object.values(brand.categories).flatMap(c => c.products).reduce((s, p) => s + (parseFloat(qty[p.productId]) || 0), 0);
-                    const catList = Object.values(brand.categories).sort((a, b) => a.name.localeCompare(b.name));
+                    const catList = Object.values(brand.categories).sort(
+                      (a, b) => a.categoryDisplayOrder - b.categoryDisplayOrder || a.name.localeCompare(b.name)
+                    );
 
                     return (
                       <React.Fragment key={brand.brandId}>
