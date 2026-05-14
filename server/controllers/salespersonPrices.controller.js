@@ -3,7 +3,9 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 
-// Salesman can only read their own prices; admin can read any
+// GET /salespeople/:id/prices
+// - Salesman: only enabled products with their allocated prices
+// - Admin: all active products with prices + isEnabled status (for price management)
 const getPrices = asyncHandler(async (req, res) => {
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
 
@@ -11,37 +13,66 @@ const getPrices = asyncHandler(async (req, res) => {
     throw new AppError('Access denied', 403);
   }
 
-  const products = await prisma.product.findMany({
-    where: { isActive: true, showInStockReceipt: true },
-    include: { brand: { select: { id: true, name: true } } },
-    orderBy: [{ brandId: 'asc' }, { displayOrder: 'asc' }, { name: 'asc' }],
-  });
+  const isSalesman = req.user.role === 'salesman';
 
-  const today = new Date();
-  const priceRows = await prisma.salespersonPrice.findMany({
-    where: { salespersonId, effectiveFrom: { lte: today } },
-    orderBy: { effectiveFrom: 'desc' },
-  });
+  const [products, enabledRows, priceRows, categories] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      include: { brand: { select: { id: true, name: true, displayOrder: true } } },
+      orderBy: [
+        { brand: { displayOrder: 'asc' } },
+        { displayOrder: 'asc' },
+        { name: 'asc' },
+      ],
+    }),
+    prisma.salespersonProduct.findMany({
+      where: { salespersonId },
+      select: { productId: true, isEnabled: true },
+    }),
+    prisma.salespersonPrice.findMany({
+      where: { salespersonId, effectiveFrom: { lte: new Date() } },
+      orderBy: { effectiveFrom: 'desc' },
+    }),
+    prisma.category.findMany({
+      select: { brandId: true, name: true, displayOrder: true },
+    }),
+  ]);
+
+  const enabledMap = Object.fromEntries(enabledRows.map(r => [r.productId, r.isEnabled]));
 
   const priceMap = {};
   for (const row of priceRows) {
     if (!priceMap[row.productId]) priceMap[row.productId] = row;
   }
 
-  const result = products.map((p) => ({
-    productId:          p.id,
-    productName:        p.name,
-    brandId:            p.brandId,
-    brandName:          p.brand.name,
-    displayOrder:       p.displayOrder,
-    category:           p.category,
-    unitType:           p.unitType,
-    unitSize:           p.unitSize,
-    containerType:      p.containerType,
-    unitsPerContainer:  p.unitsPerContainer,
-    showInStockReceipt: p.showInStockReceipt,
-    sellingPrice:       priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
-    effectiveFrom:      priceMap[p.id]?.effectiveFrom ?? null,
+  // Build category display-order lookup keyed by "brandId|categoryName"
+  const catOrderMap = {};
+  for (const cat of categories) {
+    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
+  }
+
+  // Salesman only sees explicitly enabled products
+  const visibleProducts = isSalesman
+    ? products.filter(p => enabledMap[p.id] === true)
+    : products;
+
+  const result = visibleProducts.map((p) => ({
+    productId:            p.id,
+    productName:          p.name,
+    brandId:              p.brandId,
+    brandName:            p.brand.name,
+    brandDisplayOrder:    p.brand.displayOrder,
+    displayOrder:         p.displayOrder,
+    category:             p.category,
+    categoryDisplayOrder: catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+    unitType:             p.unitType,
+    unitSize:             p.unitSize,
+    containerType:        p.containerType,
+    unitsPerContainer:    p.unitsPerContainer,
+    showInStockReceipt:   p.showInStockReceipt,
+    isEnabled:            enabledMap[p.id] ?? false,
+    sellingPrice:         priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
+    effectiveFrom:        priceMap[p.id]?.effectiveFrom ?? null,
   }));
 
   res.json({ success: true, data: result });

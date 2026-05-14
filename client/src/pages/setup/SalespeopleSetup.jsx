@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Save, Loader2, Info, X, Users, Key, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Save, Loader2, Info, X, Users, Key, Eye, EyeOff, ToggleLeft, ToggleRight, Tag, DollarSign } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate } from '../../utils/dateUtils';
@@ -24,6 +24,13 @@ export default function SalespeopleSetup() {
   const [showPw, setShowPw]           = useState(false);
   const [savingPw, setSavingPw]       = useState(false);
 
+  // Product access tab state
+  const [activeSection, setActiveSection] = useState('prices');
+  const [spProducts, setSpProducts]       = useState([]);
+  const [dirtyProducts, setDirtyProducts] = useState({});
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [savingProducts, setSavingProducts]   = useState(false);
+
   useEffect(() => {
     Promise.all([api.get('/salespeople?all=true'), api.get('/brands')])
       .then(([spRes, brandRes]) => {
@@ -40,6 +47,7 @@ export default function SalespeopleSetup() {
   useEffect(() => {
     if (!selectedSp) return;
     fetchPrices();
+    fetchProducts();
   }, [selectedSpId]);
 
   async function fetchPrices() {
@@ -55,15 +63,35 @@ export default function SalespeopleSetup() {
     }
   }
 
+  async function fetchProducts() {
+    setLoadingProducts(true);
+    try {
+      const r = await api.get(`/salespeople/${selectedSpId}/products`);
+      setSpProducts(r.data.data);
+      setDirtyProducts({});
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load product access', 'error');
+    } finally {
+      setLoadingProducts(false);
+    }
+  }
+
   async function refreshSalespeople() {
     const r = await api.get('/salespeople?all=true');
     setSalespeople(r.data.data);
   }
 
-  const filteredPrices = prices.filter(p => p.brandId === activeBrandId);
+  const filteredPrices    = prices.filter(p => p.brandId === activeBrandId);
+  const filteredProducts  = spProducts.filter(p => p.brandId === activeBrandId);
 
   const handlePriceChange = (productId, value) => {
     setEdited(prev => ({ ...prev, [productId]: value }));
+  };
+
+  const handleProductToggle = (productId, currentEnabled) => {
+    const newValue = !currentEnabled;
+    setDirtyProducts(prev => ({ ...prev, [productId]: newValue }));
+    setSpProducts(prev => prev.map(p => p.productId === productId ? { ...p, isEnabled: newValue } : p));
   };
 
   const handleSavePrices = async () => {
@@ -82,6 +110,22 @@ export default function SalespeopleSetup() {
       notify(e.response?.data?.error ?? 'Failed to save prices', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveProducts = async () => {
+    const changed = Object.keys(dirtyProducts);
+    if (!changed.length) { notify('No changes to save', 'warning'); return; }
+    setSavingProducts(true);
+    try {
+      const products = changed.map(id => ({ productId: parseInt(id, 10), isEnabled: dirtyProducts[id] }));
+      await api.post(`/salespeople/${selectedSpId}/products/bulk`, { products });
+      notify('Product access updated', 'success');
+      setDirtyProducts({});
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to save product access', 'error');
+    } finally {
+      setSavingProducts(false);
     }
   };
 
@@ -142,16 +186,19 @@ export default function SalespeopleSetup() {
     }
   };
 
-  const hasDirtyPrices = Object.keys(editedPrices).length > 0;
+  const hasDirtyPrices    = Object.keys(editedPrices).length > 0;
+  const hasDirtyProducts  = Object.keys(dirtyProducts).length > 0;
+
+  const enabledCount = spProducts.filter(p => p.isEnabled).length;
 
   return (
     <div className="flex flex-col h-full">
 
-      {saving && (
+      {(saving || savingProducts) && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
             <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">Saving prices…</p>
+            <p className="text-slate-700 font-semibold text-sm">{saving ? 'Saving prices…' : 'Saving product access…'}</p>
           </div>
         </div>
       )}
@@ -229,7 +276,7 @@ export default function SalespeopleSetup() {
           <Users size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Salespeople &amp; Rates</h1>
-            <p className="text-emerald-300 text-xs">Manage salespeople, logins, and selling prices</p>
+            <p className="text-emerald-300 text-xs">Manage salespeople, logins, product access, and selling prices</p>
           </div>
         </div>
         <button onClick={() => setShowAddSp(!showAddSp)} className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0">
@@ -243,7 +290,7 @@ export default function SalespeopleSetup() {
         <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-xs">
           <Info size={13} className="flex-shrink-0 mt-0.5" />
           <span>
-            <strong>Login Credentials:</strong> Set a username and password so the salesperson can log in to enter their daily stock. Prices set here are used for all their stock value calculations.
+            <strong>Setup:</strong> Set a username and password so the salesperson can log in. Enable products they should see in <em>Product Access</em>, then set their selling prices in <em>Selling Prices</em>.
           </span>
         </div>
 
@@ -341,7 +388,7 @@ export default function SalespeopleSetup() {
           </label>
           <select
             value={selectedSpId}
-            onChange={e => { setSelectedSpId(e.target.value); setEdited({}); }}
+            onChange={e => { setSelectedSpId(e.target.value); setEdited({}); setDirtyProducts({}); }}
             className="w-full ddm-input"
           >
             <option value="">Choose salesperson to configure…</option>
@@ -369,6 +416,11 @@ export default function SalespeopleSetup() {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${selectedSp.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                     {selectedSp.isActive ? 'Active' : 'Inactive'}
                   </span>
+                  {spProducts.length > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                      {enabledCount}/{spProducts.length} products
+                    </span>
+                  )}
                 </div>
                 {selectedSp.route && <p className="text-xs text-slate-400 mt-0.5">{selectedSp.route}</p>}
                 {selectedSp.phone && <p className="text-xs text-slate-400">{selectedSp.phone}</p>}
@@ -394,109 +446,220 @@ export default function SalespeopleSetup() {
               </div>
             </div>
 
-            {/* Price editor controls */}
-            <div className="ddm-card p-4 flex flex-wrap items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Selling Prices</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Effective From</label>
-                <input
-                  type="date"
-                  value={effectiveFrom}
-                  onChange={e => setEffFrom(e.target.value)}
-                  max={getIndiaDate()}
-                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-                />
-              </div>
+            {/* Section tabs */}
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
               <button
-                onClick={handleSavePrices}
-                disabled={saving || !hasDirtyPrices}
-                className="ddm-btn-primary disabled:opacity-50"
+                onClick={() => setActiveSection('products')}
+                className={`flex-1 flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-lg transition ${
+                  activeSection === 'products'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                Save Prices
+                <Tag size={13} /> Product Access
+              </button>
+              <button
+                onClick={() => setActiveSection('prices')}
+                className={`flex-1 flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-lg transition ${
+                  activeSection === 'prices'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <DollarSign size={13} /> Selling Prices
               </button>
             </div>
 
+            {/* Brand tabs (shared) */}
             {brands.length > 0 && (
               <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => { setActive(id); setEdited({}); }} />
             )}
 
-            <div className="ddm-card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700 sticky top-0 z-10">
-                    <tr>
-                      <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                      <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Current Price</th>
-                      <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">New Price</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-100">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={3} className="py-12 text-center">
-                          <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
-                        </td>
-                      </tr>
-                    ) : filteredPrices.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="py-10 text-center text-slate-400 text-sm">No products for this brand</td>
-                      </tr>
-                    ) : (
-                      filteredPrices.map(p => {
-                        const hasPrice = p.sellingPrice !== null;
-                        const isDirty  = editedPrices[p.productId] !== undefined;
-                        return (
-                          <tr
-                            key={p.productId}
-                            className={`transition-colors ${!hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
-                          >
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-slate-800">{p.productName}</span>
-                                {!hasPrice && <span className="badge-amber text-[10px]">No price</span>}
-                              </div>
-                            </td>
-                            <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-500">
-                              {hasPrice
-                                ? `₹${Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
-                                : <span className="text-amber-600 font-semibold text-xs">Not set</span>
-                              }
-                            </td>
-                            <td className="px-5 py-4 text-right">
-                              <div className="flex justify-end">
-                                <div className="relative w-24">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                  <input
-                                    type="number"
-                                    step="0.0001"
-                                    min="0"
-                                    value={editedPrices[p.productId] ?? ''}
-                                    onChange={e => handlePriceChange(p.productId, e.target.value)}
-                                    placeholder={p.sellingPrice ?? '0.00'}
-                                    className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
-                                      isDirty ? 'border-emerald-400' : 'border-slate-200'
-                                    }`}
-                                  />
-                                </div>
-                              </div>
+            {/* ── Product Access section ── */}
+            {activeSection === 'products' && (
+              <>
+                <div className="ddm-card p-4 flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Access</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Toggle which products this salesperson can see and enter in their daily stock entry</p>
+                  </div>
+                  <button
+                    onClick={handleSaveProducts}
+                    disabled={savingProducts || !hasDirtyProducts}
+                    className="ddm-btn-primary disabled:opacity-50"
+                  >
+                    {savingProducts ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                    Save Access
+                  </button>
+                </div>
+
+                <div className="ddm-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
+                      <thead className="bg-emerald-700 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                          <th className="px-5 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Access</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100">
+                        {loadingProducts ? (
+                          <tr>
+                            <td colSpan={2} className="py-12 text-center">
+                              <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                        ) : filteredProducts.length === 0 ? (
+                          <tr>
+                            <td colSpan={2} className="py-10 text-center text-slate-400 text-sm">No products for this brand</td>
+                          </tr>
+                        ) : (
+                          filteredProducts.map(p => {
+                            const isDirty = dirtyProducts[p.productId] !== undefined;
+                            return (
+                              <tr
+                                key={p.productId}
+                                className={`transition-colors cursor-pointer ${
+                                  p.isEnabled ? (isDirty ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60') : (isDirty ? 'bg-slate-50/60' : 'hover:bg-slate-50/40')
+                                }`}
+                                onClick={() => handleProductToggle(p.productId, p.isEnabled)}
+                              >
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-semibold ${p.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>{p.productName}</span>
+                                    {p.category && <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{p.category}</span>}
+                                    {isDirty && <span className="text-[10px] text-amber-600 font-bold">unsaved</span>}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-4 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); handleProductToggle(p.productId, p.isEnabled); }}
+                                    className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition ${
+                                      p.isEnabled
+                                        ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700'
+                                        : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600'
+                                    }`}
+                                  >
+                                    {p.isEnabled ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
+                                    {p.isEnabled ? 'Enabled' : 'Disabled'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── Selling Prices section ── */}
+            {activeSection === 'prices' && (
+              <>
+                <div className="ddm-card p-4 flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Selling Prices</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Effective From</label>
+                    <input
+                      type="date"
+                      value={effectiveFrom}
+                      onChange={e => setEffFrom(e.target.value)}
+                      max={getIndiaDate()}
+                      className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSavePrices}
+                    disabled={saving || !hasDirtyPrices}
+                    className="ddm-btn-primary disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                    Save Prices
+                  </button>
+                </div>
+
+                <div className="ddm-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
+                      <thead className="bg-emerald-700 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-5 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                          <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Current Price</th>
+                          <th className="px-5 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">New Price</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-slate-100">
+                        {loading ? (
+                          <tr>
+                            <td colSpan={3} className="py-12 text-center">
+                              <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
+                            </td>
+                          </tr>
+                        ) : filteredPrices.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="py-10 text-center text-slate-400 text-sm">No products for this brand</td>
+                          </tr>
+                        ) : (
+                          filteredPrices.map(p => {
+                            const hasPrice = p.sellingPrice !== null;
+                            const isDirty  = editedPrices[p.productId] !== undefined;
+                            return (
+                              <tr
+                                key={p.productId}
+                                className={`transition-colors ${!hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
+                              >
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-slate-800">{p.productName}</span>
+                                    {!hasPrice && <span className="badge-amber text-[10px]">No price</span>}
+                                    {!p.isEnabled && <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">hidden</span>}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-500">
+                                  {hasPrice
+                                    ? `₹${Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                                    : <span className="text-amber-600 font-semibold text-xs">Not set</span>
+                                  }
+                                </td>
+                                <td className="px-5 py-4 text-right">
+                                  <div className="flex justify-end">
+                                    <div className="relative w-24">
+                                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                      <input
+                                        type="number"
+                                        step="0.0001"
+                                        min="0"
+                                        value={editedPrices[p.productId] ?? ''}
+                                        onChange={e => handlePriceChange(p.productId, e.target.value)}
+                                        placeholder={p.sellingPrice ?? '0.00'}
+                                        className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
+                                          isDirty ? 'border-emerald-400' : 'border-slate-200'
+                                        }`}
+                                      />
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {!selectedSp && salespeople.length > 0 && (
           <div className="ddm-card flex items-center justify-center h-40 text-slate-400 text-sm">
-            Select a salesperson above to configure their selling prices and login credentials
+            Select a salesperson above to configure their product access, selling prices, and login credentials
           </div>
         )}
       </div>

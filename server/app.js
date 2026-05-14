@@ -17,8 +17,9 @@ const categoriesRoutes          = require('./routes/categories');
 const stockReceiptsRoutes       = require('./routes/stockReceipts');
 const dairyBalanceRoutes        = require('./routes/dairyBalance');
 const dairyPaymentsRoutes       = require('./routes/dairyPayments');
-const salespeopleRoutes         = require('./routes/salespeople');
-const salespersonPricesRoutes   = require('./routes/salespersonPrices');
+const salespeopleRoutes          = require('./routes/salespeople');
+const salespersonPricesRoutes    = require('./routes/salespersonPrices');
+const salespersonProductsRoutes  = require('./routes/salespersonProducts');
 const dispatchesRoutes          = require('./routes/dispatches');
 const salespersonBalanceRoutes  = require('./routes/salespersonBalance');
 const salespersonPaymentsRoutes = require('./routes/salespersonPayments');
@@ -93,6 +94,9 @@ app.use('/api/v1/dispatches',           dispatchesRoutes);
 app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
 app.use('/api/v1/salespeople',          salespersonPricesRoutes);
+
+// Admin-only salesperson sub-resources
+app.use('/api/v1/salespeople',          requireAdmin, salespersonProductsRoutes);
 
 // Admin-only routes
 app.use('/api/v1/stock-receipts',       requireAdmin, stockReceiptsRoutes);

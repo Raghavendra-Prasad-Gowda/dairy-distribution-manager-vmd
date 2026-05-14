@@ -63,6 +63,10 @@ const schemas = {
   }),
 
   // Layout reordering
+  reorderBrands: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
   reorderProducts: z.array(z.object({
     id:           z.number().int().positive(),
     displayOrder: z.number().int().nonnegative(),
@@ -128,6 +132,14 @@ const schemas = {
     isActive: z.boolean().optional(),
     username: z.string().min(3, 'Username must be at least 3 characters').optional().nullable(),
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  }),
+
+  // Salesperson Product Visibility
+  bulkSalespersonProducts: z.object({
+    products: z.array(z.object({
+      productId: z.number().int().positive(),
+      isEnabled: z.boolean(),
+    })).min(1, 'At least one product is required'),
   }),
 
   // Salesperson Prices

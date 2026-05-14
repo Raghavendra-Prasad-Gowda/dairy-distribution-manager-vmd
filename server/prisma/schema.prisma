@@ -13,6 +13,7 @@ datasource db {
 model Brand {
   id              Int      @id @default(autoincrement())
   name            String   @unique
+  displayOrder      Int      @default(0) @map("display_order")
   depositEnabled    Boolean  @default(false) @map("deposit_enabled")
   depositPerLitre   Decimal  @default(0) @db.Decimal(10, 4) @map("deposit_per_litre")
   depositCalcMethod String   @default("litre") @map("deposit_calc_method")
@@ -48,12 +49,13 @@ model Product {
   displayOrder        Int      @default(0) @map("display_order")
   createdAt           DateTime @default(now()) @map("created_at")
 
-  brand             Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  stockReceipts     StockReceipt[]
-  salespersonPrices SalespersonPrice[]
-  dispatchItems     StockDispatchItem[]
-  costPrices        ProductCostPrice[]
-  sellingPrices     ProductSellingPrice[]
+  brand                Brand                @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  stockReceipts        StockReceipt[]
+  salespersonPrices    SalespersonPrice[]
+  salespersonProducts  SalespersonProduct[]
+  dispatchItems        StockDispatchItem[]
+  costPrices           ProductCostPrice[]
+  sellingPrices        ProductSellingPrice[]
 
   @@unique([brandId, name])
   @@map("products")
@@ -193,6 +195,7 @@ model Salesperson {
   createdAt    DateTime @default(now()) @map("created_at")
 
   prices     SalespersonPrice[]
+  products   SalespersonProduct[]
   dispatches StockDispatch[]
   balances   SalespersonBalance[]
   payments   SalespersonPayment[]
@@ -217,15 +220,33 @@ model SalespersonPrice {
   @@map("salesperson_prices")
 }
 
+// ─── Salesperson Product Visibility ──────────────────────────────────────────
+
+model SalespersonProduct {
+  id            Int      @id @default(autoincrement())
+  salespersonId Int      @map("salesperson_id")
+  productId     Int      @map("product_id")
+  isEnabled     Boolean  @default(false) @map("is_enabled")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  salesperson Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([salespersonId, productId])
+  @@map("salesperson_products")
+}
+
 // ─── Stock Dispatches ─────────────────────────────────────────────────────────
 
 model StockDispatch {
-  id            Int      @id @default(autoincrement())
-  salespersonId Int      @map("salesperson_id")
-  dispatchDate  DateTime @db.Date @map("dispatch_date")
-  totalAmount   Decimal  @default(0) @db.Decimal(10, 2) @map("total_amount")
-  notes         String?
-  createdAt     DateTime @default(now()) @map("created_at")
+  id              Int      @id @default(autoincrement())
+  salespersonId   Int      @map("salesperson_id")
+  dispatchDate    DateTime @db.Date @map("dispatch_date")
+  totalAmount     Decimal  @default(0) @db.Decimal(10, 2) @map("total_amount")
+  notes           String?
+  isSubmitted     Boolean  @default(false) @map("is_submitted")
+  isAdminUnlocked Boolean  @default(false) @map("is_admin_unlocked")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   salesperson Salesperson         @relation(fields: [salespersonId], references: [id])
   items       StockDispatchItem[]
