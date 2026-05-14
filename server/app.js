@@ -26,7 +26,7 @@ const reportsRoutes             = require('./routes/reports');
 const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
 const clientErrorsRoutes        = require('./routes/clientErrors');
-const { authenticate }          = require('./middleware/auth');
+const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
 
@@ -84,20 +84,24 @@ app.use('/api/v1/errors/client', clientErrorsRoutes);
 
 // ─── Protected routes (all require authenticate) ─────────────────────────────
 app.use('/api/v1', authenticate);
+
+// Shared (admin + salesman)
 app.use('/api/v1/brands',               brandsRoutes);
 app.use('/api/v1/products',             productsRoutes);
 app.use('/api/v1/categories',           categoriesRoutes);
-app.use('/api/v1/stock-receipts',       stockReceiptsRoutes);
-app.use('/api/v1/dairy-balance',        dairyBalanceRoutes);
-app.use('/api/v1/dairy-payments',       dairyPaymentsRoutes);
-app.use('/api/v1/salespeople',          salespeopleRoutes);
-app.use('/api/v1/salespeople',          salespersonPricesRoutes);
 app.use('/api/v1/dispatches',           dispatchesRoutes);
 app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
-app.use('/api/v1/reports',              reportsRoutes);
-app.use('/api/v1/pin',                  pinRoutes);
-app.use('/api/v1/routes',              routesRoutes);
+app.use('/api/v1/salespeople',          salespersonPricesRoutes);
+
+// Admin-only routes
+app.use('/api/v1/stock-receipts',       requireAdmin, stockReceiptsRoutes);
+app.use('/api/v1/dairy-balance',        requireAdmin, dairyBalanceRoutes);
+app.use('/api/v1/dairy-payments',       requireAdmin, dairyPaymentsRoutes);
+app.use('/api/v1/salespeople',          requireAdmin, salespeopleRoutes);
+app.use('/api/v1/reports',              requireAdmin, reportsRoutes);
+app.use('/api/v1/pin',                  requireAdmin, pinRoutes);
+app.use('/api/v1/routes',               requireAdmin, routesRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 // Must be the last middleware

@@ -115,15 +115,19 @@ const schemas = {
 
   // Salespeople
   createSalesperson: z.object({
-    name: z.string().min(1, 'Name is required'),
-    phone: z.string().optional(),
-    route: z.string().optional(),
+    name:     z.string().min(1, 'Name is required'),
+    phone:    z.string().optional(),
+    route:    z.string().optional(),
+    username: z.string().min(3, 'Username must be at least 3 characters').optional(),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   }),
   updateSalesperson: z.object({
-    name: z.string().min(1).optional(),
-    phone: z.string().optional(),
-    route: z.string().optional(),
+    name:     z.string().min(1).optional(),
+    phone:    z.string().optional(),
+    route:    z.string().optional(),
     isActive: z.boolean().optional(),
+    username: z.string().min(3, 'Username must be at least 3 characters').optional().nullable(),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   }),
 
   // Salesperson Prices
@@ -135,9 +139,9 @@ const schemas = {
     })),
   }),
 
-  // Dispatch
+  // Dispatch (salespersonId optional — server injects it for salesman role)
   createDispatch: z.object({
-    salespersonId: z.number().int().positive(),
+    salespersonId: z.number().int().positive().optional(),
     dispatchDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     items: z.array(z.object({
       productId: z.number().int().positive(),

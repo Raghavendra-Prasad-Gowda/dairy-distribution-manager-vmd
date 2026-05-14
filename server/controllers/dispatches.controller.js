@@ -11,7 +11,13 @@ const getAll = asyncHandler(async (req, res) => {
   const { date, salespersonId } = req.query;
   const where = {};
   if (date) where.dispatchDate = new Date(date);
-  if (salespersonId) where.salespersonId = parseId(salespersonId, 'Salesperson ID');
+
+  // Salesman can only see their own dispatches
+  if (req.user.role === 'salesman') {
+    where.salespersonId = req.user.salespersonId;
+  } else if (salespersonId) {
+    where.salespersonId = parseId(salespersonId, 'Salesperson ID');
+  }
 
   const dispatches = await prisma.stockDispatch.findMany({
     where,
@@ -49,10 +55,19 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   const data = validate(schemas.createDispatch, req, res);
   if (!data) return;
 
+  // Salesman always uses their own ID; admin must provide it
+  let salespersonId;
+  if (req.user.role === 'salesman') {
+    salespersonId = req.user.salespersonId;
+  } else {
+    if (!data.salespersonId) throw new AppError('salespersonId is required', 400);
+    salespersonId = data.salespersonId;
+  }
+
   const dispatchDate = new Date(data.dispatchDate);
 
   const existing = await prisma.stockDispatch.findUnique({
-    where: { salespersonId_dispatchDate: { salespersonId: data.salespersonId, dispatchDate } },
+    where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
   });
 
   const guardErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
@@ -89,7 +104,7 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   } else {
     dispatch = await prisma.stockDispatch.create({
       data: {
-        salespersonId: data.salespersonId,
+        salespersonId,
         dispatchDate,
         totalAmount,
         notes: data.notes ?? null,
@@ -106,14 +121,14 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     });
   }
 
-  await recalculateSalespersonBalance(data.salespersonId, data.dispatchDate);
-  logger.info('Dispatch saved', { id: dispatch.id, salespersonId: data.salespersonId, date: data.dispatchDate, total: totalAmount, action: existing ? 'update' : 'create' });
+  await recalculateSalespersonBalance(salespersonId, data.dispatchDate);
+  logger.info('Stock entry saved', { id: dispatch.id, salespersonId, date: data.dispatchDate, total: totalAmount, action: existing ? 'update' : 'create' });
   void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
-    salespersonId: data.salespersonId,
-    date:          data.dispatchDate,
-    itemCount:     data.items.length,
+    salespersonId,
+    date:      data.dispatchDate,
+    itemCount: data.items.length,
     totalAmount,
-    isUpdate:      !!existing,
+    isUpdate:  !!existing,
   });
   res.status(existing ? 200 : 201).json({ success: true, data: dispatch });
 });
@@ -121,18 +136,23 @@ const createOrUpdate = asyncHandler(async (req, res) => {
 const remove = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
-  if (!dispatch) throw new AppError('Dispatch not found', 404);
+  if (!dispatch) throw new AppError('Stock entry not found', 404);
+
+  // Salesman can only delete their own
+  if (req.user.role === 'salesman' && dispatch.salespersonId !== req.user.salespersonId) {
+    throw new AppError('Access denied', 403);
+  }
 
   await prisma.stockDispatch.delete({ where: { id } });
   const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
   await recalculateSalespersonBalance(dispatch.salespersonId, dateStr);
-  logger.info('Dispatch deleted', { id, salespersonId: dispatch.salespersonId, date: dateStr });
+  logger.info('Stock entry deleted', { id, salespersonId: dispatch.salespersonId, date: dateStr });
   void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
     salespersonId: dispatch.salespersonId,
     date:          dateStr,
     totalAmount:   Number(dispatch.totalAmount),
   });
-  res.json({ success: true, data: { message: 'Dispatch deleted' } });
+  res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
 module.exports = { getAll, getSummary, createOrUpdate, remove };

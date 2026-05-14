@@ -37,7 +37,9 @@ async function buildSalespersonBalance(salespersonId, date) {
   return { salespersonId, balanceDate, openingBalance, stockGiven, amountPaid, closingBalance: openingBalance + stockGiven - amountPaid };
 }
 
+// Admin only: get all salespeople balances for a date
 const getAll = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
@@ -54,10 +56,15 @@ const getAll = asyncHandler(async (req, res) => {
   res.json({ success: true, data: balances });
 });
 
+// Get balance for a specific salesperson — salesman can only access their own
 const getById = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Salesperson ID');
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
+
+  if (req.user.role === 'salesman' && req.user.salespersonId !== id) {
+    throw new AppError('Access denied', 403);
+  }
 
   const sp = await prisma.salesperson.findUnique({ where: { id } });
   if (!sp) throw new AppError('Salesperson not found', 404);
