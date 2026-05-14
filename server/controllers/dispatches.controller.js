@@ -7,12 +7,22 @@ const { recalculateSalespersonBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
+// Returns true when the dispatch cannot be edited by the salesman
+function isEffectivelyLocked(dispatch, todayStr) {
+  const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
+  const isPastDate = dateStr < todayStr;
+  return (dispatch.isSubmitted || isPastDate) && !dispatch.isAdminUnlocked;
+}
+
+function getIndiaDateStr() {
+  return new Date().toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 10);
+}
+
 const getAll = asyncHandler(async (req, res) => {
   const { date, salespersonId } = req.query;
   const where = {};
   if (date) where.dispatchDate = new Date(date);
 
-  // Salesman can only see their own dispatches
   if (req.user.role === 'salesman') {
     where.salespersonId = req.user.salespersonId;
   } else if (salespersonId) {
@@ -31,7 +41,17 @@ const getAll = asyncHandler(async (req, res) => {
     },
     orderBy: { dispatchDate: 'desc' },
   });
-  res.json({ success: true, data: dispatches });
+
+  const today = getIndiaDateStr();
+  const result = dispatches.map(d => ({
+    ...d,
+    totalAmount:    Number(d.totalAmount),
+    isLocked:       isEffectivelyLocked(d, today),
+    isSubmitted:    d.isSubmitted,
+    isAdminUnlocked: d.isAdminUnlocked,
+  }));
+
+  res.json({ success: true, data: result });
 });
 
 const getSummary = asyncHandler(async (req, res) => {
@@ -55,7 +75,6 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   const data = validate(schemas.createDispatch, req, res);
   if (!data) return;
 
-  // Salesman always uses their own ID; admin must provide it
   let salespersonId;
   if (req.user.role === 'salesman') {
     salespersonId = req.user.salespersonId;
@@ -65,10 +84,24 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   }
 
   const dispatchDate = new Date(data.dispatchDate);
+  const today = getIndiaDateStr();
 
   const existing = await prisma.stockDispatch.findUnique({
     where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
   });
+
+  // Block saves on locked entries (salesman only — admin can always overwrite)
+  if (req.user.role === 'salesman' && existing && isEffectivelyLocked(existing, today)) {
+    throw new AppError('This stock entry is locked. Contact admin to unlock.', 403);
+  }
+
+  // Auto-lock past dates for salesman
+  if (req.user.role === 'salesman') {
+    const dateStr = data.dispatchDate;
+    if (dateStr < today && !(existing?.isAdminUnlocked)) {
+      throw new AppError('Cannot save entries for past dates. Contact admin to unlock.', 403);
+    }
+  }
 
   const guardErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
   if (guardErrors.length > 0) {
@@ -88,7 +121,7 @@ const createOrUpdate = asyncHandler(async (req, res) => {
       await tx.stockDispatchItem.deleteMany({ where: { dispatchId: existing.id } });
       await tx.stockDispatch.update({
         where: { id: existing.id },
-        data: { totalAmount, notes: data.notes ?? null },
+        data: { totalAmount, notes: data.notes ?? null, isSubmitted: false },
       });
       await tx.stockDispatchItem.createMany({
         data: data.items.map((item) => ({
@@ -130,7 +163,43 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     totalAmount,
     isUpdate:  !!existing,
   });
-  res.status(existing ? 200 : 201).json({ success: true, data: dispatch });
+  res.status(existing ? 200 : 201).json({ success: true, data: { ...dispatch, totalAmount: Number(dispatch.totalAmount), isLocked: false } });
+});
+
+// Salesman submits their entry — locks it
+const submit = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Dispatch ID');
+  const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
+  if (!dispatch) throw new AppError('Stock entry not found', 404);
+
+  if (req.user.role === 'salesman' && dispatch.salespersonId !== req.user.salespersonId) {
+    throw new AppError('Access denied', 403);
+  }
+
+  await prisma.stockDispatch.update({
+    where: { id },
+    data: { isSubmitted: true, isAdminUnlocked: false },
+  });
+
+  logger.info('Stock entry submitted', { id, salespersonId: dispatch.salespersonId });
+  res.json({ success: true, data: { message: 'Stock entry submitted and locked' } });
+});
+
+// Admin unlocks a submitted or past-date entry so salesman can re-edit
+const unlock = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
+  const id = parseId(req.params.id, 'Dispatch ID');
+  const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
+  if (!dispatch) throw new AppError('Stock entry not found', 404);
+
+  await prisma.stockDispatch.update({
+    where: { id },
+    data: { isSubmitted: false, isAdminUnlocked: true },
+  });
+
+  logger.info('Stock entry unlocked by admin', { id, salespersonId: dispatch.salespersonId });
+  res.json({ success: true, data: { message: 'Stock entry unlocked' } });
 });
 
 const remove = asyncHandler(async (req, res) => {
@@ -138,9 +207,13 @@ const remove = asyncHandler(async (req, res) => {
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
   if (!dispatch) throw new AppError('Stock entry not found', 404);
 
-  // Salesman can only delete their own
   if (req.user.role === 'salesman' && dispatch.salespersonId !== req.user.salespersonId) {
     throw new AppError('Access denied', 403);
+  }
+
+  const today = getIndiaDateStr();
+  if (req.user.role === 'salesman' && isEffectivelyLocked(dispatch, today)) {
+    throw new AppError('This stock entry is locked. Contact admin to unlock.', 403);
   }
 
   await prisma.stockDispatch.delete({ where: { id } });
@@ -155,4 +228,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
-module.exports = { getAll, getSummary, createOrUpdate, remove };
+module.exports = { getAll, getSummary, createOrUpdate, submit, unlock, remove };

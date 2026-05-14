@@ -130,6 +130,14 @@ const schemas = {
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   }),
 
+  // Salesperson Product Visibility
+  bulkSalespersonProducts: z.object({
+    products: z.array(z.object({
+      productId: z.number().int().positive(),
+      isEnabled: z.boolean(),
+    })).min(1, 'At least one product is required'),
+  }),
+
   // Salesperson Prices
   bulkSalespersonPrices: z.object({
     effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
