@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, DollarSign, Search, X } from 'lucide-react';
+import { Save, Loader2, IndianRupee, Search, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import { useNotification } from '../../context/NotificationContext';
@@ -140,7 +140,7 @@ export default function SalesmanPricesSetup() {
       {/* Page header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <DollarSign size={17} className="text-emerald-300 flex-shrink-0" />
+          <IndianRupee size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Selling Prices</h1>
             <p className="text-emerald-300 text-xs">Set selling prices per salesperson and brand</p>
