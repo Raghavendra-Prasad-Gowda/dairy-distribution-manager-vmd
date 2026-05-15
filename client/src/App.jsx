@@ -19,7 +19,9 @@ const DepositReport          = lazy(() => import('./pages/reports/DepositReport'
 const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
-const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
+const SalesmanUsersSetup     = lazy(() => import('./pages/setup/SalesmanUsersSetup'));
+const SalesmanProductsSetup  = lazy(() => import('./pages/setup/SalesmanProductsSetup'));
+const SalesmanPricesSetup    = lazy(() => import('./pages/setup/SalesmanPricesSetup'));
 const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
 const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
@@ -82,8 +84,11 @@ function AppRoutes() {
             <Route path="dairy/setup/brands"     element={S(BrandsSetup)} />
 
             {/* SALESMAN MANAGEMENT (admin) */}
-            <Route path="salesman/payments"  element={S(SalespersonCollections)} />
-            <Route path="salesman/setup"     element={S(SalespeopleSetup)} />
+            <Route path="salesman/payments"        element={S(SalespersonCollections)} />
+            <Route path="salesman/setup/users"     element={S(SalesmanUsersSetup)} />
+            <Route path="salesman/setup/products"  element={S(SalesmanProductsSetup)} />
+            <Route path="salesman/setup/prices"    element={S(SalesmanPricesSetup)} />
+            <Route path="salesman/setup"           element={<Navigate to="/salesman/setup/users" replace />} />
 
             {/* REPORTS */}
             <Route path="reports/dairy"           element={S(DairyStatement)} />
@@ -98,7 +103,7 @@ function AppRoutes() {
             <Route path="payments/dairy"       element={<Navigate to="/dairy/payments" replace />} />
             <Route path="payments/salespeople" element={<Navigate to="/salesman/payments" replace />} />
             <Route path="setup/products"       element={<Navigate to="/dairy/setup/products" replace />} />
-            <Route path="setup/salespeople"    element={<Navigate to="/salesman/setup" replace />} />
+            <Route path="setup/salespeople"    element={<Navigate to="/salesman/setup/users" replace />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

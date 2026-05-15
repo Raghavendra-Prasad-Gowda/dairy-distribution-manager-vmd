@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, Tag, DollarSign
 } from 'lucide-react';
 
 // ─── Admin nav tree ────────────────────────────────────────────────────────────
@@ -55,8 +55,15 @@ const ADMIN_NAV = [
       {
         label: 'MANAGEMENT',
         items: [
-          { to: '/salesman/setup',    icon: Users,       label: 'Salespeople' },
-          { to: '/salesman/payments', icon: CreditCard,  label: 'Collections' },
+          { to: '/salesman/payments',       icon: CreditCard,   label: 'Collections' },
+        ],
+      },
+      {
+        label: 'SETUP',
+        items: [
+          { to: '/salesman/setup/users',    icon: Users,        label: 'Users' },
+          { to: '/salesman/setup/products', icon: Tag,          label: 'Layout' },
+          { to: '/salesman/setup/prices',   icon: DollarSign,   label: 'Prices' },
         ],
       },
       {
