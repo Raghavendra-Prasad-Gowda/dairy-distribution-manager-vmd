@@ -1,23 +1,29 @@
-import { useState, useEffect } from 'react';
-import { Plus, Key, Eye, EyeOff, Loader2, Save, X, Users, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Key, Eye, EyeOff, Loader2, Save, X, Users, ToggleLeft, ToggleRight, Search } from 'lucide-react';
+import Pagination from '../../components/Pagination';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
+const ITEMS_PER_PAGE = 10;
+
 export default function SalesmanUsersSetup() {
   const { notify } = useNotification();
-  const [salespeople, setSalespeople] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [salespeople, setSalespeople]   = useState([]);
+  const [loading, setLoading]           = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showPwModal, setShowPwModal] = useState(false);
-  const [editingSp, setEditingSp] = useState(null);
-  const [newSp, setNewSp] = useState({ name: '', phone: '', route: '', username: '', password: '' });
-  const [showNewPw, setShowNewPw] = useState(false);
-  const [pwForm, setPwForm] = useState({ username: '', password: '', confirmPassword: '' });
-  const [showPw, setShowPw] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [savingPw, setSavingPw] = useState(false);
+  const [showPwModal, setShowPwModal]   = useState(false);
+  const [editingSp, setEditingSp]       = useState(null);
+  const [newSp, setNewSp]               = useState({ name: '', phone: '', route: '', username: '', password: '' });
+  const [showNewPw, setShowNewPw]       = useState(false);
+  const [pwForm, setPwForm]             = useState({ username: '', password: '', confirmPassword: '' });
+  const [showPw, setShowPw]             = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [savingPw, setSavingPw]         = useState(false);
+  const [search, setSearch]             = useState('');
+  const [currentPage, setCurrentPage]   = useState(1);
 
   useEffect(() => { loadSalespeople(); }, []);
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   async function loadSalespeople() {
     setLoading(true);
@@ -30,6 +36,23 @@ export default function SalesmanUsersSetup() {
       setLoading(false);
     }
   }
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return salespeople;
+    return salespeople.filter(sp =>
+      sp.name.toLowerCase().includes(q) ||
+      (sp.route ?? '').toLowerCase().includes(q) ||
+      (sp.phone ?? '').toLowerCase().includes(q) ||
+      (sp.username ?? '').toLowerCase().includes(q)
+    );
+  }, [salespeople, search]);
+
+  const totalFiltered = filtered.length;
+  const totalPages    = Math.max(1, Math.ceil(totalFiltered / ITEMS_PER_PAGE));
+  const startIdx      = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIdx        = Math.min(startIdx + ITEMS_PER_PAGE, totalFiltered);
+  const paged         = filtered.slice(startIdx, endIdx);
 
   const handleAddSalesperson = async (e) => {
     e.preventDefault();
@@ -280,7 +303,33 @@ export default function SalesmanUsersSetup() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-5 md:p-8 max-w-4xl mx-auto">
+        <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-5">
+
+          {/* Search */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by name, route, phone or username…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <Pagination
+            currentPage={currentPage} totalPages={totalPages}
+            startIndex={startIdx} endIndex={endIdx} total={totalFiltered}
+            onPageChange={setCurrentPage}
+          />
+
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200">
@@ -300,14 +349,14 @@ export default function SalesmanUsersSetup() {
                         <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                       </td>
                     </tr>
-                  ) : salespeople.length === 0 ? (
+                  ) : paged.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
-                        No salespeople yet. Click Add Salesperson to get started.
+                        {search ? 'No salespeople match your search.' : 'No salespeople yet. Click Add Salesperson to get started.'}
                       </td>
                     </tr>
                   ) : (
-                    salespeople.map(sp => (
+                    paged.map(sp => (
                       <tr key={sp.id} className={`transition-colors hover:bg-slate-50 ${!sp.isActive ? 'opacity-60' : ''}`}>
                         <td className="px-6 py-4">
                           <p className="text-sm font-semibold text-slate-800">{sp.name}</p>
@@ -357,6 +406,7 @@ export default function SalesmanUsersSetup() {
               </table>
             </div>
           </div>
+
         </div>
       </div>
     </div>
