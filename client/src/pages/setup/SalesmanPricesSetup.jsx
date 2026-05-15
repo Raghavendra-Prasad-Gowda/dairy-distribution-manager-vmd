@@ -233,8 +233,8 @@ export default function SalesmanPricesSetup() {
                     <thead className="bg-emerald-700 sticky top-0 z-10">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Current Price</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">New Price</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-40">Current Price</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-40">New Price</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
@@ -268,7 +268,7 @@ export default function SalesmanPricesSetup() {
                                     !hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50'
                                   }`}
                                 >
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-4 align-middle">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-semibold text-slate-800">{p.productName}</span>
                                       {!hasPrice && (
@@ -279,13 +279,13 @@ export default function SalesmanPricesSetup() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-6 py-4 text-right text-sm tabular-nums text-slate-500">
+                                  <td className="px-6 py-4 text-right align-middle whitespace-nowrap tabular-nums">
                                     {hasPrice
-                                      ? `₹${Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                                      ? <span className="text-sm text-slate-600">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                                       : <span className="text-amber-600 font-semibold text-xs">Not set</span>
                                     }
                                   </td>
-                                  <td className="px-6 py-4 text-right">
+                                  <td className="px-6 py-4 text-right align-middle whitespace-nowrap">
                                     <div className="flex justify-end">
                                       <div className="relative w-28">
                                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>

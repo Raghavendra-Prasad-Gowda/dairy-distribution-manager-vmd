@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Key, Eye, EyeOff, Loader2, Save, X, Users, ToggleLeft, ToggleRight, Search } from 'lucide-react';
+import { Plus, Edit2, Power, Eye, EyeOff, Loader2, Save, X, Users, Search } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
@@ -221,7 +221,7 @@ export default function SalesmanUsersSetup() {
             <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
-                  <Key size={15} className="text-emerald-300" />
+                  <Edit2 size={15} className="text-emerald-300" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white leading-tight">Login Credentials</p>
@@ -337,8 +337,8 @@ export default function SalesmanUsersSetup() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Route / Phone</th>
-                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Login</th>
-                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-36">Login</th>
+                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Status</th>
                     <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Actions</th>
                   </tr>
                 </thead>
@@ -358,44 +358,44 @@ export default function SalesmanUsersSetup() {
                   ) : (
                     paged.map(sp => (
                       <tr key={sp.id} className={`transition-colors hover:bg-slate-50 ${!sp.isActive ? 'opacity-60' : ''}`}>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 align-middle">
                           <p className="text-sm font-semibold text-slate-800">{sp.name}</p>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 align-middle">
                           {sp.route && <p className="text-sm text-slate-600">{sp.route}</p>}
-                          {sp.phone && <p className="text-xs text-slate-400">{sp.phone}</p>}
+                          {sp.phone && <p className="text-xs text-slate-400 mt-0.5">{sp.phone}</p>}
                           {!sp.route && !sp.phone && <span className="text-slate-300 text-sm">—</span>}
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-6 py-4 text-center align-middle whitespace-nowrap">
                           {sp.username
-                            ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">@{sp.username}</span>
-                            : <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">No login</span>
+                            ? <span className="inline-block text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">@{sp.username}</span>
+                            : <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">No login</span>
                           }
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${sp.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                        <td className="px-6 py-4 text-center align-middle whitespace-nowrap">
+                          <span className={`inline-block text-xs px-2.5 py-1 rounded-full font-semibold ${sp.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                             {sp.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-center gap-1">
+                        <td className="px-6 py-4 text-center align-middle">
+                          <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => openCredentials(sp)}
                               title="Edit credentials"
-                              className="p-2 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition"
+                              className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition"
                             >
-                              <Key size={15} />
+                              <Edit2 size={15} />
                             </button>
                             <button
                               onClick={() => handleToggleActive(sp)}
                               title={sp.isActive ? 'Deactivate' : 'Activate'}
-                              className={`p-2 rounded-lg transition ${
+                              className={`p-1.5 rounded-lg transition ${
                                 sp.isActive
-                                  ? 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+                                  ? 'text-red-400 hover:text-red-600 hover:bg-red-50'
                                   : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
                               }`}
                             >
-                              {sp.isActive ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
+                              <Power size={15} />
                             </button>
                           </div>
                         </td>

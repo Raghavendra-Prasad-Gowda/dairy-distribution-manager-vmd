@@ -216,7 +216,7 @@ export default function SalesmanProductsSetup() {
                     <thead className="bg-emerald-700 sticky top-0 z-10">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-36">Access</th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-40">Access</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
@@ -252,7 +252,7 @@ export default function SalesmanProductsSetup() {
                                   }`}
                                   onClick={() => handleToggle(p.productId, p.isEnabled)}
                                 >
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-4 align-middle">
                                     <div className="flex items-center gap-2">
                                       <span className={`text-sm font-semibold ${p.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
                                         {p.productName}
@@ -262,7 +262,7 @@ export default function SalesmanProductsSetup() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-6 py-4 text-center">
+                                  <td className="px-6 py-4 text-center align-middle whitespace-nowrap">
                                     <button
                                       type="button"
                                       onClick={e => { e.stopPropagation(); handleToggle(p.productId, p.isEnabled); }}
