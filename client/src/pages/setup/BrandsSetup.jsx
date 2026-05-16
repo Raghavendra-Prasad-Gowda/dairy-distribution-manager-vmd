@@ -103,14 +103,14 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-export default function BrandsSetup() {
+export default function BrandsSetup({ shellActiveBrandId } = {}) {
+  const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
   const [loading, setLoading]       = useState(false);
   const [saving, setSaving]         = useState(false);
 
-  // Load all brands with their categories + products on mount
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -135,10 +135,14 @@ export default function BrandsSetup() {
         };
       });
       setBrands(enriched);
-      if (enriched.length) setActive(enriched[0].id);
+      setActive(shellActiveBrandId ?? (enriched.length ? enriched[0].id : null));
     }).catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (inShell) setActive(shellActiveBrandId);
+  }, [shellActiveBrandId]);
 
   const brand = brands.find(b => b.id === activeBrandId) ?? null;
 
@@ -214,17 +218,19 @@ export default function BrandsSetup() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <Store size={17} className="text-emerald-300 flex-shrink-0" />
-        <div>
-          <h1 className="text-sm font-bold text-white leading-tight">Brands</h1>
-          <p className="text-emerald-300 text-xs">Configure deposit settings per dairy brand</p>
+      {/* Header — hidden in shell mode */}
+      {!inShell && (
+        <div className="flex items-center gap-2.5 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <Store size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Brands</h1>
+            <p className="text-emerald-300 text-xs">Configure deposit settings per dairy brand</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Brand tabs strip */}
-      {!loading && brands.length > 0 && (
+      {/* Brand tabs strip — hidden in shell mode */}
+      {!inShell && !loading && brands.length > 0 && (
         <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-3 pb-0">
           <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
         </div>

@@ -26,6 +26,7 @@ const SalesmanLayoutSettings = lazy(() => import('./pages/setup/SalesmanLayoutSe
 const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
 const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
+const DairySettings          = lazy(() => import('./pages/setup/DairySettings'));
 
 // Salesman pages
 const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
@@ -78,6 +79,7 @@ function AppRoutes() {
             {/* DAIRY MODULE */}
             <Route path="dairy/stock/:brandName" element={S(StockReceipt)} />
             <Route path="dairy/payments"         element={S(DairyPayments)} />
+            <Route path="dairy/setup"            element={S(DairySettings)} />
             <Route path="dairy/setup/categories" element={S(CategorySetup)} />
             <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
             <Route path="dairy/setup/layout"     element={S(LayoutSettings)} />

@@ -5,10 +5,11 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
-export default function RouteSetup() {
+export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
+  const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]         = useState([]);
-  const [activeBrandId, setActive]  = useState(null);
+  const [brands, setBrands]         = useState(shellBrands ?? []);
+  const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
   const [routes, setRoutes]         = useState([]);
   const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -18,10 +19,15 @@ export default function RouteSetup() {
   const [confirmation, setConfirmation] = useState({ isOpen: false });
 
   useEffect(() => {
+    if (inShell) return;
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
   }, []);
+
+  useEffect(() => {
+    if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
+  }, [shellActiveBrandId]);
 
   useEffect(() => {
     if (!activeBrandId) return;
@@ -103,24 +109,35 @@ export default function RouteSetup() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <Navigation size={17} className="text-emerald-300 flex-shrink-0" />
-          <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Route Setup</h1>
-            <p className="text-emerald-300 text-xs">Manage delivery route numbers per brand</p>
+      {/* Header — hidden in shell mode */}
+      {!inShell && (
+        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <Navigation size={17} className="text-emerald-300 flex-shrink-0" />
+            <div>
+              <h1 className="text-sm font-bold text-white leading-tight">Route Setup</h1>
+              <p className="text-emerald-300 text-xs">Manage delivery route numbers per brand</p>
+            </div>
           </div>
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0">
+            <Plus size={14} /> Add Route
+          </button>
         </div>
-        <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0">
-          <Plus size={14} /> Add Route
-        </button>
-      </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-5">
 
-          {brands.length > 0 && (
+          {/* Add Route button shown in shell mode at top of content */}
+          {inShell && (
+            <div className="flex justify-end">
+              <button onClick={openAdd} className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-lg transition">
+                <Plus size={14} /> Add Route
+              </button>
+            </div>
+          )}
+
+          {!inShell && brands.length > 0 && (
             <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => setActive(id)} />
           )}
 

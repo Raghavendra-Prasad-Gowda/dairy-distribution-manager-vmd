@@ -32,11 +32,8 @@ const ADMIN_NAV = [
       {
         label: 'SETUP',
         items: [
-          { to: '/dairy/setup/brands',     icon: Store,       label: 'Brands' },
-          { to: '/dairy/setup/products',   icon: Package,     label: 'Products' },
-          { to: '/dairy/setup/categories', icon: Layers,      label: 'Categories' },
-          { to: '/dairy/setup/routes',     icon: Navigation,  label: 'Routes' },
-          { to: '/dairy/setup/layout',     icon: LayoutGrid,  label: 'Layout' },
+          { to: '/dairy/setup/products', icon: Package,    label: 'Products' },
+          { to: '/dairy/setup',          icon: LayoutGrid, label: 'Settings' },
         ],
       },
       {

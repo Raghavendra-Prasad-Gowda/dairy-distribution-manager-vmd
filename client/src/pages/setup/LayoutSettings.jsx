@@ -90,10 +90,11 @@ function SortableProductRow({ product }) {
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-export default function LayoutSettings() {
+export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {}) {
+  const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]           = useState([]);
-  const [activeBrandId, setActiveBrandId] = useState(null);
+  const [brands, setBrands]           = useState(shellBrands ?? []);
+  const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
   const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
   const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
   const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
@@ -106,14 +107,18 @@ export default function LayoutSettings() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  // Load brands
   useEffect(() => {
+    if (inShell) return;
     api.get('/brands').then(r => {
       const b = r.data.data ?? [];
       setBrands(b);
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
   }, []);
+
+  useEffect(() => {
+    if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
+  }, [shellActiveBrandId]);
 
   const moveBrand = useCallback((idx, direction) => {
     setBrands(prev => arrayMove(prev, idx, idx + direction));
@@ -221,17 +226,19 @@ export default function LayoutSettings() {
         </div>
       )}
 
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
-        <div>
-          <h1 className="text-sm font-bold text-white leading-tight">Layout Settings</h1>
-          <p className="text-emerald-300 text-xs">Drag to reorder categories and visible products.</p>
+      {/* ── Page header — hidden in shell mode ───────────────────────────────── */}
+      {!inShell && (
+        <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Layout Settings</h1>
+            <p className="text-emerald-300 text-xs">Drag to reorder categories and visible products.</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Brand reorder + tab selector ─────────────────────────────────────── */}
-      {brands.length > 0 && (
+      {/* ── Brand reorder + tab selector — hidden in shell mode ──────────────── */}
+      {!inShell && brands.length > 0 && (
         <div className="px-4 pt-4 space-y-2">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">Brand Order</p>
           {brands.map((b, idx) => (
