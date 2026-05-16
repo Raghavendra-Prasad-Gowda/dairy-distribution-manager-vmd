@@ -31,8 +31,6 @@ export default function DairyReports() {
       .finally(() => setLoading(false));
   }, []);
 
-  const showBrandTabs = activeSection !== 'stock';
-
   return (
     <div className="flex flex-col h-full">
 
@@ -45,8 +43,8 @@ export default function DairyReports() {
         </div>
       </div>
 
-      {/* Brand tabs — hidden for Stock Summary section */}
-      {!loading && showBrandTabs && brands.length > 0 && (
+      {/* Brand tabs */}
+      {!loading && brands.length > 0 && (
         <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-3 pb-0 flex-shrink-0">
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <div className="flex gap-1.5 pb-0.5">
@@ -102,7 +100,7 @@ export default function DairyReports() {
       ) : (
         <div className="flex-1 overflow-hidden">
           {activeSection === 'statement' && <DairyStatement shellActiveBrandId={activeBrandId} shellBrands={brands} />}
-          {activeSection === 'stock'     && <StockSummary   inShell />}
+          {activeSection === 'stock'     && <StockSummary   shellActiveBrandId={activeBrandId} shellBrands={brands} />}
           {activeSection === 'deposit'   && <DepositReport  shellActiveBrandId={activeBrandId} shellBrands={brands} />}
         </div>
       )}

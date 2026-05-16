@@ -131,13 +131,15 @@ const salespersonStatement = asyncHandler(async (req, res) => {
 });
 
 const stockSummary = asyncHandler(async (req, res) => {
-  const { date } = req.query;
+  const { date, brandId } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
-  const receiptDate = new Date(date);
+  const receiptDate  = new Date(date);
+  const brandFilter  = brandId ? parseId(brandId, 'Brand ID') : null;
+
   const [receipts, dispatches, allRoutes] = await Promise.all([
     prisma.stockReceipt.findMany({
-      where: { receiptDate },
+      where: { receiptDate, ...(brandFilter ? { brandId: brandFilter } : {}) },
       include: { product: { select: { name: true } }, brand: { select: { name: true } } },
       orderBy: [{ brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
     }),
@@ -145,12 +147,20 @@ const stockSummary = asyncHandler(async (req, res) => {
       where: { dispatchDate: receiptDate },
       include: {
         salesperson: { select: { name: true } },
-        items: { include: { product: { include: { brand: { select: { name: true } } } } } },
+        items: {
+          where: brandFilter ? { product: { brandId: brandFilter } } : {},
+          include: { product: { include: { brand: { select: { name: true } } } } },
+        },
       },
     }),
     prisma.route.findMany({ select: { id: true, routeNumber: true } }),
   ]);
   const routeMap = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
+
+  // Drop dispatches that have no items after brand filtering
+  const filteredDispatches = brandFilter
+    ? dispatches.filter(d => d.items.length > 0)
+    : dispatches;
 
   res.json({
     success: true,
@@ -165,9 +175,9 @@ const stockSummary = asyncHandler(async (req, res) => {
         routeId:     r.routeId,
         routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
       })),
-      dispatches: dispatches.map((d) => ({
+      dispatches: filteredDispatches.map((d) => ({
         salespersonName: d.salesperson.name,
-        totalAmount:     Number(d.totalAmount),
+        totalAmount:     d.items.reduce((s, i) => s + Number(i.totalAmount), 0),
         items: d.items.map((i) => ({
           brandName:   i.product.brand.name,
           productName: i.product.name,

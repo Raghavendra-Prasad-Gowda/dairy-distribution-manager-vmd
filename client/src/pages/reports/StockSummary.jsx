@@ -12,18 +12,20 @@ import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-export default function StockSummary({ inShell } = {}) {
-  const [date, setDate]      = useState(getIndiaDate());
-  const [data, setData]      = useState(null);
+export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
+  const isShell = inShell || shellActiveBrandId != null;
+  const [date, setDate]       = useState(getIndiaDate());
+  const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError]    = useState('');
+  const [error, setError]     = useState('');
 
-  useEffect(() => { fetchSummary(); }, [date]);
+  useEffect(() => { fetchSummary(); }, [date, shellActiveBrandId]);
 
   async function fetchSummary() {
     setLoading(true); setError('');
     try {
-      const r = await api.get(`/reports/stock-summary?date=${date}`);
+      const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
+      const r = await api.get(`/reports/stock-summary?date=${date}${brandParam}`);
       setData(r.data.data);
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load summary');
@@ -40,7 +42,7 @@ export default function StockSummary({ inShell } = {}) {
     <div className="flex flex-col h-full">
 
       {/* ── Page header — hidden in shell mode ──────────────────────── */}
-      {!inShell && (
+      {!isShell && (
         <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <Package size={17} className="text-emerald-300 flex-shrink-0" />
@@ -56,7 +58,7 @@ export default function StockSummary({ inShell } = {}) {
     <div className="flex-1 overflow-y-auto">
     <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
-      {inShell && (
+      {isShell && (
         <div className="flex justify-end">
           <DateSelector date={date} onChange={setDate} />
         </div>
@@ -102,8 +104,9 @@ export default function StockSummary({ inShell } = {}) {
 
           {/* ── Receipts table ─────────────────────────────────────── */}
           {(() => {
-            const receipts = data.receipts;
-            const hasRoutes = receipts.some(r => r.routeNumber);
+            const receipts   = data.receipts;
+            const hasRoutes  = receipts.some(r => r.routeNumber);
+            const multiBrand = !shellActiveBrandId;
 
             // Build route → color index map (stable per route name)
             const routeNames = [...new Set(receipts.map(r => r.routeNumber).filter(Boolean))];
@@ -134,7 +137,7 @@ export default function StockSummary({ inShell } = {}) {
                     <table className="min-w-full divide-y divide-slate-200">
                       <thead className="bg-emerald-700 sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
+                          {multiBrand && <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>}
                           {hasRoutes && <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Route</th>}
                           <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                           <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
@@ -147,7 +150,7 @@ export default function StockSummary({ inShell } = {}) {
                           <>
                             {items.map((r, i) => (
                               <tr key={`${brandName}-${i}`} className="hover:bg-slate-50/60 transition-colors">
-                                <td className="px-4 py-2.5 text-xs text-slate-400">{i === 0 ? brandName : ''}</td>
+                                {multiBrand && <td className="px-4 py-2.5 text-xs text-slate-400">{i === 0 ? brandName : ''}</td>}
                                 {hasRoutes && (
                                   <td className="px-4 py-2.5">
                                     {r.routeNumber ? (() => {
@@ -167,7 +170,7 @@ export default function StockSummary({ inShell } = {}) {
                               </tr>
                             ))}
                             {/* Brand sub-total — only shown when multiple brands present */}
-                            {brandSections.length > 1 && (
+                            {multiBrand && brandSections.length > 1 && (
                               <tr className="bg-slate-50 border-t border-slate-200">
                                 <td colSpan={hasRoutes ? 5 : 4} className="px-4 py-1.5 text-xs font-semibold text-slate-500 text-right">{brandName} total</td>
                                 <td className="px-4 py-1.5 text-right text-sm font-bold text-blue-700 tabular-nums whitespace-nowrap">
