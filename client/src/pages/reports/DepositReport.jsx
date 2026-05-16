@@ -99,7 +99,7 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
   }
 
   return (
-    <div className={inShell ? 'flex flex-col h-full overflow-y-auto bg-slate-100' : 'bg-slate-100 min-h-screen pb-8'}>
+    <div className={inShell ? 'h-full overflow-y-auto bg-slate-100 pb-8' : 'bg-slate-100 min-h-screen pb-8'}>
 
       {/* Header — hidden in shell mode */}
       {!inShell && (
