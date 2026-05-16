@@ -100,6 +100,7 @@ export default function LayoutSettings() {
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [dirty, setDirty]             = useState(false);
+  const [brandsDirty, setBrandsDirty] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -112,6 +113,12 @@ export default function LayoutSettings() {
       setBrands(b);
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
+  }, []);
+
+  const moveBrand = useCallback((idx, direction) => {
+    setBrands(prev => arrayMove(prev, idx, idx + direction));
+    setBrandsDirty(true);
+    setDirty(true);
   }, []);
 
   // Load categories + products for active brand
@@ -130,7 +137,8 @@ export default function LayoutSettings() {
       const exp = {};
       cats.forEach(c => { exp[c.name] = true; });
       setExpanded(exp);
-      setDirty(false);
+      // Reset category/product dirty state; preserve dirty if brand order is unsaved
+      setBrandsDirty(bd => { setDirty(bd); return bd; });
     }).catch(() => notify('Failed to load data', 'error'))
       .finally(() => setLoading(false));
   }, [activeBrandId]);
@@ -182,16 +190,17 @@ export default function LayoutSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const categoryOrders = categories.map((c, i) => ({ id: c.id, displayOrder: i }));
-      const productOrders  = products.map((p, i) => ({ id: p.id, displayOrder: i }));
-
-      await Promise.all([
-        api.patch('/categories/reorder', categoryOrders),
-        api.patch('/products/reorder', productOrders),
-      ]);
-
+      const calls = [
+        api.patch('/categories/reorder', categories.map((c, i) => ({ id: c.id, displayOrder: i }))),
+        api.patch('/products/reorder', products.map((p, i) => ({ id: p.id, displayOrder: i }))),
+      ];
+      if (brandsDirty) {
+        calls.push(api.patch('/brands/reorder', brands.map((b, i) => ({ id: b.id, displayOrder: i }))));
+      }
+      await Promise.all(calls);
       notify('Layout saved successfully!', 'success');
       setDirty(false);
+      setBrandsDirty(false);
     } catch {
       notify('Failed to save layout', 'error');
     } finally {
@@ -221,22 +230,51 @@ export default function LayoutSettings() {
         </div>
       </div>
 
-      {/* ── Brand tabs ───────────────────────────────────────────────────────── */}
-      {brands.length > 1 && (
-        <div className="flex gap-2 px-4 pt-4">
-          {brands.map(b => (
-            <button
+      {/* ── Brand reorder + tab selector ─────────────────────────────────────── */}
+      {brands.length > 0 && (
+        <div className="px-4 pt-4 space-y-2">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">Brand Order</p>
+          {brands.map((b, idx) => (
+            <div
               key={b.id}
-              onClick={() => setActiveBrandId(b.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 border cursor-pointer transition ${
                 activeBrandId === b.id
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-emerald-700 border-emerald-700'
+                  : 'bg-white border-slate-200 hover:bg-slate-50'
               }`}
+              onClick={() => setActiveBrandId(b.id)}
             >
-              {b.name}
-            </button>
+              <div className="flex flex-col gap-0.5" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => moveBrand(idx, -1)}
+                  disabled={idx === 0}
+                  className={`p-0.5 leading-none disabled:opacity-20 disabled:cursor-not-allowed ${
+                    activeBrandId === b.id ? 'text-emerald-200 hover:text-white' : 'text-slate-400 hover:text-emerald-600'
+                  }`}
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  onClick={() => moveBrand(idx, 1)}
+                  disabled={idx === brands.length - 1}
+                  className={`p-0.5 leading-none disabled:opacity-20 disabled:cursor-not-allowed ${
+                    activeBrandId === b.id ? 'text-emerald-200 hover:text-white' : 'text-slate-400 hover:text-emerald-600'
+                  }`}
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+              <span className={`flex-1 text-sm font-bold ${activeBrandId === b.id ? 'text-white' : 'text-slate-700'}`}>
+                {b.name}
+              </span>
+              <span className={`text-[10px] tabular-nums ${activeBrandId === b.id ? 'text-emerald-200' : 'text-slate-400'}`}>
+                #{idx + 1}
+              </span>
+            </div>
           ))}
+          <p className={`text-[11px] font-bold uppercase tracking-wider px-1 pt-2 ${activeBrandId ? 'text-slate-400' : 'text-slate-300'}`}>
+            {brands.find(b => b.id === activeBrandId)?.name} — Categories &amp; Products
+          </p>
         </div>
       )}
 
