@@ -13,7 +13,7 @@ const getProducts = asyncHandler(async (req, res) => {
     prisma.product.findMany({
       where: { isActive: true },
       include: { brand: { select: { id: true, name: true } } },
-      orderBy: [{ brandId: 'asc' }, { displayOrder: 'asc' }, { name: 'asc' }],
+      orderBy: [{ brandId: 'asc' }, { salespersonDisplayOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.salespersonProduct.findMany({
       where: { salespersonId },
@@ -29,7 +29,7 @@ const getProducts = asyncHandler(async (req, res) => {
     brandId:           p.brandId,
     brandName:         p.brand.name,
     category:          p.category,
-    displayOrder:      p.displayOrder,
+    displayOrder:      p.salespersonDisplayOrder,
     unitType:          p.unitType,
     unitSize:          p.unitSize,
     containerType:     p.containerType,

@@ -55,6 +55,18 @@ router.patch('/reorder', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: `${items.length} products reordered` } });
 }));
 
+// PATCH /products/salesperson-reorder
+router.patch('/salesperson-reorder', asyncHandler(async (req, res) => {
+  const items = validate(schemas.reorderSalespersonProducts, req, res);
+  if (!items) return;
+  await prisma.$transaction(
+    items.map(({ id, displayOrder }) =>
+      prisma.product.update({ where: { id }, data: { salespersonDisplayOrder: displayOrder } })
+    )
+  );
+  res.json({ success: true, data: { message: `${items.length} products reordered` } });
+}));
+
 // POST /products
 router.post('/', asyncHandler(async (req, res) => {
   const data = validate(schemas.createProduct, req, res);

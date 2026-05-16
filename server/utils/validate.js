@@ -62,7 +62,7 @@ const schemas = {
     sellingPriceEffectiveFrom:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }),
 
-  // Layout reordering
+  // Layout reordering — dairy
   reorderBrands: z.array(z.object({
     id:           z.number().int().positive(),
     displayOrder: z.number().int().nonnegative(),
@@ -72,6 +72,20 @@ const schemas = {
     displayOrder: z.number().int().nonnegative(),
   })),
   reorderCategories: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+
+  // Layout reordering — salesperson
+  reorderSalespersonBrands: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+  reorderSalespersonProducts: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+  reorderSalespersonCategories: z.array(z.object({
     id:           z.number().int().positive(),
     displayOrder: z.number().int().nonnegative(),
   })),

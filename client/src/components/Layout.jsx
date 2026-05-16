@@ -62,7 +62,8 @@ const ADMIN_NAV = [
         label: 'SETUP',
         items: [
           { to: '/salesman/setup/users',    icon: Users,        label: 'Users' },
-          { to: '/salesman/setup/products', icon: Tag,          label: 'Layout' },
+          { to: '/salesman/setup/products', icon: Tag,          label: 'Products' },
+          { to: '/salesman/setup/layout',   icon: LayoutGrid,   label: 'Layout' },
           { to: '/salesman/setup/prices',   icon: IndianRupee,  label: 'Prices' },
         ],
       },

@@ -18,10 +18,10 @@ const getPrices = asyncHandler(async (req, res) => {
   const [products, enabledRows, priceRows, categories] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true },
-      include: { brand: { select: { id: true, name: true, displayOrder: true } } },
+      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
       orderBy: [
-        { brand: { displayOrder: 'asc' } },
-        { displayOrder: 'asc' },
+        { brand: { salespersonDisplayOrder: 'asc' } },
+        { salespersonDisplayOrder: 'asc' },
         { name: 'asc' },
       ],
     }),
@@ -34,7 +34,7 @@ const getPrices = asyncHandler(async (req, res) => {
       orderBy: { effectiveFrom: 'desc' },
     }),
     prisma.category.findMany({
-      select: { brandId: true, name: true, displayOrder: true },
+      select: { brandId: true, name: true, salespersonDisplayOrder: true },
     }),
   ]);
 
@@ -48,7 +48,7 @@ const getPrices = asyncHandler(async (req, res) => {
   // Build category display-order lookup keyed by "brandId|categoryName"
   const catOrderMap = {};
   for (const cat of categories) {
-    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
+    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
   }
 
   // Salesman only sees explicitly enabled products
@@ -61,8 +61,8 @@ const getPrices = asyncHandler(async (req, res) => {
     productName:          p.name,
     brandId:              p.brandId,
     brandName:            p.brand.name,
-    brandDisplayOrder:    p.brand.displayOrder,
-    displayOrder:         p.displayOrder,
+    brandDisplayOrder:    p.brand.salespersonDisplayOrder,
+    displayOrder:         p.salespersonDisplayOrder,
     category:             p.category,
     categoryDisplayOrder: catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
     unitType:             p.unitType,

@@ -33,4 +33,15 @@ const update = asyncHandler(async (req, res) => {
   res.json({ success: true, data: brand });
 });
 
-module.exports = { getAll, reorder, create, update };
+const salespersonReorder = asyncHandler(async (req, res) => {
+  const items = validate(schemas.reorderSalespersonBrands, req, res);
+  if (!items) return;
+  await prisma.$transaction(
+    items.map(({ id, displayOrder }) =>
+      prisma.brand.update({ where: { id }, data: { salespersonDisplayOrder: displayOrder } })
+    )
+  );
+  res.json({ success: true, data: { message: `${items.length} brands reordered` } });
+});
+
+module.exports = { getAll, reorder, salespersonReorder, create, update };

@@ -13,7 +13,8 @@ datasource db {
 model Brand {
   id              Int      @id @default(autoincrement())
   name            String   @unique
-  displayOrder      Int      @default(0) @map("display_order")
+  displayOrder              Int      @default(0) @map("display_order")
+  salespersonDisplayOrder   Int      @default(0) @map("salesperson_display_order")
   depositEnabled    Boolean  @default(false) @map("deposit_enabled")
   depositPerLitre   Decimal  @default(0) @db.Decimal(10, 4) @map("deposit_per_litre")
   depositCalcMethod String   @default("litre") @map("deposit_calc_method")
@@ -45,9 +46,10 @@ model Product {
   sellingPrice        Decimal  @default(0) @db.Decimal(10, 4) @map("selling_price")
   isActive            Boolean  @default(true) @map("is_active")
   showInStockReceipt  Boolean  @default(true) @map("show_in_stock_receipt")
-  depositEnabled      Boolean  @default(false) @map("deposit_enabled")
-  displayOrder        Int      @default(0) @map("display_order")
-  createdAt           DateTime @default(now()) @map("created_at")
+  depositEnabled            Boolean  @default(false) @map("deposit_enabled")
+  displayOrder              Int      @default(0) @map("display_order")
+  salespersonDisplayOrder   Int      @default(0) @map("salesperson_display_order")
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   brand                Brand                @relation(fields: [brandId], references: [id], onDelete: Cascade)
   stockReceipts        StockReceipt[]
@@ -99,9 +101,10 @@ model Category {
   id             Int      @id @default(autoincrement())
   brandId        Int      @map("brand_id")
   name           String
-  displayOrder   Int      @default(0) @map("display_order")
-  depositEnabled Boolean  @default(false) @map("deposit_enabled")
-  createdAt      DateTime @default(now()) @map("created_at")
+  displayOrder            Int      @default(0) @map("display_order")
+  salespersonDisplayOrder Int      @default(0) @map("salesperson_display_order")
+  depositEnabled          Boolean  @default(false) @map("deposit_enabled")
+  createdAt               DateTime @default(now()) @map("created_at")
 
   brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
