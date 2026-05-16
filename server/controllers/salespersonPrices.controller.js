@@ -71,6 +71,8 @@ const getPrices = asyncHandler(async (req, res) => {
     unitsPerContainer:    p.unitsPerContainer,
     showInStockReceipt:   p.showInStockReceipt,
     isEnabled:            enabledMap[p.id] ?? false,
+    dairyCostPrice:       Number(p.costPrice),
+    dairySellingPrice:    Number(p.sellingPrice),
     sellingPrice:         priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
     effectiveFrom:        priceMap[p.id]?.effectiveFrom ?? null,
   }));
