@@ -12,7 +12,7 @@ import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-export default function StockSummary() {
+export default function StockSummary({ inShell } = {}) {
   const [date, setDate]      = useState(getIndiaDate());
   const [data, setData]      = useState(null);
   const [loading, setLoading] = useState(false);
@@ -39,20 +39,28 @@ export default function StockSummary() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <Package size={17} className="text-emerald-300 flex-shrink-0" />
-          <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Stock Summary</h1>
-            <p className="text-emerald-300 text-xs">Daily stock received vs dispatched</p>
+      {/* ── Page header — hidden in shell mode ──────────────────────── */}
+      {!inShell && (
+        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <Package size={17} className="text-emerald-300 flex-shrink-0" />
+            <div>
+              <h1 className="text-sm font-bold text-white leading-tight">Stock Summary</h1>
+              <p className="text-emerald-300 text-xs">Daily stock received vs dispatched</p>
+            </div>
           </div>
+          <DateSelector date={date} onChange={setDate} dark />
         </div>
-        <DateSelector date={date} onChange={setDate} dark />
-      </div>
+      )}
 
     <div className="flex-1 overflow-y-auto">
     <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
+
+      {inShell && (
+        <div className="flex justify-end">
+          <DateSelector date={date} onChange={setDate} />
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">

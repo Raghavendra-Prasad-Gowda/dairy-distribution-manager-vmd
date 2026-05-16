@@ -39,9 +39,7 @@ const ADMIN_NAV = [
       {
         label: 'REPORTS',
         items: [
-          { to: '/reports/dairy',   icon: FileText,  label: 'Dairy Statement' },
-          { to: '/reports/stock',   icon: Warehouse, label: 'Stock Summary' },
-          { to: '/reports/deposit', icon: Droplets,  label: 'Deposit Report' },
+          { to: '/dairy/reports', icon: FileText, label: 'Reports' },
         ],
       },
     ],
