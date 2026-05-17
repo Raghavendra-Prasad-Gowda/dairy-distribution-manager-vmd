@@ -1,26 +1,47 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Power, Eye, EyeOff, Loader2, Save, X, Users, Search } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 
+function TogglePill({ enabled, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+        enabled ? 'bg-emerald-500' : 'bg-slate-200'
+      }`}
+    >
+      <span
+        className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+          enabled ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function SalesmanUsersSetup() {
   const { notify } = useNotification();
-  const [salespeople, setSalespeople]   = useState([]);
-  const [loading, setLoading]           = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showPwModal, setShowPwModal]   = useState(false);
-  const [editingSp, setEditingSp]       = useState(null);
-  const [newSp, setNewSp]               = useState({ name: '', phone: '', route: '', username: '', password: '' });
-  const [showNewPw, setShowNewPw]       = useState(false);
-  const [pwForm, setPwForm]             = useState({ username: '', password: '', confirmPassword: '' });
-  const [showPw, setShowPw]             = useState(false);
-  const [submitting, setSubmitting]     = useState(false);
-  const [savingPw, setSavingPw]         = useState(false);
-  const [search, setSearch]             = useState('');
-  const [currentPage, setCurrentPage]   = useState(1);
+  const [salespeople, setSalespeople]       = useState([]);
+  const [loading, setLoading]               = useState(false);
+  const [showAddModal, setShowAddModal]     = useState(false);
+  const [showPwModal, setShowPwModal]       = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingSpId, setDeletingSpId]     = useState(null);
+  const [editingSp, setEditingSp]           = useState(null);
+  const [newSp, setNewSp]                   = useState({ name: '', phone: '', route: '', username: '', password: '' });
+  const [showNewPw, setShowNewPw]           = useState(false);
+  const [pwForm, setPwForm]                 = useState({ username: '', password: '', confirmPassword: '' });
+  const [showPw, setShowPw]                 = useState(false);
+  const [submitting, setSubmitting]         = useState(false);
+  const [savingPw, setSavingPw]             = useState(false);
+  const [deleting, setDeleting]             = useState(false);
+  const [search, setSearch]                 = useState('');
+  const [currentPage, setCurrentPage]       = useState(1);
 
   useEffect(() => { loadSalespeople(); }, []);
   useEffect(() => { setCurrentPage(1); }, [search]);
@@ -78,10 +99,29 @@ export default function SalesmanUsersSetup() {
   const handleToggleActive = async (sp) => {
     try {
       await api.put(`/salespeople/${sp.id}`, { isActive: !sp.isActive });
-      notify(`${sp.name} ${sp.isActive ? 'deactivated' : 'activated'}`, 'success');
-      loadSalespeople();
+      setSalespeople(prev => prev.map(s => s.id === sp.id ? { ...s, isActive: !s.isActive } : s));
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to update', 'error');
+    }
+  };
+
+  const openDeleteConfirm = (sp) => {
+    setDeletingSpId(sp.id);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/salespeople/${deletingSpId}`);
+      notify('Salesperson deleted', 'success');
+      setShowDeleteModal(false);
+      setDeletingSpId(null);
+      loadSalespeople();
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to delete', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -114,6 +154,8 @@ export default function SalesmanUsersSetup() {
       setSavingPw(false);
     }
   };
+
+  const deletingSp = salespeople.find(s => s.id === deletingSpId);
 
   return (
     <div className="flex flex-col h-full">
@@ -285,6 +327,39 @@ export default function SalesmanUsersSetup() {
         </div>
       )}
 
+      {/* Delete confirmation modal */}
+      {showDeleteModal && deletingSp && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
+            <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle size={22} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Delete {deletingSp.name}?</h3>
+                <p className="text-slate-500 text-sm mt-1">This will permanently remove the salesperson. This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeletingSpId(null); }}
+                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2"
+              >
+                {deleting ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
         <div className="flex items-center gap-2.5">
@@ -338,7 +413,7 @@ export default function SalesmanUsersSetup() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Route / Phone</th>
                     <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-36">Login</th>
-                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Status</th>
+                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Active</th>
                     <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Actions</th>
                   </tr>
                 </thead>
@@ -372,10 +447,10 @@ export default function SalesmanUsersSetup() {
                             : <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">No login</span>
                           }
                         </td>
-                        <td className="px-6 py-4 text-center align-middle whitespace-nowrap">
-                          <span className={`inline-block text-xs px-2.5 py-1 rounded-full font-semibold ${sp.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {sp.isActive ? 'Active' : 'Inactive'}
-                          </span>
+                        <td className="px-6 py-4 text-center align-middle">
+                          <div className="flex justify-center">
+                            <TogglePill enabled={sp.isActive} onChange={() => handleToggleActive(sp)} />
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center align-middle">
                           <div className="flex items-center justify-center gap-2">
@@ -387,15 +462,11 @@ export default function SalesmanUsersSetup() {
                               <Edit2 size={15} />
                             </button>
                             <button
-                              onClick={() => handleToggleActive(sp)}
-                              title={sp.isActive ? 'Deactivate' : 'Activate'}
-                              className={`p-1.5 rounded-lg transition ${
-                                sp.isActive
-                                  ? 'text-red-400 hover:text-red-600 hover:bg-red-50'
-                                  : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
-                              }`}
+                              onClick={() => openDeleteConfirm(sp)}
+                              title="Delete salesperson"
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                             >
-                              <Power size={15} />
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         </td>

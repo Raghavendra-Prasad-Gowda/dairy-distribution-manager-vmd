@@ -73,4 +73,21 @@ const update = asyncHandler(async (req, res) => {
   res.json({ success: true, data: sp });
 });
 
-module.exports = { getAll, getById, create, update };
+const remove = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Salesperson ID');
+
+  const [dispatchCount, balanceCount, paymentCount] = await Promise.all([
+    prisma.stockDispatch.count({ where: { salespersonId: id } }),
+    prisma.salespersonBalance.count({ where: { salespersonId: id } }),
+    prisma.salespersonPayment.count({ where: { salespersonId: id } }),
+  ]);
+
+  if (dispatchCount + balanceCount + paymentCount > 0) {
+    throw new AppError('Cannot delete a salesperson with existing transactions. Deactivate them instead.', 400);
+  }
+
+  await prisma.salesperson.delete({ where: { id } });
+  res.json({ success: true, data: { message: 'Salesperson deleted' } });
+});
+
+module.exports = { getAll, getById, create, update, remove };
