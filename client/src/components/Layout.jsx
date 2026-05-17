@@ -50,6 +50,7 @@ const ADMIN_NAV = [
       {
         label: 'MANAGEMENT',
         items: [
+          { to: '/salesman/dispatch-sheet', icon: LayoutGrid,   label: 'Dispatch Sheet' },
           { to: '/salesman/payments',       icon: CreditCard,   label: 'Collections' },
         ],
       },
@@ -64,8 +65,7 @@ const ADMIN_NAV = [
       {
         label: 'REPORTS',
         items: [
-          { to: '/reports/salespeople',     icon: FileText,   label: 'Statements' },
-          { to: '/reports/daily-dispatch',  icon: LayoutGrid, label: 'Daily Sheet' },
+          { to: '/reports/salespeople', icon: FileText, label: 'Statements' },
         ],
       },
     ],

@@ -99,7 +99,7 @@ function AppRoutes() {
             <Route path="dairy/reports"           element={S(DairyReports)} />
             <Route path="reports/dairy"           element={S(DairyStatement)} />
             <Route path="reports/salespeople"       element={S(SalespersonStatement)} />
-            <Route path="reports/daily-dispatch"   element={S(DailyDispatchSummary)} />
+            <Route path="salesman/dispatch-sheet"   element={S(DailyDispatchSummary)} />
             <Route path="reports/stock"           element={S(StockSummary)} />
             <Route path="reports/deposit"         element={S(DepositReport)} />
             <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
