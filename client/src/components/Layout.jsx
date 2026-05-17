@@ -39,7 +39,7 @@ const ADMIN_NAV = [
       {
         label: 'REPORTS',
         items: [
-          { to: '/dairy/reports', icon: FileText, label: 'Reports' },
+          { to: '/dairy/reports', icon: FileText, label: 'Dairy Reports' },
         ],
       },
     ],
