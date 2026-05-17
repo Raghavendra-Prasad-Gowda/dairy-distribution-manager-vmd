@@ -90,19 +90,6 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
   });
 
-  // Block saves on locked entries (salesman only — admin can always overwrite)
-  if (req.user.role === 'salesman' && existing && isEffectivelyLocked(existing, today)) {
-    throw new AppError('This stock entry is locked. Contact admin to unlock.', 403);
-  }
-
-  // Auto-lock past dates for salesman
-  if (req.user.role === 'salesman') {
-    const dateStr = data.dispatchDate;
-    if (dateStr < today && !(existing?.isAdminUnlocked)) {
-      throw new AppError('Cannot save entries for past dates. Contact admin to unlock.', 403);
-    }
-  }
-
   const guardErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
   if (guardErrors.length > 0) {
     return res.status(400).json({

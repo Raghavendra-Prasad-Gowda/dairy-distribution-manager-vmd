@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Save, Loader2, ShoppingCart, TrendingUp, Search, X,
-  ChevronDown, ChevronRight, Lock, CheckCircle, AlertCircle, Minus, Plus,
+  ChevronDown, ChevronRight, CheckCircle, AlertCircle, Minus, Plus,
 } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
@@ -17,16 +17,6 @@ function calcContainerDisplay(units, containerType, unitsPerContainer) {
   if (count <= 0) return null;
   const label = containerType.charAt(0).toUpperCase() + containerType.slice(1);
   return `${Number.isInteger(count) ? count : count.toFixed(2)} ${label}${count !== 1 ? 's' : ''}`;
-}
-
-function computeLockState(dispatch, today) {
-  if (!dispatch) return { isLocked: false, reason: null };
-  const dateStr = dispatch.dispatchDate ? dispatch.dispatchDate.slice(0, 10) : null;
-  const isPast = dateStr && dateStr < today;
-  if ((isPast || dispatch.isSubmitted) && !dispatch.isAdminUnlocked) {
-    return { isLocked: true, reason: dispatch.isSubmitted ? 'submitted' : 'past-date' };
-  }
-  return { isLocked: false, reason: null };
 }
 
 function unitLabel(p) {
@@ -120,11 +110,6 @@ export default function SalespersonStockEntry() {
 
   const today = getIndiaDate();
   const salespersonId = user?.salespersonId;
-
-  const { isLocked, reason: lockReason } = useMemo(
-    () => computeLockState(dispatch, today),
-    [dispatch, today]
-  );
 
   // ─── Load products + dispatch ─────────────────────────────────────────────
   useEffect(() => {
@@ -420,30 +405,6 @@ export default function SalespersonStockEntry() {
           </div>
         </div>
 
-        {/* ── Lock banner ───────────────────────────────────────────────────── */}
-        {isLocked && (
-          <div className={`mx-3 mt-3 rounded-xl px-4 py-3 flex items-start gap-3 ${
-            lockReason === 'submitted'
-              ? 'bg-emerald-50 border border-emerald-200'
-              : 'bg-amber-50 border border-amber-200'
-          }`}>
-            {lockReason === 'submitted'
-              ? <CheckCircle size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-              : <Lock       size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
-            }
-            <div>
-              <p className={`text-sm font-bold ${lockReason === 'submitted' ? 'text-emerald-800' : 'text-amber-800'}`}>
-                {lockReason === 'submitted' ? 'Entry Submitted & Locked' : 'Entry Locked (Past Date)'}
-              </p>
-              <p className={`text-xs mt-0.5 ${lockReason === 'submitted' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {lockReason === 'submitted'
-                  ? 'Contact admin if you need to make changes.'
-                  : 'Contact admin to unlock this date for editing.'}
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* ── Search bar ────────────────────────────────────────────────────── */}
         {!loading && products.length > 0 && (
           <div className="mx-3 mt-3">
@@ -566,53 +527,45 @@ export default function SalespersonStockEntry() {
                                 )}
                               </div>
 
-                              {/* Row 2: Stepper (or read-only qty when locked) */}
-                              {isLocked ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-bold text-slate-600 tabular-nums">
-                                    {qtyNum > 0 ? `${qtyNum} units` : '—'}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  {/* Decrement */}
-                                  <button
-                                    type="button"
-                                    onPointerDown={e => e.preventDefault()}
-                                    onClick={() => handleDecrement(p.productId)}
-                                    disabled={noPrice || qtyNum <= 0}
-                                    className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 disabled:opacity-25 active:bg-slate-200 active:scale-95 transition select-none"
-                                  >
-                                    <Minus size={16} />
-                                  </button>
+                              {/* Row 2: Stepper */}
+                              <div className="flex items-center gap-2">
+                                {/* Decrement */}
+                                <button
+                                  type="button"
+                                  onPointerDown={e => e.preventDefault()}
+                                  onClick={() => handleDecrement(p.productId)}
+                                  disabled={noPrice || qtyNum <= 0}
+                                  className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 disabled:opacity-25 active:bg-slate-200 active:scale-95 transition select-none"
+                                >
+                                  <Minus size={16} />
+                                </button>
 
-                                  {/* Qty input */}
-                                  <input
-                                    ref={el => { inputRefs.current[p.productId] = el; }}
-                                    type="number"
-                                    inputMode="decimal"
-                                    value={qtyVal}
-                                    onChange={e => setQty(prev => ({ ...prev, [p.productId]: e.target.value }))}
-                                    onKeyDown={e => handleKeyDown(e, p.productId)}
-                                    step="1"
-                                    min="0"
-                                    placeholder="0"
-                                    disabled={noPrice}
-                                    className="flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums disabled:bg-slate-50 disabled:text-slate-300 border-slate-200 text-slate-900 bg-white"
-                                  />
+                                {/* Qty input */}
+                                <input
+                                  ref={el => { inputRefs.current[p.productId] = el; }}
+                                  type="number"
+                                  inputMode="decimal"
+                                  value={qtyVal}
+                                  onChange={e => setQty(prev => ({ ...prev, [p.productId]: e.target.value }))}
+                                  onKeyDown={e => handleKeyDown(e, p.productId)}
+                                  step="1"
+                                  min="0"
+                                  placeholder="0"
+                                  disabled={noPrice}
+                                  className="flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums disabled:bg-slate-50 disabled:text-slate-300 border-slate-200 text-slate-900 bg-white"
+                                />
 
-                                  {/* Increment */}
-                                  <button
-                                    type="button"
-                                    onPointerDown={e => e.preventDefault()}
-                                    onClick={() => handleIncrement(p.productId)}
-                                    disabled={noPrice}
-                                    className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white disabled:opacity-25 active:bg-emerald-700 active:scale-95 transition select-none"
-                                  >
-                                    <Plus size={16} />
-                                  </button>
-                                </div>
-                              )}
+                                {/* Increment */}
+                                <button
+                                  type="button"
+                                  onPointerDown={e => e.preventDefault()}
+                                  onClick={() => handleIncrement(p.productId)}
+                                  disabled={noPrice}
+                                  className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white disabled:opacity-25 active:bg-emerald-700 active:scale-95 transition select-none"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -641,7 +594,7 @@ export default function SalespersonStockEntry() {
       </div>
 
       {/* ── Sticky action bar ────────────────────────────────────────────────── */}
-      {!isLocked && !loading && products.length > 0 && (
+      {!loading && products.length > 0 && (
         <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2">
           {/* Context line */}
           {filledCount > 0 && (
