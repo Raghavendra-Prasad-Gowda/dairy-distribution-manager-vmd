@@ -238,24 +238,12 @@ export default function SalesmanPricesSetup() {
       )}
 
       {/* Page header */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <IndianRupee size={17} className="text-emerald-300 flex-shrink-0" />
-          <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Products &amp; Prices</h1>
-            <p className="text-emerald-300 text-xs">Enable products and set selling prices per salesperson</p>
-          </div>
+      <div className="flex items-center gap-2.5 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <IndianRupee size={17} className="text-emerald-300 flex-shrink-0" />
+        <div>
+          <h1 className="text-sm font-bold text-white leading-tight">Products &amp; Prices</h1>
+          <p className="text-emerald-300 text-xs">Enable products and set selling prices per salesperson</p>
         </div>
-        {(selectedSp || isGlobal) && (
-          <button
-            onClick={handleSave}
-            disabled={saving || !hasDirty}
-            className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 disabled:opacity-50 px-3 py-1.5 rounded-lg transition flex-shrink-0"
-          >
-            {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-            Save
-          </button>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -312,9 +300,9 @@ export default function SalesmanPricesSetup() {
                 />
               )}
 
-              {/* Search */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="relative max-w-sm">
+              {/* Search + Save */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
@@ -329,6 +317,14 @@ export default function SalesmanPricesSetup() {
                     </button>
                   )}
                 </div>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !hasDirty}
+                  className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
+                >
+                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
               </div>
 
               <Pagination
