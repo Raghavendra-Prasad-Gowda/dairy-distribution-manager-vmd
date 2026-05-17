@@ -160,8 +160,9 @@ const schemas = {
   bulkSalespersonPrices: z.object({
     effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     prices: z.array(z.object({
-      productId: z.number().int().positive(),
-      sellingPrice: z.number().min(0),
+      productId:     z.number().int().positive(),
+      sellingPrice:  z.number().min(0),
+      effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     })),
   }),
 

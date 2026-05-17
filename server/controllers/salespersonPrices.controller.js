@@ -71,7 +71,7 @@ const getPrices = asyncHandler(async (req, res) => {
     unitsPerContainer:    p.unitsPerContainer,
     showInStockReceipt:   p.showInStockReceipt,
     salespersonEnabled:   p.salespersonEnabled,
-    isEnabled:            enabledMap[p.id] ?? false,
+    isEnabled:            enabledMap[p.id] ?? true,
     dairyCostPrice:       Number(p.costPrice),
     dairySellingPrice:    Number(p.sellingPrice),
     sellingPrice:         priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
@@ -89,14 +89,15 @@ const bulkSave = asyncHandler(async (req, res) => {
   const data = validate(schemas.bulkSalespersonPrices, req, res);
   if (!data) return;
 
-  const effectiveFrom = new Date(data.effectiveFrom);
-  const upserts = data.prices.map((item) =>
-    prisma.salespersonPrice.upsert({
+  const globalDate = new Date(data.effectiveFrom);
+  const upserts = data.prices.map((item) => {
+    const effectiveFrom = item.effectiveFrom ? new Date(item.effectiveFrom) : globalDate;
+    return prisma.salespersonPrice.upsert({
       where: { salespersonId_productId_effectiveFrom: { salespersonId, productId: item.productId, effectiveFrom } },
       update: { sellingPrice: item.sellingPrice },
       create: { salespersonId, productId: item.productId, sellingPrice: item.sellingPrice, effectiveFrom },
-    })
-  );
+    });
+  });
 
   await prisma.$transaction(upserts);
   res.json({ success: true, data: { message: `${data.prices.length} prices saved` } });

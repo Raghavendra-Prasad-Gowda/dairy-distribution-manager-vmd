@@ -36,6 +36,7 @@ export default function SalesmanPricesSetup() {
 
   // Per-person state
   const [prices, setPrices]                 = useState([]);
+  // editedPrices: { [productId]: { price: string, effectiveFrom: string } }
   const [editedPrices, setEditedPrices]     = useState({});
   const [dirtyToggles, setDirtyToggles]     = useState({});
   const [effectiveFrom, setEffectiveFrom]   = useState(getIndiaDate());
@@ -143,7 +144,11 @@ export default function SalesmanPricesSetup() {
     const hasToggleChanges = Object.keys(dirtyToggles).length > 0;
     const pricesToSave = prices
       .filter(p => p.brandId === activeBrandId && editedPrices[p.productId] !== undefined)
-      .map(p => ({ productId: p.productId, sellingPrice: parseFloat(editedPrices[p.productId]) || 0 }));
+      .map(p => ({
+        productId:     p.productId,
+        sellingPrice:  parseFloat(editedPrices[p.productId].price) || 0,
+        effectiveFrom: editedPrices[p.productId].effectiveFrom ?? effectiveFrom,
+      }));
 
     if (!hasToggleChanges && !pricesToSave.length) { notify('No changes to save', 'warning'); return; }
 
@@ -218,12 +223,12 @@ export default function SalesmanPricesSetup() {
   const hasDirty = isGlobal
     ? Object.keys(dirtyGlobal).length > 0
     : Object.keys(dirtyToggles).length > 0 ||
-      prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId] !== undefined);
+      prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId]?.price !== undefined);
 
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
-  const colSpan = isGlobal ? 4 : 6;
+  const colSpan = isGlobal ? 4 : 7;
 
   return (
     <div className="flex flex-col h-full">
@@ -343,8 +348,9 @@ export default function SalesmanPricesSetup() {
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
                         {!isGlobal && (
                           <>
-                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">Current Price</th>
-                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">New Price</th>
+                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Current Price</th>
+                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">New Price</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-36">Eff. From</th>
                           </>
                         )}
                         <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">
@@ -408,10 +414,11 @@ export default function SalesmanPricesSetup() {
                               }
 
                               // Per-person row
-                              const hasPrice     = p.sellingPrice !== null;
-                              const isPriceDirty  = editedPrices[p.productId] !== undefined;
+                              const hasPrice      = p.sellingPrice !== null;
+                              const isPriceDirty  = editedPrices[p.productId]?.price !== undefined;
                               const isToggleDirty = dirtyToggles[p.productId] !== undefined;
                               const isDirty = isPriceDirty || isToggleDirty;
+                              const rowEffFrom = editedPrices[p.productId]?.effectiveFrom ?? effectiveFrom;
                               return (
                                 <tr
                                   key={p.productId}
@@ -459,8 +466,11 @@ export default function SalesmanPricesSetup() {
                                           type="number"
                                           step="0.0001"
                                           min="0"
-                                          value={editedPrices[p.productId] ?? ''}
-                                          onChange={e => setEditedPrices(prev => ({ ...prev, [p.productId]: e.target.value }))}
+                                          value={editedPrices[p.productId]?.price ?? ''}
+                                          onChange={e => setEditedPrices(prev => ({
+                                            ...prev,
+                                            [p.productId]: { ...(prev[p.productId] ?? {}), price: e.target.value },
+                                          }))}
                                           placeholder={p.sellingPrice ?? '0.00'}
                                           className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
                                             isPriceDirty ? 'border-emerald-400' : 'border-slate-200'
@@ -468,6 +478,22 @@ export default function SalesmanPricesSetup() {
                                         />
                                       </div>
                                     </div>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
+                                    <input
+                                      type="date"
+                                      value={rowEffFrom}
+                                      max={getIndiaDate()}
+                                      onChange={e => setEditedPrices(prev => ({
+                                        ...prev,
+                                        [p.productId]: { ...(prev[p.productId] ?? {}), effectiveFrom: e.target.value },
+                                      }))}
+                                      className={`px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white ${
+                                        editedPrices[p.productId]?.effectiveFrom && editedPrices[p.productId].effectiveFrom !== effectiveFrom
+                                          ? 'border-amber-400 text-amber-700'
+                                          : 'border-slate-200 text-slate-500'
+                                      }`}
+                                    />
                                   </td>
                                   <td className="px-6 py-3.5 text-center align-middle">
                                     <TogglePill

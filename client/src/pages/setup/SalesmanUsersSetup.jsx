@@ -6,23 +6,6 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 
-function TogglePill({ enabled, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-        enabled ? 'bg-emerald-500' : 'bg-slate-200'
-      }`}
-    >
-      <span
-        className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
-          enabled ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
-}
 
 export default function SalesmanUsersSetup() {
   const { notify } = useNotification();
@@ -413,20 +396,19 @@ export default function SalesmanUsersSetup() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Route / Phone</th>
                     <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-36">Login</th>
-                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Active</th>
-                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Actions</th>
+                    <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-40">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-16 text-center">
+                      <td colSpan={4} className="px-6 py-16 text-center">
                         <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
                       </td>
                     </tr>
                   ) : paged.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">
+                      <td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-sm">
                         {search ? 'No salespeople match your search.' : 'No salespeople yet. Click Add Salesperson to get started.'}
                       </td>
                     </tr>
@@ -447,19 +429,24 @@ export default function SalesmanUsersSetup() {
                             : <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">No login</span>
                           }
                         </td>
-                        <td className="px-6 py-4 text-center align-middle">
-                          <div className="flex justify-center">
-                            <TogglePill enabled={sp.isActive} onChange={() => handleToggleActive(sp)} />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center align-middle">
-                          <div className="flex items-center justify-center gap-2">
+                        <td className="px-4 py-4 text-center align-middle">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
                             <button
                               onClick={() => openCredentials(sp)}
                               title="Edit credentials"
                               className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition"
                             >
                               <Edit2 size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(sp)}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition ${
+                                sp.isActive
+                                  ? 'bg-white border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600'
+                                  : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                              }`}
+                            >
+                              {sp.isActive ? 'Disable' : 'Enable'}
                             </button>
                             <button
                               onClick={() => openDeleteConfirm(sp)}
