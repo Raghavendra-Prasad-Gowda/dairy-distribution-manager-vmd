@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, IndianRupee, Search, X } from 'lucide-react';
+import { Save, Loader2, IndianRupee, Search, X, Globe } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import { useNotification } from '../../context/NotificationContext';
@@ -7,6 +7,7 @@ import { getIndiaDate } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
+const GLOBAL_ID = 'global';
 
 function TogglePill({ enabled, onChange }) {
   return (
@@ -32,14 +33,23 @@ export default function SalesmanPricesSetup() {
   const [selectedSpId, setSelectedSpId]     = useState('');
   const [brands, setBrands]                 = useState([]);
   const [activeBrandId, setActiveBrandId]   = useState(null);
+
+  // Per-person state
   const [prices, setPrices]                 = useState([]);
   const [editedPrices, setEditedPrices]     = useState({});
   const [dirtyToggles, setDirtyToggles]     = useState({});
   const [effectiveFrom, setEffectiveFrom]   = useState(getIndiaDate());
+
+  // Global state
+  const [globalProducts, setGlobalProducts] = useState([]);
+  const [dirtyGlobal, setDirtyGlobal]       = useState({});
+
   const [loading, setLoading]               = useState(false);
   const [saving, setSaving]                 = useState(false);
   const [search, setSearch]                 = useState('');
   const [currentPage, setCurrentPage]       = useState(1);
+
+  const isGlobal = selectedSpId === GLOBAL_ID;
 
   useEffect(() => {
     Promise.all([api.get('/salespeople?all=true'), api.get('/brands')])
@@ -56,7 +66,11 @@ export default function SalesmanPricesSetup() {
 
   useEffect(() => {
     if (!selectedSpId) return;
-    fetchPrices();
+    if (isGlobal) {
+      fetchGlobal();
+    } else {
+      fetchPrices();
+    }
     setSearch('');
     setCurrentPage(1);
   }, [selectedSpId]);
@@ -82,13 +96,50 @@ export default function SalesmanPricesSetup() {
     }
   }
 
+  async function fetchGlobal() {
+    setLoading(true);
+    try {
+      const r = await api.get('/products/salesperson-global');
+      setGlobalProducts(r.data.data);
+      setDirtyGlobal({});
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load global products', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const handleToggle = (productId, currentEnabled) => {
     const newValue = !currentEnabled;
     setDirtyToggles(prev => ({ ...prev, [productId]: newValue }));
     setPrices(prev => prev.map(p => p.productId === productId ? { ...p, isEnabled: newValue } : p));
   };
 
+  const handleGlobalToggle = (productId, currentEnabled) => {
+    const newValue = !currentEnabled;
+    setDirtyGlobal(prev => ({ ...prev, [productId]: newValue }));
+    setGlobalProducts(prev => prev.map(p => p.productId === productId ? { ...p, salespersonEnabled: newValue } : p));
+  };
+
   const handleSave = async () => {
+    if (isGlobal) {
+      const changed = Object.keys(dirtyGlobal);
+      if (!changed.length) { notify('No changes to save', 'warning'); return; }
+      setSaving(true);
+      try {
+        await api.patch('/products/salesperson-global', {
+          products: changed.map(id => ({ productId: parseInt(id, 10), isEnabled: dirtyGlobal[id] })),
+        });
+        notify('Global settings saved', 'success');
+        fetchGlobal();
+      } catch (e) {
+        notify(e.response?.data?.error ?? 'Failed to save', 'error');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const hasToggleChanges = Object.keys(dirtyToggles).length > 0;
     const pricesToSave = prices
       .filter(p => p.brandId === activeBrandId && editedPrices[p.productId] !== undefined)
@@ -122,7 +173,8 @@ export default function SalesmanPricesSetup() {
 
   // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {
-    const brandItems = prices.filter(p => p.brandId === activeBrandId);
+    const source = isGlobal ? globalProducts : prices;
+    const brandItems = source.filter(p => p.brandId === activeBrandId);
     const q = search.trim().toLowerCase();
     const filtered = q
       ? brandItems.filter(p =>
@@ -139,7 +191,7 @@ export default function SalesmanPricesSetup() {
     }, {});
 
     return Object.entries(grouped);
-  }, [prices, activeBrandId, search]);
+  }, [isGlobal, globalProducts, prices, activeBrandId, search]);
 
   const totalFiltered = filteredGrouped.reduce((s, [, arr]) => s + arr.length, 0);
 
@@ -163,11 +215,15 @@ export default function SalesmanPricesSetup() {
   const startIdx    = pages.slice(0, currentPage - 1).reduce((s, p) => s + p.reduce((a, [, it]) => a + it.length, 0), 0);
   const endIdx      = startIdx + pageGroups.reduce((s, [, it]) => s + it.length, 0);
 
-  const hasPriceDirty  = prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId] !== undefined);
-  const hasToggleDirty = Object.keys(dirtyToggles).length > 0;
-  const hasDirty       = hasPriceDirty || hasToggleDirty;
-  const selectedSp     = salespeople.find(s => String(s.id) === String(selectedSpId));
+  const hasDirty = isGlobal
+    ? Object.keys(dirtyGlobal).length > 0
+    : Object.keys(dirtyToggles).length > 0 ||
+      prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId] !== undefined);
+
+  const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
+
+  const colSpan = isGlobal ? 4 : 6;
 
   return (
     <div className="flex flex-col h-full">
@@ -190,7 +246,7 @@ export default function SalesmanPricesSetup() {
             <p className="text-emerald-300 text-xs">Enable products and set selling prices per salesperson</p>
           </div>
         </div>
-        {selectedSp && (
+        {(selectedSp || isGlobal) && (
           <button
             onClick={handleSave}
             disabled={saving || !hasDirty}
@@ -211,10 +267,10 @@ export default function SalesmanPricesSetup() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salesperson</label>
               <select
                 value={selectedSpId}
-                onChange={e => { setSelectedSpId(e.target.value); setEditedPrices({}); setDirtyToggles({}); }}
+                onChange={e => { setSelectedSpId(e.target.value); setEditedPrices({}); setDirtyToggles({}); setDirtyGlobal({}); }}
                 className="w-full ddm-input"
               >
-                <option value="">Select salesperson…</option>
+                <option value={GLOBAL_ID}>— Global Settings (All Salespeople) —</option>
                 {salespeople.map(sp => (
                   <option key={sp.id} value={sp.id}>
                     {sp.name}{sp.route ? ` — ${sp.route}` : ''}
@@ -236,13 +292,23 @@ export default function SalesmanPricesSetup() {
             )}
           </div>
 
-          {selectedSp && (
+          {/* Global mode banner */}
+          {isGlobal && (
+            <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <Globe size={15} className="text-amber-600 flex-shrink-0" />
+              <p className="text-sm text-amber-800">
+                Changes here apply to <span className="font-bold">all salespeople</span>. Disabled products won't appear for any salesperson regardless of their individual settings.
+              </p>
+            </div>
+          )}
+
+          {(selectedSp || isGlobal) && (
             <>
               {brands.length > 0 && (
                 <BrandTabs
                   brands={brands}
                   activeBrandId={activeBrandId}
-                  onChange={id => { setActiveBrandId(id); setEditedPrices({}); }}
+                  onChange={id => { setActiveBrandId(id); if (!isGlobal) setEditedPrices({}); }}
                 />
               )}
 
@@ -279,21 +345,27 @@ export default function SalesmanPricesSetup() {
                         <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Cost</th>
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">Current Price</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">New Price</th>
-                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Access</th>
+                        {!isGlobal && (
+                          <>
+                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">Current Price</th>
+                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">New Price</th>
+                          </>
+                        )}
+                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">
+                          {isGlobal ? 'Global' : 'Access'}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
                       {loading ? (
                         <tr>
-                          <td colSpan={6} className="py-16 text-center">
+                          <td colSpan={colSpan} className="py-16 text-center">
                             <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
                           </td>
                         </tr>
                       ) : pageGroups.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
+                          <td colSpan={colSpan} className="py-12 text-center text-slate-400 text-sm">
                             {search ? 'No products match your search.' : 'No products for this brand'}
                           </td>
                         </tr>
@@ -301,13 +373,47 @@ export default function SalesmanPricesSetup() {
                         pageGroups.map(([category, items]) => (
                           <React.Fragment key={category}>
                             <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                              <td colSpan={6} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                              <td colSpan={colSpan} className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest">
                                 {category}
                               </td>
                             </tr>
                             {items.map(p => {
-                              const hasPrice    = p.sellingPrice !== null;
-                              const isPriceDirty = editedPrices[p.productId] !== undefined;
+                              if (isGlobal) {
+                                const isDirty = dirtyGlobal[p.productId] !== undefined;
+                                return (
+                                  <tr
+                                    key={p.productId}
+                                    className={`transition-colors ${
+                                      !p.salespersonEnabled ? 'bg-slate-50/60 opacity-70' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <td className="px-6 py-3.5 align-middle">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-semibold ${p.salespersonEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                                          {p.productName}
+                                        </span>
+                                        {isDirty && <span className="text-[10px] text-amber-600 font-bold">unsaved</span>}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
+                                      <span className="text-xs text-slate-400">{fmt(p.dairyCostPrice)}</span>
+                                    </td>
+                                    <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
+                                      <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
+                                    </td>
+                                    <td className="px-6 py-3.5 text-center align-middle">
+                                      <TogglePill
+                                        enabled={p.salespersonEnabled}
+                                        onChange={() => handleGlobalToggle(p.productId, p.salespersonEnabled)}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              // Per-person row
+                              const hasPrice     = p.sellingPrice !== null;
+                              const isPriceDirty  = editedPrices[p.productId] !== undefined;
                               const isToggleDirty = dirtyToggles[p.productId] !== undefined;
                               const isDirty = isPriceDirty || isToggleDirty;
                               return (
@@ -328,6 +434,9 @@ export default function SalesmanPricesSetup() {
                                       </span>
                                       {!hasPrice && p.isEnabled && (
                                         <span className="badge-amber text-[10px]">No price</span>
+                                      )}
+                                      {!p.salespersonEnabled && (
+                                        <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-semibold">Global off</span>
                                       )}
                                       {isToggleDirty && (
                                         <span className="text-[10px] text-amber-600 font-bold">unsaved</span>
@@ -381,12 +490,6 @@ export default function SalesmanPricesSetup() {
                 </div>
               </div>
             </>
-          )}
-
-          {!selectedSp && salespeople.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 flex items-center justify-center h-40 text-slate-400 text-sm">
-              Select a salesperson above to manage their products and prices
-            </div>
           )}
         </div>
       </div>

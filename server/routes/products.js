@@ -1,6 +1,7 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
+const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -95,6 +96,59 @@ router.post('/', asyncHandler(async (req, res) => {
   });
   void notifySlack(SLACK_EVENTS.PRODUCT_CREATED, { brandId: product.brandId, name: product.name, category: product.category, costPrice: Number(product.costPrice), sellingPrice: Number(product.sellingPrice) });
   res.status(201).json({ success: true, data: product });
+}));
+
+// GET /products/salesperson-global — all products with global salespersonEnabled flag
+router.get('/salesperson-global', asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
+  const [products, categories] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true, showInStockReceipt: true },
+      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
+      orderBy: [
+        { brand: { salespersonDisplayOrder: 'asc' } },
+        { salespersonDisplayOrder: 'asc' },
+        { name: 'asc' },
+      ],
+    }),
+    prisma.category.findMany({ select: { brandId: true, name: true, salespersonDisplayOrder: true } }),
+  ]);
+
+  const catOrderMap = {};
+  for (const cat of categories) {
+    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
+  }
+
+  res.json({
+    success: true,
+    data: products.map(p => ({
+      productId:            p.id,
+      productName:          p.name,
+      brandId:              p.brandId,
+      brandName:            p.brand.name,
+      category:             p.category,
+      categoryDisplayOrder: catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+      salespersonEnabled:   p.salespersonEnabled,
+      dairyCostPrice:       Number(p.costPrice),
+      dairySellingPrice:    Number(p.sellingPrice),
+    })),
+  });
+}));
+
+// PATCH /products/salesperson-global — bulk update salespersonEnabled flag
+router.patch('/salesperson-global', asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
+  const { products } = req.body;
+  if (!Array.isArray(products) || !products.length) throw new AppError('products array is required', 400);
+
+  await prisma.$transaction(
+    products.map(({ productId, isEnabled }) =>
+      prisma.product.update({ where: { id: productId }, data: { salespersonEnabled: isEnabled } })
+    )
+  );
+  res.json({ success: true, data: { message: `${products.length} products updated` } });
 }));
 
 // PUT /products/:id

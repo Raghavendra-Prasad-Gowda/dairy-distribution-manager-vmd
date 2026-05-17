@@ -53,7 +53,7 @@ const getPrices = asyncHandler(async (req, res) => {
 
   // Salesman only sees explicitly enabled products
   const visibleProducts = isSalesman
-    ? products.filter(p => enabledMap[p.id] === true)
+    ? products.filter(p => enabledMap[p.id] === true && p.salespersonEnabled === true)
     : products;
 
   const result = visibleProducts.map((p) => ({
@@ -70,6 +70,7 @@ const getPrices = asyncHandler(async (req, res) => {
     containerType:        p.containerType,
     unitsPerContainer:    p.unitsPerContainer,
     showInStockReceipt:   p.showInStockReceipt,
+    salespersonEnabled:   p.salespersonEnabled,
     isEnabled:            enabledMap[p.id] ?? false,
     dairyCostPrice:       Number(p.costPrice),
     dairySellingPrice:    Number(p.sellingPrice),
