@@ -220,6 +220,20 @@ export default function SalesmanPricesSetup() {
   const startIdx    = pages.slice(0, currentPage - 1).reduce((s, p) => s + p.reduce((a, [, it]) => a + it.length, 0), 0);
   const endIdx      = startIdx + pageGroups.reduce((s, [, it]) => s + it.length, 0);
 
+  const handleToggleAllGlobal = (enable) => {
+    const brandItems = globalProducts.filter(p => p.brandId === activeBrandId);
+    const updates = {};
+    brandItems.forEach(p => { updates[p.productId] = enable; });
+    setDirtyGlobal(prev => ({ ...prev, ...updates }));
+    setGlobalProducts(prev => prev.map(p =>
+      p.brandId === activeBrandId ? { ...p, salespersonEnabled: enable } : p
+    ));
+  };
+
+  const brandGlobalItems  = globalProducts.filter(p => p.brandId === activeBrandId);
+  const allBrandEnabled   = brandGlobalItems.length > 0 && brandGlobalItems.every(p => p.salespersonEnabled);
+  const allBrandDisabled  = brandGlobalItems.length > 0 && brandGlobalItems.every(p => !p.salespersonEnabled);
+
   const hasDirty = isGlobal
     ? Object.keys(dirtyGlobal).length > 0
     : Object.keys(dirtyToggles).length > 0 ||
@@ -306,7 +320,7 @@ export default function SalesmanPricesSetup() {
               )}
 
               {/* Search + Save */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 flex-wrap">
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
@@ -322,6 +336,24 @@ export default function SalesmanPricesSetup() {
                     </button>
                   )}
                 </div>
+                {isGlobal && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={() => handleToggleAllGlobal(true)}
+                      disabled={allBrandEnabled}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+                    >
+                      Enable All
+                    </button>
+                    <button
+                      onClick={() => handleToggleAllGlobal(false)}
+                      disabled={allBrandDisabled}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
+                    >
+                      Disable All
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={handleSave}
                   disabled={saving || !hasDirty}
