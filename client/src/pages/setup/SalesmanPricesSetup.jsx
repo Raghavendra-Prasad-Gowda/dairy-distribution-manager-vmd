@@ -8,19 +8,38 @@ import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
 
+function TogglePill({ enabled, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 ${
+        enabled ? 'bg-emerald-500' : 'bg-slate-200'
+      }`}
+    >
+      <span
+        className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+          enabled ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function SalesmanPricesSetup() {
   const { notify } = useNotification();
-  const [salespeople, setSalespeople]     = useState([]);
-  const [selectedSpId, setSelectedSpId]   = useState('');
-  const [brands, setBrands]               = useState([]);
-  const [activeBrandId, setActiveBrandId] = useState(null);
-  const [prices, setPrices]               = useState([]);
-  const [editedPrices, setEditedPrices]   = useState({});
-  const [effectiveFrom, setEffectiveFrom] = useState(getIndiaDate());
-  const [loading, setLoading]             = useState(false);
-  const [saving, setSaving]               = useState(false);
-  const [search, setSearch]               = useState('');
-  const [currentPage, setCurrentPage]     = useState(1);
+  const [salespeople, setSalespeople]       = useState([]);
+  const [selectedSpId, setSelectedSpId]     = useState('');
+  const [brands, setBrands]                 = useState([]);
+  const [activeBrandId, setActiveBrandId]   = useState(null);
+  const [prices, setPrices]                 = useState([]);
+  const [editedPrices, setEditedPrices]     = useState({});
+  const [dirtyToggles, setDirtyToggles]     = useState({});
+  const [effectiveFrom, setEffectiveFrom]   = useState(getIndiaDate());
+  const [loading, setLoading]               = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [search, setSearch]                 = useState('');
+  const [currentPage, setCurrentPage]       = useState(1);
 
   useEffect(() => {
     Promise.all([api.get('/salespeople?all=true'), api.get('/brands')])
@@ -53,27 +72,47 @@ export default function SalesmanPricesSetup() {
       const r = await api.get(`/salespeople/${selectedSpId}/prices`);
       setPrices(r.data.data);
       setEditedPrices({});
+      setDirtyToggles({});
     } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to load prices', 'error');
+      notify(e.response?.data?.error ?? 'Failed to load products', 'error');
     } finally {
       setLoading(false);
     }
   }
 
+  const handleToggle = (productId, currentEnabled) => {
+    const newValue = !currentEnabled;
+    setDirtyToggles(prev => ({ ...prev, [productId]: newValue }));
+    setPrices(prev => prev.map(p => p.productId === productId ? { ...p, isEnabled: newValue } : p));
+  };
+
   const handleSave = async () => {
-    const filteredPrices = prices.filter(p => p.brandId === activeBrandId);
-    const pricesToSave = filteredPrices
-      .filter(p => editedPrices[p.productId] !== undefined)
+    const hasToggleChanges = Object.keys(dirtyToggles).length > 0;
+    const pricesToSave = prices
+      .filter(p => p.brandId === activeBrandId && editedPrices[p.productId] !== undefined)
       .map(p => ({ productId: p.productId, sellingPrice: parseFloat(editedPrices[p.productId]) || 0 }));
 
-    if (!pricesToSave.length) { notify('No changes to save', 'warning'); return; }
+    if (!hasToggleChanges && !pricesToSave.length) { notify('No changes to save', 'warning'); return; }
+
     setSaving(true);
     try {
-      await api.post(`/salespeople/${selectedSpId}/prices/bulk`, { effectiveFrom, prices: pricesToSave });
-      notify('Prices saved', 'success');
+      await Promise.all([
+        hasToggleChanges
+          ? api.post(`/salespeople/${selectedSpId}/products/bulk`, {
+              products: Object.keys(dirtyToggles).map(id => ({
+                productId: parseInt(id, 10),
+                isEnabled: dirtyToggles[id],
+              })),
+            })
+          : null,
+        pricesToSave.length
+          ? api.post(`/salespeople/${selectedSpId}/prices/bulk`, { effectiveFrom, prices: pricesToSave })
+          : null,
+      ].filter(Boolean));
+      notify('Saved successfully', 'success');
       fetchPrices();
     } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to save prices', 'error');
+      notify(e.response?.data?.error ?? 'Failed to save', 'error');
     } finally {
       setSaving(false);
     }
@@ -117,13 +156,16 @@ export default function SalesmanPricesSetup() {
     return result;
   }, [filteredGrouped]);
 
-  const totalPages = Math.max(1, pages.length);
-  const pageGroups = pages[currentPage - 1] ?? [];
-  const startIdx   = pages.slice(0, currentPage - 1).reduce((s, p) => s + p.reduce((a, [, it]) => a + it.length, 0), 0);
-  const endIdx     = startIdx + pageGroups.reduce((s, [, it]) => s + it.length, 0);
+  const totalPages  = Math.max(1, pages.length);
+  const pageGroups  = pages[currentPage - 1] ?? [];
+  const startIdx    = pages.slice(0, currentPage - 1).reduce((s, p) => s + p.reduce((a, [, it]) => a + it.length, 0), 0);
+  const endIdx      = startIdx + pageGroups.reduce((s, [, it]) => s + it.length, 0);
 
-  const hasDirty   = prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId] !== undefined);
-  const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
+  const hasPriceDirty  = prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId] !== undefined);
+  const hasToggleDirty = Object.keys(dirtyToggles).length > 0;
+  const hasDirty       = hasPriceDirty || hasToggleDirty;
+  const selectedSp     = salespeople.find(s => String(s.id) === String(selectedSpId));
+  const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
   return (
     <div className="flex flex-col h-full">
@@ -132,7 +174,7 @@ export default function SalesmanPricesSetup() {
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
             <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">Saving prices…</p>
+            <p className="text-slate-700 font-semibold text-sm">Saving…</p>
           </div>
         </div>
       )}
@@ -142,8 +184,8 @@ export default function SalesmanPricesSetup() {
         <div className="flex items-center gap-2.5">
           <IndianRupee size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Selling Prices</h1>
-            <p className="text-emerald-300 text-xs">Set selling prices per salesperson and brand</p>
+            <h1 className="text-sm font-bold text-white leading-tight">Products &amp; Prices</h1>
+            <p className="text-emerald-300 text-xs">Enable products and set selling prices per salesperson</p>
           </div>
         </div>
         {selectedSp && (
@@ -153,7 +195,7 @@ export default function SalesmanPricesSetup() {
             className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 disabled:opacity-50 px-3 py-1.5 rounded-lg transition flex-shrink-0"
           >
             {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-            Save Prices
+            Save
           </button>
         )}
       </div>
@@ -167,7 +209,7 @@ export default function SalesmanPricesSetup() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salesperson</label>
               <select
                 value={selectedSpId}
-                onChange={e => { setSelectedSpId(e.target.value); setEditedPrices({}); }}
+                onChange={e => { setSelectedSpId(e.target.value); setEditedPrices({}); setDirtyToggles({}); }}
                 className="w-full ddm-input"
               >
                 <option value="">Select salesperson…</option>
@@ -233,22 +275,23 @@ export default function SalesmanPricesSetup() {
                     <thead className="bg-emerald-700 sticky top-0 z-10">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Dairy Cost</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Dairy Selling</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-40">Current Price</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-40">New Price</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Cost</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">Current Price</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-36">New Price</th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Access</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
                       {loading ? (
                         <tr>
-                          <td colSpan={5} className="py-16 text-center">
+                          <td colSpan={6} className="py-16 text-center">
                             <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
                           </td>
                         </tr>
                       ) : pageGroups.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-slate-400 text-sm">
+                          <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
                             {search ? 'No products match your search.' : 'No products for this brand'}
                           </td>
                         </tr>
@@ -256,45 +299,52 @@ export default function SalesmanPricesSetup() {
                         pageGroups.map(([category, items]) => (
                           <React.Fragment key={category}>
                             <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                              <td colSpan={5} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                              <td colSpan={6} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                                 {category}
                               </td>
                             </tr>
                             {items.map(p => {
-                              const hasPrice = p.sellingPrice !== null;
-                              const isDirty  = editedPrices[p.productId] !== undefined;
-                              const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
+                              const hasPrice    = p.sellingPrice !== null;
+                              const isPriceDirty = editedPrices[p.productId] !== undefined;
+                              const isToggleDirty = dirtyToggles[p.productId] !== undefined;
+                              const isDirty = isPriceDirty || isToggleDirty;
                               return (
                                 <tr
                                   key={p.productId}
                                   className={`transition-colors ${
-                                    !hasPrice ? 'bg-amber-50/60' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50'
+                                    !p.isEnabled
+                                      ? 'bg-slate-50/60 opacity-70'
+                                      : isDirty
+                                      ? 'bg-emerald-50/40'
+                                      : 'hover:bg-slate-50'
                                   }`}
                                 >
-                                  <td className="px-6 py-4 align-middle">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-semibold text-slate-800">{p.productName}</span>
-                                      {!hasPrice && (
+                                  <td className="px-6 py-3.5 align-middle">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`text-sm font-semibold ${p.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                                        {p.productName}
+                                      </span>
+                                      {!hasPrice && p.isEnabled && (
                                         <span className="badge-amber text-[10px]">No price</span>
                                       )}
-                                      {!p.isEnabled && (
-                                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">hidden</span>
+                                      {isToggleDirty && (
+                                        <span className="text-[10px] text-amber-600 font-bold">unsaved</span>
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-4 py-4 text-right align-middle whitespace-nowrap tabular-nums">
+                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                     <span className="text-xs text-slate-400">{fmt(p.dairyCostPrice)}</span>
                                   </td>
-                                  <td className="px-4 py-4 text-right align-middle whitespace-nowrap tabular-nums">
+                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                     <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
                                   </td>
-                                  <td className="px-6 py-4 text-right align-middle whitespace-nowrap tabular-nums">
+                                  <td className="px-6 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                     {hasPrice
                                       ? <span className="text-sm text-slate-600">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                                       : <span className="text-amber-600 font-semibold text-xs">Not set</span>
                                     }
                                   </td>
-                                  <td className="px-6 py-4 text-right align-middle whitespace-nowrap">
+                                  <td className="px-6 py-3.5 text-right align-middle whitespace-nowrap">
                                     <div className="flex justify-end">
                                       <div className="relative w-28">
                                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
@@ -306,11 +356,17 @@ export default function SalesmanPricesSetup() {
                                           onChange={e => setEditedPrices(prev => ({ ...prev, [p.productId]: e.target.value }))}
                                           placeholder={p.sellingPrice ?? '0.00'}
                                           className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
-                                            isDirty ? 'border-emerald-400' : 'border-slate-200'
+                                            isPriceDirty ? 'border-emerald-400' : 'border-slate-200'
                                           }`}
                                         />
                                       </div>
                                     </div>
+                                  </td>
+                                  <td className="px-6 py-3.5 text-center align-middle">
+                                    <TogglePill
+                                      enabled={p.isEnabled}
+                                      onChange={() => handleToggle(p.productId, p.isEnabled)}
+                                    />
                                   </td>
                                 </tr>
                               );
@@ -327,7 +383,7 @@ export default function SalesmanPricesSetup() {
 
           {!selectedSp && salespeople.length > 0 && (
             <div className="bg-white rounded-xl border border-slate-200 flex items-center justify-center h-40 text-slate-400 text-sm">
-              Select a salesperson above to manage their selling prices
+              Select a salesperson above to manage their products and prices
             </div>
           )}
         </div>
