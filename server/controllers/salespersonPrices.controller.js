@@ -71,7 +71,7 @@ const getPrices = asyncHandler(async (req, res) => {
     unitsPerContainer:    p.unitsPerContainer,
     showInStockReceipt:   p.showInStockReceipt,
     salespersonEnabled:   p.salespersonEnabled,
-    isEnabled:            enabledMap[p.id] ?? true,
+    isEnabled:            enabledMap[p.id] ?? p.salespersonEnabled,
     dairyCostPrice:       Number(p.costPrice),
     dairySellingPrice:    Number(p.sellingPrice),
     sellingPrice:         priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
