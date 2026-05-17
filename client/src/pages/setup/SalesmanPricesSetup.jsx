@@ -45,7 +45,9 @@ export default function SalesmanPricesSetup() {
   const [globalProducts, setGlobalProducts] = useState([]);
   const [dirtyGlobal, setDirtyGlobal]       = useState({});
 
-  const [showEnabledOnly, setShowEnabledOnly] = useState(false);
+  const [showEnabledOnly, setShowEnabledOnly] = useState(
+    () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
+  );
   const [loading, setLoading]               = useState(false);
   const [saving, setSaving]                 = useState(false);
   const [search, setSearch]                 = useState('');
@@ -91,7 +93,6 @@ export default function SalesmanPricesSetup() {
       setPrices(r.data.data);
       setEditedPrices({});
       setDirtyToggles({});
-      setShowEnabledOnly(false);
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to load products', 'error');
     } finally {
@@ -342,7 +343,10 @@ export default function SalesmanPricesSetup() {
                 </div>
                 {!isGlobal && (
                   <button
-                    onClick={() => setShowEnabledOnly(v => !v)}
+                    onClick={() => setShowEnabledOnly(v => {
+                      localStorage.setItem('sp_showEnabledOnly', String(!v));
+                      return !v;
+                    })}
                     className={`text-xs font-semibold px-3 py-2 rounded-xl border transition whitespace-nowrap flex-shrink-0 ${
                       showEnabledOnly
                         ? 'bg-emerald-600 border-emerald-600 text-white'
