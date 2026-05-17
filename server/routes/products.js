@@ -143,11 +143,19 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   const { products } = req.body;
   if (!Array.isArray(products) || !products.length) throw new AppError('products array is required', 400);
 
-  await prisma.$transaction(
-    products.map(({ productId, isEnabled }) =>
+  const enablingIds = products.filter(p => p.isEnabled).map(p => p.productId);
+
+  await prisma.$transaction([
+    ...products.map(({ productId, isEnabled }) =>
       prisma.product.update({ where: { id: productId }, data: { salespersonEnabled: isEnabled } })
-    )
-  );
+    ),
+    // Clear per-person disabled overrides so the product shows for all salespeople by default
+    ...(enablingIds.length ? [
+      prisma.salespersonProduct.deleteMany({
+        where: { productId: { in: enablingIds }, isEnabled: false },
+      }),
+    ] : []),
+  ]);
   res.json({ success: true, data: { message: `${products.length} products updated` } });
 }));
 
