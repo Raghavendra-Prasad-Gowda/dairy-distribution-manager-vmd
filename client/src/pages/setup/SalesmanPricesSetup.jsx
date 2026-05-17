@@ -44,7 +44,9 @@ export default function SalesmanPricesSetup() {
   useEffect(() => {
     Promise.all([api.get('/salespeople?all=true'), api.get('/brands')])
       .then(([spRes, brandRes]) => {
-        setSalespeople(spRes.data.data.filter(s => s.isActive));
+        const sp = spRes.data.data.filter(s => s.isActive);
+        setSalespeople(sp);
+        if (sp.length) setSelectedSpId(String(sp[0].id));
         const b = brandRes.data.data;
         setBrands(b);
         if (b.length) setActiveBrandId(b[0].id);
