@@ -20,7 +20,8 @@ const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
 const SalesmanUsersSetup     = lazy(() => import('./pages/setup/SalesmanUsersSetup'));
-const SalesmanPricesSetup    = lazy(() => import('./pages/setup/SalesmanPricesSetup'));
+const SalesmanPricesSetup       = lazy(() => import('./pages/setup/SalesmanPricesSetup'));
+const DailyDispatchSummary      = lazy(() => import('./pages/reports/DailyDispatchSummary'));
 const SalesmanLayoutSettings = lazy(() => import('./pages/setup/SalesmanLayoutSettings'));
 const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
@@ -97,7 +98,8 @@ function AppRoutes() {
             {/* REPORTS */}
             <Route path="dairy/reports"           element={S(DairyReports)} />
             <Route path="reports/dairy"           element={S(DairyStatement)} />
-            <Route path="reports/salespeople"     element={S(SalespersonStatement)} />
+            <Route path="reports/salespeople"       element={S(SalespersonStatement)} />
+            <Route path="reports/daily-dispatch"   element={S(DailyDispatchSummary)} />
             <Route path="reports/stock"           element={S(StockSummary)} />
             <Route path="reports/deposit"         element={S(DepositReport)} />
             <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />

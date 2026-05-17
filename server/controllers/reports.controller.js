@@ -336,4 +336,67 @@ const depositSummary = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding, depositSummary };
+const dailyDispatch = asyncHandler(async (req, res) => {
+  const { date } = req.query;
+  if (!date) throw new AppError('date query param is required', 400);
+
+  const dispatchDate = new Date(date);
+
+  const [dispatches, allProducts] = await Promise.all([
+    prisma.stockDispatch.findMany({
+      where: { dispatchDate },
+      include: {
+        salesperson: { select: { id: true, name: true } },
+        items: {
+          include: { product: { select: { id: true, brandId: true } } },
+        },
+      },
+      orderBy: { salesperson: { name: 'asc' } },
+    }),
+    prisma.product.findMany({
+      where: { isActive: true, showInStockReceipt: true, salespersonEnabled: true },
+      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
+      orderBy: [
+        { brand: { salespersonDisplayOrder: 'asc' } },
+        { salespersonDisplayOrder: 'asc' },
+      ],
+    }),
+  ]);
+
+  // Build brand → products column map
+  const brandMap = new Map();
+  for (const p of allProducts) {
+    if (!brandMap.has(p.brandId)) {
+      brandMap.set(p.brandId, {
+        brandId:   p.brandId,
+        brandName: p.brand.name,
+        products:  [],
+      });
+    }
+    brandMap.get(p.brandId).products.push({ productId: p.id, productName: p.name });
+  }
+  const brands = Array.from(brandMap.values());
+  const productIdSet = new Set(allProducts.map(p => p.id));
+
+  const productTotals = {};
+  const rows = dispatches.map(d => {
+    const items = {};
+    for (const item of d.items) {
+      if (!productIdSet.has(item.productId)) continue;
+      items[item.productId] = (items[item.productId] ?? 0) + Number(item.quantity);
+    }
+    for (const [pid, qty] of Object.entries(items)) {
+      productTotals[pid] = (productTotals[pid] ?? 0) + qty;
+    }
+    return {
+      salespersonId:   d.salesperson.id,
+      salespersonName: d.salesperson.name,
+      items,
+      totalAmount: Number(d.totalAmount),
+    };
+  });
+
+  res.json({ success: true, data: { date, brands, rows, totals: productTotals } });
+});
+
+module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding, depositSummary, dailyDispatch };

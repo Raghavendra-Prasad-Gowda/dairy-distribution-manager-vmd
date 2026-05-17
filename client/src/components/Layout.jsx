@@ -64,7 +64,8 @@ const ADMIN_NAV = [
       {
         label: 'REPORTS',
         items: [
-          { to: '/reports/salespeople', icon: FileText, label: 'Statements' },
+          { to: '/reports/salespeople',     icon: FileText,   label: 'Statements' },
+          { to: '/reports/daily-dispatch',  icon: LayoutGrid, label: 'Daily Sheet' },
         ],
       },
     ],
