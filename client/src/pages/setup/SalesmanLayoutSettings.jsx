@@ -126,7 +126,7 @@ export default function SalesmanLayoutSettings() {
     ]).then(([catRes, prodRes]) => {
       const cats = (catRes.data.data ?? []).slice().sort((a, b) => a.salespersonDisplayOrder - b.salespersonDisplayOrder || a.name.localeCompare(b.name));
       const prods = (prodRes.data.data ?? [])
-        .filter(p => p.isActive && p.showInStockReceipt)
+        .filter(p => p.isActive && p.showInStockReceipt && p.salespersonEnabled)
         .slice()
         .sort((a, b) => a.salespersonDisplayOrder - b.salespersonDisplayOrder || a.name.localeCompare(b.name));
       setCategories(cats);
