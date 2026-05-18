@@ -2,7 +2,6 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
-const { validateDispatchStock } = require('../services/stockGuard');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
@@ -89,16 +88,6 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   const existing = await prisma.stockDispatch.findUnique({
     where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
   });
-
-  const guardErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
-  if (guardErrors.length > 0) {
-    return res.status(400).json({
-      success: false,
-      error: `Insufficient stock for ${guardErrors[0].productName}. Requested: ${guardErrors[0].requested}, Available: ${guardErrors[0].available}`,
-      code: 'STOCK_INSUFFICIENT',
-      details: guardErrors,
-    });
-  }
 
   const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
