@@ -17,7 +17,7 @@ const getPrices = asyncHandler(async (req, res) => {
 
   const [products, enabledRows, priceRows, categories] = await Promise.all([
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true },
+      where: { isActive: true, showInStockReceipt: true, ...(isSalesman ? { salespersonEnabled: true } : {}) },
       include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
       orderBy: [
         { brand: { salespersonDisplayOrder: 'asc' } },
@@ -51,10 +51,8 @@ const getPrices = asyncHandler(async (req, res) => {
     catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
   }
 
-  // Salesman only sees globally-enabled products that aren't explicitly disabled per-person
-  const visibleProducts = isSalesman
-    ? products.filter(p => p.salespersonEnabled === true && (enabledMap[p.id] ?? true) === true)
-    : products;
+  // Salesman: DB already filters salespersonEnabled=true; no extra JS filter needed
+  const visibleProducts = products;
 
   const result = visibleProducts.map((p) => ({
     productId:            p.id,
