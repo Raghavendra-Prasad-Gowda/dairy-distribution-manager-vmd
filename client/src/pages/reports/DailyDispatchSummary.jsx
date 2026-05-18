@@ -87,27 +87,18 @@ export default function DailyDispatchSummary() {
         <button
           type="button"
           onClick={() => setSelectedSpId(row.salespersonId)}
-          className={`w-full text-left px-2 md:px-3 py-2 md:py-2.5 border-l-4 transition-colors ${
+          className={`w-full text-left px-3 py-2.5 border-l-4 transition-colors ${
             isSelected
               ? 'bg-emerald-50 border-emerald-600'
               : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
           }`}
         >
-          <p className={`text-xs md:text-sm font-semibold leading-tight truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+          <p className={`text-sm font-semibold leading-tight truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
             {row.salespersonName}
           </p>
-          <div className="mt-0.5">
-            {row.totalAmount > 0 ? (
-              <>
-                <p className="hidden sm:block text-xs text-emerald-600 font-semibold tabular-nums">
-                  {formatCurrency(row.totalAmount)}
-                </p>
-                <div className="sm:hidden w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              </>
-            ) : (
-              <p className="hidden sm:block text-xs text-slate-300">No entry</p>
-            )}
-          </div>
+          <p className={`text-xs tabular-nums mt-0.5 ${row.totalAmount > 0 ? 'text-emerald-600 font-semibold' : 'text-slate-300'}`}>
+            {row.totalAmount > 0 ? formatCurrency(row.totalAmount) : 'No entry'}
+          </p>
         </button>
       </li>
     );
@@ -117,7 +108,7 @@ export default function DailyDispatchSummary() {
     <div className="flex flex-col h-full">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+      <div className="flex items-center justify-between gap-3 px-6 py-3.5 bg-emerald-800 flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
           <div className="min-w-0">
@@ -143,10 +134,10 @@ export default function DailyDispatchSummary() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* ── LEFT PANEL — always visible ── */}
-        <aside className="flex flex-col w-[100px] sm:w-[160px] md:w-[240px] flex-shrink-0 border-r border-slate-200 bg-white">
+        <aside className="flex flex-col w-[220px] flex-shrink-0 border-r border-slate-200 bg-white">
 
-          {/* Search — desktop only */}
-          <div className="hidden md:block p-3 border-b border-slate-100 flex-shrink-0">
+          {/* Search */}
+          <div className="p-3 border-b border-slate-100 flex-shrink-0">
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -229,9 +220,9 @@ export default function DailyDispatchSummary() {
                       <thead className="bg-emerald-700">
                         <tr>
                           <th className="px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                          <th className="px-2 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-10">Qty</th>
-                          <th className="hidden sm:table-cell px-2 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-16">Rate</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-20">Total</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-14">Qty</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Rate</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -247,14 +238,14 @@ export default function DailyDispatchSummary() {
                             {/* Product rows */}
                             {brand.products.map(p => (
                               <tr key={p.productId} className="border-t border-slate-100 hover:bg-slate-50/60">
-                                <td className="px-3 py-2 text-xs text-slate-700">{p.productName}</td>
-                                <td className="px-2 py-2 text-right text-xs tabular-nums font-bold text-slate-800">
+                                <td className="px-3 py-2.5 text-sm text-slate-700">{p.productName}</td>
+                                <td className="px-3 py-2.5 text-right text-sm tabular-nums font-bold text-slate-800">
                                   {p.qty > 0 ? p.qty : <span className="text-slate-300 font-normal">—</span>}
                                 </td>
-                                <td className="hidden sm:table-cell px-2 py-2 text-right text-xs tabular-nums text-slate-500">
+                                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-500">
                                   {(p.unitPrice != null && p.qty > 0) ? formatCurrency(p.unitPrice) : <span className="text-slate-300">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs tabular-nums text-slate-700">
+                                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-700">
                                   {p.amount > 0 ? formatCurrency(p.amount) : <span className="text-slate-300">—</span>}
                                 </td>
                               </tr>
@@ -262,12 +253,12 @@ export default function DailyDispatchSummary() {
 
                             {/* Brand subtotal */}
                             <tr className="bg-emerald-50 border-t-2 border-emerald-100">
-                              <td className="px-3 py-2 text-xs font-bold text-emerald-800">{brand.brandName} Total</td>
-                              <td className="px-2 py-2 text-right text-xs font-bold text-emerald-700 tabular-nums">
+                              <td className="px-3 py-2.5 text-sm font-bold text-emerald-800">{brand.brandName} Total</td>
+                              <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                 {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
                               </td>
-                              <td className="hidden sm:table-cell px-2 py-2" />
-                              <td className="px-3 py-2 text-right text-xs font-bold text-emerald-700 tabular-nums">
+                              <td className="px-3 py-2.5" />
+                              <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                 {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}
                               </td>
                             </tr>
@@ -280,12 +271,12 @@ export default function DailyDispatchSummary() {
               </div>
 
               {/* Grand total bar */}
-              <div className="flex-shrink-0 bg-white border-t-2 border-emerald-200 px-3 md:px-4 py-3 flex items-center justify-between gap-2">
+              <div className="flex-shrink-0 bg-white border-t-2 border-emerald-200 px-4 py-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Grand Total</p>
                   <p className="text-xs text-slate-500 mt-0.5 truncate">{selectedRow.salespersonName}</p>
                 </div>
-                <p className="text-base md:text-lg font-extrabold text-emerald-700 tabular-nums flex-shrink-0">
+                <p className="text-lg font-extrabold text-emerald-700 tabular-nums flex-shrink-0">
                   {formatCurrency(selectedRow.totalAmount)}
                 </p>
               </div>
