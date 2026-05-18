@@ -1,27 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
-import {
-  Loader2, AlertCircle, LayoutGrid, Search, X,
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Loader2, AlertCircle, LayoutGrid, Search, X } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
-import BrandTabs from '../../components/BrandTabs';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function DailyDispatchSummary() {
-  const [date, setDate]                   = useState(getIndiaDate());
-  const [data, setData]                   = useState(null);
-  const [loading, setLoading]             = useState(false);
-  const [error, setError]                 = useState('');
-  const [selectedSpId, setSelectedSpId]   = useState(null);
-  const [activeBrandId, setActiveBrandId] = useState(null);
-  const [search, setSearch]               = useState('');
-  const [showZeroQty, setShowZeroQty]     = useState(false);
+  const [date, setDate]                 = useState(getIndiaDate());
+  const [data, setData]                 = useState(null);
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
+  const [selectedSpId, setSelectedSpId] = useState(null);
+  const [search, setSearch]             = useState('');
+  const [showZeroQty, setShowZeroQty]   = useState(false);
 
   useEffect(() => { fetchData(); }, [date]);
 
   async function fetchData() {
     setLoading(true); setError('');
-    setSelectedSpId(null); setActiveBrandId(null);
+    setSelectedSpId(null);
     try {
       const r = await api.get(`/reports/daily-dispatch?date=${date}`);
       const d = r.data.data;
@@ -29,7 +25,6 @@ export default function DailyDispatchSummary() {
       const autoId = d.rows.find(row => row.totalAmount > 0)?.salespersonId
                      ?? d.rows[0]?.salespersonId ?? null;
       setSelectedSpId(autoId);
-      setActiveBrandId(d.brands[0]?.brandId ?? null);
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load dispatch summary');
     } finally {
@@ -38,11 +33,6 @@ export default function DailyDispatchSummary() {
   }
 
   // ── Derived values ──────────────────────────────────────────────────────────
-  const brandList = useMemo(
-    () => (data?.brands ?? []).map(b => ({ id: b.brandId, name: b.brandName })),
-    [data],
-  );
-
   const filteredRows = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
@@ -54,22 +44,31 @@ export default function DailyDispatchSummary() {
     [data, selectedSpId],
   );
 
-  const activeBrand = useMemo(
-    () => data?.brands.find(b => b.brandId === activeBrandId) ?? null,
-    [data, activeBrandId],
-  );
-
-  const visibleProducts = useMemo(() => {
-    if (!activeBrand) return [];
-    return activeBrand.products.filter(
-      p => showZeroQty || (selectedRow?.items[p.productId] ?? 0) > 0,
-    );
-  }, [activeBrand, selectedRow, showZeroQty]);
-
-  const brandQtyTotal = useMemo(
-    () => visibleProducts.reduce((s, p) => s + (selectedRow?.items[p.productId] ?? 0), 0),
-    [visibleProducts, selectedRow],
-  );
+  // Flat brand-grouped table for the selected salesperson
+  const tableData = useMemo(() => {
+    if (!data || !selectedRow) return [];
+    return data.brands
+      .map(brand => {
+        const products = brand.products
+          .map(p => {
+            const entry     = selectedRow.items[p.productId];
+            const qty       = entry?.qty ?? 0;
+            const unitPrice = entry?.unitPrice ?? null;
+            return {
+              productId:   p.productId,
+              productName: p.productName,
+              qty,
+              unitPrice,
+              amount: (qty > 0 && unitPrice != null) ? qty * unitPrice : 0,
+            };
+          })
+          .filter(p => showZeroQty || p.qty > 0);
+        const brandQtyTotal    = products.reduce((s, p) => s + p.qty, 0);
+        const brandAmountTotal = products.reduce((s, p) => s + p.amount, 0);
+        return { brandId: brand.brandId, brandName: brand.brandName, products, brandQtyTotal, brandAmountTotal };
+      })
+      .filter(b => b.products.length > 0);
+  }, [data, selectedRow, showZeroQty]);
 
   const activeCount = useMemo(
     () => (data?.rows ?? []).filter(r => r.totalAmount > 0).length,
@@ -125,7 +124,7 @@ export default function DailyDispatchSummary() {
             <h1 className="text-sm font-bold text-white leading-tight">Daily Dispatch Sheet</h1>
             {data && !loading && (
               <p className="text-emerald-300 text-xs tabular-nums">
-                {activeCount} of {data.rows.length} salespeople · {formatCurrency(grandTotalAll)}
+                {activeCount} active · {formatCurrency(grandTotalAll)}
               </p>
             )}
           </div>
@@ -140,10 +139,10 @@ export default function DailyDispatchSummary() {
         </div>
       )}
 
-      {/* ── Two-panel body — always side by side ── */}
+      {/* ── Two-panel body ── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ── LEFT PANEL — always visible, narrow on mobile ── */}
+        {/* ── LEFT PANEL — always visible ── */}
         <aside className="flex flex-col w-[100px] sm:w-[160px] md:w-[240px] flex-shrink-0 border-r border-slate-200 bg-white">
 
           {/* Search — desktop only */}
@@ -173,7 +172,7 @@ export default function DailyDispatchSummary() {
             <ul className="flex-1 overflow-y-auto divide-y divide-slate-50">
               {filteredRows.length === 0 ? (
                 <li className="px-3 py-6 text-center text-slate-400 text-xs">
-                  {search ? 'No results' : 'No dispatch data for this date'}
+                  {search ? 'No results' : 'No data'}
                 </li>
               ) : (
                 filteredRows.map(row => <SpRow key={row.salespersonId} row={row} />)
@@ -196,16 +195,9 @@ export default function DailyDispatchSummary() {
           ) : (
             <div className="flex flex-col flex-1 min-h-0">
 
-              {/* Brand tabs — own row, scrollable */}
-              <div className="bg-white border-b border-slate-200 px-3 pt-2.5 pb-0 flex-shrink-0">
-                <div className="overflow-x-auto pb-2">
-                  <BrandTabs brands={brandList} activeBrandId={activeBrandId} onChange={setActiveBrandId} />
-                </div>
-              </div>
-
-              {/* Toggle + salesperson name bar */}
-              <div className="bg-white border-b border-slate-100 px-3 py-1.5 flex items-center justify-between gap-2 flex-shrink-0">
-                <p className="text-xs font-semibold text-slate-500 truncate">{selectedRow.salespersonName}</p>
+              {/* Sub-header: name + toggle */}
+              <div className="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0">
+                <p className="text-sm font-bold text-slate-700 truncate">{selectedRow.salespersonName}</p>
                 <button
                   type="button"
                   onClick={() => setShowZeroQty(v => !v)}
@@ -219,65 +211,69 @@ export default function DailyDispatchSummary() {
                 </button>
               </div>
 
-              {/* Product table */}
+              {/* Flat table */}
               <div className="flex-1 overflow-y-auto p-3">
-                {visibleProducts.length === 0 ? (
+                {tableData.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center h-40 gap-2">
                     <AlertCircle size={20} className="text-slate-300" />
-                    <p className="text-sm text-slate-400">
-                      {selectedRow.totalAmount === 0
-                        ? 'No dispatch entry for this date'
-                        : 'No products for this brand'}
-                    </p>
-                    {selectedRow.totalAmount === 0 && !showZeroQty && (
-                      <button
-                        type="button"
-                        onClick={() => setShowZeroQty(true)}
-                        className="text-xs text-emerald-600 underline"
-                      >
+                    <p className="text-sm text-slate-400">No dispatch entry for this date</p>
+                    {!showZeroQty && (
+                      <button type="button" onClick={() => setShowZeroQty(true)} className="text-xs text-emerald-600 underline">
                         Show all products
                       </button>
                     )}
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-slate-200">
+                    <table className="min-w-full">
                       <thead className="bg-emerald-700">
                         <tr>
-                          <th className="px-3 md:px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
-                            Product
-                          </th>
-                          <th className="px-3 md:px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-14 md:w-24">
-                            Qty
-                          </th>
+                          <th className="px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                          <th className="px-2 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-10">Qty</th>
+                          <th className="hidden sm:table-cell px-2 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-16">Rate</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-20">Total</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-slate-100">
-                        {visibleProducts.map(p => {
-                          const qty = selectedRow.items[p.productId] ?? 0;
-                          return (
-                            <tr key={p.productId} className="hover:bg-slate-50/60 transition-colors">
-                              <td className="px-3 md:px-4 py-2.5 text-xs md:text-sm text-slate-700">{p.productName}</td>
-                              <td className="px-3 md:px-4 py-2.5 text-right text-xs md:text-sm tabular-nums">
-                                {qty > 0
-                                  ? <span className="font-bold text-slate-800">{qty}</span>
-                                  : <span className="text-slate-300">—</span>
-                                }
+                      <tbody>
+                        {tableData.map(brand => (
+                          <React.Fragment key={brand.brandId}>
+                            {/* Brand section header */}
+                            <tr className="bg-slate-100">
+                              <td colSpan={4} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                {brand.brandName}
                               </td>
                             </tr>
-                          );
-                        })}
+
+                            {/* Product rows */}
+                            {brand.products.map(p => (
+                              <tr key={p.productId} className="border-t border-slate-100 hover:bg-slate-50/60">
+                                <td className="px-3 py-2 text-xs text-slate-700">{p.productName}</td>
+                                <td className="px-2 py-2 text-right text-xs tabular-nums font-bold text-slate-800">
+                                  {p.qty > 0 ? p.qty : <span className="text-slate-300 font-normal">—</span>}
+                                </td>
+                                <td className="hidden sm:table-cell px-2 py-2 text-right text-xs tabular-nums text-slate-500">
+                                  {(p.unitPrice != null && p.qty > 0) ? formatCurrency(p.unitPrice) : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-2 text-right text-xs tabular-nums text-slate-700">
+                                  {p.amount > 0 ? formatCurrency(p.amount) : <span className="text-slate-300">—</span>}
+                                </td>
+                              </tr>
+                            ))}
+
+                            {/* Brand subtotal */}
+                            <tr className="bg-emerald-50 border-t-2 border-emerald-100">
+                              <td className="px-3 py-2 text-xs font-bold text-emerald-800">{brand.brandName} Total</td>
+                              <td className="px-2 py-2 text-right text-xs font-bold text-emerald-700 tabular-nums">
+                                {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
+                              </td>
+                              <td className="hidden sm:table-cell px-2 py-2" />
+                              <td className="px-3 py-2 text-right text-xs font-bold text-emerald-700 tabular-nums">
+                                {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        ))}
                       </tbody>
-                      <tfoot>
-                        <tr className="bg-emerald-50 border-t-2 border-emerald-200">
-                          <td className="px-3 md:px-4 py-2.5 text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                            {activeBrand?.brandName} Total
-                          </td>
-                          <td className="px-3 md:px-4 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
-                            {brandQtyTotal > 0 ? brandQtyTotal : '—'}
-                          </td>
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
                 )}

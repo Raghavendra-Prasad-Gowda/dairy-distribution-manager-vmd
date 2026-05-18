@@ -383,10 +383,11 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     const items = {};
     for (const item of d.items) {
       if (!productIdSet.has(item.productId)) continue;
-      items[item.productId] = (items[item.productId] ?? 0) + Number(item.quantity);
-    }
-    for (const [pid, qty] of Object.entries(items)) {
-      productTotals[pid] = (productTotals[pid] ?? 0) + qty;
+      items[item.productId] = {
+        qty:       Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+      };
+      productTotals[item.productId] = (productTotals[item.productId] ?? 0) + Number(item.quantity);
     }
     return {
       salespersonId:   d.salesperson.id,
