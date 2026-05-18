@@ -390,39 +390,44 @@ export default function SalespersonStockEntry() {
             {/* Per-brand totals — horizontal scroll strip */}
             <div className="bg-amber-400 rounded-xl px-3 py-2.5">
               <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-2">Today's Stock Cost</p>
-              {/* Brand boxes with + between them */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                {brandTotals.map((b, idx) => (
-                  <React.Fragment key={b.brandId}>
-                    {idx > 0 && (
-                      <span className="flex-shrink-0 text-amber-700 font-bold text-base px-0.5">+</span>
-                    )}
-                    <div className="flex-shrink-0 bg-amber-300/60 rounded-lg px-3 py-2 min-w-[90px]">
-                      <p className="text-[10px] font-bold text-amber-800 mb-1">{b.brandName}</p>
-                      <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
-                      {b.crates > 0 && (
-                        <p className="text-[10px] text-amber-700 tabular-nums">
-                          {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
-                        </p>
-                      )}
-                    </div>
-                  </React.Fragment>
-                ))}
-              </div>
-              {/* Total on its own row */}
-              {brandTotals.length > 1 && (
-                <div className="mt-2 flex items-center justify-between bg-amber-900/20 rounded-lg px-3 py-2 border border-amber-600/30">
-                  <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Total</p>
-                  <div className="flex items-center gap-3">
-                    {grandTotal.crates > 0 && (
-                      <p className="text-[10px] text-amber-800 tabular-nums">
-                        {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates
-                      </p>
-                    )}
-                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
+              {/* Single scrollable wrapper so total row matches brand boxes width */}
+              <div className="overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                <div className="inline-flex flex-col gap-1.5">
+                  {/* Brand boxes with + between them */}
+                  <div className="flex items-center gap-1">
+                    {brandTotals.map((b, idx) => (
+                      <React.Fragment key={b.brandId}>
+                        {idx > 0 && (
+                          <span className="flex-shrink-0 text-amber-700 font-bold text-base px-0.5">+</span>
+                        )}
+                        <div className="flex-shrink-0 bg-amber-300/60 rounded-lg px-3 py-2 min-w-[90px]">
+                          <p className="text-[10px] font-bold text-amber-800 mb-1">{b.brandName}</p>
+                          <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
+                          {b.crates > 0 && (
+                            <p className="text-[10px] font-semibold text-amber-700 tabular-nums">
+                              {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
+                            </p>
+                          )}
+                        </div>
+                      </React.Fragment>
+                    ))}
                   </div>
+                  {/* Total row — same width as brand row */}
+                  {brandTotals.length > 1 && (
+                    <div className="bg-amber-300/60 rounded-lg px-3 py-2 flex items-center justify-between gap-4">
+                      <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Total</p>
+                      <div className="flex items-center gap-3">
+                        {grandTotal.crates > 0 && (
+                          <p className="text-[10px] font-bold text-amber-800 tabular-nums">
+                            {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates
+                          </p>
+                        )}
+                        <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
 
           </div>
