@@ -129,8 +129,10 @@ export default function SalespersonStockEntry() {
           qtyMap[item.productId] = String(item.quantity);
         }
         setQty(qtyMap);
-        setCollapsedBrands({});
-        setCollapsedCats({});
+        const allBrandIds = [...new Set(priceItems.map(p => p.brandId))];
+        setCollapsedBrands(Object.fromEntries(allBrandIds.map(id => [id, true])));
+        const allCatKeys = [...new Set(priceItems.map(p => `${p.brandId}:${p.category || 'General'}`))];
+        setCollapsedCats(Object.fromEntries(allCatKeys.map(k => [k, true])));
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
@@ -257,6 +259,18 @@ export default function SalespersonStockEntry() {
     });
   };
 
+  // ─── Expand / Collapse all ────────────────────────────────────────────────
+  const handleExpandAll = () => {
+    setCollapsedBrands({});
+    setCollapsedCats({});
+  };
+  const handleCollapseAll = () => {
+    const brandIds = [...new Set(products.map(p => p.brandId))];
+    setCollapsedBrands(Object.fromEntries(brandIds.map(id => [id, true])));
+    const catKeys = [...new Set(products.map(p => `${p.brandId}:${p.category || 'General'}`))];
+    setCollapsedCats(Object.fromEntries(catKeys.map(k => [k, true])));
+  };
+
   // ─── Refresh after save/submit ────────────────────────────────────────────
   async function refreshState() {
     const [dispatchRes, balRes] = await Promise.all([
@@ -376,38 +390,47 @@ export default function SalespersonStockEntry() {
             {/* Per-brand totals — horizontal scroll strip */}
             <div className="bg-amber-400 rounded-xl px-3 py-2.5">
               <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-2">Today's Stock Cost</p>
-              <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                {brandTotals.map(b => (
-                  <div key={b.brandId} className="flex-shrink-0 bg-amber-300/60 rounded-lg px-3 py-2 min-w-[100px]">
-                    <p className="text-[10px] font-bold text-amber-800 mb-1">{b.brandName}</p>
-                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
-                    {b.crates > 0 && (
-                      <p className="text-[10px] text-amber-700 tabular-nums">
-                        {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
-                      </p>
+              {/* Brand boxes with + between them */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                {brandTotals.map((b, idx) => (
+                  <React.Fragment key={b.brandId}>
+                    {idx > 0 && (
+                      <span className="flex-shrink-0 text-amber-700 font-bold text-base px-0.5">+</span>
                     )}
-                  </div>
+                    <div className="flex-shrink-0 bg-amber-300/60 rounded-lg px-3 py-2 min-w-[90px]">
+                      <p className="text-[10px] font-bold text-amber-800 mb-1">{b.brandName}</p>
+                      <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
+                      {b.crates > 0 && (
+                        <p className="text-[10px] text-amber-700 tabular-nums">
+                          {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  </React.Fragment>
                 ))}
-                {brandTotals.length > 1 && (
-                  <div className="flex-shrink-0 bg-amber-900/20 rounded-lg px-3 py-2 min-w-[100px] border border-amber-600/30">
-                    <p className="text-[10px] font-bold text-amber-900 mb-1">Total</p>
-                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
+              </div>
+              {/* Total on its own row */}
+              {brandTotals.length > 1 && (
+                <div className="mt-2 flex items-center justify-between bg-amber-900/20 rounded-lg px-3 py-2 border border-amber-600/30">
+                  <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Total</p>
+                  <div className="flex items-center gap-3">
                     {grandTotal.crates > 0 && (
                       <p className="text-[10px] text-amber-800 tabular-nums">
                         {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates
                       </p>
                     )}
+                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
           </div>
         </div>
 
-        {/* ── Search bar ────────────────────────────────────────────────────── */}
+        {/* ── Search bar + expand/collapse ──────────────────────────────────── */}
         {!loading && products.length > 0 && (
-          <div className="mx-3 mt-3">
+          <div className="mx-3 mt-3 space-y-2">
             <div className="relative">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -425,6 +448,20 @@ export default function SalespersonStockEntry() {
                   <X size={14} />
                 </button>
               )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleExpandAll}
+                className="flex-1 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 active:bg-slate-50 transition"
+              >
+                Expand All
+              </button>
+              <button
+                onClick={handleCollapseAll}
+                className="flex-1 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 active:bg-slate-50 transition"
+              >
+                Collapse All
+              </button>
             </div>
           </div>
         )}
