@@ -54,10 +54,12 @@ export default function DailyDispatchSummary() {
             const entry     = selectedRow.items[p.productId];
             const qty       = entry?.qty ?? 0;
             const unitPrice = entry?.unitPrice ?? null;
+            const crates    = (p.unitsPerContainer > 0) ? Math.floor(qty / p.unitsPerContainer) : null;
             return {
               productId:   p.productId,
               productName: p.productName,
               qty,
+              crates,
               unitPrice,
               amount: (qty > 0 && unitPrice != null) ? qty * unitPrice : 0,
             };
@@ -221,6 +223,7 @@ export default function DailyDispatchSummary() {
                         <tr>
                           <th className="px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-14">Qty</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-16">Crates</th>
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Rate</th>
                           <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Total</th>
                         </tr>
@@ -230,7 +233,7 @@ export default function DailyDispatchSummary() {
                           <React.Fragment key={brand.brandId}>
                             {/* Brand section header */}
                             <tr className="bg-slate-100">
-                              <td colSpan={4} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              <td colSpan={5} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                 {brand.brandName}
                               </td>
                             </tr>
@@ -241,6 +244,9 @@ export default function DailyDispatchSummary() {
                                 <td className="px-3 py-2.5 text-sm text-slate-700">{p.productName}</td>
                                 <td className="px-3 py-2.5 text-right text-sm tabular-nums font-bold text-slate-800">
                                   {p.qty > 0 ? p.qty : <span className="text-slate-300 font-normal">—</span>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                                  {(p.crates != null && p.qty > 0) ? p.crates : <span className="text-slate-300">—</span>}
                                 </td>
                                 <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-500">
                                   {(p.unitPrice != null && p.qty > 0) ? formatCurrency(p.unitPrice) : <span className="text-slate-300">—</span>}
@@ -257,6 +263,7 @@ export default function DailyDispatchSummary() {
                               <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                 {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
                               </td>
+                              <td className="px-3 py-2.5" />
                               <td className="px-3 py-2.5" />
                               <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                 {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}
