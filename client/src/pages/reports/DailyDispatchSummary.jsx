@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, AlertCircle, LayoutGrid, Search, X } from 'lucide-react';
+import { Loader2, AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 export default function DailyDispatchSummary() {
-  const [date, setDate]                 = useState(getIndiaDate());
-  const [data, setData]                 = useState(null);
-  const [loading, setLoading]           = useState(false);
-  const [error, setError]               = useState('');
-  const [selectedSpId, setSelectedSpId] = useState(null);
-  const [search, setSearch]             = useState('');
-  const [showZeroQty, setShowZeroQty]   = useState(false);
+  const [date, setDate]                       = useState(getIndiaDate());
+  const [data, setData]                       = useState(null);
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState('');
+  const [selectedSpId, setSelectedSpId]       = useState(null);
+  const [search, setSearch]                   = useState('');
+  const [showZeroQty, setShowZeroQty]         = useState(false);
+  const [collapsedBrands, setCollapsedBrands] = useState({});
 
   useEffect(() => { fetchData(); }, [date]);
+
+  useEffect(() => { setCollapsedBrands({}); }, [selectedSpId]);
 
   async function fetchData() {
     setLoading(true); setError('');
@@ -44,7 +47,6 @@ export default function DailyDispatchSummary() {
     [data, selectedSpId],
   );
 
-  // Flat brand-grouped table for the selected salesperson
   const tableData = useMemo(() => {
     if (!data || !selectedRow) return [];
     return data.brands
@@ -81,6 +83,9 @@ export default function DailyDispatchSummary() {
     () => (data?.rows ?? []).reduce((s, r) => s + r.totalAmount, 0),
     [data],
   );
+
+  const expandAll   = () => { const n = {}; tableData.forEach(b => { n[b.brandId] = false; }); setCollapsedBrands(n); };
+  const collapseAll = () => { const n = {}; tableData.forEach(b => { n[b.brandId] = true;  }); setCollapsedBrands(n); };
 
   function SpRow({ row }) {
     const isSelected = row.salespersonId === selectedSpId;
@@ -188,24 +193,44 @@ export default function DailyDispatchSummary() {
           ) : (
             <div className="flex flex-col flex-1 min-h-0">
 
-              {/* Sub-header: name + toggle */}
+              {/* Sub-header: name + expand/collapse + toggle */}
               <div className="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0">
                 <p className="text-sm font-bold text-slate-700 truncate">{selectedRow.salespersonName}</p>
-                <button
-                  type="button"
-                  onClick={() => setShowZeroQty(v => !v)}
-                  className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg border transition whitespace-nowrap ${
-                    showZeroQty
-                      ? 'bg-slate-100 text-slate-600 border-slate-200'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  }`}
-                >
-                  {showZeroQty ? 'All products' : 'Entered only'}
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {tableData.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={expandAll}
+                        className="flex items-center gap-1 px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                      >
+                        <ChevronsUpDown size={11} /> Expand
+                      </button>
+                      <button
+                        type="button"
+                        onClick={collapseAll}
+                        className="flex items-center gap-1 px-2 py-1 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 transition whitespace-nowrap"
+                      >
+                        <ChevronsDownUp size={11} /> Collapse
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowZeroQty(v => !v)}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition whitespace-nowrap ${
+                      showZeroQty
+                        ? 'bg-slate-100 text-slate-600 border-slate-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}
+                  >
+                    {showZeroQty ? 'All products' : 'Entered only'}
+                  </button>
+                </div>
               </div>
 
-              {/* Flat table */}
-              <div className="flex-1 overflow-y-auto p-3">
+              {/* Table area */}
+              <div className="flex-1 min-h-0 p-3">
                 {tableData.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center h-40 gap-2">
                     <AlertCircle size={20} className="text-slate-300" />
@@ -217,62 +242,89 @@ export default function DailyDispatchSummary() {
                     )}
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <table className="min-w-full">
-                      <thead className="bg-emerald-700">
-                        <tr>
-                          <th className="px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-14">Qty</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-16">Crates</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Rate</th>
-                          <th className="px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tableData.map(brand => (
-                          <React.Fragment key={brand.brandId}>
-                            {/* Brand section header */}
-                            <tr className="bg-slate-100">
-                              <td colSpan={5} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                                {brand.brandName}
-                              </td>
-                            </tr>
+                  <div className="h-full flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="overflow-y-auto flex-1">
+                      <table className="min-w-full">
+                        <thead className="sticky top-0 z-10">
+                          <tr>
+                            <th className="bg-emerald-700 px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                            <th className="bg-emerald-700 px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-14">Qty</th>
+                            <th className="bg-emerald-700 px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-16">Crates</th>
+                            <th className="bg-emerald-700 px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Rate</th>
+                            <th className="bg-emerald-700 px-3 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider w-24">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tableData.map(brand => {
+                            const isCollapsed = collapsedBrands[brand.brandId] ?? false;
+                            return (
+                              <React.Fragment key={brand.brandId}>
+                                {/* Brand header — clickable, left aligned */}
+                                <tr
+                                  className="cursor-pointer select-none hover:bg-slate-200 transition-colors"
+                                  onClick={() => setCollapsedBrands(prev => ({ ...prev, [brand.brandId]: !isCollapsed }))}
+                                >
+                                  <td colSpan={5} className="bg-slate-100 border-t border-slate-200 px-3 py-2">
+                                    <div className="flex items-center gap-1.5">
+                                      {isCollapsed
+                                        ? <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
+                                        : <ChevronDown size={13} className="text-slate-400 flex-shrink-0" />}
+                                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{brand.brandName}</span>
+                                      {isCollapsed && brand.brandQtyTotal > 0 && (
+                                        <>
+                                          <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold tabular-nums ml-1">
+                                            {brand.brandQtyTotal} units
+                                          </span>
+                                          {brand.brandAmountTotal > 0 && (
+                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold tabular-nums ml-auto">
+                                              {formatCurrency(brand.brandAmountTotal)}
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
 
-                            {/* Product rows */}
-                            {brand.products.map(p => (
-                              <tr key={p.productId} className="border-t border-slate-100 hover:bg-slate-50/60">
-                                <td className="px-3 py-2.5 text-sm text-slate-700">{p.productName}</td>
-                                <td className="px-3 py-2.5 text-right text-sm tabular-nums font-bold text-slate-800">
-                                  {p.qty > 0 ? p.qty : <span className="text-slate-300 font-normal">—</span>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
-                                  {(p.crates != null && p.qty > 0) ? p.crates : <span className="text-slate-300">—</span>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-500">
-                                  {(p.unitPrice != null && p.qty > 0) ? formatCurrency(p.unitPrice) : <span className="text-slate-300">—</span>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-700">
-                                  {p.amount > 0 ? formatCurrency(p.amount) : <span className="text-slate-300">—</span>}
-                                </td>
-                              </tr>
-                            ))}
+                                {/* Product rows — only when expanded */}
+                                {!isCollapsed && brand.products.map(p => (
+                                  <tr key={p.productId} className="border-t border-slate-100 hover:bg-slate-50/60">
+                                    <td className="px-3 py-2.5 text-sm text-slate-700">{p.productName}</td>
+                                    <td className="px-3 py-2.5 text-right text-sm tabular-nums font-bold text-slate-800">
+                                      {p.qty > 0 ? p.qty : <span className="text-slate-300 font-normal">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                                      {(p.crates != null && p.qty > 0) ? p.crates : <span className="text-slate-300">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-500">
+                                      {(p.unitPrice != null && p.qty > 0) ? formatCurrency(p.unitPrice) : <span className="text-slate-300">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-700">
+                                      {p.amount > 0 ? formatCurrency(p.amount) : <span className="text-slate-300">—</span>}
+                                    </td>
+                                  </tr>
+                                ))}
 
-                            {/* Brand subtotal */}
-                            <tr className="bg-emerald-50 border-t-2 border-emerald-100">
-                              <td className="px-3 py-2.5 text-sm font-bold text-emerald-800">{brand.brandName} Total</td>
-                              <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
-                                {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
-                              </td>
-                              <td className="px-3 py-2.5" />
-                              <td className="px-3 py-2.5" />
-                              <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
-                                {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}
-                              </td>
-                            </tr>
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
+                                {/* Brand subtotal — only when expanded */}
+                                {!isCollapsed && (
+                                  <tr className="bg-emerald-50 border-t-2 border-emerald-100">
+                                    <td className="px-3 py-2.5 text-sm font-bold text-emerald-800">{brand.brandName} Total</td>
+                                    <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
+                                      {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
+                                    </td>
+                                    <td className="px-3 py-2.5" />
+                                    <td className="px-3 py-2.5" />
+                                    <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
+                                      {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
