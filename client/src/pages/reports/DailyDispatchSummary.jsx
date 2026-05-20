@@ -69,7 +69,8 @@ export default function DailyDispatchSummary() {
           .filter(p => showZeroQty || p.qty > 0);
         const brandQtyTotal    = products.reduce((s, p) => s + p.qty, 0);
         const brandAmountTotal = products.reduce((s, p) => s + p.amount, 0);
-        return { brandId: brand.brandId, brandName: brand.brandName, products, brandQtyTotal, brandAmountTotal };
+        const brandCratesTotal = products.reduce((s, p) => s + (p.crates != null && p.qty > 0 ? p.crates : 0), 0);
+        return { brandId: brand.brandId, brandName: brand.brandName, products, brandQtyTotal, brandAmountTotal, brandCratesTotal };
       })
       .filter(b => b.products.length > 0);
   }, [data, selectedRow, showZeroQty]);
@@ -256,7 +257,7 @@ export default function DailyDispatchSummary() {
                         </thead>
                         <tbody>
                           {tableData.map(brand => {
-                            const isCollapsed = collapsedBrands[brand.brandId] ?? false;
+                            const isCollapsed = collapsedBrands[brand.brandId] ?? true;
                             return (
                               <React.Fragment key={brand.brandId}>
                                 {/* Brand header — clickable, left aligned */}
@@ -275,6 +276,11 @@ export default function DailyDispatchSummary() {
                                           <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold tabular-nums ml-1">
                                             {brand.brandQtyTotal} units
                                           </span>
+                                          {brand.brandCratesTotal > 0 && (
+                                            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">
+                                              {brand.brandCratesTotal} crates
+                                            </span>
+                                          )}
                                           {brand.brandAmountTotal > 0 && (
                                             <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-semibold tabular-nums ml-auto">
                                               {formatCurrency(brand.brandAmountTotal)}
