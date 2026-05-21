@@ -95,10 +95,10 @@ export default function StockBalanceSummary() {
   const hasData = !loading && spRows.length > 0;
 
   return (
-    <div className="bg-slate-100 pb-6 min-h-full">
+    <div className="flex flex-col h-full bg-slate-100">
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <Warehouse size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
@@ -110,29 +110,30 @@ export default function StockBalanceSummary() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 bg-red-50 border-b border-red-200 text-red-700 px-4 py-2.5 text-sm">
+        <div className="flex items-center gap-2 bg-red-50 border-b border-red-200 text-red-700 px-4 py-2.5 text-sm flex-shrink-0">
           <AlertCircle size={14} className="flex-shrink-0" /> {error}
         </div>
       )}
 
       {/* Brand strip */}
-      <div className="bg-white border-b border-slate-200 px-4 py-2">
+      <div className="bg-white border-b border-slate-200 px-4 py-2 flex-shrink-0">
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActiveBrandId} />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
         </div>
       ) : !hasData ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-2 text-slate-400">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-400">
           <AlertCircle size={22} className="text-slate-300" />
           <p className="text-sm">No dispatch data for this date</p>
         </div>
       ) : (
-        <>
+        <div className="flex flex-col flex-1 min-h-0">
+
           {/* Summary chips */}
-          <div className="flex gap-2 px-4 pt-3 pb-1 flex-wrap">
+          <div className="flex gap-2 px-4 pt-3 pb-2 flex-wrap flex-shrink-0">
             <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
               <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Received</span>
               <span className="text-sm font-extrabold text-blue-700 tabular-nums">{grandTotals.received || '—'}</span>
@@ -149,10 +150,11 @@ export default function StockBalanceSummary() {
             </div>
           </div>
 
-          {/* Matrix table */}
-          <div className="mx-4 mt-2">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
+          {/* Matrix table — freeze-pane: header sticky top, name column sticky left */}
+          <div className="flex-1 min-h-0 px-4 pb-4">
+            <div className="h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              {/* Single overflow:auto container so sticky top + sticky left both work */}
+              <div className="h-full overflow-auto">
                 <table
                   className="text-sm border-separate border-spacing-0"
                   style={{ minWidth: `${160 + products.length * 68 + 64}px` }}
@@ -234,10 +236,10 @@ export default function StockBalanceSummary() {
                   </tbody>
 
                   {/* Summary footer rows — mirror the paper: Dispatched → Received → Remaining */}
-                  <tfoot>
+                  <tfoot className="sticky bottom-0 z-10">
                     {/* DISPATCHED */}
                     <tr>
-                      <td className="sticky left-0 z-10 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-t-2 border-slate-500 border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <td className="sticky left-0 z-20 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-t-2 border-slate-500 border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
                         Dispatched
                       </td>
                       {colTotals.map(c => (
@@ -252,7 +254,7 @@ export default function StockBalanceSummary() {
 
                     {/* RECEIVED */}
                     <tr>
-                      <td className="sticky left-0 z-10 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
+                      <td className="sticky left-0 z-20 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
                         Received
                       </td>
                       {colTotals.map(c => (
@@ -267,7 +269,7 @@ export default function StockBalanceSummary() {
 
                     {/* REMAINING */}
                     <tr>
-                      <td className="sticky left-0 z-10 bg-emerald-800 px-3 py-2.5 text-xs font-bold text-emerald-200 border-r border-emerald-700 uppercase tracking-wider whitespace-nowrap">
+                      <td className="sticky left-0 z-20 bg-emerald-800 px-3 py-2.5 text-xs font-bold text-emerald-200 border-r border-emerald-700 uppercase tracking-wider whitespace-nowrap">
                         Remaining
                       </td>
                       {colTotals.map(c => (
@@ -284,7 +286,7 @@ export default function StockBalanceSummary() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

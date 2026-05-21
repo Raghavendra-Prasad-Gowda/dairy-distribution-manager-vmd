@@ -41,7 +41,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Page header — hidden in shell mode ──────────────────────── */}
+      {/* Page header — hidden in shell mode */}
       {!isShell && (
         <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
           <div className="flex items-center gap-2.5">
@@ -55,181 +55,200 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
         </div>
       )}
 
-    <div className="flex-1 overflow-y-auto">
-    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
 
-      {isShell && (
-        <div className="flex justify-end">
-          <DateSelector date={date} onChange={setDate} />
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          <AlertCircle size={15} className="flex-shrink-0" /> {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-        </div>
-      ) : data ? (
-        <div className="space-y-5">
-
-          {/* ── Summary stat cards ─────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { label: 'Total Received',   val: totalReceived,   color: 'text-blue-700',    bg: 'bg-blue-600',    icon: Package },
-              { label: 'Total Dispatched', val: totalDispatched, color: 'text-emerald-700',  bg: 'bg-emerald-600',  icon: Truck },
-              {
-                label: 'Net Available',
-                val:   netAvailable,
-                color: netAvailable >= 0 ? 'text-emerald-700' : 'text-red-700',
-                bg:    netAvailable >= 0 ? 'bg-emerald-600' : 'bg-red-600',
-                icon:  Package,
-              },
-            ].map(({ label, val, color, bg, icon: Icon }) => (
-              <div key={label} className="ddm-card p-5 flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-2xl ${bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className="text-white" size={20} />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
-                  <p className={`text-xl font-bold tabular-nums mt-0.5 ${color}`}>{formatCurrency(val)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Receipts table ─────────────────────────────────────── */}
-          {(() => {
-            const receipts   = data.receipts;
-            const hasRoutes  = receipts.some(r => r.routeNumber);
-            const multiBrand = !shellActiveBrandId;
-
-            // Build route → color index map (stable per route name)
-            const routeNames = [...new Set(receipts.map(r => r.routeNumber).filter(Boolean))];
-            const routeColorIdx = new Map(routeNames.map((n, i) => [n, i]));
-
-            // Group into brand sections for sub-totals
-            const brandSections = [];
-            let current = null;
-            for (const r of receipts) {
-              if (!current || current.brandName !== r.brandName) {
-                current = { brandName: r.brandName, items: [] };
-                brandSections.push(current);
-              }
-              current.items.push(r);
-            }
-
-            return (
-              <div className="ddm-card overflow-hidden">
-                <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-                  <Package size={14} className="text-blue-600" />
-                  <h3 className="font-bold text-slate-900 text-sm">Stock Received</h3>
-                </div>
-
-                {receipts.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                      <thead className="bg-emerald-700 sticky top-0 z-10">
-                        <tr>
-                          {multiBrand && <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>}
-                          {hasRoutes && <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Route</th>}
-                          <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                          <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
-                          <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
-                          <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-slate-100">
-                        {brandSections.map(({ brandName, items }) => (
-                          <>
-                            {items.map((r, i) => (
-                              <tr key={`${brandName}-${i}`} className="hover:bg-slate-50/60 transition-colors">
-                                {multiBrand && <td className="px-4 py-2.5 text-xs text-slate-400">{i === 0 ? brandName : ''}</td>}
-                                {hasRoutes && (
-                                  <td className="px-4 py-2.5">
-                                    {r.routeNumber ? (() => {
-                                      const c = ROUTE_COLORS[routeColorIdx.get(r.routeNumber) % ROUTE_COLORS.length];
-                                      return (
-                                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
-                                          {r.routeNumber}
-                                        </span>
-                                      );
-                                    })() : <span className="text-xs text-slate-300">—</span>}
-                                  </td>
-                                )}
-                                <td className="px-4 py-2.5 text-sm font-medium text-slate-800">{r.productName}</td>
-                                <td className="px-4 py-2.5 text-right text-sm text-slate-600 tabular-nums">{r.quantity}</td>
-                                <td className="px-4 py-2.5 text-right text-xs text-slate-500 tabular-nums whitespace-nowrap">₹{r.unitPrice}</td>
-                                <td className="px-4 py-2.5 text-right text-sm font-semibold text-blue-700 tabular-nums whitespace-nowrap">{formatCurrency(r.amount)}</td>
-                              </tr>
-                            ))}
-                            {/* Brand sub-total — only shown when multiple brands present */}
-                            {multiBrand && brandSections.length > 1 && (
-                              <tr className="bg-slate-50 border-t border-slate-200">
-                                <td colSpan={hasRoutes ? 5 : 4} className="px-4 py-1.5 text-xs font-semibold text-slate-500 text-right">{brandName} total</td>
-                                <td className="px-4 py-1.5 text-right text-sm font-bold text-blue-700 tabular-nums whitespace-nowrap">
-                                  {formatCurrency(items.reduce((s, r) => s + r.amount, 0))}
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ── Dispatches table ───────────────────────────────────── */}
-          <div className="ddm-card overflow-hidden">
-            <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-              <Truck size={14} className="text-emerald-600" />
-              <h3 className="font-bold text-slate-900 text-sm">Dispatched to Salespeople</h3>
+          {isShell && (
+            <div className="flex justify-end">
+              <DateSelector date={date} onChange={setDate} />
             </div>
+          )}
 
-            {data.dispatches.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-sm">No dispatches for this date</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-emerald-700 sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Salesperson</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Items Dispatched</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-100">
-                    {data.dispatches.map((d, i) => (
-                      <tr key={i} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-4 py-2.5 text-sm font-semibold text-slate-800 align-top">{d.salespersonName}</td>
-                        <td className="px-4 py-2.5 text-xs text-slate-400 space-y-0.5 align-top">
-                          {d.items.map((item, j) => (
-                            <div key={j}>{item.brandName} {item.productName} × {item.quantity}</div>
-                          ))}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-sm font-semibold text-emerald-700 tabular-nums whitespace-nowrap align-top">
-                          {formatCurrency(d.totalAmount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+              <AlertCircle size={15} className="flex-shrink-0" /> {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+            </div>
+          ) : data ? (
+            <div className="space-y-5">
+
+              {/* Summary chips */}
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Received</span>
+                  <span className="text-sm font-extrabold text-blue-700 tabular-nums">{formatCurrency(totalReceived)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                  <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wide">Dispatched</span>
+                  <span className="text-sm font-extrabold text-amber-700 tabular-nums">{formatCurrency(totalDispatched)}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border ${
+                  netAvailable >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+                }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wide ${netAvailable >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>Net Available</span>
+                  <span className={`text-sm font-extrabold tabular-nums ${netAvailable >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatCurrency(netAvailable)}</span>
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Receipts table */}
+              {(() => {
+                const receipts   = data.receipts;
+                const hasRoutes  = receipts.some(r => r.routeNumber);
+                const multiBrand = !shellActiveBrandId;
+
+                const routeNames = [...new Set(receipts.map(r => r.routeNumber).filter(Boolean))];
+                const routeColorIdx = new Map(routeNames.map((n, i) => [n, i]));
+
+                const brandSections = [];
+                let current = null;
+                for (const r of receipts) {
+                  if (!current || current.brandName !== r.brandName) {
+                    current = { brandName: r.brandName, items: [] };
+                    brandSections.push(current);
+                  }
+                  current.items.push(r);
+                }
+
+                return (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="border-b border-slate-200 px-4 py-3 flex items-center gap-2">
+                      <Package size={14} className="text-blue-600" />
+                      <h3 className="font-bold text-slate-900 text-sm">Stock Received</h3>
+                    </div>
+
+                    {receipts.length === 0 ? (
+                      <div className="text-center py-8 text-slate-400 text-sm">No receipts for this date</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-100 text-sm">
+                          <thead>
+                            <tr className="bg-emerald-700">
+                              {multiBrand && <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>}
+                              {hasRoutes  && <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Route</th>}
+                              <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {brandSections.map(({ brandName, items }) => (
+                              <>
+                                {items.map((r, i) => (
+                                  <tr key={`${brandName}-${i}`} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                    {multiBrand && <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap">{i === 0 ? brandName : ''}</td>}
+                                    {hasRoutes && (
+                                      <td className="px-4 py-2.5">
+                                        {r.routeNumber ? (() => {
+                                          const c = ROUTE_COLORS[routeColorIdx.get(r.routeNumber) % ROUTE_COLORS.length];
+                                          return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>{r.routeNumber}</span>;
+                                        })() : <span className="text-xs text-slate-300">—</span>}
+                                      </td>
+                                    )}
+                                    <td className="px-4 py-2.5 font-medium text-slate-800">{r.productName}</td>
+                                    <td className="px-4 py-2.5 text-right text-slate-600 tabular-nums">{r.quantity}</td>
+                                    <td className="px-4 py-2.5 text-right text-xs text-slate-400 tabular-nums whitespace-nowrap">₹{r.unitPrice}</td>
+                                    <td className="px-4 py-2.5 text-right font-semibold text-blue-700 tabular-nums whitespace-nowrap">{formatCurrency(r.amount)}</td>
+                                  </tr>
+                                ))}
+                                {multiBrand && brandSections.length > 1 && (
+                                  <tr className="bg-slate-50 border-t border-slate-200">
+                                    <td colSpan={hasRoutes ? 5 : 4} className="px-4 py-1.5 text-xs font-semibold text-slate-500 text-right">{brandName} total</td>
+                                    <td className="px-4 py-1.5 text-right text-sm font-bold text-blue-700 tabular-nums whitespace-nowrap">
+                                      {formatCurrency(items.reduce((s, r) => s + r.amount, 0))}
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            ))}
+                            {/* Grand total */}
+                            <tr className="bg-blue-50 border-t-2 border-blue-200">
+                              <td colSpan={1 + (multiBrand ? 1 : 0) + (hasRoutes ? 1 : 0) + 2} className="px-4 py-2 text-xs font-bold text-blue-600 uppercase tracking-wider text-right">Total Received</td>
+                              <td className="px-4 py-2 text-right text-sm font-extrabold text-blue-700 tabular-nums whitespace-nowrap">{formatCurrency(totalReceived)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Dispatches table */}
+              {(() => {
+                const dispatches = data.dispatches;
+                const multiBrand = !shellActiveBrandId;
+
+                return (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="border-b border-slate-200 px-4 py-3 flex items-center gap-2">
+                      <Truck size={14} className="text-emerald-600" />
+                      <h3 className="font-bold text-slate-900 text-sm">Dispatched to Salespeople</h3>
+                    </div>
+
+                    {dispatches.length === 0 ? (
+                      <div className="text-center py-8 text-slate-400 text-sm">No dispatches for this date</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-100 text-sm">
+                          <thead>
+                            <tr className="bg-emerald-700">
+                              <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Salesperson</th>
+                              {multiBrand && <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>}
+                              <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Qty</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Price</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {dispatches.map((d, di) => (
+                              <>
+                                {d.items.map((item, ii) => (
+                                  <tr key={`${di}-${ii}`} className={ii % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                    <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
+                                      {ii === 0 ? d.salespersonName : ''}
+                                    </td>
+                                    {multiBrand && <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap">{item.brandName}</td>}
+                                    <td className="px-4 py-2.5 text-slate-700">{item.productName}</td>
+                                    <td className="px-4 py-2.5 text-right text-slate-600 tabular-nums">{item.quantity}</td>
+                                    <td className="px-4 py-2.5 text-right text-xs text-slate-400 tabular-nums whitespace-nowrap">₹{item.unitPrice}</td>
+                                    <td className="px-4 py-2.5 text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">{formatCurrency(item.totalAmount)}</td>
+                                  </tr>
+                                ))}
+                                {/* Salesperson sub-total */}
+                                <tr className="bg-emerald-50 border-t border-emerald-100">
+                                  <td colSpan={2 + (multiBrand ? 1 : 0) + 2} className="px-4 py-1.5 text-xs font-semibold text-emerald-600 text-right">
+                                    {d.salespersonName} total
+                                  </td>
+                                  <td className="px-4 py-1.5 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                                    {formatCurrency(d.totalAmount)}
+                                  </td>
+                                </tr>
+                              </>
+                            ))}
+                            {/* Grand total */}
+                            <tr className="bg-emerald-100 border-t-2 border-emerald-300">
+                              <td colSpan={2 + (multiBrand ? 1 : 0) + 2} className="px-4 py-2 text-xs font-bold text-emerald-700 uppercase tracking-wider text-right">Total Dispatched</td>
+                              <td className="px-4 py-2 text-right text-sm font-extrabold text-emerald-800 tabular-nums whitespace-nowrap">{formatCurrency(totalDispatched)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+            </div>
+          ) : null}
         </div>
-      ) : null}
-    </div>
-    </div>
+      </div>
     </div>
   );
 }

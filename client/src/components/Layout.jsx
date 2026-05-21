@@ -50,8 +50,8 @@ const ADMIN_NAV = [
       {
         label: 'MANAGEMENT',
         items: [
-          { to: '/salesman/dispatch-sheet',  icon: LayoutGrid,  label: 'Dispatch Sheet' },
           { to: '/reports/stock-balance',   icon: Warehouse,   label: 'Stock Balance' },
+          { to: '/salesman/dispatch-sheet',  icon: LayoutGrid,  label: 'Dispatch Sheet' },
           { to: '/salesman/payments',        icon: CreditCard,  label: 'Collections' },
         ],
       },
