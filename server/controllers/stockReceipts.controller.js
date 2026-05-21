@@ -52,14 +52,15 @@ const getAvailability = asyncHandler(async (req, res) => {
   const dispatchedMap = Object.fromEntries(dispatched.map(d => [d.productId, Number(d._sum.quantity ?? 0)]));
 
   const result = products.map((p) => ({
-    productId:   p.id,
-    productName: p.name,
-    brandId:     p.brandId,
-    brandName:   p.brand.name,
-    received:    receivedMap[p.id] ?? 0,
-    dispatched:  dispatchedMap[p.id] ?? 0,
-    available:   (receivedMap[p.id] ?? 0) - (dispatchedMap[p.id] ?? 0),
-    costPrice:   Number(p.costPrice),
+    productId:         p.id,
+    productName:       p.name,
+    brandId:           p.brandId,
+    brandName:         p.brand.name,
+    received:          receivedMap[p.id] ?? 0,
+    dispatched:        dispatchedMap[p.id] ?? 0,
+    available:         (receivedMap[p.id] ?? 0) - (dispatchedMap[p.id] ?? 0),
+    costPrice:         Number(p.costPrice),
+    unitsPerContainer: p.unitsPerContainer ?? null,
   }));
 
   res.json({ success: true, data: result });
