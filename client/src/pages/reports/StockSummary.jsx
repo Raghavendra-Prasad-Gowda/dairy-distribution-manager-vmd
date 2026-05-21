@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, AlertCircle, Package, Truck } from 'lucide-react';
+import { Loader2, AlertCircle, Package, Truck, ChevronDown, ChevronRight } from 'lucide-react';
 
 const ROUTE_COLORS = [
   { bg: 'bg-sky-100',     text: 'text-sky-700'     },
@@ -14,10 +14,11 @@ import api from '../../api/axios';
 
 export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
   const isShell = inShell || shellActiveBrandId != null;
-  const [date, setDate]       = useState(getIndiaDate());
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [date, setDate]           = useState(getIndiaDate());
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [collapsedSp, setCollapsedSp] = useState(new Set());
 
   useEffect(() => { fetchSummary(); }, [date, shellActiveBrandId]);
 
@@ -27,6 +28,8 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
       const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
       const r = await api.get(`/reports/stock-summary?date=${date}${brandParam}`);
       setData(r.data.data);
+      // Default all salespeople collapsed
+      setCollapsedSp(new Set((r.data.data?.dispatches ?? []).map((_, i) => i)));
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load summary');
     } finally {
@@ -179,23 +182,47 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                 );
               })()}
 
-              {/* Dispatches table */}
+              {/* Dispatches — collapsible per salesperson */}
               {(() => {
                 const dispatches = data.dispatches;
                 const multiBrand = !shellActiveBrandId;
+                const allCollapsed = dispatches.length > 0 && dispatches.every((_, i) => collapsedSp.has(i));
+
+                function toggleSp(idx) {
+                  setCollapsedSp(prev => {
+                    const next = new Set(prev);
+                    next.has(idx) ? next.delete(idx) : next.add(idx);
+                    return next;
+                  });
+                }
 
                 return (
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="border-b border-slate-200 px-4 py-3 flex items-center gap-2">
-                      <Truck size={14} className="text-emerald-600" />
-                      <h3 className="font-bold text-slate-900 text-sm">Dispatched to Salespeople</h3>
+                    <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Truck size={14} className="text-emerald-600" />
+                        <h3 className="font-bold text-slate-900 text-sm">Dispatched to Salespeople</h3>
+                      </div>
+                      {dispatches.length > 0 && (
+                        <button
+                          onClick={() => allCollapsed
+                            ? setCollapsedSp(new Set())
+                            : setCollapsedSp(new Set(dispatches.map((_, i) => i)))
+                          }
+                          className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
+                        >
+                          {allCollapsed
+                            ? <><ChevronDown size={13} /> Expand All</>
+                            : <><ChevronRight size={13} /> Collapse All</>}
+                        </button>
+                      )}
                     </div>
 
                     {dispatches.length === 0 ? (
                       <div className="text-center py-8 text-slate-400 text-sm">No dispatches for this date</div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-slate-100 text-sm">
+                        <table className="min-w-full text-sm border-separate border-spacing-0">
                           <thead>
                             <tr className="bg-emerald-700">
                               <th className="px-4 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider">Salesperson</th>
@@ -206,36 +233,63 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                               <th className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {dispatches.map((d, di) => (
-                              <>
-                                {d.items.map((item, ii) => (
-                                  <tr key={`${di}-${ii}`} className={ii % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                    <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
-                                      {ii === 0 ? d.salespersonName : ''}
+                          <tbody>
+                            {dispatches.map((d, di) => {
+                              const isCollapsed = collapsedSp.has(di);
+                              const totalQty = d.items.reduce((s, i) => s + i.quantity, 0);
+
+                              return (
+                                <>
+                                  {/* Summary / header row — always visible */}
+                                  <tr
+                                    key={`sp-${di}-summary`}
+                                    className="cursor-pointer hover:bg-emerald-50/40 transition-colors border-b border-slate-100"
+                                    onClick={() => toggleSp(di)}
+                                  >
+                                    <td className="px-4 py-2.5 border-r border-slate-100">
+                                      <div className="flex items-center gap-2">
+                                        {isCollapsed
+                                          ? <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
+                                          : <ChevronDown  size={13} className="text-slate-400 flex-shrink-0" />}
+                                        <span className="font-semibold text-slate-800 whitespace-nowrap">{d.salespersonName}</span>
+                                      </div>
                                     </td>
-                                    {multiBrand && <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap">{item.brandName}</td>}
-                                    <td className="px-4 py-2.5 text-slate-700">{item.productName}</td>
-                                    <td className="px-4 py-2.5 text-right text-slate-600 tabular-nums">{item.quantity}</td>
-                                    <td className="px-4 py-2.5 text-right text-xs text-slate-400 tabular-nums whitespace-nowrap">₹{item.unitPrice}</td>
-                                    <td className="px-4 py-2.5 text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">{formatCurrency(item.totalAmount)}</td>
+                                    {/* Chips shown only when collapsed */}
+                                    <td colSpan={multiBrand ? 4 : 3} className="px-4 py-2.5 border-r border-slate-100">
+                                      {isCollapsed && (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                                            {d.items.length} product{d.items.length !== 1 ? 's' : ''}
+                                          </span>
+                                          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full tabular-nums">
+                                            {totalQty} units
+                                          </span>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right">
+                                      <span className="text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">{formatCurrency(d.totalAmount)}</span>
+                                    </td>
                                   </tr>
-                                ))}
-                                {/* Salesperson sub-total */}
-                                <tr className="bg-emerald-50 border-t border-emerald-100">
-                                  <td colSpan={2 + (multiBrand ? 1 : 0) + 2} className="px-4 py-1.5 text-xs font-semibold text-emerald-600 text-right">
-                                    {d.salespersonName} total
-                                  </td>
-                                  <td className="px-4 py-1.5 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
-                                    {formatCurrency(d.totalAmount)}
-                                  </td>
-                                </tr>
-                              </>
-                            ))}
+
+                                  {/* Detail rows — shown when expanded */}
+                                  {!isCollapsed && d.items.map((item, ii) => (
+                                    <tr key={`sp-${di}-item-${ii}`} className={`border-b border-slate-50 ${ii % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                                      <td className="pl-10 pr-4 py-2 text-slate-400 border-r border-slate-100" />
+                                      {multiBrand && <td className="px-4 py-2 text-xs text-slate-400 whitespace-nowrap border-r border-slate-100">{item.brandName}</td>}
+                                      <td className="px-4 py-2 text-slate-700 border-r border-slate-100">{item.productName}</td>
+                                      <td className="px-4 py-2 text-right text-slate-600 tabular-nums border-r border-slate-100">{item.quantity}</td>
+                                      <td className="px-4 py-2 text-right text-xs text-slate-400 tabular-nums whitespace-nowrap border-r border-slate-100">₹{item.unitPrice}</td>
+                                      <td className="px-4 py-2 text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">{formatCurrency(item.totalAmount)}</td>
+                                    </tr>
+                                  ))}
+                                </>
+                              );
+                            })}
                             {/* Grand total */}
-                            <tr className="bg-emerald-100 border-t-2 border-emerald-300">
-                              <td colSpan={2 + (multiBrand ? 1 : 0) + 2} className="px-4 py-2 text-xs font-bold text-emerald-700 uppercase tracking-wider text-right">Total Dispatched</td>
-                              <td className="px-4 py-2 text-right text-sm font-extrabold text-emerald-800 tabular-nums whitespace-nowrap">{formatCurrency(totalDispatched)}</td>
+                            <tr className="bg-emerald-700">
+                              <td colSpan={2 + (multiBrand ? 1 : 0) + 2} className="px-4 py-2.5 text-xs font-bold text-emerald-200 uppercase tracking-wider text-right">Total Dispatched</td>
+                              <td className="px-4 py-2.5 text-right text-sm font-extrabold text-white tabular-nums whitespace-nowrap">{formatCurrency(totalDispatched)}</td>
                             </tr>
                           </tbody>
                         </table>
