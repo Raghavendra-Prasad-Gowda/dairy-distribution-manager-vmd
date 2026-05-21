@@ -373,7 +373,7 @@ const dailyDispatch = asyncHandler(async (req, res) => {
         products:  [],
       });
     }
-    brandMap.get(p.brandId).products.push({ productId: p.id, productName: p.name, unitsPerContainer: p.unitsPerContainer ?? 0 });
+    brandMap.get(p.brandId).products.push({ productId: p.id, productName: p.name, unitsPerContainer: p.unitsPerContainer ?? 0, category: p.category ?? null });
   }
   const brands = Array.from(brandMap.values());
   const productIdSet = new Set(allProducts.map(p => p.id));

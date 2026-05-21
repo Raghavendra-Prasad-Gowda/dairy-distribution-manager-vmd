@@ -45,6 +45,20 @@ export default function StockBalanceSummary() {
     return dispatchData.brands.find(b => b.brandId === activeBrandId)?.products ?? [];
   }, [dispatchData, activeBrandId]);
 
+  // Consecutive category groups for the two-row header
+  const categoryGroups = useMemo(() => {
+    const groups = [];
+    for (const p of products) {
+      const cat = p.category || null;
+      if (groups.length > 0 && groups[groups.length - 1].category === cat) {
+        groups[groups.length - 1].count += 1;
+      } else {
+        groups.push({ category: cat, count: 1 });
+      }
+    }
+    return groups;
+  }, [products]);
+
   // Salesperson rows that have at least 1 unit dispatched for this brand
   const spRows = useMemo(() => {
     if (!dispatchData || products.length === 0) return [];
@@ -143,30 +157,45 @@ export default function StockBalanceSummary() {
                   className="text-sm border-separate border-spacing-0"
                   style={{ minWidth: `${160 + products.length * 68 + 64}px` }}
                 >
-                  {/* Column headers — product names */}
+                  {/* Two-row header: category row + product name row */}
                   <thead>
+                    {/* Row 1 — category labels */}
                     <tr>
                       <th
-                        className="sticky left-0 z-20 bg-emerald-700 px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600"
+                        rowSpan={2}
+                        className="sticky left-0 z-20 bg-emerald-700 px-3 py-2.5 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 align-middle"
                         style={{ minWidth: 160 }}
                       >
                         Salesperson
                       </th>
+                      {categoryGroups.map((g, i) => (
+                        <th
+                          key={i}
+                          colSpan={g.count}
+                          className={`bg-emerald-800 px-2 py-1.5 text-center text-[10px] font-bold text-emerald-300 uppercase tracking-widest border-r border-emerald-700 border-b border-emerald-600 ${!g.category ? 'opacity-0' : ''}`}
+                        >
+                          {g.category ?? ''}
+                        </th>
+                      ))}
+                      <th
+                        rowSpan={2}
+                        className="bg-emerald-600 px-2 py-2.5 text-center text-xs font-bold text-white uppercase align-middle"
+                        style={{ minWidth: 60 }}
+                      >
+                        Total
+                      </th>
+                    </tr>
+                    {/* Row 2 — product names */}
+                    <tr>
                       {products.map(p => (
                         <th
                           key={p.productId}
-                          className="bg-emerald-700 px-2 py-2.5 text-center text-[10px] font-bold text-white leading-tight border-r border-emerald-600"
+                          className="bg-emerald-700 px-2 py-2 text-center text-[10px] font-bold text-white leading-tight border-r border-emerald-600"
                           style={{ minWidth: 60 }}
                         >
                           {p.productName}
                         </th>
                       ))}
-                      <th
-                        className="bg-emerald-600 px-2 py-2.5 text-center text-xs font-bold text-white uppercase"
-                        style={{ minWidth: 60 }}
-                      >
-                        Total
-                      </th>
                     </tr>
                   </thead>
 
