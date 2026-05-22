@@ -1,11 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, AlertCircle, Package } from 'lucide-react';
+import { Loader2, AlertCircle, Package, ChevronRight, ChevronDown } from 'lucide-react';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 function fmtCrates(qty, upc) {
   const c = upc ? qty / upc : qty;
   return Number.isInteger(c) ? String(c) : c.toFixed(1);
+}
+
+function fmtPrice(p) {
+  if (!p) return '—';
+  return `₹${p % 1 === 0 ? p : p.toFixed(2)}`;
 }
 
 export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
@@ -15,11 +20,13 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+  const [expanded, setExpanded] = useState(new Set());
 
   useEffect(() => { fetchSummary(); }, [from, to, shellActiveBrandId]);
 
   async function fetchSummary() {
     setLoading(true); setError('');
+    setExpanded(new Set());
     try {
       const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
       const r = await api.get(`/reports/stock-summary?from=${from}&to=${to}${brandParam}`);
@@ -31,60 +38,81 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     }
   }
 
-  // Aggregate per-product-per-route received totals across the selected date range
+  function toggle(key) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  // Aggregate by brand → product (with nested routes)
   const productSummary = useMemo(() => {
     if (!data?.rows) return [];
 
-    // brandName → composite key (productName::route) → running totals
+    // brandName → productName → { routes[], upc, costPrice }
     const brandMap = new Map();
-    const ensure = (brand, product, route) => {
+    const ensureProd = (brand, productName) => {
       if (!brandMap.has(brand)) brandMap.set(brand, new Map());
-      const pm  = brandMap.get(brand);
-      const key = `${product}::${route ?? ''}`;
-      if (!pm.has(key)) pm.set(key, { productName: product, routeNumber: route ?? null, qty: 0, value: 0, upc: null, costPrice: null });
-      return pm.get(key);
+      const bm = brandMap.get(brand);
+      if (!bm.has(productName)) bm.set(productName, { routes: new Map(), upc: null, costPrice: null });
+      return bm.get(productName);
     };
 
     for (const row of data.rows) {
       for (const r of row.receipts) {
-        const p = ensure(r.brandName, r.productName, r.routeNumber);
-        p.qty   += r.quantity;
-        p.value += r.amount;
-        if (!p.upc && r.unitsPerContainer) p.upc = r.unitsPerContainer;
-        if (!p.costPrice && r.costPrice)   p.costPrice = r.costPrice;
+        const prod = ensureProd(r.brandName, r.productName);
+        if (!prod.upc && r.unitsPerContainer) prod.upc = r.unitsPerContainer;
+        if (!prod.costPrice && r.costPrice)   prod.costPrice = r.costPrice;
+
+        const rk = r.routeNumber ?? '';
+        if (!prod.routes.has(rk)) prod.routes.set(rk, { routeNumber: r.routeNumber ?? null, qty: 0, value: 0 });
+        const rt = prod.routes.get(rk);
+        rt.qty   += r.quantity;
+        rt.value += r.amount;
       }
     }
 
     return Array.from(brandMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([brandName, pm]) => {
-        const rows = Array.from(pm.values())
-          .sort((a, b) =>
-            a.productName.localeCompare(b.productName) ||
-            (a.routeNumber ?? '').localeCompare(b.routeNumber ?? '')
-          )
-          .map(t => ({
-            productName: t.productName,
-            routeNumber: t.routeNumber,
-            qty:         t.qty,
-            value:       t.value,
-            upc:         t.upc,
-            crates:      fmtCrates(t.qty, t.upc),
-            unitPrice:   t.costPrice ?? 0,
-          }));
+      .map(([brandName, bm]) => {
+        const products = Array.from(bm.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([productName, pd]) => {
+            const routes = Array.from(pd.routes.values())
+              .sort((a, b) => (a.routeNumber ?? '').localeCompare(b.routeNumber ?? ''))
+              .map(rt => ({
+                routeNumber: rt.routeNumber,
+                qty:    rt.qty,
+                value:  rt.value,
+                crates: fmtCrates(rt.qty, pd.upc),
+              }));
 
-        const totalQty    = rows.reduce((s, r) => s + r.qty,   0);
-        const totalValue  = rows.reduce((s, r) => s + r.value,  0);
-        const totalCrates = rows.reduce((s, r) => s + (r.upc ? r.qty / r.upc : r.qty), 0);
+            const totalQty   = routes.reduce((s, r) => s + r.qty,   0);
+            const totalValue = routes.reduce((s, r) => s + r.value,  0);
+            return {
+              productName,
+              routes,
+              upc:         pd.upc,
+              unitPrice:   pd.costPrice ?? 0,
+              totalQty,
+              totalValue,
+              totalCrates: fmtCrates(totalQty, pd.upc),
+            };
+          });
 
-        return { brandName, rows, totalQty, totalValue, totalCrates };
+        const totalQty    = products.reduce((s, p) => s + p.totalQty,   0);
+        const totalValue  = products.reduce((s, p) => s + p.totalValue,  0);
+        const totalCrates = products.reduce((s, p) => s + (p.upc ? p.totalQty / p.upc : p.totalQty), 0);
+        return { brandName, products, totalQty, totalValue, totalCrates };
       });
   }, [data]);
+
+  const grandTotalCrates = productSummary.reduce((s, b) => s + b.totalCrates, 0);
 
   return (
     <div className="flex flex-col h-full">
 
-      {/* Page header — hidden in shell mode */}
       {!isShell && (
         <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
           <Package size={17} className="text-emerald-300 flex-shrink-0" />
@@ -141,8 +169,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                 </div>
                 <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border ${
                   data.grandTotalReceived - data.grandTotalDispatched >= 0
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-red-50 border-red-200'
+                    ? 'bg-slate-50 border-slate-200' : 'bg-red-50 border-red-200'
                 }`}>
                   <span className={`text-[10px] font-bold uppercase tracking-wide ${
                     data.grandTotalReceived - data.grandTotalDispatched >= 0 ? 'text-slate-500' : 'text-red-500'
@@ -164,19 +191,19 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                   <div className="px-4 py-3 bg-slate-700">
                     <h2 className="text-sm font-bold text-white">Period Summary</h2>
                     <p className="text-xs text-slate-400">
-                      {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy
+                      {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
                     </p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200">
-                          <th className="px-4 py-2.5 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-wider">Product</th>
-                          <th className="px-3 py-2.5 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-wider">Route</th>
-                          <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Crates</th>
-                          <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quantity</th>
-                          <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Unit Price</th>
-                          <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Price</th>
+                          <th className="px-4 py-2.5 text-left  text-[11px] font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2.5 text-left  text-[11px] font-bold text-slate-500 uppercase tracking-wider">Route</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Crates</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quantity</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Unit Price</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Price</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -184,13 +211,12 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                           <>
                             {/* Brand header */}
                             <tr key={brand.brandName} className="bg-emerald-700">
-                              <td className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                              <td colSpan={2} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
                                 {brand.brandName}
                                 <span className="ml-2 font-normal text-emerald-300 normal-case tracking-normal">
-                                  {brand.rows.length} row{brand.rows.length !== 1 ? 's' : ''}
+                                  {brand.products.length} product{brand.products.length !== 1 ? 's' : ''}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-emerald-500 text-xs">—</td>
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">
                                 {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
                               </td>
@@ -199,26 +225,65 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
                             </tr>
 
-                            {/* Product + route rows */}
-                            {brand.rows.map((p, idx) => (
-                              <tr
-                                key={`${p.productName}::${p.routeNumber ?? ''}`}
-                                className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
-                              >
-                                <td className="px-4 py-2.5 pl-7 text-sm font-medium text-slate-800">{p.productName}</td>
-                                <td className="px-3 py-2.5">
-                                  {p.routeNumber
-                                    ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{p.routeNumber}</span>
-                                    : <span className="text-slate-300 text-xs">—</span>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.crates}</td>
-                                <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.qty}</td>
-                                <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">
-                                  {p.unitPrice > 0 ? `₹${p.unitPrice % 1 === 0 ? p.unitPrice : p.unitPrice.toFixed(2)}` : '—'}
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(p.value)}</td>
-                              </tr>
-                            ))}
+                            {/* Product rows (collapsed by default) */}
+                            {brand.products.map((p, idx) => {
+                              const expandKey   = `${brand.brandName}::${p.productName}`;
+                              const isOpen      = expanded.has(expandKey);
+                              const multiRoute  = p.routes.length > 1;
+                              const singleRoute = p.routes.length === 1 ? p.routes[0].routeNumber : null;
+
+                              return (
+                                <>
+                                  {/* Product summary row */}
+                                  <tr
+                                    key={expandKey}
+                                    onClick={() => multiRoute && toggle(expandKey)}
+                                    className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${multiRoute ? 'cursor-pointer hover:bg-emerald-50/40' : ''}`}
+                                  >
+                                    <td className="px-4 py-2.5 pl-5">
+                                      <div className="flex items-center gap-1.5">
+                                        {multiRoute
+                                          ? (isOpen
+                                              ? <ChevronDown  size={13} className="text-emerald-500 flex-shrink-0" />
+                                              : <ChevronRight size={13} className="text-emerald-500 flex-shrink-0" />)
+                                          : <span className="w-[13px] flex-shrink-0" />}
+                                        <span className="text-sm font-medium text-slate-800">{p.productName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2.5">
+                                      {multiRoute
+                                        ? <span className="text-[11px] text-slate-400">{p.routes.length} routes</span>
+                                        : singleRoute
+                                          ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{singleRoute}</span>
+                                          : <span className="text-slate-300 text-xs">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalCrates}</td>
+                                    <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalQty}</td>
+                                    <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">{fmtPrice(p.unitPrice)}</td>
+                                    <td className="px-3 py-2.5 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(p.totalValue)}</td>
+                                  </tr>
+
+                                  {/* Route sub-rows — shown only when expanded */}
+                                  {isOpen && p.routes.map(rt => (
+                                    <tr
+                                      key={`${expandKey}::${rt.routeNumber ?? ''}`}
+                                      className="bg-emerald-50/60 border-b border-emerald-100"
+                                    >
+                                      <td className="px-4 py-2 pl-10 text-xs text-slate-500 italic">{p.productName}</td>
+                                      <td className="px-3 py-2">
+                                        {rt.routeNumber
+                                          ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{rt.routeNumber}</span>
+                                          : <span className="text-slate-300 text-xs">—</span>}
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.crates}</td>
+                                      <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.qty}</td>
+                                      <td className="px-3 py-2 text-right text-xs text-slate-400 tabular-nums">{fmtPrice(p.unitPrice)}</td>
+                                      <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatCurrency(rt.value)}</td>
+                                    </tr>
+                                  ))}
+                                </>
+                              );
+                            })}
                           </>
                         ))}
                       </tbody>
@@ -228,10 +293,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                         <tr className="bg-slate-800">
                           <td colSpan={2} className="px-4 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-wider">Grand Total</td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
-                            {(() => {
-                              const tc = productSummary.reduce((s, b) => s + b.totalCrates, 0);
-                              return Number.isInteger(tc) ? tc : tc.toFixed(1);
-                            })()}
+                            {Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1)}
                           </td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
                             {productSummary.reduce((s, b) => s + b.totalQty, 0)}
