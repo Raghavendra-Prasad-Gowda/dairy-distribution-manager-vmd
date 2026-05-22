@@ -162,7 +162,7 @@ const stockSummary = asyncHandler(async (req, res) => {
         receiptDate: { gte: fromDate, lte: toDate },
         ...(brandFilter ? { brandId: brandFilter } : {}),
       },
-      include: { product: { select: { name: true } }, brand: { select: { name: true } } },
+      include: { product: { select: { name: true, unitsPerContainer: true } }, brand: { select: { name: true } } },
       orderBy: [{ receiptDate: 'asc' }, { brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
     }),
     prisma.stockDispatch.findMany({
@@ -190,12 +190,13 @@ const stockSummary = asyncHandler(async (req, res) => {
   for (const r of receipts) {
     const key = r.receiptDate.toISOString().slice(0, 10);
     ensureDay(key).receipts.push({
-      brandName:   r.brand.name,
-      productName: r.product.name,
-      quantity:    Number(r.quantity),
-      unitPrice:   Number(r.unitPrice),
-      amount:      Number(r.quantity) * Number(r.unitPrice),
-      routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
+      brandName:        r.brand.name,
+      productName:      r.product.name,
+      quantity:         Number(r.quantity),
+      unitPrice:        Number(r.unitPrice),
+      amount:           Number(r.quantity) * Number(r.unitPrice),
+      routeNumber:      r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
+      unitsPerContainer: r.product.unitsPerContainer ?? null,
     });
   }
 
