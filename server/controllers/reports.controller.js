@@ -131,20 +131,28 @@ const salespersonStatement = asyncHandler(async (req, res) => {
 });
 
 const stockSummary = asyncHandler(async (req, res) => {
-  const { date, brandId } = req.query;
-  if (!date) throw new AppError('date query param is required', 400);
+  const { from, to, brandId, date } = req.query;
 
-  const receiptDate  = new Date(date);
-  const brandFilter  = brandId ? parseId(brandId, 'Brand ID') : null;
+  // Support legacy single-date param
+  const fromStr = from ?? date;
+  const toStr   = to   ?? date;
+  if (!fromStr) throw new AppError('from (or date) query param is required', 400);
+
+  const fromDate   = new Date(fromStr);
+  const toDate     = new Date(toStr);
+  const brandFilter = brandId ? parseId(brandId, 'Brand ID') : null;
 
   const [receipts, dispatches, allRoutes] = await Promise.all([
     prisma.stockReceipt.findMany({
-      where: { receiptDate, ...(brandFilter ? { brandId: brandFilter } : {}) },
+      where: {
+        receiptDate: { gte: fromDate, lte: toDate },
+        ...(brandFilter ? { brandId: brandFilter } : {}),
+      },
       include: { product: { select: { name: true } }, brand: { select: { name: true } } },
-      orderBy: [{ brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
+      orderBy: [{ receiptDate: 'asc' }, { brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
     }),
     prisma.stockDispatch.findMany({
-      where: { dispatchDate: receiptDate },
+      where: { dispatchDate: { gte: fromDate, lte: toDate } },
       include: {
         salesperson: { select: { name: true } },
         items: {
@@ -152,40 +160,67 @@ const stockSummary = asyncHandler(async (req, res) => {
           include: { product: { include: { brand: { select: { name: true } } } } },
         },
       },
+      orderBy: [{ dispatchDate: 'asc' }, { salesperson: { name: 'asc' } }],
     }),
     prisma.route.findMany({ select: { id: true, routeNumber: true } }),
   ]);
   const routeMap = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
 
-  // Drop dispatches that have no items after brand filtering
+  // Build date-keyed map
+  const dateMap = new Map();
+  const ensureDay = (key) => {
+    if (!dateMap.has(key)) dateMap.set(key, { date: key, receipts: [], dispatches: [] });
+    return dateMap.get(key);
+  };
+
+  for (const r of receipts) {
+    const key = r.receiptDate.toISOString().slice(0, 10);
+    ensureDay(key).receipts.push({
+      brandName:   r.brand.name,
+      productName: r.product.name,
+      quantity:    Number(r.quantity),
+      unitPrice:   Number(r.unitPrice),
+      amount:      Number(r.quantity) * Number(r.unitPrice),
+      routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
+    });
+  }
+
   const filteredDispatches = brandFilter
     ? dispatches.filter(d => d.items.length > 0)
     : dispatches;
 
+  for (const d of filteredDispatches) {
+    const key = d.dispatchDate.toISOString().slice(0, 10);
+    ensureDay(key).dispatches.push({
+      salespersonName: d.salesperson.name,
+      totalAmount:     d.items.reduce((s, i) => s + Number(i.totalAmount), 0),
+      items: d.items.map((i) => ({
+        brandName:   i.product.brand.name,
+        productName: i.product.name,
+        quantity:    Number(i.quantity),
+        unitPrice:   Number(i.unitPrice),
+        totalAmount: Number(i.totalAmount),
+      })),
+    });
+  }
+
+  const rows = [...dateMap.keys()].sort().map(key => {
+    const day = dateMap.get(key);
+    return {
+      ...day,
+      totalReceived:   day.receipts.reduce((s, r) => s + r.amount, 0),
+      totalDispatched: day.dispatches.reduce((s, d) => s + d.totalAmount, 0),
+    };
+  });
+
   res.json({
     success: true,
     data: {
-      date,
-      receipts: receipts.map((r) => ({
-        brandName:   r.brand.name,
-        productName: r.product.name,
-        quantity:    Number(r.quantity),
-        unitPrice:   Number(r.unitPrice),
-        amount:      Number(r.quantity) * Number(r.unitPrice),
-        routeId:     r.routeId,
-        routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
-      })),
-      dispatches: filteredDispatches.map((d) => ({
-        salespersonName: d.salesperson.name,
-        totalAmount:     d.items.reduce((s, i) => s + Number(i.totalAmount), 0),
-        items: d.items.map((i) => ({
-          brandName:   i.product.brand.name,
-          productName: i.product.name,
-          quantity:    Number(i.quantity),
-          unitPrice:   Number(i.unitPrice),
-          totalAmount: Number(i.totalAmount),
-        })),
-      })),
+      from: fromStr,
+      to:   toStr,
+      grandTotalReceived:   rows.reduce((s, r) => s + r.totalReceived,   0),
+      grandTotalDispatched: rows.reduce((s, r) => s + r.totalDispatched, 0),
+      rows,
     },
   });
 });
