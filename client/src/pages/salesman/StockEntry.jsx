@@ -325,6 +325,8 @@ export default function SalespersonStockEntry() {
     }
   };
 
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
   const isBusy    = saving || submitting || loading;
   const isOwing   = balance.closing > 0;
   const isPast    = date < today;
@@ -669,7 +671,7 @@ export default function SalespersonStockEntry() {
                 Save Draft
               </button>
               <button
-                onClick={handleSaveAndSubmit}
+                onClick={() => setShowSubmitConfirm(true)}
                 disabled={isBusy || filledCount === 0}
                 className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:opacity-40 active:bg-emerald-800 transition shadow-sm"
               >
@@ -679,6 +681,34 @@ export default function SalespersonStockEntry() {
             </div>
           </div>
         )
+      )}
+
+      {/* ── Submit confirmation modal ─────────────────────────────────────────── */}
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="text-base font-bold text-slate-900 mb-1">Submit stock entry?</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              This will lock your entry for{' '}
+              <span className="font-semibold text-slate-700">{date}</span>.
+              You won't be able to make changes without admin approval.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowSubmitConfirm(false); handleSaveAndSubmit(); }}
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold py-2.5 rounded-xl transition text-sm"
+              >
+                Submit &amp; Lock
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

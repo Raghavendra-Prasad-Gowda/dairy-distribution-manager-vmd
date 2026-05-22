@@ -162,8 +162,16 @@ export default function SalespersonCollections() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this collection record?')) return;
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, amount, mode }
+
+  const handleDelete = (id, amount, mode) => {
+    setDeleteConfirm({ id, amount, mode });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
+    setDeleteConfirm(null);
     try {
       await api.delete(`/salesperson-payments/${id}`);
       notify('Record deleted', 'success');
@@ -501,7 +509,7 @@ export default function SalespersonCollections() {
                                       <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
                                         <Pencil size={12} />
                                       </button>
-                                      <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                      <button onClick={() => handleDelete(p.id, p.amount, p.paymentMode)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                                         <Trash2 size={12} />
                                       </button>
                                     </div>
@@ -623,6 +631,34 @@ export default function SalespersonCollections() {
               >
                 {editSaving && <Loader2 size={14} className="animate-spin" />}
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete collection confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="text-base font-bold text-slate-900 mb-1">Delete collection record?</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              This will permanently delete the{' '}
+              <span className="font-semibold text-slate-700">{formatCurrency(deleteConfirm.amount)}</span>{' '}
+              {deleteConfirm.mode ? `via ${deleteConfirm.mode}` : ''} collection record and recalculate the balance.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition text-sm"
+              >
+                Delete
               </button>
             </div>
           </div>
