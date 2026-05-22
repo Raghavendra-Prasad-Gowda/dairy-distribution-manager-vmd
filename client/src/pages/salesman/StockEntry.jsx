@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Save, Loader2, ShoppingCart, TrendingUp, Search, X,
-  ChevronDown, ChevronRight, CheckCircle, AlertCircle, Minus, Plus,
+  ChevronDown, ChevronRight, CheckCircle, AlertCircle, Minus, Plus, Lock,
 } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
@@ -325,8 +325,13 @@ export default function SalespersonStockEntry() {
     }
   };
 
-  const isBusy  = saving || submitting || loading;
-  const isOwing = balance.closing > 0;
+  const isBusy    = saving || submitting || loading;
+  const isOwing   = balance.closing > 0;
+  const isPast    = date < today;
+  // Locked: submitted or past date, unless admin explicitly unlocked it
+  const isLocked  = dispatch
+    ? dispatch.isLocked
+    : isPast; // past date with no dispatch → implicitly locked
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -632,33 +637,48 @@ export default function SalespersonStockEntry() {
 
       {/* ── Sticky action bar ────────────────────────────────────────────────── */}
       {!loading && products.length > 0 && (
-        <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2">
-          {/* Context line */}
-          {filledCount > 0 && (
-            <p className="text-xs text-center text-slate-500 font-medium">
-              {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units ·{' '}
-              <span className="font-bold text-emerald-700">{formatCurrency(grandTotal.value)}</span>
-            </p>
-          )}
-          <div className="flex gap-2.5">
-            <button
-              onClick={handleSave}
-              disabled={isBusy || filledCount === 0}
-              className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-bold text-sm disabled:opacity-40 active:bg-slate-50 transition"
-            >
-              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-              Save Draft
-            </button>
-            <button
-              onClick={handleSaveAndSubmit}
-              disabled={isBusy || filledCount === 0}
-              className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:opacity-40 active:bg-emerald-800 transition shadow-sm"
-            >
-              {submitting ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-              Save &amp; Submit
-            </button>
+        isLocked ? (
+          <div className="flex-shrink-0 bg-slate-800 border-t border-slate-700 px-4 py-3.5 flex items-center gap-3">
+            <Lock size={16} className="text-slate-400 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white leading-tight">
+                {dispatch?.isAdminUnlocked === false && dispatch?.isSubmitted
+                  ? 'Submitted & locked'
+                  : isPast
+                  ? 'Past date — locked'
+                  : 'Locked'}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">Contact your admin to make changes</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2">
+            {filledCount > 0 && (
+              <p className="text-xs text-center text-slate-500 font-medium">
+                {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units ·{' '}
+                <span className="font-bold text-emerald-700">{formatCurrency(grandTotal.value)}</span>
+              </p>
+            )}
+            <div className="flex gap-2.5">
+              <button
+                onClick={handleSave}
+                disabled={isBusy || filledCount === 0}
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-bold text-sm disabled:opacity-40 active:bg-slate-50 transition"
+              >
+                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                Save Draft
+              </button>
+              <button
+                onClick={handleSaveAndSubmit}
+                disabled={isBusy || filledCount === 0}
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:opacity-40 active:bg-emerald-800 transition shadow-sm"
+              >
+                {submitting ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+                Save &amp; Submit
+              </button>
+            </div>
+          </div>
+        )
       )}
 
     </div>

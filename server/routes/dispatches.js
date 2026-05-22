@@ -7,6 +7,7 @@ router.get('/summary',      controller.getSummary);
 router.get('/',             controller.getAll);
 router.post('/',            controller.createOrUpdate);
 router.patch('/:id/submit', controller.submit);
+router.patch('/:id/lock',   controller.lock);
 router.patch('/:id/unlock', controller.unlock);
 router.delete('/:id',       controller.remove);
 

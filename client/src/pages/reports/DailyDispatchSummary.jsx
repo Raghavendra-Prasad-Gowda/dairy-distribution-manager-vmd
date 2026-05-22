@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Loader2, AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -13,6 +13,7 @@ export default function DailyDispatchSummary() {
   const [search, setSearch]                   = useState('');
   const [showZeroQty, setShowZeroQty]         = useState(false);
   const [collapsedBrands, setCollapsedBrands] = useState({});
+  const [lockLoading, setLockLoading]         = useState(false);
 
   useEffect(() => { fetchData(); }, [date]);
 
@@ -88,6 +89,19 @@ export default function DailyDispatchSummary() {
   const expandAll   = () => { const n = {}; tableData.forEach(b => { n[b.brandId] = false; }); setCollapsedBrands(n); };
   const collapseAll = () => { const n = {}; tableData.forEach(b => { n[b.brandId] = true;  }); setCollapsedBrands(n); };
 
+  async function handleLockToggle(dispatchId, currentlyLocked) {
+    setLockLoading(true);
+    try {
+      const action = currentlyLocked ? 'unlock' : 'lock';
+      await api.patch(`/dispatches/${dispatchId}/${action}`);
+      await fetchData();
+    } catch (e) {
+      // silently ignore — fetchData will reset state
+    } finally {
+      setLockLoading(false);
+    }
+  }
+
   function SpRow({ row }) {
     const isSelected = row.salespersonId === selectedSpId;
     return (
@@ -101,9 +115,18 @@ export default function DailyDispatchSummary() {
               : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
           }`}
         >
-          <p className={`text-sm font-semibold leading-tight truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
-            {row.salespersonName}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className={`text-sm font-semibold leading-tight truncate flex-1 ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+              {row.salespersonName}
+            </p>
+            {row.dispatchId && (
+              row.isLocked
+                ? <Lock size={10} className="text-slate-400 flex-shrink-0" />
+                : row.isSubmitted
+                ? <Lock size={10} className="text-emerald-500 flex-shrink-0" />
+                : null
+            )}
+          </div>
           <p className={`text-xs tabular-nums mt-0.5 ${row.totalAmount > 0 ? 'text-emerald-600 font-semibold' : 'text-slate-300'}`}>
             {row.totalAmount > 0 ? formatCurrency(row.totalAmount) : 'No entry'}
           </p>
@@ -194,9 +217,24 @@ export default function DailyDispatchSummary() {
           ) : (
             <div className="flex flex-col flex-1 min-h-0">
 
-              {/* Sub-header: name + expand/collapse + toggle */}
+              {/* Sub-header: name + lock/unlock + expand/collapse + toggle */}
               <div className="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0">
-                <p className="text-sm font-bold text-slate-700 truncate">{selectedRow.salespersonName}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-sm font-bold text-slate-700 truncate">{selectedRow.salespersonName}</p>
+                  {selectedRow.dispatchId && (
+                    selectedRow.isLocked
+                      ? <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          <Lock size={9} /> Locked
+                        </span>
+                      : selectedRow.isSubmitted
+                      ? <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          <Lock size={9} /> Submitted
+                        </span>
+                      : <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          Draft
+                        </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {tableData.length > 1 && (
                     <>
@@ -227,6 +265,25 @@ export default function DailyDispatchSummary() {
                   >
                     {showZeroQty ? 'All products' : 'Entered only'}
                   </button>
+                  {selectedRow.dispatchId && (
+                    <button
+                      type="button"
+                      disabled={lockLoading}
+                      onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked)}
+                      className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border transition whitespace-nowrap disabled:opacity-50 ${
+                        selectedRow.isLocked
+                          ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      {lockLoading
+                        ? <Loader2 size={11} className="animate-spin" />
+                        : selectedRow.isLocked
+                        ? <><LockOpen size={11} /> Unlock</>
+                        : <><Lock size={11} /> Lock</>
+                      }
+                    </button>
+                  )}
                 </div>
               </div>
 

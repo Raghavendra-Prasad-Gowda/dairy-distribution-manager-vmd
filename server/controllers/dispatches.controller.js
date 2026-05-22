@@ -91,6 +91,11 @@ const createOrUpdate = asyncHandler(async (req, res) => {
 
   const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
+  // Block salesman from editing a locked dispatch
+  if (existing && req.user.role === 'salesman' && isEffectivelyLocked(existing, today)) {
+    throw new AppError('This stock entry is locked. Contact your admin to unlock it.', 403);
+  }
+
   let dispatch;
   if (existing) {
     dispatch = await prisma.$transaction(async (tx) => {
@@ -161,6 +166,23 @@ const submit = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry submitted and locked' } });
 });
 
+// Admin locks an entry (regardless of whether salesman submitted)
+const lock = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+
+  const id = parseId(req.params.id, 'Dispatch ID');
+  const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
+  if (!dispatch) throw new AppError('Stock entry not found', 404);
+
+  await prisma.stockDispatch.update({
+    where: { id },
+    data: { isSubmitted: true, isAdminUnlocked: false },
+  });
+
+  logger.info('Stock entry locked by admin', { id, salespersonId: dispatch.salespersonId });
+  res.json({ success: true, data: { message: 'Stock entry locked' } });
+});
+
 // Admin unlocks a submitted or past-date entry so salesman can re-edit
 const unlock = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
@@ -204,4 +226,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
-module.exports = { getAll, getSummary, createOrUpdate, submit, unlock, remove };
+module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, remove };

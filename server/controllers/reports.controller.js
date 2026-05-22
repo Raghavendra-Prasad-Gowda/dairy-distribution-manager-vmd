@@ -336,11 +336,17 @@ const depositSummary = asyncHandler(async (req, res) => {
   });
 });
 
+function getIndiaDateStr() {
+  return new Date().toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 10);
+}
+
 const dailyDispatch = asyncHandler(async (req, res) => {
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
   const dispatchDate = new Date(date);
+  const today = getIndiaDateStr();
+  const isPastDate = date < today;
 
   const [dispatches, allProducts] = await Promise.all([
     prisma.stockDispatch.findMany({
@@ -389,11 +395,16 @@ const dailyDispatch = asyncHandler(async (req, res) => {
       };
       productTotals[item.productId] = (productTotals[item.productId] ?? 0) + Number(item.quantity);
     }
+    const isLocked = (d.isSubmitted || isPastDate) && !d.isAdminUnlocked;
     return {
-      salespersonId:   d.salesperson.id,
-      salespersonName: d.salesperson.name,
+      salespersonId:    d.salesperson.id,
+      salespersonName:  d.salesperson.name,
       items,
-      totalAmount: Number(d.totalAmount),
+      totalAmount:      Number(d.totalAmount),
+      dispatchId:       d.id,
+      isSubmitted:      d.isSubmitted,
+      isAdminUnlocked:  d.isAdminUnlocked,
+      isLocked,
     };
   });
 
