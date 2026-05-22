@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import api from '../api/axios';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -19,17 +20,13 @@ class ErrorBoundary extends Component {
       window.location.reload();
       return;
     }
-    console.error('ErrorBoundary caught:', error, info.componentStack);
-    const base = import.meta.env.VITE_API_BASE_URL ?? '';
-    fetch(`${base}/errors/client`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: error?.message ?? String(error),
-        stack:   (error?.stack ?? '') + '\n\nComponent stack:' + (info?.componentStack ?? ''),
-        page:    window.location.pathname,
-      }),
+    // Report through the singleton axios instance so we inherit baseURL + auth
+    // interceptors, per CLAUDE.md. Errors here are swallowed because the user
+    // is already seeing the fallback UI — nothing useful to do if reporting fails.
+    api.post('/errors/client', {
+      message: error?.message ?? String(error),
+      stack:   (error?.stack ?? '') + '\n\nComponent stack:' + (info?.componentStack ?? ''),
+      page:    window.location.pathname,
     }).catch(() => {});
   }
 

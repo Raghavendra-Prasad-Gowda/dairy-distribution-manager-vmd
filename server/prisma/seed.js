@@ -2,6 +2,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const logger = require('../config/logger');
 
 let _ownClient = null;
 function getClient(externalClient) {
@@ -22,7 +23,7 @@ async function seedFoundationData(externalPrisma) {
   const existing = await prisma.appSettings.findFirst();
   if (!existing) {
     if (!process.env.ADMIN_PASSWORD) {
-      console.warn('⚠️  ADMIN_PASSWORD env var not set — admin account will use insecure default password. Set this in production.');
+      logger.warn('ADMIN_PASSWORD env var not set — admin account will use insecure default password. Set this in production.');
     }
     const rawUsername = process.env.ADMIN_USERNAME || 'admin';
     const rawPassword = process.env.ADMIN_PASSWORD || 'admin123';
@@ -30,7 +31,7 @@ async function seedFoundationData(externalPrisma) {
     await prisma.appSettings.create({
       data: { businessName: 'Vikas Milk Dairy', username: rawUsername, passwordHash },
     });
-    console.log(`✅ Created admin user: ${rawUsername}`);
+    logger.info('Created admin user', { username: rawUsername });
   }
 }
 
@@ -39,6 +40,6 @@ module.exports = { seedFoundationData };
 // Allow running standalone: node prisma/seed.js
 if (require.main === module) {
   seedFoundationData()
-    .catch((e) => { console.error('Seed failed:', e); process.exit(1); })
+    .catch((e) => { logger.error('Seed failed', { message: e.message, stack: e.stack }); process.exit(1); })
     .finally(() => { if (_ownClient) _ownClient.$disconnect(); });
 }
