@@ -31,22 +31,23 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     }
   }
 
-  // Aggregate per-product received totals across the selected date range
+  // Aggregate per-product-per-route received totals across the selected date range
   const productSummary = useMemo(() => {
     if (!data?.rows) return [];
 
-    // brandName → productName → running totals
+    // brandName → composite key (productName::route) → running totals
     const brandMap = new Map();
-    const ensure = (brand, product) => {
+    const ensure = (brand, product, route) => {
       if (!brandMap.has(brand)) brandMap.set(brand, new Map());
-      const pm = brandMap.get(brand);
-      if (!pm.has(product)) pm.set(product, { qty: 0, value: 0, upc: null, costPrice: null });
-      return pm.get(product);
+      const pm  = brandMap.get(brand);
+      const key = `${product}::${route ?? ''}`;
+      if (!pm.has(key)) pm.set(key, { productName: product, routeNumber: route ?? null, qty: 0, value: 0, upc: null, costPrice: null });
+      return pm.get(key);
     };
 
     for (const row of data.rows) {
       for (const r of row.receipts) {
-        const p = ensure(r.brandName, r.productName);
+        const p = ensure(r.brandName, r.productName, r.routeNumber);
         p.qty   += r.quantity;
         p.value += r.amount;
         if (!p.upc && r.unitsPerContainer) p.upc = r.unitsPerContainer;
@@ -57,22 +58,26 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     return Array.from(brandMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([brandName, pm]) => {
-        const products = Array.from(pm.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([productName, t]) => ({
-            productName,
-            qty:       t.qty,
-            value:     t.value,
-            upc:       t.upc,
-            crates:    fmtCrates(t.qty, t.upc),
-            unitPrice: t.costPrice ?? 0,
+        const rows = Array.from(pm.values())
+          .sort((a, b) =>
+            a.productName.localeCompare(b.productName) ||
+            (a.routeNumber ?? '').localeCompare(b.routeNumber ?? '')
+          )
+          .map(t => ({
+            productName: t.productName,
+            routeNumber: t.routeNumber,
+            qty:         t.qty,
+            value:       t.value,
+            upc:         t.upc,
+            crates:      fmtCrates(t.qty, t.upc),
+            unitPrice:   t.costPrice ?? 0,
           }));
 
-        const totalQty   = products.reduce((s, p) => s + p.qty,   0);
-        const totalValue = products.reduce((s, p) => s + p.value,  0);
-        const totalCratesRaw = products.reduce((s, p) => s + (p.upc ? p.qty / p.upc : p.qty), 0);
+        const totalQty    = rows.reduce((s, r) => s + r.qty,   0);
+        const totalValue  = rows.reduce((s, r) => s + r.value,  0);
+        const totalCrates = rows.reduce((s, r) => s + (r.upc ? r.qty / r.upc : r.qty), 0);
 
-        return { brandName, products, totalQty, totalValue, totalCrates: totalCratesRaw };
+        return { brandName, rows, totalQty, totalValue, totalCrates };
       });
   }, [data]);
 
@@ -167,6 +172,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200">
                           <th className="px-4 py-2.5 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2.5 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-wider">Route</th>
                           <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Crates</th>
                           <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quantity</th>
                           <th className="px-3 py-2.5 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Unit Price</th>
@@ -181,27 +187,31 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                               <td className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
                                 {brand.brandName}
                                 <span className="ml-2 font-normal text-emerald-300 normal-case tracking-normal">
-                                  {brand.products.length} product{brand.products.length !== 1 ? 's' : ''}
+                                  {brand.rows.length} row{brand.rows.length !== 1 ? 's' : ''}
                                 </span>
                               </td>
+                              <td className="px-3 py-2 text-emerald-500 text-xs">—</td>
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">
                                 {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
                               </td>
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{brand.totalQty}</td>
-                              <td className="px-3 py-2 text-right text-xs text-emerald-400">—</td>
+                              <td className="px-3 py-2 text-right text-xs text-emerald-500">—</td>
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
                             </tr>
 
-                            {/* Product rows */}
-                            {brand.products.map((p, idx) => (
+                            {/* Product + route rows */}
+                            {brand.rows.map((p, idx) => (
                               <tr
-                                key={p.productName}
+                                key={`${p.productName}::${p.routeNumber ?? ''}`}
                                 className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
                               >
                                 <td className="px-4 py-2.5 pl-7 text-sm font-medium text-slate-800">{p.productName}</td>
-                                <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
-                                  {p.crates}
+                                <td className="px-3 py-2.5">
+                                  {p.routeNumber
+                                    ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{p.routeNumber}</span>
+                                    : <span className="text-slate-300 text-xs">—</span>}
                                 </td>
+                                <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.crates}</td>
                                 <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.qty}</td>
                                 <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">
                                   {p.unitPrice > 0 ? `₹${p.unitPrice % 1 === 0 ? p.unitPrice : p.unitPrice.toFixed(2)}` : '—'}
@@ -216,7 +226,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                       {/* Grand total footer */}
                       <tfoot>
                         <tr className="bg-slate-800">
-                          <td className="px-4 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-wider">Grand Total</td>
+                          <td colSpan={2} className="px-4 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-wider">Grand Total</td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
                             {(() => {
                               const tc = productSummary.reduce((s, b) => s + b.totalCrates, 0);
