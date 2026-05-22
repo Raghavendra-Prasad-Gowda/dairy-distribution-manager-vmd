@@ -55,15 +55,16 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     const ensureProd = (brand, productName) => {
       if (!brandMap.has(brand)) brandMap.set(brand, new Map());
       const bm = brandMap.get(brand);
-      if (!bm.has(productName)) bm.set(productName, { routes: new Map(), upc: null, costPrice: null });
+      if (!bm.has(productName)) bm.set(productName, { routes: new Map(), upc: null, costPrice: null, displayOrder: 0 });
       return bm.get(productName);
     };
 
     for (const row of data.rows) {
       for (const r of row.receipts) {
         const prod = ensureProd(r.brandName, r.productName);
-        if (!prod.upc && r.unitsPerContainer) prod.upc = r.unitsPerContainer;
-        if (!prod.costPrice && r.costPrice)   prod.costPrice = r.costPrice;
+        if (!prod.upc && r.unitsPerContainer)    prod.upc = r.unitsPerContainer;
+        if (!prod.costPrice && r.costPrice)      prod.costPrice = r.costPrice;
+        if (r.displayOrder != null)              prod.displayOrder = r.displayOrder;
 
         const rk = r.routeNumber ?? '';
         if (!prod.routes.has(rk)) prod.routes.set(rk, { routeNumber: r.routeNumber ?? null, qty: 0, value: 0 });
@@ -77,7 +78,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([brandName, bm]) => {
         const products = Array.from(bm.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
+          .sort(([nameA, a], [nameB, b]) => a.displayOrder - b.displayOrder || nameA.localeCompare(nameB))
           .map(([productName, pd]) => {
             const routes = Array.from(pd.routes.values())
               .sort((a, b) => (a.routeNumber ?? '').localeCompare(b.routeNumber ?? ''))
