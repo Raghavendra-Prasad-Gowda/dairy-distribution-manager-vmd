@@ -4,8 +4,7 @@ import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/da
 import api from '../../api/axios';
 
 function fmtCrates(qty, upc) {
-  if (!upc) return null;
-  const c = qty / upc;
+  const c = upc ? qty / upc : qty;
   return Number.isInteger(c) ? String(c) : c.toFixed(1);
 }
 
@@ -71,11 +70,9 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
 
         const totalQty   = products.reduce((s, p) => s + p.qty,   0);
         const totalValue = products.reduce((s, p) => s + p.value,  0);
-        const totalCrates = products.every(p => p.upc)
-          ? products.reduce((s, p) => s + p.qty / p.upc, 0)
-          : null;
+        const totalCratesRaw = products.reduce((s, p) => s + (p.upc ? p.qty / p.upc : p.qty), 0);
 
-        return { brandName, products, totalQty, totalValue, totalCrates };
+        return { brandName, products, totalQty, totalValue, totalCrates: totalCratesRaw };
       });
   }, [data]);
 
@@ -188,9 +185,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">
-                                {brand.totalCrates != null
-                                  ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1))
-                                  : '—'}
+                                {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
                               </td>
                               <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{brand.totalQty}</td>
                               <td className="px-3 py-2 text-right text-xs text-emerald-400">—</td>
@@ -205,7 +200,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                               >
                                 <td className="px-4 py-2.5 pl-7 text-sm font-medium text-slate-800">{p.productName}</td>
                                 <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
-                                  {p.crates ?? <span className="text-slate-300">—</span>}
+                                  {p.crates}
                                 </td>
                                 <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.qty}</td>
                                 <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">
@@ -224,8 +219,8 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                           <td className="px-4 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-wider">Grand Total</td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
                             {(() => {
-                              const tc = productSummary.reduce((s, b) => b.totalCrates != null ? s + b.totalCrates : s, 0);
-                              return productSummary.some(b => b.totalCrates != null) ? (Number.isInteger(tc) ? tc : tc.toFixed(1)) : '—';
+                              const tc = productSummary.reduce((s, b) => s + b.totalCrates, 0);
+                              return Number.isInteger(tc) ? tc : tc.toFixed(1);
                             })()}
                           </td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
