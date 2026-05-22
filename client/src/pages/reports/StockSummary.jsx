@@ -41,7 +41,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     const ensure = (brand, product) => {
       if (!brandMap.has(brand)) brandMap.set(brand, new Map());
       const pm = brandMap.get(brand);
-      if (!pm.has(product)) pm.set(product, { qty: 0, value: 0, upc: null });
+      if (!pm.has(product)) pm.set(product, { qty: 0, value: 0, upc: null, costPrice: null });
       return pm.get(product);
     };
 
@@ -51,6 +51,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
         p.qty   += r.quantity;
         p.value += r.amount;
         if (!p.upc && r.unitsPerContainer) p.upc = r.unitsPerContainer;
+        if (!p.costPrice && r.costPrice)   p.costPrice = r.costPrice;
       }
     }
 
@@ -65,7 +66,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
             value:     t.value,
             upc:       t.upc,
             crates:    fmtCrates(t.qty, t.upc),
-            unitPrice: t.qty > 0 ? t.value / t.qty : 0,
+            unitPrice: t.costPrice ?? 0,
           }));
 
         const totalQty   = products.reduce((s, p) => s + p.qty,   0);
