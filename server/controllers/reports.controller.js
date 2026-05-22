@@ -4,7 +4,17 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { qualifiesForDeposit, calculateLineDeposit } = require('../services/depositRules');
 
+// Defense-in-depth: every report endpoint mounts under requireAdmin in app.js,
+// but if that middleware is ever moved or misconfigured, the controller still
+// refuses. Salespeople have no business reading aggregate reports.
+function assertAdmin(req) {
+  if (req.user?.role !== 'admin') {
+    throw new AppError('Admin access required', 403);
+  }
+}
+
 const dairyStatement = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { brandId, from, to } = req.query;
   if (!brandId || !from || !to) throw new AppError('brandId, from, and to are required', 400);
 
@@ -73,6 +83,7 @@ const dairyStatement = asyncHandler(async (req, res) => {
 });
 
 const salespersonStatement = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { salespersonId, from, to } = req.query;
   if (!salespersonId || !from || !to) throw new AppError('salespersonId, from, and to are required', 400);
 
@@ -132,6 +143,7 @@ const salespersonStatement = asyncHandler(async (req, res) => {
 });
 
 const stockSummary = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { from, to, brandId, date } = req.query;
 
   // Support legacy single-date param
@@ -227,6 +239,7 @@ const stockSummary = asyncHandler(async (req, res) => {
 });
 
 const outstanding = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const [dairyBalances, spBalances] = await Promise.all([
     prisma.dairyBalance.findMany({
       orderBy: { balanceDate: 'desc' },
@@ -259,6 +272,7 @@ const outstanding = asyncHandler(async (req, res) => {
 });
 
 const depositSummary = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { brandId, from, to } = req.query;
   if (!brandId || !from || !to) throw new AppError('brandId, from, and to are required', 400);
 
@@ -368,6 +382,7 @@ function getIndiaDateStr() {
 }
 
 const dailyDispatch = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
@@ -375,9 +390,16 @@ const dailyDispatch = asyncHandler(async (req, res) => {
   const today = getIndiaDateStr();
   const isPastDate = date < today;
 
+  // Scope-by-role: even though the route mounts under requireAdmin, if a
+  // salesman ever lands here we still must not leak other salespeople's data.
+  const dispatchWhere = { dispatchDate };
+  if (req.user.role === 'salesman') {
+    dispatchWhere.salespersonId = req.user.salespersonId;
+  }
+
   const [dispatches, allProducts] = await Promise.all([
     prisma.stockDispatch.findMany({
-      where: { dispatchDate },
+      where: dispatchWhere,
       include: {
         salesperson: { select: { id: true, name: true } },
         items: {

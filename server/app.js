@@ -69,6 +69,15 @@ app.use('/api/v1/auth/login', rateLimit({
   message: 'Too many login attempts, please try again after an hour',
 }));
 
+// Tighter limit on bulk endpoints that fan out large payload work
+const bulkWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many bulk requests, please slow down',
+});
+
 // ─── 6. Cookie parser ────────────────────────────────────────────────────────
 app.use(cookieParser());
 
@@ -95,11 +104,11 @@ app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
 app.use('/api/v1/salespeople',          salespersonPricesRoutes);
 
-// Admin-only salesperson sub-resources
-app.use('/api/v1/salespeople',          requireAdmin, salespersonProductsRoutes);
+// Admin-only salesperson sub-resources (bulk writes — rate-limited)
+app.use('/api/v1/salespeople',          requireAdmin, bulkWriteLimiter, salespersonProductsRoutes);
 
 // Admin-only routes
-app.use('/api/v1/stock-receipts',       requireAdmin, stockReceiptsRoutes);
+app.use('/api/v1/stock-receipts',       requireAdmin, bulkWriteLimiter, stockReceiptsRoutes);
 app.use('/api/v1/dairy-balance',        requireAdmin, dairyBalanceRoutes);
 app.use('/api/v1/dairy-payments',       requireAdmin, dairyPaymentsRoutes);
 app.use('/api/v1/salespeople',          requireAdmin, salespeopleRoutes);
