@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { parseId } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { qualifiesForDeposit, calculateLineDeposit } = require('../services/depositRules');
 
 const dairyStatement = asyncHandler(async (req, res) => {
   const { brandId, from, to } = req.query;
@@ -303,21 +304,12 @@ const depositSummary = asyncHandler(async (req, res) => {
     let dailyDeposit = 0;
 
     for (const r of items) {
-      const { name, category, unitType, unitSize, containerType, depositEnabled, displayOrder } = r.product;
-      const qualifies =
-        brand.depositEnabled &&
-        depositEnabled &&
-        (unitType === 'ml' || unitType === 'gram') &&
-        containerType === 'crate' &&
-        unitSize &&
-        depositPerLitre > 0 &&
-        enabledCategories.has(category ?? '');
+      const { name, category, unitType, unitSize, containerType, displayOrder } = r.product;
+      if (!qualifiesForDeposit(r.product, brand, enabledCategories)) continue;
 
-      if (!qualifies) continue;
-
-      const qty          = Number(r.quantity);
+      const qty            = Number(r.quantity);
       const volumeOrWeight = qty * (Number(unitSize) / 1000);
-      const depositAmount  = Math.round(volumeOrWeight * depositPerLitre * 100) / 100;
+      const depositAmount  = calculateLineDeposit(qty, unitSize, depositPerLitre);
 
       // Accumulate per product (multiple routes → single line)
       const existing = depositItems.find(i => i.productName === name);

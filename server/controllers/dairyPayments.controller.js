@@ -10,10 +10,13 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createDairyPayment, req, res);
   if (!data) return;
 
-  const payment = await prisma.dairyPayment.create({
-    data: { ...data, paymentDate: new Date(data.paymentDate) },
-  });
-  await recalculateDairyBalance(data.brandId, data.paymentDate);
+  const payment = await prisma.$transaction(async (tx) => {
+    const created = await tx.dairyPayment.create({
+      data: { ...data, paymentDate: new Date(data.paymentDate) },
+    });
+    await recalculateDairyBalance(data.brandId, data.paymentDate, tx);
+    return created;
+  }, { isolationLevel: 'Serializable' });
   logger.info('Dairy payment created', { id: payment.id, brandId: data.brandId, amount: data.amount, date: data.paymentDate });
   void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_RECORDED, {
     brandId:     data.brandId,
@@ -50,15 +53,22 @@ const update = asyncHandler(async (req, res) => {
   const existing = await prisma.dairyPayment.findUnique({ where: { id } });
   if (!existing) throw new AppError('Payment not found', 404);
 
-  const updated = await prisma.dairyPayment.update({
-    where: { id },
-    data: { ...data, paymentDate: new Date(data.paymentDate) },
-  });
-
   const oldDate = existing.paymentDate.toISOString().slice(0, 10);
   const newDate = data.paymentDate;
-  await recalculateDairyBalance(existing.brandId, oldDate);
-  if (newDate !== oldDate) await recalculateDairyBalance(existing.brandId, newDate);
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.dairyPayment.update({
+      where: { id },
+      data: { ...data, paymentDate: new Date(data.paymentDate) },
+    });
+    // Cascade the older date first; if the date changed, the new date too.
+    const earliest = oldDate < newDate ? oldDate : newDate;
+    await recalculateDairyBalance(existing.brandId, earliest, tx);
+    if (newDate !== oldDate) {
+      const later = oldDate < newDate ? newDate : oldDate;
+      await recalculateDairyBalance(existing.brandId, later, tx);
+    }
+    return u;
+  }, { isolationLevel: 'Serializable' });
   logger.info('Dairy payment updated', { id, brandId: existing.brandId, amount: data.amount, date: newDate });
   void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_UPDATED, {
     brandId:     existing.brandId,
@@ -75,9 +85,11 @@ const remove = asyncHandler(async (req, res) => {
   const payment = await prisma.dairyPayment.findUnique({ where: { id } });
   if (!payment) throw new AppError('Payment not found', 404);
 
-  await prisma.dairyPayment.delete({ where: { id } });
   const dateStr = payment.paymentDate.toISOString().slice(0, 10);
-  await recalculateDairyBalance(payment.brandId, dateStr);
+  await prisma.$transaction(async (tx) => {
+    await tx.dairyPayment.delete({ where: { id } });
+    await recalculateDairyBalance(payment.brandId, dateStr, tx);
+  }, { isolationLevel: 'Serializable' });
   logger.info('Dairy payment deleted', { id, brandId: payment.brandId, amount: Number(payment.amount), date: dateStr });
   void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_DELETED, {
     brandId: payment.brandId,

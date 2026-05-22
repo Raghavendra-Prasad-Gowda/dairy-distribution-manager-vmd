@@ -74,19 +74,26 @@ const bulkCreate = asyncHandler(async (req, res) => {
   const routeId = data.routeId ?? 0;
   const nonZeroItems = data.items.filter(item => item.quantity > 0);
 
-  // Full replace: delete all existing receipts for this brand+date+route, then insert non-zero
-  await prisma.$transaction([
-    prisma.stockReceipt.deleteMany({
+  // Full replace + balance cascade in one serializable transaction so two
+  // concurrent saves can't lose each other's items or race on balance writes.
+  await prisma.$transaction(async (tx) => {
+    await tx.stockReceipt.deleteMany({
       where: { brandId: data.brandId, receiptDate, routeId },
-    }),
-    ...nonZeroItems.map(item =>
-      prisma.stockReceipt.create({
-        data: { brandId: data.brandId, productId: item.productId, routeId, receiptDate, quantity: item.quantity, unitPrice: item.unitPrice },
-      })
-    ),
-  ]);
-
-  await recalculateDairyBalance(data.brandId, data.date);
+    });
+    if (nonZeroItems.length) {
+      await tx.stockReceipt.createMany({
+        data: nonZeroItems.map(item => ({
+          brandId:    data.brandId,
+          productId:  item.productId,
+          routeId,
+          receiptDate,
+          quantity:   item.quantity,
+          unitPrice:  item.unitPrice,
+        })),
+      });
+    }
+    await recalculateDairyBalance(data.brandId, data.date, tx);
+  }, { isolationLevel: 'Serializable' });
 
   const totalValue = nonZeroItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const totalUnits = nonZeroItems.reduce((s, i) => s + i.quantity, 0);

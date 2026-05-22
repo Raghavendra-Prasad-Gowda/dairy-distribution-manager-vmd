@@ -3,6 +3,7 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+const { validateDispatchStock } = require('../services/stockGuard');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -96,9 +97,18 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     throw new AppError('This stock entry is locked. Contact your admin to unlock it.', 403);
   }
 
-  let dispatch;
-  if (existing) {
-    dispatch = await prisma.$transaction(async (tx) => {
+  // Stock-availability guard: requested qty must not exceed (received − already dispatched)
+  const stockErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
+  if (stockErrors.length) {
+    const detail = stockErrors
+      .map(e => `${e.productName} (need ${e.requested}, have ${e.available})`)
+      .join('; ');
+    throw new AppError(`Insufficient stock: ${detail}`, 400);
+  }
+
+  const dispatch = await prisma.$transaction(async (tx) => {
+    let saved;
+    if (existing) {
       await tx.stockDispatchItem.deleteMany({ where: { dispatchId: existing.id } });
       await tx.stockDispatch.update({
         where: { id: existing.id },
@@ -113,29 +123,32 @@ const createOrUpdate = asyncHandler(async (req, res) => {
           totalAmount: item.quantity * item.unitPrice,
         })),
       });
-      return tx.stockDispatch.findUnique({ where: { id: existing.id }, include: { items: true } });
-    });
-  } else {
-    dispatch = await prisma.stockDispatch.create({
-      data: {
-        salespersonId,
-        dispatchDate,
-        totalAmount,
-        notes: data.notes ?? null,
-        items: {
-          create: data.items.map((item) => ({
-            productId:   item.productId,
-            quantity:    item.quantity,
-            unitPrice:   item.unitPrice,
-            totalAmount: item.quantity * item.unitPrice,
-          })),
+      saved = await tx.stockDispatch.findUnique({ where: { id: existing.id }, include: { items: true } });
+    } else {
+      saved = await tx.stockDispatch.create({
+        data: {
+          salespersonId,
+          dispatchDate,
+          totalAmount,
+          notes: data.notes ?? null,
+          items: {
+            create: data.items.map((item) => ({
+              productId:   item.productId,
+              quantity:    item.quantity,
+              unitPrice:   item.unitPrice,
+              totalAmount: item.quantity * item.unitPrice,
+            })),
+          },
         },
-      },
-      include: { items: true },
-    });
-  }
+        include: { items: true },
+      });
+    }
+    // Cascade balance recalculation inside the same transaction so concurrent
+    // edits can't interleave dispatch writes with balance reads.
+    await recalculateSalespersonBalance(salespersonId, data.dispatchDate, tx);
+    return saved;
+  }, { isolationLevel: 'Serializable' });
 
-  await recalculateSalespersonBalance(salespersonId, data.dispatchDate);
   logger.info('Stock entry saved', { id: dispatch.id, salespersonId, date: data.dispatchDate, total: totalAmount, action: existing ? 'update' : 'create' });
   void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
     salespersonId,
@@ -214,9 +227,11 @@ const remove = asyncHandler(async (req, res) => {
     throw new AppError('This stock entry is locked. Contact admin to unlock.', 403);
   }
 
-  await prisma.stockDispatch.delete({ where: { id } });
   const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
-  await recalculateSalespersonBalance(dispatch.salespersonId, dateStr);
+  await prisma.$transaction(async (tx) => {
+    await tx.stockDispatch.delete({ where: { id } });
+    await recalculateSalespersonBalance(dispatch.salespersonId, dateStr, tx);
+  }, { isolationLevel: 'Serializable' });
   logger.info('Stock entry deleted', { id, salespersonId: dispatch.salespersonId, date: dateStr });
   void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
     salespersonId: dispatch.salespersonId,

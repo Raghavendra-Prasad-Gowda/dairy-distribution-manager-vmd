@@ -13,10 +13,13 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createSalespersonPayment, req, res);
   if (!data) return;
 
-  const payment = await prisma.salespersonPayment.create({
-    data: { ...data, paymentDate: new Date(data.paymentDate) },
-  });
-  await recalculateSalespersonBalance(data.salespersonId, data.paymentDate);
+  const payment = await prisma.$transaction(async (tx) => {
+    const created = await tx.salespersonPayment.create({
+      data: { ...data, paymentDate: new Date(data.paymentDate) },
+    });
+    await recalculateSalespersonBalance(data.salespersonId, data.paymentDate, tx);
+    return created;
+  }, { isolationLevel: 'Serializable' });
   logger.info('Salesperson payment created', { id: payment.id, salespersonId: data.salespersonId, amount: data.amount, date: data.paymentDate });
   void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED, {
     salespersonId: data.salespersonId,
@@ -64,15 +67,21 @@ const update = asyncHandler(async (req, res) => {
   const existing = await prisma.salespersonPayment.findUnique({ where: { id } });
   if (!existing) throw new AppError('Payment not found', 404);
 
-  const updated = await prisma.salespersonPayment.update({
-    where: { id },
-    data: { ...data, paymentDate: new Date(data.paymentDate) },
-  });
-
   const oldDate = existing.paymentDate.toISOString().slice(0, 10);
   const newDate = data.paymentDate;
-  await recalculateSalespersonBalance(existing.salespersonId, oldDate);
-  if (newDate !== oldDate) await recalculateSalespersonBalance(existing.salespersonId, newDate);
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.salespersonPayment.update({
+      where: { id },
+      data: { ...data, paymentDate: new Date(data.paymentDate) },
+    });
+    const earliest = oldDate < newDate ? oldDate : newDate;
+    await recalculateSalespersonBalance(existing.salespersonId, earliest, tx);
+    if (newDate !== oldDate) {
+      const later = oldDate < newDate ? newDate : oldDate;
+      await recalculateSalespersonBalance(existing.salespersonId, later, tx);
+    }
+    return u;
+  }, { isolationLevel: 'Serializable' });
   logger.info('Salesperson payment updated', { id, salespersonId: existing.salespersonId, amount: data.amount, date: newDate });
   void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED, {
     salespersonId: existing.salespersonId,
@@ -92,9 +101,11 @@ const remove = asyncHandler(async (req, res) => {
   const payment = await prisma.salespersonPayment.findUnique({ where: { id } });
   if (!payment) throw new AppError('Payment not found', 404);
 
-  await prisma.salespersonPayment.delete({ where: { id } });
   const dateStr = payment.paymentDate.toISOString().slice(0, 10);
-  await recalculateSalespersonBalance(payment.salespersonId, dateStr);
+  await prisma.$transaction(async (tx) => {
+    await tx.salespersonPayment.delete({ where: { id } });
+    await recalculateSalespersonBalance(payment.salespersonId, dateStr, tx);
+  }, { isolationLevel: 'Serializable' });
   logger.info('Salesperson payment deleted', { id, salespersonId: payment.salespersonId, amount: Number(payment.amount), date: dateStr });
   void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED, {
     salespersonId: payment.salespersonId,
