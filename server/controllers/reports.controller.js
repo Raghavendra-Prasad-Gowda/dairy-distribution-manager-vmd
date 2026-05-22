@@ -3,6 +3,7 @@ const { parseId } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { qualifiesForDeposit, calculateLineDeposit } = require('../services/depositRules');
+const { getIndiaDateStr } = require('../utils/dateUtils');
 
 // Defense-in-depth: every report endpoint mounts under requireAdmin in app.js,
 // but if that middleware is ever moved or misconfigured, the controller still
@@ -325,12 +326,13 @@ const depositSummary = asyncHandler(async (req, res) => {
       const volumeOrWeight = qty * (Number(unitSize) / 1000);
       const depositAmount  = calculateLineDeposit(qty, unitSize, depositPerLitre);
 
-      // Accumulate per product (multiple routes → single line)
+      // Accumulate per product (multiple routes → single line). Keep full
+      // precision during accumulation — round only at the response boundary.
       const existing = depositItems.find(i => i.productName === name);
       if (existing) {
-        existing.quantity      += qty;
-        existing.volumeOrWeight = parseFloat((existing.volumeOrWeight + volumeOrWeight).toFixed(3));
-        existing.depositAmount  = parseFloat((existing.depositAmount + depositAmount).toFixed(4));
+        existing.quantity       += qty;
+        existing.volumeOrWeight += volumeOrWeight;
+        existing.depositAmount  += depositAmount;
       } else {
         depositItems.push({
           productName:          name,
@@ -340,9 +342,9 @@ const depositSummary = asyncHandler(async (req, res) => {
           unitType,
           quantity:             qty,
           unitSize:             Number(unitSize),
-          volumeOrWeight:       parseFloat(volumeOrWeight.toFixed(3)),
+          volumeOrWeight,
           depositPerLitre,
-          depositAmount:        parseFloat(depositAmount.toFixed(4)),
+          depositAmount,
         });
       }
     }
@@ -357,29 +359,32 @@ const depositSummary = asyncHandler(async (req, res) => {
     runningTotal += dailyDeposit;
     rows.push({
       date,
-      dailyDeposit:  parseFloat(dailyDeposit.toFixed(4)),
-      runningTotal:  parseFloat(runningTotal.toFixed(4)),
-      items:         depositItems,
+      dailyDeposit:  round2(dailyDeposit),
+      runningTotal:  round2(runningTotal),
+      items: depositItems.map(i => ({
+        ...i,
+        volumeOrWeight: round3(i.volumeOrWeight),
+        depositAmount:  round2(i.depositAmount),
+      })),
     });
   }
 
   res.json({
     success: true,
     data: {
-      brandName:         brand.name,
-      depositEnabled:    brand.depositEnabled,
+      brandName:      brand.name,
+      depositEnabled: brand.depositEnabled,
       depositPerLitre,
       from,
       to,
-      totalDeposit: parseFloat(runningTotal.toFixed(4)),
+      totalDeposit:   round2(runningTotal),
       rows,
     },
   });
 });
 
-function getIndiaDateStr() {
-  return new Date().toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 10);
-}
+function round2(n) { return Math.round(n * 100) / 100; }
+function round3(n) { return Math.round(n * 1000) / 1000; }
 
 const dailyDispatch = asyncHandler(async (req, res) => {
   assertAdmin(req);

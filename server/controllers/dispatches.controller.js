@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
 const { validateDispatchStock } = require('../services/stockGuard');
+const { getIndiaDateStr } = require('../utils/dateUtils');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -12,10 +13,6 @@ function isEffectivelyLocked(dispatch, todayStr) {
   const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
   const isPastDate = dateStr < todayStr;
   return (dispatch.isSubmitted || isPastDate) && !dispatch.isAdminUnlocked;
-}
-
-function getIndiaDateStr() {
-  return new Date().toLocaleString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 10);
 }
 
 const getAll = asyncHandler(async (req, res) => {

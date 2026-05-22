@@ -41,9 +41,13 @@ export function getFirstDayOfMonth() {
   return d.slice(0, 8) + '01';
 }
 
-/** Formats as "Tuesday, April 8, 2026" */
+/** Formats as "Tuesday, April 8, 2026" — parses without timezone drift */
 export function formatDateDisplay(dateStr) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+  // Parse YYYY-MM-DD as a local-calendar date. Using `new Date(dateStr +
+  // 'T00:00:00')` is UTC-anchored — on a browser west of UTC, it formats
+  // back as the previous day. We split and construct so the date stays put.
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

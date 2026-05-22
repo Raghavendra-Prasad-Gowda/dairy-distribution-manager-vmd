@@ -111,8 +111,11 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
+    // Server returns effectiveFrom as a UTC-midnight ISO string for DATE columns.
+    // Slice the date prefix directly — avoids the new Date() round-trip that would
+    // drift on non-IST browsers.
     const currentEffectiveFrom = p.costPrices?.[0]?.effectiveFrom
-      ? new Date(p.costPrices[0].effectiveFrom).toISOString().slice(0, 10)
+      ? String(p.costPrices[0].effectiveFrom).slice(0, 10)
       : getIndiaDate();
     setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: currentEffectiveFrom });
     setIsModalOpen(true);
