@@ -14,6 +14,7 @@ export default function DailyDispatchSummary() {
   const [showZeroQty, setShowZeroQty]         = useState(false);
   const [collapsedBrands, setCollapsedBrands] = useState({});
   const [lockLoading, setLockLoading]         = useState(false);
+  const [lockConfirm, setLockConfirm]         = useState(null); // { dispatchId, isLocked, name }
 
   useEffect(() => { fetchData(); }, [date]);
 
@@ -89,14 +90,21 @@ export default function DailyDispatchSummary() {
   const expandAll   = () => { const n = {}; tableData.forEach(b => { n[b.brandId] = false; }); setCollapsedBrands(n); };
   const collapseAll = () => { const n = {}; tableData.forEach(b => { n[b.brandId] = true;  }); setCollapsedBrands(n); };
 
-  async function handleLockToggle(dispatchId, currentlyLocked) {
+  function handleLockToggle(dispatchId, currentlyLocked, name) {
+    setLockConfirm({ dispatchId, isLocked: currentlyLocked, name });
+  }
+
+  async function confirmLockToggle() {
+    if (!lockConfirm) return;
+    const { dispatchId, isLocked } = lockConfirm;
+    setLockConfirm(null);
     setLockLoading(true);
     try {
-      const action = currentlyLocked ? 'unlock' : 'lock';
+      const action = isLocked ? 'unlock' : 'lock';
       await api.patch(`/dispatches/${dispatchId}/${action}`);
       await fetchData();
     } catch (e) {
-      // silently ignore — fetchData will reset state
+      // fetchData will reset state
     } finally {
       setLockLoading(false);
     }
@@ -269,7 +277,7 @@ export default function DailyDispatchSummary() {
                     <button
                       type="button"
                       disabled={lockLoading}
-                      onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked)}
+                      onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
                       className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border transition whitespace-nowrap disabled:opacity-50 ${
                         selectedRow.isLocked
                           ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
@@ -407,6 +415,41 @@ export default function DailyDispatchSummary() {
           )}
         </div>
       </div>
+
+      {/* Lock / Unlock confirmation modal */}
+      {lockConfirm && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              {lockConfirm.isLocked ? 'Unlock entry?' : 'Lock entry?'}
+            </h3>
+            <p className="text-sm text-slate-500 mb-5">
+              {lockConfirm.isLocked
+                ? <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be unlocked so they can edit it again.</>
+                : <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be locked and they won't be able to make changes.</>
+              }
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setLockConfirm(null)}
+                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLockToggle}
+                className={`flex-1 font-semibold py-2.5 rounded-xl transition text-sm text-white ${
+                  lockConfirm.isLocked
+                    ? 'bg-amber-500 hover:bg-amber-600'
+                    : 'bg-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                {lockConfirm.isLocked ? 'Unlock' : 'Lock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

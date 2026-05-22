@@ -576,7 +576,7 @@ export default function SalespersonStockEntry() {
                                   type="button"
                                   onPointerDown={e => e.preventDefault()}
                                   onClick={() => handleDecrement(p.productId)}
-                                  disabled={noPrice || qtyNum <= 0}
+                                  disabled={noPrice || qtyNum <= 0 || isLocked}
                                   className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 disabled:opacity-25 active:bg-slate-200 active:scale-95 transition select-none"
                                 >
                                   <Minus size={16} />
@@ -588,12 +588,12 @@ export default function SalespersonStockEntry() {
                                   type="number"
                                   inputMode="decimal"
                                   value={qtyVal}
-                                  onChange={e => setQty(prev => ({ ...prev, [p.productId]: e.target.value }))}
+                                  onChange={e => !isLocked && setQty(prev => ({ ...prev, [p.productId]: e.target.value }))}
                                   onKeyDown={e => handleKeyDown(e, p.productId)}
                                   step="1"
                                   min="0"
                                   placeholder="0"
-                                  disabled={noPrice}
+                                  disabled={noPrice || isLocked}
                                   className="flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums disabled:bg-slate-50 disabled:text-slate-300 border-slate-200 text-slate-900 bg-white"
                                 />
 
@@ -602,7 +602,7 @@ export default function SalespersonStockEntry() {
                                   type="button"
                                   onPointerDown={e => e.preventDefault()}
                                   onClick={() => handleIncrement(p.productId)}
-                                  disabled={noPrice}
+                                  disabled={noPrice || isLocked}
                                   className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center text-white disabled:opacity-25 active:bg-emerald-700 active:scale-95 transition select-none"
                                 >
                                   <Plus size={16} />
