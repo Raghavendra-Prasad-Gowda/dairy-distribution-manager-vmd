@@ -206,7 +206,7 @@ export default function StockBalanceSummary() {
                     {spRows.map((row, idx) => (
                       <tr key={row.salespersonId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
                         <td
-                          className={`sticky left-0 z-10 px-3 py-2 text-sm font-semibold text-slate-800 border-b border-r border-slate-100 whitespace-nowrap ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}
+                          className={`sticky left-0 z-[1] px-3 py-2 text-sm font-semibold text-slate-800 border-b border-r border-slate-100 whitespace-nowrap ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}
                           style={{ minWidth: 160 }}
                         >
                           {row.salespersonName}

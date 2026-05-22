@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, AlertCircle, Package, Truck, ChevronDown, ChevronRight } from 'lucide-react';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -202,6 +202,52 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
 
   const multiBrand = !shellActiveBrandId;
 
+  // Aggregate per-product totals across the selected date range
+  const productSummary = useMemo(() => {
+    if (!data?.rows) return [];
+
+    // brandName → productName → running totals
+    const brandMap = new Map();
+    const ensure = (brand, product) => {
+      if (!brandMap.has(brand)) brandMap.set(brand, new Map());
+      const pm = brandMap.get(brand);
+      if (!pm.has(product)) pm.set(product, { receivedQty: 0, receivedValue: 0, dispatchedQty: 0, dispatchedValue: 0 });
+      return pm.get(product);
+    };
+
+    for (const row of data.rows) {
+      for (const r of row.receipts) {
+        const p = ensure(r.brandName, r.productName);
+        p.receivedQty   += r.quantity;
+        p.receivedValue += r.amount;
+      }
+      for (const d of row.dispatches) {
+        for (const item of d.items) {
+          const p = ensure(item.brandName, item.productName);
+          p.dispatchedQty   += item.quantity;
+          p.dispatchedValue += item.totalAmount;
+        }
+      }
+    }
+
+    return Array.from(brandMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([brandName, pm]) => {
+        const products = Array.from(pm.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([productName, t]) => ({ productName, ...t, remainingQty: t.receivedQty - t.dispatchedQty }));
+        return {
+          brandName,
+          products,
+          totalReceivedQty:   products.reduce((s, p) => s + p.receivedQty,   0),
+          totalReceivedValue: products.reduce((s, p) => s + p.receivedValue,  0),
+          totalDispatchedQty: products.reduce((s, p) => s + p.dispatchedQty,  0),
+          totalDispatchedValue: products.reduce((s, p) => s + p.dispatchedValue, 0),
+          totalRemaining:     products.reduce((s, p) => s + p.remainingQty,  0),
+        };
+      });
+  }, [data]);
+
   return (
     <div className="flex flex-col h-full">
 
@@ -273,6 +319,78 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                   }`}>{formatCurrency(data.grandTotalReceived - data.grandTotalDispatched)}</span>
                 </div>
               </div>
+
+              {/* Product-level period summary */}
+              {productSummary.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-700 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold text-white">Period Summary</h2>
+                      <p className="text-xs text-slate-400">
+                        All products — {data.rows.length} day{data.rows.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border-separate border-spacing-0">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200">
+                          <th className="px-4 py-2.5 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap">Rcvd Qty</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap">Rcvd (₹)</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap">Disp Qty</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap">Disp (₹)</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Remaining</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productSummary.map(brand => (
+                          <>
+                            {/* Brand header row */}
+                            <tr key={brand.brandName} className="bg-emerald-700">
+                              <td className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                                {brand.brandName}
+                                <span className="ml-2 font-normal text-emerald-300 normal-case tracking-normal">
+                                  {brand.products.length} product{brand.products.length !== 1 ? 's' : ''}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-right text-xs font-bold text-blue-200 tabular-nums">{brand.totalReceivedQty}</td>
+                              <td className="px-3 py-2 text-right text-xs font-bold text-blue-200 tabular-nums">{formatCurrency(brand.totalReceivedValue)}</td>
+                              <td className="px-3 py-2 text-right text-xs font-bold text-amber-200 tabular-nums">{brand.totalDispatchedQty || '—'}</td>
+                              <td className="px-3 py-2 text-right text-xs font-bold text-amber-200 tabular-nums">{brand.totalDispatchedValue > 0 ? formatCurrency(brand.totalDispatchedValue) : '—'}</td>
+                              <td className={`px-3 py-2 text-right text-xs font-bold tabular-nums ${brand.totalRemaining > 0 ? 'text-emerald-300' : brand.totalRemaining < 0 ? 'text-red-300' : 'text-slate-400'}`}>
+                                {brand.totalRemaining}
+                              </td>
+                            </tr>
+                            {/* Product rows */}
+                            {brand.products.map((p, idx) => (
+                              <tr
+                                key={p.productName}
+                                className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                              >
+                                <td className="px-4 py-2.5 pl-7 text-sm font-medium text-slate-800">{p.productName}</td>
+                                <td className="px-3 py-2.5 text-right font-bold text-blue-700 tabular-nums">{p.receivedQty}</td>
+                                <td className="px-3 py-2.5 text-right text-blue-600 tabular-nums">{formatCurrency(p.receivedValue)}</td>
+                                <td className="px-3 py-2.5 text-right font-bold text-amber-700 tabular-nums">
+                                  {p.dispatchedQty > 0 ? p.dispatchedQty : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-amber-600 tabular-nums">
+                                  {p.dispatchedValue > 0 ? formatCurrency(p.dispatchedValue) : <span className="text-slate-300">—</span>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-bold tabular-nums">
+                                  <span className={p.remainingQty > 0 ? 'text-emerald-600' : p.remainingQty < 0 ? 'text-red-600' : 'text-slate-400'}>
+                                    {p.remainingQty}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Per-day table */}
               {data.rows.length === 0 ? (
