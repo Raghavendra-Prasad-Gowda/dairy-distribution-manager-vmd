@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Search, Loader2, Layers, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -116,14 +117,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     <div className="flex flex-col h-full">
 
       {/* Loading overlay */}
-      {submitting && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">Processing…</p>
-          </div>
-        </div>
-      )}
+      <LoadingOverlay open={submitting} message="Processing…" />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (

@@ -78,13 +78,13 @@ function DayRow({ row, multiBrand }) {
                   <div className="overflow-x-auto rounded-lg border border-slate-200">
                     <table className="min-w-full text-xs">
                       <thead>
-                        <tr className="bg-blue-600">
-                          {multiBrand && <th className="px-3 py-2 text-left font-bold text-white">Brand</th>}
-                          {hasRoutes  && <th className="px-3 py-2 text-left font-bold text-white">Route</th>}
-                          <th className="px-3 py-2 text-left font-bold text-white">Product</th>
-                          <th className="px-3 py-2 text-right font-bold text-white">Qty</th>
-                          <th className="px-3 py-2 text-right font-bold text-white">Price</th>
-                          <th className="px-3 py-2 text-right font-bold text-white">Amount</th>
+                        <tr className="bg-blue-50 border-b border-blue-200">
+                          {multiBrand && <th className="px-3 py-2 text-left text-[11px] font-bold text-blue-700 uppercase tracking-wider">Brand</th>}
+                          {hasRoutes  && <th className="px-3 py-2 text-left text-[11px] font-bold text-blue-700 uppercase tracking-wider">Route</th>}
+                          <th className="px-3 py-2 text-left text-[11px] font-bold text-blue-700 uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-bold text-blue-700 uppercase tracking-wider">Qty</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-bold text-blue-700 uppercase tracking-wider">Price</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-bold text-blue-700 uppercase tracking-wider">Amount</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100">
@@ -126,13 +126,13 @@ function DayRow({ row, multiBrand }) {
                   <div className="overflow-x-auto rounded-lg border border-slate-200">
                     <table className="min-w-full text-xs">
                       <thead>
-                        <tr className="bg-emerald-700">
-                          <th className="px-3 py-2 text-left font-bold text-white">Salesperson</th>
-                          {multiBrand && <th className="px-3 py-2 text-left font-bold text-white">Brand</th>}
-                          <th className="px-3 py-2 text-left font-bold text-white">Product</th>
-                          <th className="px-3 py-2 text-right font-bold text-white">Qty</th>
-                          <th className="px-3 py-2 text-right font-bold text-white">Price</th>
-                          <th className="px-3 py-2 text-right font-bold text-white">Amount</th>
+                        <tr className="bg-emerald-50 border-b border-emerald-200">
+                          <th className="px-3 py-2 text-left text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Salesperson</th>
+                          {multiBrand && <th className="px-3 py-2 text-left text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Brand</th>}
+                          <th className="px-3 py-2 text-left text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Qty</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Price</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Amount</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100">

@@ -3,6 +3,8 @@ import { Loader2, AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight,
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 
 export default function DailyDispatchSummary() {
   const [date, setDate]                       = useState(getIndiaDate());
@@ -417,39 +419,36 @@ export default function DailyDispatchSummary() {
       </div>
 
       {/* Lock / Unlock confirmation modal */}
-      {lockConfirm && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <h3 className="text-base font-bold text-slate-900 mb-1">
-              {lockConfirm.isLocked ? 'Unlock entry?' : 'Lock entry?'}
-            </h3>
-            <p className="text-sm text-slate-500 mb-5">
-              {lockConfirm.isLocked
-                ? <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be unlocked so they can edit it again.</>
-                : <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be locked and they won't be able to make changes.</>
-              }
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setLockConfirm(null)}
-                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmLockToggle}
-                className={`flex-1 font-semibold py-2.5 rounded-xl transition text-sm text-white ${
-                  lockConfirm.isLocked
-                    ? 'bg-amber-500 hover:bg-amber-600'
-                    : 'bg-slate-700 hover:bg-slate-800'
-                }`}
-              >
-                {lockConfirm.isLocked ? 'Unlock' : 'Lock'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!lockConfirm}
+        onClose={() => setLockConfirm(null)}
+        title={lockConfirm?.isLocked ? 'Unlock entry?' : 'Lock entry?'}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setLockConfirm(null)}>Cancel</Button>
+            <button
+              onClick={confirmLockToggle}
+              className={`inline-flex items-center justify-center gap-2 font-semibold px-4 py-2.5 rounded-xl transition text-sm text-white shadow-sm ${
+                lockConfirm?.isLocked
+                  ? 'bg-amber-500 hover:bg-amber-600'
+                  : 'bg-slate-700 hover:bg-slate-800'
+              }`}
+            >
+              {lockConfirm?.isLocked ? 'Unlock' : 'Lock'}
+            </button>
+          </>
+        }
+      >
+        {lockConfirm && (
+          <p className="text-sm text-slate-500">
+            {lockConfirm.isLocked
+              ? <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be unlocked so they can edit it again.</>
+              : <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be locked and they won't be able to make changes.</>
+            }
+          </p>
+        )}
+      </Modal>
 
     </div>
   );

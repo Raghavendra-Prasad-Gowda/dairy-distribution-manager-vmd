@@ -6,6 +6,8 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 
 const MODE_COLORS = {
   Cash:   'bg-emerald-100 text-emerald-700',
@@ -47,7 +49,7 @@ function SpBalanceCard({ sp, balance }) {
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
           {isOwing ? 'To Collect' : 'Settled'}
         </p>
-        <p className={`text-3xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
           {formatCurrency(Math.abs(balance?.closingBalance ?? 0))}
         </p>
       </div>
@@ -638,32 +640,26 @@ export default function SalespersonCollections() {
       )}
 
       {/* Delete collection confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Delete collection record?</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              This will permanently delete the{' '}
-              <span className="font-semibold text-slate-700">{formatCurrency(deleteConfirm.amount)}</span>{' '}
-              {deleteConfirm.mode ? `via ${deleteConfirm.mode}` : ''} collection record and recalculate the balance.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition text-sm"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete collection record?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+          </>
+        }
+      >
+        {deleteConfirm && (
+          <p className="text-sm text-slate-500">
+            This will permanently delete the{' '}
+            <span className="font-semibold text-slate-700">{formatCurrency(deleteConfirm.amount)}</span>{' '}
+            {deleteConfirm.mode ? `via ${deleteConfirm.mode}` : ''} collection record and recalculate the balance.
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }

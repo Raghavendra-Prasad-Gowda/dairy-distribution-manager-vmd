@@ -95,15 +95,15 @@ export default function PaymentForm({
         {hasBalance && (
           <div className="flex gap-2 mt-2">
             <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.5).toFixed(2) }))}
-              className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-1.5 transition">
+              className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
               50%
             </button>
             <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.75).toFixed(2) }))}
-              className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-1.5 transition">
+              className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
               75%
             </button>
             <button type="button" onClick={() => setForm(f => ({ ...f, amount: closingBalance.toFixed(2) }))}
-              className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-1.5 transition whitespace-nowrap">
+              className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-2 transition whitespace-nowrap">
               Full {formatCurrency(closingBalance)}
             </button>
           </div>

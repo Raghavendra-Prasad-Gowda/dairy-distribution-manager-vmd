@@ -8,6 +8,9 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -340,16 +343,7 @@ export default function SalespersonStockEntry() {
     <div className="flex flex-col h-full bg-slate-100">
 
       {/* Fullscreen loading overlay */}
-      {isBusy && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">
-              {submitting ? 'Submitting entry…' : 'Saving entry…'}
-            </p>
-          </div>
-        </div>
-      )}
+      <LoadingOverlay open={isBusy} message={submitting ? 'Submitting entry…' : 'Saving entry…'} />
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3.5 bg-emerald-800">
@@ -684,32 +678,26 @@ export default function SalespersonStockEntry() {
       )}
 
       {/* ── Submit confirmation modal ─────────────────────────────────────────── */}
-      {showSubmitConfirm && (
-        <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Submit stock entry?</h3>
-            <p className="text-sm text-slate-500 mb-5">
-              This will lock your entry for{' '}
-              <span className="font-semibold text-slate-700">{date}</span>.
-              You won't be able to make changes without admin approval.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowSubmitConfirm(false)}
-                className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setShowSubmitConfirm(false); handleSaveAndSubmit(); }}
-                className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold py-2.5 rounded-xl transition text-sm"
-              >
-                Submit &amp; Lock
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showSubmitConfirm}
+        onClose={() => setShowSubmitConfirm(false)}
+        title="Submit stock entry?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowSubmitConfirm(false)}>Cancel</Button>
+            <Button variant="primary" onClick={() => { setShowSubmitConfirm(false); handleSaveAndSubmit(); }}>
+              Submit &amp; Lock
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-500">
+          This will lock your entry for{' '}
+          <span className="font-semibold text-slate-700">{date}</span>.
+          You won't be able to make changes without admin approval.
+        </p>
+      </Modal>
 
     </div>
   );
