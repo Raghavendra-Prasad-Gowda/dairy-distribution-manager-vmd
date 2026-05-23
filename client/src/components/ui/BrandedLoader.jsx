@@ -74,7 +74,7 @@ export default function BrandedLoader({
         <div
           role="status"
           aria-live="polite"
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-gradient-to-b from-blue-600 to-blue-800"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-gradient-to-b from-emerald-700 to-emerald-900"
         >
           <LoaderCore label={label} hideBrand={hideBrand} size={size === 'md' ? 'lg' : size} light />
         </div>

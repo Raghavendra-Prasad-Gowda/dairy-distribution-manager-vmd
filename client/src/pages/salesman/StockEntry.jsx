@@ -594,7 +594,11 @@ export default function SalespersonStockEntry() {
                                   min="0"
                                   placeholder="0"
                                   disabled={noPrice || isLocked}
-                                  className="flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums disabled:bg-slate-50 disabled:text-slate-300 border-slate-200 text-slate-900 bg-white"
+                                  className={`flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums border-slate-200 bg-white ${
+                                    isLocked && qtyNum > 0
+                                      ? 'text-slate-900 disabled:text-slate-900 disabled:bg-emerald-50 disabled:border-emerald-200 disabled:opacity-100'
+                                      : 'text-slate-900 disabled:bg-slate-50 disabled:text-slate-300'
+                                  }`}
                                 />
 
                                 {/* Increment */}
@@ -638,17 +642,19 @@ export default function SalespersonStockEntry() {
       {/* ── Sticky action bar ────────────────────────────────────────────────── */}
       {!loading && products.length > 0 && (
         isLocked ? (
-          <div className="flex-shrink-0 bg-slate-800 border-t border-slate-700 px-4 py-3.5 flex items-center gap-3">
-            <Lock size={16} className="text-slate-400 flex-shrink-0" />
+          <div className="flex-shrink-0 bg-emerald-700 border-t border-emerald-800 px-4 py-4 flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-full bg-emerald-600/60 flex items-center justify-center flex-shrink-0">
+              <Lock size={20} className="text-white" />
+            </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white leading-tight">
+              <p className="text-sm font-extrabold text-white leading-tight">
                 {dispatch?.isAdminUnlocked === false && dispatch?.isSubmitted
                   ? 'Submitted & locked'
                   : isPast
                   ? 'Past date — locked'
                   : 'Locked'}
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">Contact your admin to make changes</p>
+              <p className="text-xs text-emerald-100 mt-0.5">Contact your admin to make changes</p>
             </div>
           </div>
         ) : (
@@ -663,7 +669,7 @@ export default function SalespersonStockEntry() {
               <button
                 onClick={handleSave}
                 disabled={isBusy || (filledCount === 0 && !dispatch)}
-                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-bold text-sm disabled:opacity-40 active:bg-slate-50 transition"
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-300 bg-slate-100 text-slate-700 font-bold text-sm disabled:opacity-40 hover:bg-slate-200 active:bg-slate-200 transition"
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                 {filledCount === 0 && dispatch ? 'Clear Draft' : 'Save Draft'}

@@ -3,10 +3,11 @@ import { subscribe } from '../api/coldStart';
 import BrandedLoader from './ui/BrandedLoader';
 
 /**
- * Full-screen overlay that appears whenever any API request hangs past 2s
- * (Render cold-start). The brand-gradient BrandedLoader overlay is shown
- * until the request completes (success or failure). The label switches
- * after 8s to acknowledge that this is the cold-start, not a hang.
+ * Brand-gradient overlay shown only during the login → dashboard transition
+ * when the server is cold (Render free-tier sleeps after 15 min idle, and
+ * the first request can take 30-50s to wake). Armed by Login.jsx via
+ * armForLogin(); auto-disarms once the screen hides, so ordinary slow
+ * requests later in the session don't re-trigger it.
  */
 export default function ColdStartScreen() {
   const [waking, setWaking] = useState(false);

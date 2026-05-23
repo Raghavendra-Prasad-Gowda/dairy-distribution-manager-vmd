@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, IndianRupee, Search, X, Globe } from 'lucide-react';
+import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2 } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -38,10 +38,11 @@ export default function SalesmanPricesSetup() {
 
   // Per-person state
   const [prices, setPrices]                 = useState([]);
-  // editedPrices: { [productId]: { price: string, effectiveFrom: string } }
-  const [editedPrices, setEditedPrices]     = useState({});
   const [dirtyToggles, setDirtyToggles]     = useState({});
-  const [effectiveFrom, setEffectiveFrom]   = useState(getIndiaDate());
+  // Per-row price edit modal
+  const [editingPrice, setEditingPrice]     = useState(null); // { productId, productName, currentPrice }
+  const [priceForm, setPriceForm]           = useState({ sellingPrice: '', effectiveFrom: getIndiaDate() });
+  const [savingPrice, setSavingPrice]       = useState(false);
 
   // Global state
   const [globalProducts, setGlobalProducts] = useState([]);
@@ -93,12 +94,42 @@ export default function SalesmanPricesSetup() {
     try {
       const r = await api.get(`/salespeople/${selectedSpId}/prices`);
       setPrices(r.data.data);
-      setEditedPrices({});
       setDirtyToggles({});
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to load products', 'error');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ── Per-row price edit ────────────────────────────────────────────────────────
+  function openPriceEdit(p) {
+    setEditingPrice({ productId: p.productId, productName: p.productName, currentPrice: p.sellingPrice, category: p.category, dairyCostPrice: p.dairyCostPrice });
+    setPriceForm({
+      sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : '',
+      effectiveFrom: getIndiaDate(),
+    });
+  }
+  function closePriceEdit() {
+    setEditingPrice(null);
+    setSavingPrice(false);
+  }
+  async function handleSavePrice(e) {
+    e.preventDefault();
+    const price = parseFloat(priceForm.sellingPrice);
+    if (!(price >= 0)) { notify('Enter a valid price', 'warning'); return; }
+    setSavingPrice(true);
+    try {
+      await api.post(`/salespeople/${selectedSpId}/prices/bulk`, {
+        effectiveFrom: priceForm.effectiveFrom,
+        prices: [{ productId: editingPrice.productId, sellingPrice: price, effectiveFrom: priceForm.effectiveFrom }],
+      });
+      notify('Price updated', 'success');
+      closePriceEdit();
+      fetchPrices();
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to save price', 'error');
+      setSavingPrice(false);
     }
   }
 
@@ -146,32 +177,19 @@ export default function SalesmanPricesSetup() {
       return;
     }
 
+    // Per-person mode now only bulk-saves enable/disable toggles.
+    // Price edits go through the per-row pencil modal (handleSavePrice).
     const hasToggleChanges = Object.keys(dirtyToggles).length > 0;
-    const pricesToSave = prices
-      .filter(p => p.brandId === activeBrandId && editedPrices[p.productId] !== undefined)
-      .map(p => ({
-        productId:     p.productId,
-        sellingPrice:  parseFloat(editedPrices[p.productId].price) || 0,
-        effectiveFrom: editedPrices[p.productId].effectiveFrom ?? effectiveFrom,
-      }));
-
-    if (!hasToggleChanges && !pricesToSave.length) { notify('No changes to save', 'warning'); return; }
+    if (!hasToggleChanges) { notify('No changes to save', 'warning'); return; }
 
     setSaving(true);
     try {
-      await Promise.all([
-        hasToggleChanges
-          ? api.post(`/salespeople/${selectedSpId}/products/bulk`, {
-              products: Object.keys(dirtyToggles).map(id => ({
-                productId: parseInt(id, 10),
-                isEnabled: dirtyToggles[id],
-              })),
-            })
-          : null,
-        pricesToSave.length
-          ? api.post(`/salespeople/${selectedSpId}/prices/bulk`, { effectiveFrom, prices: pricesToSave })
-          : null,
-      ].filter(Boolean));
+      await api.post(`/salespeople/${selectedSpId}/products/bulk`, {
+        products: Object.keys(dirtyToggles).map(id => ({
+          productId: parseInt(id, 10),
+          isEnabled: dirtyToggles[id],
+        })),
+      });
       notify('Saved successfully', 'success');
       fetchPrices();
     } catch (e) {
@@ -243,13 +261,12 @@ export default function SalesmanPricesSetup() {
 
   const hasDirty = isGlobal
     ? Object.keys(dirtyGlobal).length > 0
-    : Object.keys(dirtyToggles).length > 0 ||
-      prices.filter(p => p.brandId === activeBrandId).some(p => editedPrices[p.productId]?.price !== undefined);
+    : Object.keys(dirtyToggles).length > 0;
 
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
-  const colSpan = isGlobal ? 4 : 7;
+  const colSpan = isGlobal ? 4 : 6;
 
   return (
     <div className="flex flex-col h-full">
@@ -274,7 +291,7 @@ export default function SalesmanPricesSetup() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salesperson</label>
               <select
                 value={selectedSpId}
-                onChange={e => { setSelectedSpId(e.target.value); setEditedPrices({}); setDirtyToggles({}); setDirtyGlobal({}); }}
+                onChange={e => { setSelectedSpId(e.target.value); setDirtyToggles({}); setDirtyGlobal({}); }}
                 className="w-full ddm-input"
               >
                 <option value={GLOBAL_ID}>— Global Settings (All Salespeople) —</option>
@@ -285,18 +302,6 @@ export default function SalesmanPricesSetup() {
                 ))}
               </select>
             </div>
-            {selectedSp && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Effective From</label>
-                <input
-                  type="date"
-                  value={effectiveFrom}
-                  onChange={e => setEffectiveFrom(e.target.value)}
-                  max={getIndiaDate()}
-                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-                />
-              </div>
-            )}
           </div>
 
           {/* Global mode banner */}
@@ -315,7 +320,7 @@ export default function SalesmanPricesSetup() {
                 <BrandTabs
                   brands={brands}
                   activeBrandId={activeBrandId}
-                  onChange={id => { setActiveBrandId(id); if (!isGlobal) setEditedPrices({}); }}
+                  onChange={id => setActiveBrandId(id)}
                 />
               )}
 
@@ -395,9 +400,8 @@ export default function SalesmanPricesSetup() {
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
                         {!isGlobal && (
                           <>
-                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Current Price</th>
-                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">New Price</th>
-                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-36">Eff. From</th>
+                            <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-20">Edit</th>
                           </>
                         )}
                         <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">
@@ -458,17 +462,14 @@ export default function SalesmanPricesSetup() {
 
                               // Per-person row
                               const hasPrice      = p.sellingPrice !== null;
-                              const isPriceDirty  = editedPrices[p.productId]?.price !== undefined;
                               const isToggleDirty = dirtyToggles[p.productId] !== undefined;
-                              const isDirty = isPriceDirty || isToggleDirty;
-                              const rowEffFrom = editedPrices[p.productId]?.effectiveFrom ?? effectiveFrom;
                               return (
                                 <tr
                                   key={p.productId}
                                   className={`transition-colors ${
                                     !p.isEnabled
                                       ? 'bg-slate-50/60 opacity-70'
-                                      : isDirty
+                                      : isToggleDirty
                                       ? 'bg-emerald-50/40'
                                       : 'hover:bg-slate-50'
                                   }`}
@@ -497,46 +498,18 @@ export default function SalesmanPricesSetup() {
                                   </td>
                                   <td className="px-6 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                     {hasPrice
-                                      ? <span className="text-sm text-slate-600">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                                      ? <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                                       : <span className="text-amber-600 font-semibold text-xs">Not set</span>
                                     }
                                   </td>
-                                  <td className="px-6 py-3.5 text-right align-middle whitespace-nowrap">
-                                    <div className="flex justify-end">
-                                      <div className="relative w-28">
-                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                        <input
-                                          type="number"
-                                          step="0.0001"
-                                          min="0"
-                                          value={editedPrices[p.productId]?.price ?? ''}
-                                          onChange={e => setEditedPrices(prev => ({
-                                            ...prev,
-                                            [p.productId]: { ...(prev[p.productId] ?? {}), price: e.target.value },
-                                          }))}
-                                          placeholder={p.sellingPrice ?? '0.00'}
-                                          className={`w-full pl-6 pr-2 py-2 border rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums ${
-                                            isPriceDirty ? 'border-emerald-400' : 'border-slate-200'
-                                          }`}
-                                        />
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
-                                    <input
-                                      type="date"
-                                      value={rowEffFrom}
-                                      max={getIndiaDate()}
-                                      onChange={e => setEditedPrices(prev => ({
-                                        ...prev,
-                                        [p.productId]: { ...(prev[p.productId] ?? {}), effectiveFrom: e.target.value },
-                                      }))}
-                                      className={`px-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white ${
-                                        editedPrices[p.productId]?.effectiveFrom && editedPrices[p.productId].effectiveFrom !== effectiveFrom
-                                          ? 'border-amber-400 text-amber-700'
-                                          : 'border-slate-200 text-slate-500'
-                                      }`}
-                                    />
+                                  <td className="px-4 py-3.5 text-center align-middle">
+                                    <button
+                                      onClick={() => openPriceEdit(p)}
+                                      className="text-emerald-600 hover:text-emerald-800 transition-colors p-1.5 rounded-lg hover:bg-emerald-50"
+                                      title="Edit price"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
                                   </td>
                                   <td className="px-6 py-3.5 text-center align-middle">
                                     <TogglePill
@@ -558,6 +531,67 @@ export default function SalesmanPricesSetup() {
           )}
         </div>
       </div>
+
+      {/* Per-row price edit modal */}
+      {editingPrice && (
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePriceEdit}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Edit Price</h3>
+              <button onClick={closePriceEdit} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSavePrice} className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Product</label>
+                <p className="text-sm font-semibold text-slate-800">{editingPrice.productName}</p>
+                {editingPrice.category && (
+                  <p className="text-xs text-slate-400 mt-0.5">{editingPrice.category}</p>
+                )}
+                {editingPrice.dairyCostPrice > 0 && (
+                  <p className="text-[11px] text-slate-400 mt-1.5">Dairy cost: <span className="font-semibold tabular-nums">{fmt(editingPrice.dairyCostPrice)}</span></p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Selling Price (₹) <span className="normal-case font-normal text-slate-400">for this salesperson</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                  <input
+                    autoFocus
+                    type="number" step="0.0001" min="0"
+                    value={priceForm.sellingPrice}
+                    onChange={e => setPriceForm(f => ({ ...f, sellingPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="ddm-input pl-7 text-right tabular-nums"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Effective From</label>
+                <input
+                  type="date"
+                  value={priceForm.effectiveFrom}
+                  onChange={e => setPriceForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                  max={getIndiaDate()}
+                  className="ddm-input"
+                  required
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={closePriceEdit} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition">Cancel</button>
+                <button type="submit" disabled={savingPrice} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2">
+                  {savingPrice ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  {savingPrice ? 'Saving…' : 'Save Price'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

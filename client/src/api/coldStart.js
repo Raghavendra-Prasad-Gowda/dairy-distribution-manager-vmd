@@ -17,14 +17,18 @@ const timers   = new Map();         // reqId → setTimeout handle
 const slowSet  = new Set();         // reqIds that crossed the threshold
 let   listeners = new Set();
 let   isWaking  = false;
+let   armed     = false;            // only trigger the wake-up screen when armed
 
 function notify() {
-  const next = slowSet.size > 0;
+  const next = armed && slowSet.size > 0;
   if (next === isWaking) return;
   isWaking = next;
   for (const fn of listeners) {
     try { fn(isWaking); } catch (_) { /* listener crash shouldn't break interceptor */ }
   }
+  // Once the wake-up screen has gone away, automatically disarm so that
+  // ordinary slow requests later in the session don't trigger it again.
+  if (!next && armed) armed = false;
 }
 
 export function markRequestStart(reqId) {
@@ -53,6 +57,16 @@ export function subscribe(fn) {
   // Push current state immediately so subscribers don't miss an in-flight wake.
   try { fn(isWaking); } catch (_) {}
   return () => { listeners.delete(fn); };
+}
+
+/**
+ * Arm the wake-up screen for the next slow request. Used only by Login
+ * — Render's free tier sleeps after 15 min, so the first request after
+ * a long break can take 30-50s. Once the screen hides (request done or
+ * never reached the 2s threshold) it auto-disarms.
+ */
+export function armForLogin() {
+  armed = true;
 }
 
 let nextId = 0;
