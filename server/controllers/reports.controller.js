@@ -2,8 +2,20 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { parseId } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { qualifiesForDeposit, calculateLineDeposit } = require('../services/depositRules');
+const { getIndiaDateStr } = require('../utils/dateUtils');
+
+// Defense-in-depth: every report endpoint mounts under requireAdmin in app.js,
+// but if that middleware is ever moved or misconfigured, the controller still
+// refuses. Salespeople have no business reading aggregate reports.
+function assertAdmin(req) {
+  if (req.user?.role !== 'admin') {
+    throw new AppError('Admin access required', 403);
+  }
+}
 
 const dairyStatement = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { brandId, from, to } = req.query;
   if (!brandId || !from || !to) throw new AppError('brandId, from, and to are required', 400);
 
@@ -72,6 +84,7 @@ const dairyStatement = asyncHandler(async (req, res) => {
 });
 
 const salespersonStatement = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { salespersonId, from, to } = req.query;
   if (!salespersonId || !from || !to) throw new AppError('salespersonId, from, and to are required', 400);
 
@@ -131,56 +144,106 @@ const salespersonStatement = asyncHandler(async (req, res) => {
 });
 
 const stockSummary = asyncHandler(async (req, res) => {
-  const { date } = req.query;
-  if (!date) throw new AppError('date query param is required', 400);
+  assertAdmin(req);
+  const { from, to, brandId, date } = req.query;
 
-  const receiptDate = new Date(date);
+  // Support legacy single-date param
+  const fromStr = from ?? date;
+  const toStr   = to   ?? date;
+  if (!fromStr) throw new AppError('from (or date) query param is required', 400);
+
+  const fromDate   = new Date(fromStr);
+  const toDate     = new Date(toStr);
+  const brandFilter = brandId ? parseId(brandId, 'Brand ID') : null;
+
   const [receipts, dispatches, allRoutes] = await Promise.all([
     prisma.stockReceipt.findMany({
-      where: { receiptDate },
-      include: { product: { select: { name: true } }, brand: { select: { name: true } } },
-      orderBy: [{ brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
+      where: {
+        receiptDate: { gte: fromDate, lte: toDate },
+        ...(brandFilter ? { brandId: brandFilter } : {}),
+      },
+      include: { product: { select: { name: true, unitsPerContainer: true, costPrice: true, displayOrder: true } }, brand: { select: { name: true } } },
+      orderBy: [{ receiptDate: 'asc' }, { brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
     }),
     prisma.stockDispatch.findMany({
-      where: { dispatchDate: receiptDate },
+      where: { dispatchDate: { gte: fromDate, lte: toDate } },
       include: {
         salesperson: { select: { name: true } },
-        items: { include: { product: { include: { brand: { select: { name: true } } } } } },
+        items: {
+          where: brandFilter ? { product: { brandId: brandFilter } } : {},
+          include: { product: { include: { brand: { select: { name: true } } } } },
+        },
       },
+      orderBy: [{ dispatchDate: 'asc' }, { salesperson: { name: 'asc' } }],
     }),
     prisma.route.findMany({ select: { id: true, routeNumber: true } }),
   ]);
   const routeMap = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
 
+  // Build date-keyed map
+  const dateMap = new Map();
+  const ensureDay = (key) => {
+    if (!dateMap.has(key)) dateMap.set(key, { date: key, receipts: [], dispatches: [] });
+    return dateMap.get(key);
+  };
+
+  for (const r of receipts) {
+    const key = r.receiptDate.toISOString().slice(0, 10);
+    ensureDay(key).receipts.push({
+      brandName:        r.brand.name,
+      productName:      r.product.name,
+      quantity:         Number(r.quantity),
+      unitPrice:        Number(r.unitPrice),
+      amount:           Number(r.quantity) * Number(r.unitPrice),
+      routeNumber:      r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
+      unitsPerContainer: r.product.unitsPerContainer ?? null,
+      costPrice:         Number(r.product.costPrice ?? 0),
+      displayOrder:      r.product.displayOrder ?? 0,
+    });
+  }
+
+  const filteredDispatches = brandFilter
+    ? dispatches.filter(d => d.items.length > 0)
+    : dispatches;
+
+  for (const d of filteredDispatches) {
+    const key = d.dispatchDate.toISOString().slice(0, 10);
+    ensureDay(key).dispatches.push({
+      salespersonName: d.salesperson.name,
+      totalAmount:     d.items.reduce((s, i) => s + Number(i.totalAmount), 0),
+      items: d.items.map((i) => ({
+        brandName:   i.product.brand.name,
+        productName: i.product.name,
+        quantity:    Number(i.quantity),
+        unitPrice:   Number(i.unitPrice),
+        totalAmount: Number(i.totalAmount),
+      })),
+    });
+  }
+
+  const rows = [...dateMap.keys()].sort().map(key => {
+    const day = dateMap.get(key);
+    return {
+      ...day,
+      totalReceived:   day.receipts.reduce((s, r) => s + r.amount, 0),
+      totalDispatched: day.dispatches.reduce((s, d) => s + d.totalAmount, 0),
+    };
+  });
+
   res.json({
     success: true,
     data: {
-      date,
-      receipts: receipts.map((r) => ({
-        brandName:   r.brand.name,
-        productName: r.product.name,
-        quantity:    Number(r.quantity),
-        unitPrice:   Number(r.unitPrice),
-        amount:      Number(r.quantity) * Number(r.unitPrice),
-        routeId:     r.routeId,
-        routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
-      })),
-      dispatches: dispatches.map((d) => ({
-        salespersonName: d.salesperson.name,
-        totalAmount:     Number(d.totalAmount),
-        items: d.items.map((i) => ({
-          brandName:   i.product.brand.name,
-          productName: i.product.name,
-          quantity:    Number(i.quantity),
-          unitPrice:   Number(i.unitPrice),
-          totalAmount: Number(i.totalAmount),
-        })),
-      })),
+      from: fromStr,
+      to:   toStr,
+      grandTotalReceived:   rows.reduce((s, r) => s + r.totalReceived,   0),
+      grandTotalDispatched: rows.reduce((s, r) => s + r.totalDispatched, 0),
+      rows,
     },
   });
 });
 
 const outstanding = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const [dairyBalances, spBalances] = await Promise.all([
     prisma.dairyBalance.findMany({
       orderBy: { balanceDate: 'desc' },
@@ -213,6 +276,7 @@ const outstanding = asyncHandler(async (req, res) => {
 });
 
 const depositSummary = asyncHandler(async (req, res) => {
+  assertAdmin(req);
   const { brandId, from, to } = req.query;
   if (!brandId || !from || !to) throw new AppError('brandId, from, and to are required', 400);
 
@@ -258,28 +322,20 @@ const depositSummary = asyncHandler(async (req, res) => {
     let dailyDeposit = 0;
 
     for (const r of items) {
-      const { name, category, unitType, unitSize, containerType, depositEnabled, displayOrder } = r.product;
-      const qualifies =
-        brand.depositEnabled &&
-        depositEnabled &&
-        (unitType === 'ml' || unitType === 'gram') &&
-        containerType === 'crate' &&
-        unitSize &&
-        depositPerLitre > 0 &&
-        enabledCategories.has(category ?? '');
+      const { name, category, unitType, unitSize, containerType, displayOrder } = r.product;
+      if (!qualifiesForDeposit(r.product, brand, enabledCategories)) continue;
 
-      if (!qualifies) continue;
-
-      const qty          = Number(r.quantity);
+      const qty            = Number(r.quantity);
       const volumeOrWeight = qty * (Number(unitSize) / 1000);
-      const depositAmount  = Math.round(volumeOrWeight * depositPerLitre * 100) / 100;
+      const depositAmount  = calculateLineDeposit(qty, unitSize, depositPerLitre);
 
-      // Accumulate per product (multiple routes → single line)
+      // Accumulate per product (multiple routes → single line). Keep full
+      // precision during accumulation — round only at the response boundary.
       const existing = depositItems.find(i => i.productName === name);
       if (existing) {
-        existing.quantity      += qty;
-        existing.volumeOrWeight = parseFloat((existing.volumeOrWeight + volumeOrWeight).toFixed(3));
-        existing.depositAmount  = parseFloat((existing.depositAmount + depositAmount).toFixed(4));
+        existing.quantity       += qty;
+        existing.volumeOrWeight += volumeOrWeight;
+        existing.depositAmount  += depositAmount;
       } else {
         depositItems.push({
           productName:          name,
@@ -289,9 +345,9 @@ const depositSummary = asyncHandler(async (req, res) => {
           unitType,
           quantity:             qty,
           unitSize:             Number(unitSize),
-          volumeOrWeight:       parseFloat(volumeOrWeight.toFixed(3)),
+          volumeOrWeight,
           depositPerLitre,
-          depositAmount:        parseFloat(depositAmount.toFixed(4)),
+          depositAmount,
         });
       }
     }
@@ -306,24 +362,110 @@ const depositSummary = asyncHandler(async (req, res) => {
     runningTotal += dailyDeposit;
     rows.push({
       date,
-      dailyDeposit:  parseFloat(dailyDeposit.toFixed(4)),
-      runningTotal:  parseFloat(runningTotal.toFixed(4)),
-      items:         depositItems,
+      dailyDeposit:  round2(dailyDeposit),
+      runningTotal:  round2(runningTotal),
+      items: depositItems.map(i => ({
+        ...i,
+        volumeOrWeight: round3(i.volumeOrWeight),
+        depositAmount:  round2(i.depositAmount),
+      })),
     });
   }
 
   res.json({
     success: true,
     data: {
-      brandName:         brand.name,
-      depositEnabled:    brand.depositEnabled,
+      brandName:      brand.name,
+      depositEnabled: brand.depositEnabled,
       depositPerLitre,
       from,
       to,
-      totalDeposit: parseFloat(runningTotal.toFixed(4)),
+      totalDeposit:   round2(runningTotal),
       rows,
     },
   });
 });
 
-module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding, depositSummary };
+function round2(n) { return Math.round(n * 100) / 100; }
+function round3(n) { return Math.round(n * 1000) / 1000; }
+
+const dailyDispatch = asyncHandler(async (req, res) => {
+  assertAdmin(req);
+  const { date } = req.query;
+  if (!date) throw new AppError('date query param is required', 400);
+
+  const dispatchDate = new Date(date);
+  const today = getIndiaDateStr();
+  const isPastDate = date < today;
+
+  // Scope-by-role: even though the route mounts under requireAdmin, if a
+  // salesman ever lands here we still must not leak other salespeople's data.
+  const dispatchWhere = { dispatchDate };
+  if (req.user.role === 'salesman') {
+    dispatchWhere.salespersonId = req.user.salespersonId;
+  }
+
+  const [dispatches, allProducts] = await Promise.all([
+    prisma.stockDispatch.findMany({
+      where: dispatchWhere,
+      include: {
+        salesperson: { select: { id: true, name: true } },
+        items: {
+          include: { product: { select: { id: true, brandId: true } } },
+        },
+      },
+      orderBy: { salesperson: { name: 'asc' } },
+    }),
+    prisma.product.findMany({
+      where: { isActive: true, showInStockReceipt: true, salespersonEnabled: true },
+      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
+      orderBy: [
+        { brand: { salespersonDisplayOrder: 'asc' } },
+        { salespersonDisplayOrder: 'asc' },
+      ],
+    }),
+  ]);
+
+  // Build brand → products column map
+  const brandMap = new Map();
+  for (const p of allProducts) {
+    if (!brandMap.has(p.brandId)) {
+      brandMap.set(p.brandId, {
+        brandId:   p.brandId,
+        brandName: p.brand.name,
+        products:  [],
+      });
+    }
+    brandMap.get(p.brandId).products.push({ productId: p.id, productName: p.name, unitsPerContainer: p.unitsPerContainer ?? 0, category: p.category ?? null });
+  }
+  const brands = Array.from(brandMap.values());
+  const productIdSet = new Set(allProducts.map(p => p.id));
+
+  const productTotals = {};
+  const rows = dispatches.map(d => {
+    const items = {};
+    for (const item of d.items) {
+      if (!productIdSet.has(item.productId)) continue;
+      items[item.productId] = {
+        qty:       Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+      };
+      productTotals[item.productId] = (productTotals[item.productId] ?? 0) + Number(item.quantity);
+    }
+    const isLocked = (d.isSubmitted || isPastDate) && !d.isAdminUnlocked;
+    return {
+      salespersonId:    d.salesperson.id,
+      salespersonName:  d.salesperson.name,
+      items,
+      totalAmount:      Number(d.totalAmount),
+      dispatchId:       d.id,
+      isSubmitted:      d.isSubmitted,
+      isAdminUnlocked:  d.isAdminUnlocked,
+      isLocked,
+    };
+  });
+
+  res.json({ success: true, data: { date, brands, rows, totals: productTotals } });
+});
+
+module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding, depositSummary, dailyDispatch };

@@ -4,6 +4,9 @@ import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, L
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
@@ -12,11 +15,11 @@ import api from '../../api/axios';
 
 // Matches the cycling palette used in StockReceipt for route pills
 const ROUTE_COLORS = [
-  { bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
-  { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-400'  },
-  { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400'   },
-  { bg: 'bg-rose-50',    text: 'text-rose-700',    dot: 'bg-rose-400'    },
-  { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
+  { bg: 'bg-sky-100',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
+  { bg: 'bg-violet-100',  text: 'text-violet-700',  dot: 'bg-violet-400'  },
+  { bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-400'   },
+  { bg: 'bg-rose-100',    text: 'text-rose-700',    dot: 'bg-rose-400'    },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-400' },
 ];
 
 const MODE_COLORS = {
@@ -56,7 +59,7 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
           {isOwing ? 'You Owe' : 'Settled'}
         </p>
-        <p className={`text-3xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
           {formatCurrency(Math.abs(closing))}
         </p>
       </div>
@@ -273,14 +276,7 @@ export default function DairyPayments() {
     <div className="flex flex-col h-full">
 
       {/* ── Saving overlay ──────────────────────────────────── */}
-      {saving && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">Recording payment…</p>
-          </div>
-        </div>
-      )}
+      <LoadingOverlay open={saving} message="Recording payment…" />
 
       {/* Page header */}
       <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
@@ -708,29 +704,25 @@ export default function DairyPayments() {
       )}
 
       {/* ── Delete confirm modal ─────────────────────────────── */}
-      {deleteId && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
-          onClick={() => setDeleteId(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center"
-            onClick={e => e.stopPropagation()}>
-            <div className="mx-auto w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
-              <Trash2 className="text-red-600" size={24} />
-            </div>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Delete Payment?</h3>
-            <p className="text-sm text-slate-500 mb-6">This will permanently remove the payment and recalculate the balance.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)}
-                className="flex-1 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
-                Cancel
-              </button>
-              <button onClick={handleDelete}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition text-sm">
-                Delete
-              </button>
-            </div>
+      <Modal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        title="Delete Payment?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDelete}>Delete</Button>
+          </>
+        }
+      >
+        <div className="text-center">
+          <div className="mx-auto w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
+            <Trash2 className="text-red-600" size={24} />
           </div>
+          <p className="text-sm text-slate-500">This will permanently remove the payment and recalculate the balance.</p>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

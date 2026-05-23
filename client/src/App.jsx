@@ -7,10 +7,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import { Loader2 } from 'lucide-react';
 
-// Lazy-loaded pages (code-split per route for faster initial load)
+// Admin pages
 const Dashboard              = lazy(() => import('./pages/Dashboard'));
 const StockReceipt           = lazy(() => import('./pages/daily/StockReceipt'));
-const Dispatch               = lazy(() => import('./pages/daily/Dispatch'));
 const DairyPayments          = lazy(() => import('./pages/payments/DairyPayments'));
 const SalespersonCollections = lazy(() => import('./pages/payments/SalespersonCollections'));
 const DairyStatement         = lazy(() => import('./pages/reports/DairyStatement'));
@@ -20,10 +19,19 @@ const DepositReport          = lazy(() => import('./pages/reports/DepositReport'
 const SalespersonOutstanding = lazy(() => import('./pages/SalespersonOutstanding'));
 const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'));
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
-const SalespeopleSetup       = lazy(() => import('./pages/setup/SalespeopleSetup'));
+const SalesmanUsersSetup     = lazy(() => import('./pages/setup/SalesmanUsersSetup'));
+const SalesmanPricesSetup       = lazy(() => import('./pages/setup/SalesmanPricesSetup'));
+const DailyDispatchSummary      = lazy(() => import('./pages/reports/DailyDispatchSummary'));
+const StockBalanceSummary       = lazy(() => import('./pages/reports/StockBalanceSummary'));
+const SalesmanLayoutSettings = lazy(() => import('./pages/setup/SalesmanLayoutSettings'));
 const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
 const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
+const DairySettings          = lazy(() => import('./pages/setup/DairySettings'));
+const DairyReports           = lazy(() => import('./pages/reports/DairyReports'));
+
+// Salesman pages
+const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
 
 function PageLoader() {
   return (
@@ -33,14 +41,18 @@ function PageLoader() {
   );
 }
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, adminOnly = false }) {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (adminOnly && user.role !== 'admin') return <Navigate to="/" replace />;
+  return children;
 }
 
 const S = (Page) => <Suspense fallback={<PageLoader />}><Page /></Suspense>;
 
 function AppRoutes() {
+  const { user } = useAuth();
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -52,39 +64,59 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        {/* Dashboard */}
-        <Route index element={S(Dashboard)} />
+        {/* ── SALESMAN ROUTES ── */}
+        {user?.role === 'salesman' && (
+          <>
+            <Route index element={S(SalespersonStockEntry)} />
+            <Route path="salesman/stock-entry" element={S(SalespersonStockEntry)} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
 
-        {/* ── DAIRY MODULE ── */}
-        <Route path="dairy/stock/:brandName" element={S(StockReceipt)} />
-        <Route path="dairy/payments"         element={S(DairyPayments)} />
-        <Route path="dairy/setup/categories" element={S(CategorySetup)} />
-        <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
-        <Route path="dairy/setup/layout"     element={S(LayoutSettings)} />
-        <Route path="dairy/setup/routes"     element={S(RouteSetup)} />
-        <Route path="dairy/setup/brands"     element={S(BrandsSetup)} />
+        {/* ── ADMIN ROUTES ── */}
+        {user?.role !== 'salesman' && (
+          <>
+            <Route index element={S(Dashboard)} />
 
-        {/* ── SALESMAN MODULE ── */}
-        <Route path="salesman/dispatch"  element={S(Dispatch)} />
-        <Route path="salesman/payments"  element={S(SalespersonCollections)} />
-        <Route path="salesman/setup"     element={S(SalespeopleSetup)} />
+            {/* DAIRY MODULE */}
+            <Route path="dairy/stock/:brandName" element={S(StockReceipt)} />
+            <Route path="dairy/payments"         element={S(DairyPayments)} />
+            <Route path="dairy/setup"            element={S(DairySettings)} />
+            <Route path="dairy/setup/categories" element={S(CategorySetup)} />
+            <Route path="dairy/setup/products"   element={S(ProductsSetup)} />
+            <Route path="dairy/setup/layout"     element={S(LayoutSettings)} />
+            <Route path="dairy/setup/routes"     element={S(RouteSetup)} />
+            <Route path="dairy/setup/brands"     element={S(BrandsSetup)} />
 
-        {/* ── REPORTS ── */}
-        <Route path="reports/dairy"          element={S(DairyStatement)} />
-        <Route path="reports/salespeople"    element={S(SalespersonStatement)} />
-        <Route path="reports/stock"          element={S(StockSummary)} />
-        <Route path="reports/deposit"        element={S(DepositReport)} />
-        <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
+            {/* SALESMAN MANAGEMENT (admin) */}
+            <Route path="salesman/payments"        element={S(SalespersonCollections)} />
+            <Route path="salesman/setup/users"     element={S(SalesmanUsersSetup)} />
+            <Route path="salesman/setup/products"  element={<Navigate to="/salesman/setup/prices" replace />} />
+            <Route path="salesman/setup/prices"    element={S(SalesmanPricesSetup)} />
+            <Route path="salesman/setup/layout"    element={S(SalesmanLayoutSettings)} />
+            <Route path="salesman/setup"           element={<Navigate to="/salesman/setup/users" replace />} />
 
-        {/* Legacy redirects — old URLs still work */}
-        <Route path="daily/receipt"        element={<Navigate to="/dairy/stock/nandini" replace />} />
-        <Route path="daily/dispatch"       element={<Navigate to="/salesman/dispatch" replace />} />
-        <Route path="payments/dairy"       element={<Navigate to="/dairy/payments" replace />} />
-        <Route path="payments/salespeople" element={<Navigate to="/salesman/payments" replace />} />
-        <Route path="setup/products"       element={<Navigate to="/dairy/setup/products" replace />} />
-        <Route path="setup/salespeople"    element={<Navigate to="/salesman/setup" replace />} />
+            {/* REPORTS */}
+            <Route path="dairy/reports"           element={S(DairyReports)} />
+            <Route path="reports/dairy"           element={S(DairyStatement)} />
+            <Route path="reports/salespeople"       element={S(SalespersonStatement)} />
+            <Route path="salesman/dispatch-sheet"   element={S(DailyDispatchSummary)} />
+            <Route path="reports/stock"           element={S(StockSummary)} />
+            <Route path="reports/stock-balance"   element={S(StockBalanceSummary)} />
+            <Route path="reports/deposit"         element={S(DepositReport)} />
+            <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Legacy redirects */}
+            <Route path="daily/receipt"        element={<Navigate to="/dairy/stock/nandini" replace />} />
+            <Route path="daily/dispatch"       element={<Navigate to="/salesman/setup" replace />} />
+            <Route path="payments/dairy"       element={<Navigate to="/dairy/payments" replace />} />
+            <Route path="payments/salespeople" element={<Navigate to="/salesman/payments" replace />} />
+            <Route path="setup/products"       element={<Navigate to="/dairy/setup/products" replace />} />
+            <Route path="setup/salespeople"    element={<Navigate to="/salesman/setup/users" replace />} />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
       </Route>
     </Routes>
   );

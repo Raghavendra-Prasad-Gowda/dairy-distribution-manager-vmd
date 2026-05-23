@@ -15,6 +15,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, LayoutGrid, Save, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import api from '../../api/axios';
 
 // ── Category row with up/down buttons ─────────────────────────────────────────
@@ -90,28 +91,40 @@ function SortableProductRow({ product }) {
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-export default function LayoutSettings() {
+export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {}) {
+  const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]           = useState([]);
-  const [activeBrandId, setActiveBrandId] = useState(null);
+  const [brands, setBrands]           = useState(shellBrands ?? []);
+  const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
   const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
   const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
   const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [dirty, setDirty]             = useState(false);
+  const [brandsDirty, setBrandsDirty] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  // Load brands
   useEffect(() => {
+    if (inShell) return;
     api.get('/brands').then(r => {
       const b = r.data.data ?? [];
       setBrands(b);
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
+  }, []);
+
+  useEffect(() => {
+    if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
+  }, [shellActiveBrandId]);
+
+  const moveBrand = useCallback((idx, direction) => {
+    setBrands(prev => arrayMove(prev, idx, idx + direction));
+    setBrandsDirty(true);
+    setDirty(true);
   }, []);
 
   // Load categories + products for active brand
@@ -130,7 +143,8 @@ export default function LayoutSettings() {
       const exp = {};
       cats.forEach(c => { exp[c.name] = true; });
       setExpanded(exp);
-      setDirty(false);
+      // Reset category/product dirty state; preserve dirty if brand order is unsaved
+      setBrandsDirty(bd => { setDirty(bd); return bd; });
     }).catch(() => notify('Failed to load data', 'error'))
       .finally(() => setLoading(false));
   }, [activeBrandId]);
@@ -182,16 +196,17 @@ export default function LayoutSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const categoryOrders = categories.map((c, i) => ({ id: c.id, displayOrder: i }));
-      const productOrders  = products.map((p, i) => ({ id: p.id, displayOrder: i }));
-
-      await Promise.all([
-        api.patch('/categories/reorder', categoryOrders),
-        api.patch('/products/reorder', productOrders),
-      ]);
-
+      const calls = [
+        api.patch('/categories/reorder', categories.map((c, i) => ({ id: c.id, displayOrder: i }))),
+        api.patch('/products/reorder', products.map((p, i) => ({ id: p.id, displayOrder: i }))),
+      ];
+      if (brandsDirty) {
+        calls.push(api.patch('/brands/reorder', brands.map((b, i) => ({ id: b.id, displayOrder: i }))));
+      }
+      await Promise.all(calls);
       notify('Layout saved successfully!', 'success');
       setDirty(false);
+      setBrandsDirty(false);
     } catch {
       notify('Failed to save layout', 'error');
     } finally {
@@ -203,40 +218,64 @@ export default function LayoutSettings() {
     <div className="flex flex-col h-full bg-slate-100">
 
       {/* ── Saving overlay ───────────────────────────────────────────────────── */}
-      {saving && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">Saving layout…</p>
+      <LoadingOverlay open={saving} message="Saving layout…" />
+
+      {/* ── Page header — hidden in shell mode ───────────────────────────────── */}
+      {!inShell && (
+        <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Layout Settings</h1>
+            <p className="text-emerald-300 text-xs">Drag to reorder categories and visible products.</p>
           </div>
         </div>
       )}
 
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <LayoutGrid size={17} className="text-emerald-300 flex-shrink-0" />
-        <div>
-          <h1 className="text-sm font-bold text-white leading-tight">Layout Settings</h1>
-          <p className="text-emerald-300 text-xs">Drag to reorder categories and visible products.</p>
-        </div>
-      </div>
-
-      {/* ── Brand tabs ───────────────────────────────────────────────────────── */}
-      {brands.length > 1 && (
-        <div className="flex gap-2 px-4 pt-4">
-          {brands.map(b => (
-            <button
+      {/* ── Brand reorder + tab selector — hidden in shell mode ──────────────── */}
+      {!inShell && brands.length > 0 && (
+        <div className="px-4 pt-4 space-y-2">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">Brand Order</p>
+          {brands.map((b, idx) => (
+            <div
               key={b.id}
-              onClick={() => setActiveBrandId(b.id)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 border cursor-pointer transition ${
                 activeBrandId === b.id
-                  ? 'bg-emerald-700 text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-emerald-700 border-emerald-700'
+                  : 'bg-white border-slate-200 hover:bg-slate-50'
               }`}
+              onClick={() => setActiveBrandId(b.id)}
             >
-              {b.name}
-            </button>
+              <div className="flex flex-col gap-0.5" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => moveBrand(idx, -1)}
+                  disabled={idx === 0}
+                  className={`p-0.5 leading-none disabled:opacity-20 disabled:cursor-not-allowed ${
+                    activeBrandId === b.id ? 'text-emerald-200 hover:text-white' : 'text-slate-400 hover:text-emerald-600'
+                  }`}
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  onClick={() => moveBrand(idx, 1)}
+                  disabled={idx === brands.length - 1}
+                  className={`p-0.5 leading-none disabled:opacity-20 disabled:cursor-not-allowed ${
+                    activeBrandId === b.id ? 'text-emerald-200 hover:text-white' : 'text-slate-400 hover:text-emerald-600'
+                  }`}
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+              <span className={`flex-1 text-sm font-bold ${activeBrandId === b.id ? 'text-white' : 'text-slate-700'}`}>
+                {b.name}
+              </span>
+              <span className={`text-[10px] tabular-nums ${activeBrandId === b.id ? 'text-emerald-200' : 'text-slate-400'}`}>
+                #{idx + 1}
+              </span>
+            </div>
           ))}
+          <p className={`text-[11px] font-bold uppercase tracking-wider px-1 pt-2 ${activeBrandId ? 'text-slate-400' : 'text-slate-300'}`}>
+            {brands.find(b => b.id === activeBrandId)?.name} — Categories &amp; Products
+          </p>
         </div>
       )}
 

@@ -1,6 +1,13 @@
 const { z } = require('zod');
 const AppError = require('./AppError');
 
+// ─── Shared building blocks ──────────────────────────────────────────────────
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const dateString = (msg = 'Date must be YYYY-MM-DD') => z.string().regex(DATE_REGEX, msg);
+const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Online'];
+const paymentMode  = z.enum(PAYMENT_MODES).optional();
+const shortText    = z.string().max(500).optional();
+
 // ─── Schema Definitions ──────────────────────────────────────────────────────
 
 const schemas = {
@@ -42,8 +49,8 @@ const schemas = {
     unitsPerContainer:          z.number().int().positive().optional().nullable(),
     costPrice:                  z.number().min(0).default(0),
     sellingPrice:               z.number().min(0).default(0),
-    effectiveFrom:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    sellingPriceEffectiveFrom:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    effectiveFrom:              dateString().optional(),
+    sellingPriceEffectiveFrom:  dateString().optional(),
   }),
   updateProduct: z.object({
     name:                       z.string().min(1).optional(),
@@ -58,11 +65,15 @@ const schemas = {
     isActive:                   z.boolean().optional(),
     showInStockReceipt:         z.boolean().optional(),
     depositEnabled:             z.boolean().optional(),
-    effectiveFrom:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    sellingPriceEffectiveFrom:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    effectiveFrom:              dateString().optional(),
+    sellingPriceEffectiveFrom:  dateString().optional(),
   }),
 
-  // Layout reordering
+  // Layout reordering — dairy
+  reorderBrands: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
   reorderProducts: z.array(z.object({
     id:           z.number().int().positive(),
     displayOrder: z.number().int().nonnegative(),
@@ -72,14 +83,29 @@ const schemas = {
     displayOrder: z.number().int().nonnegative(),
   })),
 
-  // Stock Receipts
+  // Layout reordering — salesperson
+  reorderSalespersonBrands: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+  reorderSalespersonProducts: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+  reorderSalespersonCategories: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
+
+  // Stock Receipts (qty 0 is meaningful — it means "no receipt for this product
+  // on this day", and the controller filters those out before insert)
   bulkStockReceipt: z.object({
     brandId: z.number().int().positive(),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+    date:    dateString(),
     routeId: z.number().int().nonnegative().optional().default(0),
     items: z.array(z.object({
       productId: z.number().int().positive(),
-      quantity: z.number().min(0),
+      quantity:  z.number().min(0),
       unitPrice: z.number().min(0),
     })).default([]),
   }),
@@ -87,18 +113,18 @@ const schemas = {
   // Dairy Payment
   updateDairyPayment: z.object({
     amount:      z.number().positive('Amount must be positive'),
-    paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    paymentMode: z.string().optional(),
-    reference:   z.string().optional(),
-    notes:       z.string().optional(),
+    paymentDate: dateString(),
+    paymentMode,
+    reference:   shortText,
+    notes:       shortText,
   }),
   createDairyPayment: z.object({
-    brandId: z.number().int().positive(),
-    paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    amount: z.number().positive('Amount must be positive'),
-    paymentMode: z.string().optional(),
-    reference: z.string().optional(),
-    notes: z.string().optional(),
+    brandId:     z.number().int().positive(),
+    paymentDate: dateString(),
+    amount:      z.number().positive('Amount must be positive'),
+    paymentMode,
+    reference:   shortText,
+    notes:       shortText,
   }),
 
   // Routes
@@ -115,53 +141,66 @@ const schemas = {
 
   // Salespeople
   createSalesperson: z.object({
-    name: z.string().min(1, 'Name is required'),
-    phone: z.string().optional(),
-    route: z.string().optional(),
+    name:     z.string().min(1, 'Name is required'),
+    phone:    z.string().optional(),
+    route:    z.string().optional(),
+    username: z.string().min(3, 'Username must be at least 3 characters').optional(),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
   }),
   updateSalesperson: z.object({
-    name: z.string().min(1).optional(),
-    phone: z.string().optional(),
-    route: z.string().optional(),
+    name:     z.string().min(1).optional(),
+    phone:    z.string().optional(),
+    route:    z.string().optional(),
     isActive: z.boolean().optional(),
+    username: z.string().min(3, 'Username must be at least 3 characters').optional().nullable(),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  }),
+
+  // Salesperson Product Visibility
+  bulkSalespersonProducts: z.object({
+    products: z.array(z.object({
+      productId: z.number().int().positive(),
+      isEnabled: z.boolean(),
+    })).min(1, 'At least one product is required'),
   }),
 
   // Salesperson Prices
   bulkSalespersonPrices: z.object({
-    effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    effectiveFrom: dateString(),
     prices: z.array(z.object({
-      productId: z.number().int().positive(),
-      sellingPrice: z.number().min(0),
+      productId:     z.number().int().positive(),
+      sellingPrice:  z.number().min(0),
+      effectiveFrom: dateString().optional(),
     })),
   }),
 
-  // Dispatch
+  // Dispatch (salespersonId optional — server injects it for salesman role)
   createDispatch: z.object({
-    salespersonId: z.number().int().positive(),
-    dispatchDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    salespersonId: z.number().int().positive().optional(),
+    dispatchDate:  dateString(),
     items: z.array(z.object({
       productId: z.number().int().positive(),
-      quantity: z.number().positive(),
+      quantity:  z.number().positive(),
       unitPrice: z.number().min(0),
     })).min(1, 'At least one item is required'),
-    notes: z.string().optional(),
+    notes: shortText,
   }),
 
   // Salesperson Payment
   createSalespersonPayment: z.object({
     salespersonId: z.number().int().positive(),
-    paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    amount: z.number().positive('Amount must be positive'),
-    paymentMode: z.string().optional(),
-    reference: z.string().optional(),
-    notes: z.string().optional(),
+    paymentDate:   dateString(),
+    amount:        z.number().positive('Amount must be positive'),
+    paymentMode,
+    reference:     shortText,
+    notes:         shortText,
   }),
   updateSalespersonPayment: z.object({
-    paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    amount: z.number().positive('Amount must be positive'),
-    paymentMode: z.string().optional(),
-    reference: z.string().optional(),
-    notes: z.string().optional(),
+    paymentDate: dateString(),
+    amount:      z.number().positive('Amount must be positive'),
+    paymentMode,
+    reference:   shortText,
+    notes:       shortText,
   }),
 };
 

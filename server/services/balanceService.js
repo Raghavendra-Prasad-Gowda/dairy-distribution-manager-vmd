@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { qualifiesForDeposit, calculateLineDeposit } = require('./depositRules');
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -14,49 +15,39 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
   });
   const openingBalance = Number(prev?.closingBalance ?? 0);
 
-  const receipts = await tx.stockReceipt.findMany({
-    where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
-  });
+  const [brand, receipts, categories, paymentAgg] = await Promise.all([
+    tx.brand.findUnique({
+      where: { id: brandId },
+      select: { depositEnabled: true, depositPerLitre: true },
+    }),
+    tx.stockReceipt.findMany({
+      where: { brandId, receiptDate: balanceDate },
+      select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
+    }),
+    tx.category.findMany({
+      where: { brandId },
+      select: { name: true, depositEnabled: true },
+    }),
+    tx.dairyPayment.aggregate({
+      where: { brandId, paymentDate: balanceDate },
+      _sum: { amount: true },
+    }),
+  ]);
+
   const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
     0
   );
 
-  // Deposit calculation — only when brand has deposit enabled
-  const brand = await tx.brand.findUnique({
-    where: { id: brandId },
-    select: { depositEnabled: true, depositPerLitre: true },
-  });
-  let depositValue = 0;
-  if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
-    const depositPerLitre = Number(brand.depositPerLitre);
-    const categories = await tx.category.findMany({
-      where: { brandId },
-      select: { name: true, depositEnabled: true },
-    });
-    const enabledCategories = new Set(
-      categories.filter(c => c.depositEnabled).map(c => c.name)
-    );
-    depositValue = receipts.reduce((sum, r) => {
-      const { unitType, unitSize, containerType, depositEnabled, category } = r.product;
-      const qualifies =
-        (unitType === 'ml' || unitType === 'gram') &&
-        containerType === 'crate' &&
-        unitSize &&
-        depositEnabled &&
-        enabledCategories.has(category ?? '');
-      if (!qualifies) return sum;
-      const litres    = Number(unitSize) / 1000;
-      const lineDeposit = Math.round(Number(r.quantity) * litres * depositPerLitre * 100) / 100;
-      return sum + lineDeposit;
-    }, 0);
-  }
+  const enabledCategories = new Set(
+    categories.filter(c => c.depositEnabled).map(c => c.name)
+  );
 
-  const paymentAgg = await tx.dairyPayment.aggregate({
-    where: { brandId, paymentDate: balanceDate },
-    _sum: { amount: true },
-  });
+  const depositValue = receipts.reduce((sum, r) => {
+    if (!qualifiesForDeposit(r.product, brand, enabledCategories)) return sum;
+    return sum + calculateLineDeposit(r.quantity, r.product.unitSize, brand.depositPerLitre);
+  }, 0);
+
   const amountPaid = Number(paymentAgg._sum.amount ?? 0);
   const closingBalance = openingBalance + stockValue + depositValue - amountPaid;
 
@@ -72,23 +63,24 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
  * Accepts an optional transaction client (tx).
  */
 async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) {
-  const prev = await tx.salespersonBalance.findFirst({
-    where: { salespersonId, balanceDate: { lt: balanceDate } },
-    orderBy: { balanceDate: 'desc' },
-  });
+  const [prev, dispatchAgg, paymentAgg] = await Promise.all([
+    tx.salespersonBalance.findFirst({
+      where: { salespersonId, balanceDate: { lt: balanceDate } },
+      orderBy: { balanceDate: 'desc' },
+    }),
+    tx.stockDispatch.aggregate({
+      where: { salespersonId, dispatchDate: balanceDate },
+      _sum: { totalAmount: true },
+    }),
+    tx.salespersonPayment.aggregate({
+      where: { salespersonId, paymentDate: balanceDate },
+      _sum: { amount: true },
+    }),
+  ]);
+
   const openingBalance = Number(prev?.closingBalance ?? 0);
-
-  const dispatchAgg = await tx.stockDispatch.aggregate({
-    where: { salespersonId, dispatchDate: balanceDate },
-    _sum: { totalAmount: true },
-  });
-  const stockGiven = Number(dispatchAgg._sum.totalAmount ?? 0);
-
-  const paymentAgg = await tx.salespersonPayment.aggregate({
-    where: { salespersonId, paymentDate: balanceDate },
-    _sum: { amount: true },
-  });
-  const amountPaid = Number(paymentAgg._sum.amount ?? 0);
+  const stockGiven     = Number(dispatchAgg._sum.totalAmount ?? 0);
+  const amountPaid     = Number(paymentAgg._sum.amount ?? 0);
   const closingBalance = openingBalance + stockGiven - amountPaid;
 
   return tx.salespersonBalance.upsert({
@@ -98,56 +90,72 @@ async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) 
   });
 }
 
+// ─── Cascade helper ───────────────────────────────────────────────────────────
+
+async function _cascadeDairy(brandId, balanceDate, tx) {
+  await _calcDairyBalance(brandId, balanceDate, tx);
+  const subsequent = await tx.dairyBalance.findMany({
+    where: { brandId, balanceDate: { gt: balanceDate } },
+    orderBy: { balanceDate: 'asc' },
+    select: { balanceDate: true },
+  });
+  for (const row of subsequent) {
+    await _calcDairyBalance(brandId, row.balanceDate, tx);
+  }
+}
+
+async function _cascadeSalesperson(salespersonId, balanceDate, tx) {
+  await _calcSalespersonBalance(salespersonId, balanceDate, tx);
+  const subsequent = await tx.salespersonBalance.findMany({
+    where: { salespersonId, balanceDate: { gt: balanceDate } },
+    orderBy: { balanceDate: 'asc' },
+    select: { balanceDate: true },
+  });
+  for (const row of subsequent) {
+    await _calcSalespersonBalance(salespersonId, row.balanceDate, tx);
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Recalculate and upsert DairyBalance for a given brand + date, then cascade
- * forward to all subsequent stored balance records so that retroactive stock
- * receipt or payment changes propagate through the full history.
+ * Recalculate DairyBalance for brand+date, cascading forward.
  *
- * Runs in a serializable transaction so concurrent saves on overlapping date
- * ranges don't produce write-skew in the cascade.
+ * Accepts an optional `tx` so callers can roll the cascade into their own
+ * transaction. If omitted, runs in its own serializable transaction.
  *
  * Formula: closing = opening + stockValue + depositValue − amountPaid
  */
-async function recalculateDairyBalance(brandId, date) {
+async function recalculateDairyBalance(brandId, date, tx = null) {
   const balanceDate = new Date(date);
-  await prisma.$transaction(async (tx) => {
-    await _calcDairyBalance(brandId, balanceDate, tx);
-
-    const subsequent = await tx.dairyBalance.findMany({
-      where: { brandId, balanceDate: { gt: balanceDate } },
-      orderBy: { balanceDate: 'asc' },
-      select: { balanceDate: true },
-    });
-    for (const row of subsequent) {
-      await _calcDairyBalance(brandId, row.balanceDate, tx);
-    }
-  }, { isolationLevel: 'Serializable' });
+  if (tx) {
+    await _cascadeDairy(brandId, balanceDate, tx);
+  } else {
+    await prisma.$transaction(
+      (innerTx) => _cascadeDairy(brandId, balanceDate, innerTx),
+      { isolationLevel: 'Serializable' }
+    );
+  }
 }
 
 /**
- * Recalculate and upsert SalespersonBalance for a given salesperson + date,
- * then cascade forward to all subsequent stored balance records.
+ * Recalculate SalespersonBalance for salesperson+date, cascading forward.
  *
- * Runs in a serializable transaction.
+ * Accepts an optional `tx` so callers can roll the cascade into their own
+ * transaction. If omitted, runs in its own serializable transaction.
  *
  * Formula: closing = opening + stockGiven − amountPaid
  */
-async function recalculateSalespersonBalance(salespersonId, date) {
+async function recalculateSalespersonBalance(salespersonId, date, tx = null) {
   const balanceDate = new Date(date);
-  await prisma.$transaction(async (tx) => {
-    await _calcSalespersonBalance(salespersonId, balanceDate, tx);
-
-    const subsequent = await tx.salespersonBalance.findMany({
-      where: { salespersonId, balanceDate: { gt: balanceDate } },
-      orderBy: { balanceDate: 'asc' },
-      select: { balanceDate: true },
-    });
-    for (const row of subsequent) {
-      await _calcSalespersonBalance(salespersonId, row.balanceDate, tx);
-    }
-  }, { isolationLevel: 'Serializable' });
+  if (tx) {
+    await _cascadeSalesperson(salespersonId, balanceDate, tx);
+  } else {
+    await prisma.$transaction(
+      (innerTx) => _cascadeSalesperson(salespersonId, balanceDate, innerTx),
+      { isolationLevel: 'Serializable' }
+    );
+  }
 }
 
 module.exports = { recalculateDairyBalance, recalculateSalespersonBalance };

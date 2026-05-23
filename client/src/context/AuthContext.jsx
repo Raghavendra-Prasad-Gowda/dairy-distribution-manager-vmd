@@ -6,16 +6,14 @@ const AuthContext = createContext(null);
 const SESSION_MS = 12 * 60 * 60 * 1000; // 12 hours — matches JWT expiry
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser]     = useState(null);
+  const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef(null);
 
-  /** Cancel any pending auto-logout timer */
   const clearTimer = () => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
   };
 
-  /** Schedule auto-logout at (loginTime + 12h). Returns false if already expired. */
   const scheduleExpiry = (loginTime, doLogout) => {
     clearTimer();
     const remaining = SESSION_MS - (Date.now() - loginTime);
@@ -35,7 +33,6 @@ export const AuthProvider = ({ children }) => {
         setUser(JSON.parse(savedUser));
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       } else {
-        // Session expired while the tab was closed — clear immediately
         clearStorage();
       }
     }
@@ -55,24 +52,24 @@ export const AuthProvider = ({ children }) => {
     await api.post('/auth/logout').catch(() => {});
     clearStorage();
     setUser(null);
-    // Redirect to login — setUser(null) alone triggers ProtectedRoute redirect,
-    // but a hard redirect ensures any stale state is also cleared.
     window.location.href = '/login';
   }
 
   const login = async (username, password) => {
     try {
       const response = await api.post('/auth/login', { username, password });
-      const { accessToken, businessName } = response.data.data;
+      const { accessToken, businessName, role, salespersonId, salespersonName } = response.data.data;
 
       const loginTime = Date.now();
+      const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null };
+
       localStorage.setItem('token', accessToken);
-      localStorage.setItem('user', JSON.stringify({ businessName }));
+      localStorage.setItem('user', JSON.stringify(userObj));
       localStorage.setItem('loginTime', String(loginTime));
       api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
       scheduleExpiry(loginTime, performAutoLogout);
-      setUser({ businessName });
+      setUser(userObj);
       return { success: true };
     } catch (error) {
       return {

@@ -139,7 +139,7 @@ function footerBlock() {
   const appLink = APP_URL ? `<${APP_URL}|Open App>  •  ` : '';
   return {
     type: 'context',
-    elements: [{ type: 'mrkdwn', text: `🏪 *Vikas Milk Dairy*  •  ${appLink}${ts} IST` }],
+    elements: [{ type: 'mrkdwn', text: `🏪 *Dairy Distribution Manager*  •  ${appLink}${ts} IST` }],
   };
 }
 

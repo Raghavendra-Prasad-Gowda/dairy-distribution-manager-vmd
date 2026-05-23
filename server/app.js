@@ -17,8 +17,9 @@ const categoriesRoutes          = require('./routes/categories');
 const stockReceiptsRoutes       = require('./routes/stockReceipts');
 const dairyBalanceRoutes        = require('./routes/dairyBalance');
 const dairyPaymentsRoutes       = require('./routes/dairyPayments');
-const salespeopleRoutes         = require('./routes/salespeople');
-const salespersonPricesRoutes   = require('./routes/salespersonPrices');
+const salespeopleRoutes          = require('./routes/salespeople');
+const salespersonPricesRoutes    = require('./routes/salespersonPrices');
+const salespersonProductsRoutes  = require('./routes/salespersonProducts');
 const dispatchesRoutes          = require('./routes/dispatches');
 const salespersonBalanceRoutes  = require('./routes/salespersonBalance');
 const salespersonPaymentsRoutes = require('./routes/salespersonPayments');
@@ -26,7 +27,7 @@ const reportsRoutes             = require('./routes/reports');
 const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
 const clientErrorsRoutes        = require('./routes/clientErrors');
-const { authenticate }          = require('./middleware/auth');
+const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
 
@@ -68,6 +69,15 @@ app.use('/api/v1/auth/login', rateLimit({
   message: 'Too many login attempts, please try again after an hour',
 }));
 
+// Tighter limit on bulk endpoints that fan out large payload work
+const bulkWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many bulk requests, please slow down',
+});
+
 // ─── 6. Cookie parser ────────────────────────────────────────────────────────
 app.use(cookieParser());
 
@@ -84,20 +94,27 @@ app.use('/api/v1/errors/client', clientErrorsRoutes);
 
 // ─── Protected routes (all require authenticate) ─────────────────────────────
 app.use('/api/v1', authenticate);
+
+// Shared (admin + salesman)
 app.use('/api/v1/brands',               brandsRoutes);
 app.use('/api/v1/products',             productsRoutes);
 app.use('/api/v1/categories',           categoriesRoutes);
-app.use('/api/v1/stock-receipts',       stockReceiptsRoutes);
-app.use('/api/v1/dairy-balance',        dairyBalanceRoutes);
-app.use('/api/v1/dairy-payments',       dairyPaymentsRoutes);
-app.use('/api/v1/salespeople',          salespeopleRoutes);
-app.use('/api/v1/salespeople',          salespersonPricesRoutes);
 app.use('/api/v1/dispatches',           dispatchesRoutes);
 app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
-app.use('/api/v1/reports',              reportsRoutes);
-app.use('/api/v1/pin',                  pinRoutes);
-app.use('/api/v1/routes',              routesRoutes);
+app.use('/api/v1/salespeople',          salespersonPricesRoutes);
+
+// Admin-only salesperson sub-resources (bulk writes — rate-limited)
+app.use('/api/v1/salespeople',          requireAdmin, bulkWriteLimiter, salespersonProductsRoutes);
+
+// Admin-only routes
+app.use('/api/v1/stock-receipts',       requireAdmin, bulkWriteLimiter, stockReceiptsRoutes);
+app.use('/api/v1/dairy-balance',        requireAdmin, dairyBalanceRoutes);
+app.use('/api/v1/dairy-payments',       requireAdmin, dairyPaymentsRoutes);
+app.use('/api/v1/salespeople',          requireAdmin, salespeopleRoutes);
+app.use('/api/v1/reports',              requireAdmin, reportsRoutes);
+app.use('/api/v1/pin',                  requireAdmin, pinRoutes);
+app.use('/api/v1/routes',               requireAdmin, routesRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 // Must be the last middleware

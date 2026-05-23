@@ -4,6 +4,7 @@ import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -110,8 +111,11 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
+    // Server returns effectiveFrom as a UTC-midnight ISO string for DATE columns.
+    // Slice the date prefix directly — avoids the new Date() round-trip that would
+    // drift on non-IST browsers.
     const currentEffectiveFrom = p.costPrices?.[0]?.effectiveFrom
-      ? new Date(p.costPrices[0].effectiveFrom).toISOString().slice(0, 10)
+      ? String(p.costPrices[0].effectiveFrom).slice(0, 10)
       : getIndiaDate();
     setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: currentEffectiveFrom });
     setIsModalOpen(true);
@@ -188,14 +192,7 @@ export default function ProductsSetup() {
   return (
     <div className="flex flex-col h-full">
 
-      {submitting && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-            <p className="text-slate-700 font-semibold text-sm">Processing…</p>
-          </div>
-        </div>
-      )}
+      <LoadingOverlay open={submitting} message="Processing…" />
 
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">

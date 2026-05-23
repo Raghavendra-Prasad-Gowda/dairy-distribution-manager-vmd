@@ -124,7 +124,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-3">
               {[
                 { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-blue-600' },
-                { to: '/salesman/dispatch',   icon: Truck,      label: 'Dispatch',      color: 'bg-emerald-600' },
+                { to: '/salesman/payments',   icon: Truck,      label: 'Collections',   color: 'bg-emerald-600' },
                 { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments',color: 'bg-emerald-600' },
               ].map(({ to, icon: Icon, label, color }) => (
                 <Link

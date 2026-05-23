@@ -28,7 +28,7 @@ export default function DateSelector({ date, onChange, showNavigation = true, da
   return (
     <div className="flex items-center gap-1">
       {showNavigation && (
-        <button onClick={() => onChange(getPrevDate(date))} className={navBtn} title="Previous day">
+        <button onClick={() => onChange(getPrevDate(date))} className={navBtn} title="Previous day" aria-label="Previous day">
           <ChevronLeft size={17} />
         </button>
       )}
@@ -53,6 +53,7 @@ export default function DateSelector({ date, onChange, showNavigation = true, da
           disabled={isToday}
           className={`${navBtn} disabled:opacity-30 disabled:cursor-not-allowed`}
           title="Next day"
+          aria-label="Next day"
         >
           <ChevronRight size={17} />
         </button>

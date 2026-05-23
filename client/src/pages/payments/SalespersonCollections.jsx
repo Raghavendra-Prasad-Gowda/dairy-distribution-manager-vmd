@@ -6,6 +6,8 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 
 const MODE_COLORS = {
   Cash:   'bg-emerald-100 text-emerald-700',
@@ -47,7 +49,7 @@ function SpBalanceCard({ sp, balance }) {
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
           {isOwing ? 'To Collect' : 'Settled'}
         </p>
-        <p className={`text-3xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
           {formatCurrency(Math.abs(balance?.closingBalance ?? 0))}
         </p>
       </div>
@@ -162,8 +164,16 @@ export default function SalespersonCollections() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this collection record?')) return;
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, amount, mode }
+
+  const handleDelete = (id, amount, mode) => {
+    setDeleteConfirm({ id, amount, mode });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id } = deleteConfirm;
+    setDeleteConfirm(null);
     try {
       await api.delete(`/salesperson-payments/${id}`);
       notify('Record deleted', 'success');
@@ -501,7 +511,7 @@ export default function SalespersonCollections() {
                                       <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
                                         <Pencil size={12} />
                                       </button>
-                                      <button onClick={() => handleDelete(p.id)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                      <button onClick={() => handleDelete(p.id, p.amount, p.paymentMode)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                                         <Trash2 size={12} />
                                       </button>
                                     </div>
@@ -628,6 +638,28 @@ export default function SalespersonCollections() {
           </div>
         </div>
       )}
+
+      {/* Delete collection confirmation */}
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete collection record?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+          </>
+        }
+      >
+        {deleteConfirm && (
+          <p className="text-sm text-slate-500">
+            This will permanently delete the{' '}
+            <span className="font-semibold text-slate-700">{formatCurrency(deleteConfirm.amount)}</span>{' '}
+            {deleteConfirm.mode ? `via ${deleteConfirm.mode}` : ''} collection record and recalculate the balance.
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }

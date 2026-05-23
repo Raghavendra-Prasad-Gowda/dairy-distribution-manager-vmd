@@ -35,9 +35,10 @@ function exportCSV(data) {
   URL.revokeObjectURL(url);
 }
 
-export default function DepositReport() {
-  const [brands, setBrands]               = useState([]);
-  const [activeBrandId, setActiveBrandId] = useState(null);
+export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) {
+  const inShell = shellActiveBrandId != null;
+  const [brands, setBrands]               = useState(shellBrands ?? []);
+  const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
   const [from, setFrom]                   = useState(getYesterday());
   const [to, setTo]                       = useState(getYesterday());
   const [data, setData]                   = useState(null);
@@ -45,12 +46,17 @@ export default function DepositReport() {
   const [collapsed, setCollapsed]         = useState(new Set());
 
   useEffect(() => {
+    if (inShell) return;
     api.get('/brands').then(r => {
       const list = r.data.data ?? [];
       setBrands(list);
       if (list.length) setActiveBrandId(list[0].id);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
+  }, [shellActiveBrandId]);
 
   useEffect(() => {
     if (!activeBrandId) return;
@@ -93,29 +99,31 @@ export default function DepositReport() {
   }
 
   return (
-    <div className="bg-slate-100 min-h-screen pb-8">
+    <div className={inShell ? 'h-full overflow-y-auto bg-slate-100 pb-8' : 'bg-slate-100 min-h-screen pb-8'}>
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
-        <div className="flex items-center gap-2.5">
-          <Droplets size={17} className="text-emerald-300 flex-shrink-0" />
-          <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Deposit Report</h1>
-            <p className="text-emerald-300 text-xs">Deposit per litre over time</p>
+      {/* Header — hidden in shell mode */}
+      {!inShell && (
+        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
+          <div className="flex items-center gap-2.5">
+            <Droplets size={17} className="text-emerald-300 flex-shrink-0" />
+            <div>
+              <h1 className="text-sm font-bold text-white leading-tight">Deposit Report</h1>
+              <p className="text-emerald-300 text-xs">Deposit per litre over time</p>
+            </div>
           </div>
+          {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
+            <button
+              onClick={() => exportCSV(data)}
+              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+            >
+              <Download size={13} /> Export CSV
+            </button>
+          )}
         </div>
-        {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
-          <button
-            onClick={() => exportCSV(data)}
-            className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-          >
-            <Download size={13} /> Export CSV
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Brand tabs */}
-      {brands.length > 0 && (
+      {/* Brand tabs — hidden in shell mode */}
+      {!inShell && brands.length > 0 && (
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActiveBrandId} />
       )}
 

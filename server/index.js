@@ -71,6 +71,6 @@ async function boot() {
 }
 
 boot().catch(err => {
-  console.error('Fatal error during startup:', err);
+  logger.error('Fatal error during startup', { message: err.message, stack: err.stack });
   process.exit(1);
 });

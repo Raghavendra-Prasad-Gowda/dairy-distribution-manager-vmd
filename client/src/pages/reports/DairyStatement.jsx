@@ -139,9 +139,10 @@ function ExpandableRow({ row }) {
   );
 }
 
-export default function DairyStatement() {
-  const [brands, setBrands]        = useState([]);
-  const [activeBrandId, setActive] = useState(null);
+export default function DairyStatement({ shellActiveBrandId, shellBrands } = {}) {
+  const inShell = shellActiveBrandId != null;
+  const [brands, setBrands]        = useState(shellBrands ?? []);
+  const [activeBrandId, setActive] = useState(shellActiveBrandId ?? null);
   const [from, setFrom]            = useState(getFirstDayOfMonth());
   const [to, setTo]                = useState(getIndiaDate());
   const [rows, setRows]            = useState([]);
@@ -149,10 +150,15 @@ export default function DairyStatement() {
   const [error, setError]          = useState('');
 
   useEffect(() => {
+    if (inShell) return;
     api.get('/brands')
       .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => setError('Failed to load brands'));
   }, []);
+
+  useEffect(() => {
+    if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
+  }, [shellActiveBrandId]);
 
   useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, from, to]);
 
@@ -174,26 +180,37 @@ export default function DairyStatement() {
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <FileText size={17} className="text-emerald-300 flex-shrink-0" />
-          <div>
-            <h1 className="text-sm font-bold text-white leading-tight">Dairy Statement</h1>
-            <p className="text-emerald-300 text-xs">Account statement per dairy brand</p>
+      {/* ── Page header — hidden in shell mode ──────────────────────── */}
+      {!inShell && (
+        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <FileText size={17} className="text-emerald-300 flex-shrink-0" />
+            <div>
+              <h1 className="text-sm font-bold text-white leading-tight">Dairy Statement</h1>
+              <p className="text-emerald-300 text-xs">Account statement per dairy brand</p>
+            </div>
           </div>
+          {rows.length > 0 && (
+            <button onClick={() => exportCSV(rows, activeBrand?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition">
+              <Download size={13} /> Export CSV
+            </button>
+          )}
         </div>
-        {rows.length > 0 && (
-          <button onClick={() => exportCSV(rows, activeBrand?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition">
-            <Download size={13} /> Export CSV
-          </button>
-        )}
-      </div>
+      )}
 
     <div className="flex-1 overflow-y-auto">
     <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
-      {brands.length > 0 && (
+      {/* Export button in shell mode */}
+      {inShell && rows.length > 0 && (
+        <div className="flex justify-end">
+          <button onClick={() => exportCSV(rows, activeBrand?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 border border-emerald-300 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition">
+            <Download size={13} /> Export CSV
+          </button>
+        </div>
+      )}
+
+      {!inShell && brands.length > 0 && (
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
       )}
 
