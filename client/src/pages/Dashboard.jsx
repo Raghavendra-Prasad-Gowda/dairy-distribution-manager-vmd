@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Truck, CreditCard, AlertCircle, Loader2, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { Package, Truck, CreditCard, AlertCircle, ArrowRight, LayoutDashboard } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
+import BrandedLoader from '../components/ui/BrandedLoader';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { BRAND_COLORS } from '../utils/constants';
 import { useNotification } from '../context/NotificationContext';
@@ -113,9 +114,7 @@ export default function Dashboard() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-        </div>
+        <BrandedLoader />
       ) : (
         <>
           {/* ── 1. Quick Actions ────────────────────────────── */}

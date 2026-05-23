@@ -16,6 +16,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, LayoutGrid, Save, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import api from '../../api/axios';
 
 // ── Category row with up/down buttons ─────────────────────────────────────────
@@ -282,9 +283,7 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
       {/* ── Content ──────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto px-4 py-4 space-y-2">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-          </div>
+          <BrandedLoader />
         ) : (
           <div className="space-y-2">
             {grouped.map(([catName, catProducts], catIdx) => {

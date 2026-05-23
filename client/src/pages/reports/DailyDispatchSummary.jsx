@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen } from 'lucide-react';
+import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen } from 'lucide-react';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -198,9 +199,7 @@ export default function DailyDispatchSummary() {
           </div>
 
           {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
-            </div>
+            <div className="flex-1"><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></div>
           ) : (
             <ul className="flex-1 overflow-y-auto divide-y divide-slate-50">
               {filteredRows.length === 0 ? (
@@ -218,9 +217,7 @@ export default function DailyDispatchSummary() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
 
           {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-            </div>
+            <div className="flex-1"><BrandedLoader /></div>
           ) : !data || !selectedRow ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
               {data ? 'Select a salesperson' : null}

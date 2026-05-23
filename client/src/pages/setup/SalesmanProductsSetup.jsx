@@ -3,6 +3,7 @@ import { Save, Loader2, ToggleLeft, ToggleRight, Tag, Search, X } from 'lucide-r
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -215,11 +216,7 @@ export default function SalesmanProductsSetup() {
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
                       {loading ? (
-                        <tr>
-                          <td colSpan={2} className="py-16 text-center">
-                            <Loader2 className="w-5 h-5 text-emerald-600 animate-spin mx-auto" />
-                          </td>
-                        </tr>
+                        <tr><td colSpan={2}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
                       ) : pageGroups.length === 0 ? (
                         <tr>
                           <td colSpan={2} className="py-12 text-center text-slate-400 text-sm">

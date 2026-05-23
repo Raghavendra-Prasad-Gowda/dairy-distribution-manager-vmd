@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 
@@ -474,9 +475,7 @@ export default function SalespersonStockEntry() {
 
         {/* ── Product list ──────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-          </div>
+          <BrandedLoader />
         ) : products.length === 0 ? (
           <div className="mx-3 mt-3 bg-white rounded-2xl border border-amber-200 px-5 py-8 flex items-start gap-3">
             <AlertCircle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />

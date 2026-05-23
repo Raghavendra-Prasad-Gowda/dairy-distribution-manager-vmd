@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, AlertCircle, Warehouse } from 'lucide-react';
+import { AlertCircle, Warehouse } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -121,9 +122,7 @@ export default function StockBalanceSummary() {
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-        </div>
+        <div className="flex-1"><BrandedLoader /></div>
       ) : !hasData ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-400">
           <AlertCircle size={22} className="text-slate-300" />

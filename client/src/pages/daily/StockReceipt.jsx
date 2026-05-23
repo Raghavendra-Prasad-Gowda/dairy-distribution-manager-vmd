@@ -6,6 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 
 // Colour palette cycling across route pills
 const ROUTE_COLORS = [
@@ -501,7 +502,7 @@ export default function StockReceipt() {
 
               <tbody className="bg-white">
                 {loading ? (
-                  <tr><td colSpan={COL_COUNT} className="py-20 text-center"><Loader2 className="w-7 h-7 text-emerald-600 animate-spin mx-auto" /></td></tr>
+                  <tr><td colSpan={COL_COUNT}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
                 ) : groupedData.length === 0 ? (
                   <tr><td colSpan={COL_COUNT} className="py-10 text-center text-slate-400 text-sm">No products match your search.</td></tr>
                 ) : (

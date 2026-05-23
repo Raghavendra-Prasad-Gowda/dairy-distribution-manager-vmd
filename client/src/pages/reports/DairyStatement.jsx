@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { Download, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
@@ -259,11 +260,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             </thead>
             <tbody className="bg-white">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center">
-                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                  </td>
-                </tr>
+                <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
