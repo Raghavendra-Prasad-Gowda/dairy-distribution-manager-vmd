@@ -51,20 +51,21 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
             {formatCurrency(totalValue)}
           </p>
         )}
-        {totalCrates > 0 && (
+        {(totalCrates > 0 || totalUnits > 0) && (
           <p className="text-[11px] text-emerald-300 tabular-nums leading-tight">
-            {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}
+            {totalCrates > 0 && (
+              <>{Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}</>
+            )}
+            {totalCrates > 0 && totalUnits > 0 && ' · '}
+            {totalUnits > 0 && <>{totalUnits} units</>}
           </p>
-        )}
-        {!totalValue && totalUnits > 0 && (
-          <p className="text-xs text-emerald-300 tabular-nums">{totalUnits} units</p>
         )}
       </div>
     </button>
   );
 }
 
-function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, totalCrates = 0, crateLabel = 'Crate', onClick }) {
+function CategoryHeader({ name, collapsed, totalUnits, totalAmount, totalCrates = 0, crateLabel = 'Crate', onClick }) {
   const cratesLabel = totalCrates > 0
     ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} ${crateLabel}${totalCrates !== 1 ? 's' : ''}`
     : null;
@@ -82,7 +83,6 @@ function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, total
       <span className="flex-1 text-xs font-bold uppercase tracking-wider text-slate-600 leading-tight">
         {name}
       </span>
-      <span className="text-[11px] text-slate-400 tabular-nums">{count}</span>
       {cratesLabel && (
         <span className="text-[11px] font-semibold text-amber-700 tabular-nums bg-amber-50 px-2 py-0.5 rounded-full whitespace-nowrap">
           {cratesLabel}
@@ -540,7 +540,6 @@ export default function SalespersonStockEntry() {
                       <React.Fragment key={catKey}>
                         <CategoryHeader
                           name={cat.name}
-                          count={cat.products.length}
                           collapsed={catCollapsed}
                           totalUnits={catUnits}
                           totalAmount={catAmount}
