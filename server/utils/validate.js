@@ -178,11 +178,13 @@ const schemas = {
   createDispatch: z.object({
     salespersonId: z.number().int().positive().optional(),
     dispatchDate:  dateString(),
+    // Empty items means "clear my draft for this date" — the controller
+    // deletes the existing dispatch (if any) and cascades the balance.
     items: z.array(z.object({
       productId: z.number().int().positive(),
       quantity:  z.number().positive(),
       unitPrice: z.number().min(0),
-    })).min(1, 'At least one item is required'),
+    })).default([]),
     notes: shortText,
   }),
 

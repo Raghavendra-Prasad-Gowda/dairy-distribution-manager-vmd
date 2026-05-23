@@ -131,12 +131,30 @@ test.describe('POST /api/v1/dispatches', () => {
     expect(body.error).toMatch(/have 2/);
   });
 
-  test('returns 400 when items array is empty', async ({ request }) => {
+  test('empty items + no existing dispatch → 200 no-op ("Nothing to save")', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
     });
-    expect(res.status()).toBe(400);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/Nothing to save/i);
+  });
+
+  test('empty items + existing dispatch → deletes dispatch and cascades balance', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH);
+    ctx.mockPrisma.stockDispatch.delete.mockResolvedValue(DISPATCH);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/cleared/i);
   });
 
   test('returns 400 when salespersonId is missing', async ({ request }) => {
