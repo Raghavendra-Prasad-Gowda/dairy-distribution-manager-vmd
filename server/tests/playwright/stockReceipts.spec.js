@@ -7,6 +7,7 @@
 
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
+const { mockDairyCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -224,29 +225,15 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     // Expected: balanceService recalculates 2026-04-28 then cascades to 2026-04-29 and 2026-04-30
     const recalcDates = [];
 
-    // The $transaction for deleteMany+create returns []
-    ctx.mockPrisma.$transaction.mockImplementation(async (arg) => {
-      if (typeof arg === 'function') return arg(ctx.mockPrisma);
-      return [];
+    mockDairyCascade(ctx.mockPrisma, {
+      subsequentDates: ['2026-04-29', '2026-04-30'],
+      onPaymentAggregate: async ({ where }) => {
+        recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+        return { _sum: { amount: null } };
+      },
     });
-
-    // Cascade: two subsequent balance records exist
-    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([
-      { balanceDate: new Date('2026-04-29') },
-      { balanceDate: new Date('2026-04-30') },
-    ]);
-    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
-    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
-      { quantity: 100, unitPrice: 22, product: { unitType: 'ml', unitSize: 500, containerType: 'box', category: 'Milk', depositEnabled: false } },
-    ]);
-    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
-      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
-      return { _sum: { amount: null } };
-    });
-    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
     ctx.mockPrisma.stockReceipt.deleteMany.mockResolvedValue({ count: 0 });
-    ctx.mockPrisma.stockReceipt.create.mockResolvedValue(RECEIPT);
+    ctx.mockPrisma.stockReceipt.createMany.mockResolvedValue({ count: 1 });
     ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1, unitsPerContainer: 24 }]);
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {
@@ -263,18 +250,13 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
 
   test('items with zero quantity are filtered out and not inserted', async ({ request }) => {
     // Mixed: qty=0 (should be deleted/ignored) and qty>0 (should be inserted)
-    let createCount = 0;
+    let createManyArgs = null;
     ctx.mockPrisma.stockReceipt.deleteMany.mockResolvedValue({ count: 1 });
-    ctx.mockPrisma.stockReceipt.create.mockImplementation(async () => {
-      createCount++;
-      return RECEIPT;
+    ctx.mockPrisma.stockReceipt.createMany.mockImplementation(async (args) => {
+      createManyArgs = args;
+      return { count: args.data.length };
     });
-    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
-    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
-    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
+    mockDairyCascade(ctx.mockPrisma);
     ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 2, unitsPerContainer: 24 }]);
 
     const res = await request.post('/api/v1/stock-receipts/bulk', {

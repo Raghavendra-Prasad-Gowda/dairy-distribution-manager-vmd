@@ -137,3 +137,76 @@ test.describe('PUT /api/v1/brands/:id', () => {
     expect(res.status()).toBe(400);
   });
 });
+
+// ─── PATCH /api/v1/brands/reorder ────────────────────────────────────────────
+
+test.describe('PATCH /api/v1/brands/reorder', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/brands/reorder', { data: [] });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when payload is not an array', async ({ request }) => {
+    const res = await request.patch('/api/v1/brands/reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { foo: 'bar' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when an item is missing displayOrder', async ({ request }) => {
+    const res = await request.patch('/api/v1/brands/reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: [{ id: 1 }],
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 and applies each update with correct displayOrder', async ({ request }) => {
+    const updateCalls = [];
+    ctx.mockPrisma.brand.update.mockImplementation(async (args) => {
+      updateCalls.push(args);
+      return {};
+    });
+
+    const res = await request.patch('/api/v1/brands/reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: [
+        { id: 1, displayOrder: 2 },
+        { id: 2, displayOrder: 0 },
+        { id: 3, displayOrder: 1 },
+      ],
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateCalls).toHaveLength(3);
+    expect(updateCalls[0]).toEqual({ where: { id: 1 }, data: { displayOrder: 2 } });
+    expect(updateCalls[1]).toEqual({ where: { id: 2 }, data: { displayOrder: 0 } });
+    expect(updateCalls[2]).toEqual({ where: { id: 3 }, data: { displayOrder: 1 } });
+  });
+});
+
+// ─── PATCH /api/v1/brands/salesperson-reorder ────────────────────────────────
+
+test.describe('PATCH /api/v1/brands/salesperson-reorder', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/brands/salesperson-reorder', { data: [] });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 and writes to salespersonDisplayOrder (not displayOrder)', async ({ request }) => {
+    const updateCalls = [];
+    ctx.mockPrisma.brand.update.mockImplementation(async (args) => {
+      updateCalls.push(args);
+      return {};
+    });
+
+    const res = await request.patch('/api/v1/brands/salesperson-reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: [{ id: 1, displayOrder: 5 }],
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateCalls[0]).toEqual({ where: { id: 1 }, data: { salespersonDisplayOrder: 5 } });
+  });
+});

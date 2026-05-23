@@ -262,7 +262,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('returns 200 with stock summary', async ({ request }) => {
+  test('returns 200 with stock summary (legacy single-date param)', async ({ request }) => {
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     ctx.mockPrisma.route.findMany.mockResolvedValue([]);
@@ -274,9 +274,61 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.data).toHaveProperty('date', '2026-04-30');
-    expect(body.data).toHaveProperty('receipts');
-    expect(body.data).toHaveProperty('dispatches');
+    expect(body.data).toMatchObject({
+      from: '2026-04-30',
+      to:   '2026-04-30',
+      grandTotalReceived:   0,
+      grandTotalDispatched: 0,
+      rows: [],
+    });
+  });
+
+  test('returns 200 with stock summary using from/to date range', async ({ request }) => {
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.from).toBe('2026-04-01');
+    expect(body.data.to).toBe('2026-04-30');
+  });
+
+  test('aggregates receipts and dispatches into per-day rows', async ({ request }) => {
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-30'), quantity: 100, unitPrice: 22, routeId: 0,
+        product: { name: 'Milk', unitsPerContainer: null, costPrice: 22, displayOrder: 0 },
+        brand:   { name: 'Nandini' },
+      },
+    ]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([
+      {
+        dispatchDate: new Date('2026-04-30'),
+        salesperson:  { name: 'Alice' },
+        items: [
+          { quantity: 10, unitPrice: 24, totalAmount: 240, product: { name: 'Milk', brand: { name: 'Nandini' } } },
+        ],
+      },
+    ]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.rows).toHaveLength(1);
+    expect(body.data.rows[0].date).toBe('2026-04-30');
+    expect(body.data.rows[0].totalReceived).toBe(2200);   // 100 × 22
+    expect(body.data.rows[0].totalDispatched).toBe(240);
+    expect(body.data.grandTotalReceived).toBe(2200);
+    expect(body.data.grandTotalDispatched).toBe(240);
   });
 });
 
@@ -517,5 +569,134 @@ test.describe('GET /api/v1/reports/deposit-summary', () => {
     expect(body.data.rows[0].runningTotal).toBeCloseTo(100, 2);
     expect(body.data.rows[1].runningTotal).toBeCloseTo(150, 2);
     expect(body.data.totalDeposit).toBeCloseTo(150, 2);
+  });
+});
+
+// ─── GET /api/v1/reports/daily-dispatch ──────────────────────────────────────
+//
+// Matrix view used by the daily dispatch summary screen and the stock balance
+// page. Brand columns × salesperson rows with qty/price cells.
+
+test.describe('GET /api/v1/reports/daily-dispatch', () => {
+  const ACTIVE_PRODUCTS = [
+    { id: 1,  name: 'Toned 500ml', brandId: 1, brand: { id: 1, name: 'Nandini', salespersonDisplayOrder: 1 }, salespersonDisplayOrder: 1, unitsPerContainer: 20, category: 'Milk' },
+    { id: 2,  name: 'Curd 200g',   brandId: 1, brand: { id: 1, name: 'Nandini', salespersonDisplayOrder: 1 }, salespersonDisplayOrder: 2, unitsPerContainer: null, category: 'Curd' },
+    { id: 10, name: 'Ghee 500ml',  brandId: 2, brand: { id: 2, name: 'Jersey',  salespersonDisplayOrder: 2 }, salespersonDisplayOrder: 1, unitsPerContainer: null, category: 'Ghee' },
+  ];
+
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when date is missing', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/daily-dispatch', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 with brand columns, salesperson rows, and per-product totals', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([
+      {
+        id: 100, totalAmount: 600, isSubmitted: true, isAdminUnlocked: false,
+        salesperson: { id: 5, name: 'Alice' },
+        items: [
+          { productId: 1,  product: { id: 1,  brandId: 1 }, quantity: 10, unitPrice: 40 },
+          { productId: 10, product: { id: 10, brandId: 2 }, quantity: 2,  unitPrice: 100 },
+        ],
+      },
+      {
+        id: 101, totalAmount: 200, isSubmitted: false, isAdminUnlocked: false,
+        salesperson: { id: 6, name: 'Bob' },
+        items: [
+          { productId: 1, product: { id: 1, brandId: 1 }, quantity: 5, unitPrice: 40 },
+        ],
+      },
+    ]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.brands).toHaveLength(2);
+    expect(body.data.brands[0].brandName).toBe('Nandini');
+    expect(body.data.brands[1].brandName).toBe('Jersey');
+    expect(body.data.rows).toHaveLength(2);
+    expect(body.data.totals[1]).toBe(15); // 10 + 5
+    expect(body.data.totals[10]).toBe(2);
+  });
+
+  test('isLocked=true when isSubmitted and not isAdminUnlocked', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([
+      {
+        id: 1, totalAmount: 100, isSubmitted: true, isAdminUnlocked: false,
+        salesperson: { id: 1, name: 'A' },
+        items: [{ productId: 1, product: { id: 1, brandId: 1 }, quantity: 1, unitPrice: 40 }],
+      },
+    ]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.rows[0].isLocked).toBe(true);
+  });
+
+  test('isLocked=false when admin has unlocked', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([
+      {
+        id: 1, totalAmount: 100, isSubmitted: true, isAdminUnlocked: true,
+        salesperson: { id: 1, name: 'A' },
+        items: [{ productId: 1, product: { id: 1, brandId: 1 }, quantity: 1, unitPrice: 40 }],
+      },
+    ]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.rows[0].isLocked).toBe(false);
+  });
+
+  test('items whose productId is not in active list are filtered out', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([
+      {
+        id: 1, totalAmount: 100, isSubmitted: false, isAdminUnlocked: false,
+        salesperson: { id: 1, name: 'A' },
+        items: [
+          { productId: 1,    product: { id: 1,    brandId: 1 }, quantity: 5, unitPrice: 40 },
+          { productId: 9999, product: { id: 9999, brandId: 1 }, quantity: 3, unitPrice: 40 }, // not in active list
+        ],
+      },
+    ]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.rows[0].items[1]).toBeDefined();
+    expect(body.data.rows[0].items[9999]).toBeUndefined();
+    expect(body.data.totals[9999]).toBeUndefined();
+  });
+
+  test('returns 200 with empty rows when no dispatches for date', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.rows).toEqual([]);
+    expect(body.data.brands).toHaveLength(2);
   });
 });

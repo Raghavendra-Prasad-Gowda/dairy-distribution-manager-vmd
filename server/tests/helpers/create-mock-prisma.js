@@ -76,8 +76,11 @@ function createMockPrisma() {
     salesperson: {
       findMany:   mockFn(),
       findUnique: mockFn(),
+      findFirst:  mockFn(),
       create:     mockFn(),
       update:     mockFn(),
+      delete:     mockFn(),
+      count:      mockFn(),
     },
     productCostPrice: {
       findMany:   mockFn(),
@@ -106,6 +109,7 @@ function createMockPrisma() {
       update:     mockFn(),
       delete:     mockFn(),
       aggregate:  mockFn(),
+      count:      mockFn(),
     },
     stockDispatchItem: {
       findMany:   mockFn(),
@@ -122,6 +126,7 @@ function createMockPrisma() {
       update:     mockFn(),
       upsert:     mockFn(),
       deleteMany: mockFn(),
+      count:      mockFn(),
     },
     salespersonPayment: {
       findMany:   mockFn(),
@@ -130,6 +135,17 @@ function createMockPrisma() {
       update:     mockFn(),
       delete:     mockFn(),
       aggregate:  mockFn(),
+      count:      mockFn(),
+    },
+    salespersonProduct: {
+      findMany:   mockFn(),
+      findUnique: mockFn(),
+      create:     mockFn(),
+      update:     mockFn(),
+      upsert:     mockFn(),
+      delete:     mockFn(),
+      deleteMany: mockFn(),
+      updateMany: mockFn(),
     },
     $transaction: mockFn(),
     $queryRaw:    mockFn(),

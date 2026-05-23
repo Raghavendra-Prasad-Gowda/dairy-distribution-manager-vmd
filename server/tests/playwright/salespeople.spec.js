@@ -179,4 +179,77 @@ test.describe('PUT /api/v1/salespeople/:id', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('GET excludes inactive salespeople by default', async ({ request }) => {
+    let findManyArgs = null;
+    ctx.mockPrisma.salesperson.findMany.mockImplementation(async (args) => {
+      findManyArgs = args;
+      return [SALESPERSON];
+    });
+
+    const res = await request.get('/api/v1/salespeople', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    expect(findManyArgs.where).toEqual({ isActive: true });
+  });
+
+  test('GET ?all=true includes inactive salespeople', async ({ request }) => {
+    let findManyArgs = null;
+    ctx.mockPrisma.salesperson.findMany.mockImplementation(async (args) => {
+      findManyArgs = args;
+      return [SALESPERSON, { ...SALESPERSON, id: 2, isActive: false }];
+    });
+
+    const res = await request.get('/api/v1/salespeople?all=true', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    expect(findManyArgs.where).toEqual({});
+  });
+});
+
+// ─── DELETE /api/v1/salespeople/:id ──────────────────────────────────────────
+
+test.describe('DELETE /api/v1/salespeople/:id', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.delete('/api/v1/salespeople/1');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 for non-numeric ID', async ({ request }) => {
+    const res = await request.delete('/api/v1/salespeople/abc', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 and hard-deletes when no transactions exist', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.count.mockResolvedValue(0);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(0);
+    ctx.mockPrisma.salespersonPayment.count.mockResolvedValue(0);
+    ctx.mockPrisma.salesperson.delete.mockResolvedValue(SALESPERSON);
+
+    const res = await request.delete('/api/v1/salespeople/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/deleted/i);
+  });
+
+  test('returns 400 and refuses delete when transactions exist', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.count.mockResolvedValue(3);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(0);
+    ctx.mockPrisma.salespersonPayment.count.mockResolvedValue(0);
+
+    const res = await request.delete('/api/v1/salespeople/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Deactivate them instead/i);
+  });
 });

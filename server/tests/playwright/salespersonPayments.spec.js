@@ -7,6 +7,7 @@
 
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
+const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -32,7 +33,7 @@ test.describe('POST /api/v1/salesperson-payments', () => {
 
   test('returns 201 when payment is created', async ({ request }) => {
     ctx.mockPrisma.salespersonPayment.create.mockResolvedValue(PAYMENT);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.post('/api/v1/salesperson-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -238,7 +239,7 @@ test.describe('DELETE /api/v1/salesperson-payments/:id', () => {
   test('returns 200 when payment is deleted', async ({ request }) => {
     ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(PAYMENT);
     ctx.mockPrisma.salespersonPayment.delete.mockResolvedValue(PAYMENT);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.delete('/api/v1/salesperson-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
