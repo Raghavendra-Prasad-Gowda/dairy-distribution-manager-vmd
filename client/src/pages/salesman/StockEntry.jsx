@@ -661,19 +661,19 @@ export default function SalespersonStockEntry() {
       {/* ── Sticky action bar ────────────────────────────────────────────────── */}
       {!loading && products.length > 0 && (
         isLocked ? (
-          <div className="flex-shrink-0 bg-emerald-700 border-t border-emerald-800 px-4 py-4 flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-full bg-emerald-600/60 flex items-center justify-center flex-shrink-0">
-              <Lock size={20} className="text-white" />
+          <div className="flex-shrink-0 bg-red-50 border-t-2 border-red-200 px-4 py-4 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-full bg-red-100 ring-2 ring-red-200 flex items-center justify-center flex-shrink-0">
+              <Lock size={22} className="text-red-600" strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-extrabold text-white leading-tight">
+              <p className="text-sm font-extrabold text-red-900 leading-tight">
                 {dispatch?.isAdminUnlocked === false && dispatch?.isSubmitted
                   ? 'Submitted & locked'
                   : isPast
                   ? 'Past date — locked'
                   : 'Locked'}
               </p>
-              <p className="text-xs text-emerald-100 mt-0.5">Contact your admin to make changes</p>
+              <p className="text-xs text-red-700/80 mt-0.5">Contact your admin to make changes</p>
             </div>
           </div>
         ) : (
