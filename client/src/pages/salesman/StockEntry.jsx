@@ -661,23 +661,29 @@ export default function SalespersonStockEntry() {
       {/* ── Sticky action bar ────────────────────────────────────────────────── */}
       {!loading && products.length > 0 && (
         isLocked ? (
-          <div className="flex-shrink-0 bg-red-50 border-t-2 border-red-200 px-4 py-4 flex items-center gap-3.5">
+          <div
+            className="flex-shrink-0 bg-emerald-50 border-t-2 border-emerald-300 px-4 py-4 flex items-center gap-3.5 shadow-[0_-4px_12px_-2px_rgba(16,185,129,0.15)]"
+            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
             <div className="w-11 h-11 rounded-full bg-red-100 ring-2 ring-red-200 flex items-center justify-center flex-shrink-0">
               <Lock size={22} className="text-red-600" strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-extrabold text-red-900 leading-tight">
+              <p className="text-sm font-extrabold text-emerald-900 leading-tight">
                 {dispatch?.isAdminUnlocked === false && dispatch?.isSubmitted
                   ? 'Submitted & locked'
                   : isPast
                   ? 'Past date — locked'
                   : 'Locked'}
               </p>
-              <p className="text-xs text-red-700/80 mt-0.5">Contact your admin to make changes</p>
+              <p className="text-xs text-emerald-700/80 mt-0.5">Contact your admin to make changes</p>
             </div>
           </div>
         ) : (
-          <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2">
+          <div
+            className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
             {filledCount > 0 && (
               <p className="text-xs text-center text-slate-500 font-medium">
                 {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units ·{' '}
