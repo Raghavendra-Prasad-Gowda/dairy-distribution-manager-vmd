@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Save, Loader2, ShoppingCart, TrendingUp, Search, X,
-  ChevronDown, ChevronRight, CheckCircle, AlertCircle, Minus, Plus, Lock,
+  ChevronDown, ChevronRight, AlertCircle, Minus, Plus, Lock,
 } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
@@ -694,18 +694,18 @@ export default function SalespersonStockEntry() {
               <button
                 onClick={handleSave}
                 disabled={isBusy || (filledCount === 0 && !dispatch)}
-                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-300 bg-slate-100 text-slate-700 font-bold text-sm disabled:opacity-40 hover:bg-slate-200 active:bg-slate-200 transition"
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-slate-800 text-white font-bold text-sm disabled:bg-slate-300 disabled:text-slate-500 hover:bg-slate-900 active:bg-slate-900 transition shadow-sm"
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                {filledCount === 0 && dispatch ? 'Clear Draft' : 'Save Draft'}
+                {filledCount === 0 && dispatch ? 'Clear' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSubmitConfirm(true)}
                 disabled={isBusy || filledCount === 0}
-                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:opacity-40 active:bg-emerald-800 transition shadow-sm"
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:bg-emerald-300 active:bg-emerald-800 transition shadow-sm"
               >
-                {submitting ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                Save &amp; Submit
+                {submitting ? <Loader2 className="animate-spin" size={16} /> : <Lock size={16} strokeWidth={2.5} />}
+                Finalize &amp; Submit
               </button>
             </div>
           </div>
@@ -716,13 +716,13 @@ export default function SalespersonStockEntry() {
       <Modal
         open={showSubmitConfirm}
         onClose={() => setShowSubmitConfirm(false)}
-        title="Submit stock entry?"
+        title="Finalize stock entry?"
         size="sm"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowSubmitConfirm(false)}>Cancel</Button>
             <Button variant="primary" onClick={() => { setShowSubmitConfirm(false); handleSaveAndSubmit(); }}>
-              Submit &amp; Lock
+              Finalize &amp; Submit
             </Button>
           </>
         }
