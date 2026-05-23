@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { getIndiaDateStr } = require('../utils/dateUtils');
 
 // GET /salespeople/:id/prices
 // - Salesman: only enabled products with their allocated prices
@@ -29,8 +30,12 @@ const getPrices = asyncHandler(async (req, res) => {
       where: { salespersonId },
       select: { productId: true, isEnabled: true },
     }),
+    // Compare in IST date space, not UTC instant. effective_from is a DATE
+    // column; a price saved today (IST) stores as today's UTC midnight. Between
+    // 00:00–05:30 IST the UTC clock is still on yesterday, so a naive
+    // `lte: new Date()` would silently exclude prices the admin just saved.
     prisma.salespersonPrice.findMany({
-      where: { salespersonId, effectiveFrom: { lte: new Date() } },
+      where: { salespersonId, effectiveFrom: { lte: new Date(getIndiaDateStr()) } },
       orderBy: { effectiveFrom: 'desc' },
     }),
     prisma.category.findMany({

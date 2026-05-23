@@ -66,6 +66,34 @@ test.describe('GET /api/v1/salespeople/:id/prices', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('filters effective_from in IST date space, not UTC instant (regression)', async ({ request }) => {
+    // The bug: a price saved with effectiveFrom = today (IST) is stored as
+    // today's UTC midnight. Between 00:00–05:30 IST the UTC clock is still
+    // on yesterday, so a naive `lte: new Date()` filter would exclude the
+    // freshly-saved price and the admin would see "no change" after saving.
+    // The fix uses `lte: new Date(getIndiaDateStr())` — an IST-date upper bound.
+    let findManyArgs = null;
+    ctx.mockPrisma.product.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockImplementation(async (args) => {
+      findManyArgs = args;
+      return [];
+    });
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+
+    const upperBound = findManyArgs.where.effectiveFrom.lte;
+    // Upper bound must be midnight UTC of today's IST date (not "now" UTC).
+    expect(upperBound).toBeInstanceOf(Date);
+    expect(upperBound.getUTCHours()).toBe(0);
+    expect(upperBound.getUTCMinutes()).toBe(0);
+    expect(upperBound.getUTCSeconds()).toBe(0);
+  });
 });
 
 // ─── POST /api/v1/salespeople/:id/prices/bulk ────────────────────────────────
