@@ -5,6 +5,7 @@ import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 export default function DailyDispatchSummary() {
   const [date, setDate]                       = useState(getIndiaDate());
@@ -276,23 +277,15 @@ export default function DailyDispatchSummary() {
                     {showZeroQty ? 'All products' : 'Entered only'}
                   </button>
                   {selectedRow.dispatchId && (
-                    <button
-                      type="button"
-                      disabled={lockLoading}
+                    <Button
+                      size="sm"
+                      variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
+                      icon={selectedRow.isLocked ? LockOpen : Lock}
+                      loading={lockLoading}
                       onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
-                      className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border transition whitespace-nowrap disabled:opacity-50 ${
-                        selectedRow.isLocked
-                          ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                      }`}
                     >
-                      {lockLoading
-                        ? <Loader2 size={11} className="animate-spin" />
-                        : selectedRow.isLocked
-                        ? <><LockOpen size={11} /> Unlock</>
-                        : <><Lock size={11} /> Lock</>
-                      }
-                    </button>
+                      {selectedRow.isLocked ? 'Unlock' : 'Lock'}
+                    </Button>
                   )}
                 </div>
               </div>
@@ -419,36 +412,23 @@ export default function DailyDispatchSummary() {
       </div>
 
       {/* Lock / Unlock confirmation modal */}
-      <Modal
-        open={!!lockConfirm}
+      <ConfirmationModal
+        isOpen={!!lockConfirm}
         onClose={() => setLockConfirm(null)}
+        onConfirm={confirmLockToggle}
         title={lockConfirm?.isLocked ? 'Unlock entry?' : 'Lock entry?'}
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setLockConfirm(null)}>Cancel</Button>
-            <button
-              onClick={confirmLockToggle}
-              className={`inline-flex items-center justify-center gap-2 font-semibold px-4 py-2.5 rounded-xl transition text-sm text-white shadow-sm ${
-                lockConfirm?.isLocked
-                  ? 'bg-amber-500 hover:bg-amber-600'
-                  : 'bg-slate-700 hover:bg-slate-800'
-              }`}
-            >
-              {lockConfirm?.isLocked ? 'Unlock' : 'Lock'}
-            </button>
-          </>
+        message={
+          lockConfirm
+            ? lockConfirm.isLocked
+              ? `${lockConfirm.name}'s dispatch will be unlocked so they can edit it again.`
+              : `${lockConfirm.name}'s dispatch will be locked and they won't be able to make changes.`
+            : ''
         }
-      >
-        {lockConfirm && (
-          <p className="text-sm text-slate-500">
-            {lockConfirm.isLocked
-              ? <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be unlocked so they can edit it again.</>
-              : <><span className="font-semibold text-slate-700">{lockConfirm.name}</span>'s dispatch will be locked and they won't be able to make changes.</>
-            }
-          </p>
-        )}
-      </Modal>
+        confirmText={lockConfirm?.isLocked ? 'Yes, Unlock' : 'Yes, Lock'}
+        cancelText="Cancel"
+        tone={lockConfirm?.isLocked ? 'warning' : 'danger'}
+        icon={lockConfirm?.isLocked ? LockOpen : Lock}
+      />
 
     </div>
   );
