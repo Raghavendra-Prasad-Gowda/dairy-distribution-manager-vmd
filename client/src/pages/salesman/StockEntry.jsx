@@ -64,12 +64,16 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
   );
 }
 
-function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, onClick }) {
+function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, totalCrates = 0, crateLabel = 'Crate', onClick }) {
+  const cratesLabel = totalCrates > 0
+    ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} ${crateLabel}${totalCrates !== 1 ? 's' : ''}`
+    : null;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-2.5 bg-slate-50 active:bg-slate-100 border-l-4 border-emerald-400 px-4 py-3 text-left select-none transition-colors"
+      className="w-full flex items-center gap-2 bg-slate-50 active:bg-slate-100 border-l-4 border-emerald-400 px-4 py-3 text-left select-none transition-colors"
     >
       {collapsed
         ? <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
@@ -79,13 +83,18 @@ function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, onCli
         {name}
       </span>
       <span className="text-[11px] text-slate-400 tabular-nums">{count}</span>
+      {cratesLabel && (
+        <span className="text-[11px] font-semibold text-amber-700 tabular-nums bg-amber-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+          {cratesLabel}
+        </span>
+      )}
       {totalUnits > 0 && (
-        <span className="text-[11px] font-semibold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-full">
+        <span className="text-[11px] font-semibold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
           {totalUnits} units
         </span>
       )}
       {totalAmount > 0 && (
-        <span className="text-[11px] font-bold text-amber-700 tabular-nums">
+        <span className="text-[11px] font-bold text-amber-700 tabular-nums whitespace-nowrap">
           {formatCurrency(totalAmount)}
         </span>
       )}
@@ -517,6 +526,15 @@ export default function SalespersonStockEntry() {
                     const catCollapsed = collapsedCats[catKey] ?? false;
                     const catUnits  = cat.products.reduce((s, p) => s + (parseFloat(qty[p.productId]) || 0), 0);
                     const catAmount = cat.products.reduce((s, p) => s + (parseFloat(qty[p.productId]) || 0) * (p.sellingPrice ?? 0), 0);
+                    let catCrates = 0;
+                    let catCrateLabel = null;
+                    for (const p of cat.products) {
+                      const q = parseFloat(qty[p.productId]) || 0;
+                      if (p.containerType && p.unitsPerContainer && q > 0) {
+                        catCrates += q / p.unitsPerContainer;
+                        if (!catCrateLabel) catCrateLabel = p.containerType.charAt(0).toUpperCase() + p.containerType.slice(1);
+                      }
+                    }
 
                     return (
                       <React.Fragment key={catKey}>
@@ -526,6 +544,8 @@ export default function SalespersonStockEntry() {
                           collapsed={catCollapsed}
                           totalUnits={catUnits}
                           totalAmount={catAmount}
+                          totalCrates={catCrates}
+                          crateLabel={catCrateLabel ?? 'Crate'}
                           onClick={() => setCollapsedCats(prev => ({ ...prev, [catKey]: !prev[catKey] }))}
                         />
 
