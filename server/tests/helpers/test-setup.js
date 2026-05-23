@@ -32,6 +32,17 @@ const makeAuthToken = () =>
   jwt.sign({ id: 1 }, SECRET, { expiresIn: '1h' });
 
 /**
+ * Returns a signed JWT for a salesman. Carries role: 'salesman' and the
+ * salespersonId on which scope-by-role logic depends.
+ */
+const makeSalesmanToken = (salespersonId = 1) =>
+  jwt.sign({ id: 100, role: 'salesman', salespersonId }, SECRET, { expiresIn: '1h' });
+
+/** Returns a JWT that expired 1 hour ago — used to test 401 path. */
+const makeExpiredToken = () =>
+  jwt.sign({ id: 1 }, SECRET, { expiresIn: '-1h' });
+
+/**
  * Sets up a complete test suite with a fresh server + mock per file.
  * Mocks are reset before each test.
  *
@@ -81,4 +92,4 @@ function setupSuite(bcryptDefaults = {}) {
   return { test, ctx, makeAuthToken };
 }
 
-module.exports = { setupSuite, makeAuthToken };
+module.exports = { setupSuite, makeAuthToken, makeSalesmanToken, makeExpiredToken };

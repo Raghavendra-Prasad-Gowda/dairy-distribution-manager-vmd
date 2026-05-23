@@ -24,3 +24,8 @@ server/node_modules/.prisma/
 
 # editor
 .vscode/
+
+# Playwright artefacts
+test-results/
+server/test-results/
+playwright-report/
