@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import BrandedLoader from './components/ui/BrandedLoader';
+import ColdStartScreen from './components/ColdStartScreen';
 
 // Admin pages
 const Dashboard              = lazy(() => import('./pages/Dashboard'));
@@ -125,6 +126,7 @@ export default function App() {
         <AuthProvider>
           <NotificationProvider>
             <AppRoutes />
+            <ColdStartScreen />
           </NotificationProvider>
         </AuthProvider>
       </BrowserRouter>
