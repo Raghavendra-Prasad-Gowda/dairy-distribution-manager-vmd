@@ -31,6 +31,8 @@ test.describe('GET /api/v1/salespeople/:id/prices', () => {
   test('returns 200 with price list for a salesperson', async ({ request }) => {
     ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
     ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([PRICE_ROW]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/salespeople/1/prices', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -46,6 +48,8 @@ test.describe('GET /api/v1/salespeople/:id/prices', () => {
   test('returns 200 with null sellingPrice when no price set', async ({ request }) => {
     ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
     ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]); // no prices
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/salespeople/1/prices', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

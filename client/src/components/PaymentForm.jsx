@@ -21,11 +21,12 @@ export default function PaymentForm({
   prefill        = null,
   onClearPrefill = null,
   submitLabel    = 'Record Payment',
+  defaultMode    = 'Cash',
 }) {
   const blankForm = {
     amount:      '',
     paymentDate: getIndiaDate(),
-    paymentMode: 'Cash',
+    paymentMode: defaultMode,
     reference:   '',
   };
 
@@ -37,7 +38,7 @@ export default function PaymentForm({
     setForm({
       amount:      String(prefill.amount ?? ''),
       paymentDate: prefill.paymentDate ?? getIndiaDate(),
-      paymentMode: prefill.paymentMode ?? 'Cash',
+      paymentMode: prefill.paymentMode ?? defaultMode,
       reference:   prefill.reference   ?? '',
     });
     onClearPrefill?.();

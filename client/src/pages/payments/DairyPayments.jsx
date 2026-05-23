@@ -383,7 +383,7 @@ export default function DairyPayments() {
                           const payAmount = Math.min(grandTotal, Number(balance.closingBalance));
                           return (
                             <button
-                              onClick={() => setPaymentPrefill({ amount: String(payAmount.toFixed(2)), paymentDate: today, paymentMode: 'Bank Transfer', reference: '' })}
+                              onClick={() => setPaymentPrefill({ amount: String(payAmount.toFixed(2)), paymentDate: today, paymentMode: 'RTGS', reference: '' })}
                               className="mt-3 w-full ddm-btn-primary text-xs justify-center"
                             >
                               Pay Today's Bill — {formatCurrency(payAmount)}
@@ -403,6 +403,7 @@ export default function DairyPayments() {
                     loading={saving}
                     prefill={paymentPrefill}
                     onClearPrefill={() => setPaymentPrefill(null)}
+                    defaultMode="RTGS"
                   />
                 </div>
               </div>

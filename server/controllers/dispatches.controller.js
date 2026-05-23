@@ -94,6 +94,24 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     throw new AppError('This stock entry is locked. Contact your admin to unlock it.', 403);
   }
 
+  // Empty items → clear the existing dispatch (delete + cascade). No-op if nothing exists.
+  if (data.items.length === 0) {
+    if (!existing) {
+      return res.json({ success: true, data: { message: 'Nothing to save' } });
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.stockDispatch.delete({ where: { id: existing.id } });
+      await recalculateSalespersonBalance(salespersonId, data.dispatchDate, tx);
+    }, { isolationLevel: 'Serializable' });
+    logger.info('Stock entry cleared', { id: existing.id, salespersonId, date: data.dispatchDate });
+    void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
+      salespersonId,
+      date:        data.dispatchDate,
+      totalAmount: Number(existing.totalAmount),
+    });
+    return res.json({ success: true, data: { message: 'Stock entry cleared' } });
+  }
+
   // Stock-availability guard: requested qty must not exceed (received − already dispatched)
   const stockErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
   if (stockErrors.length) {

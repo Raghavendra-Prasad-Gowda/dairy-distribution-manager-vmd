@@ -7,6 +7,7 @@
 
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
+const { mockDairyCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -32,7 +33,7 @@ test.describe('POST /api/v1/dairy-payments', () => {
 
   test('returns 201 when payment is created', async ({ request }) => {
     ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockDairyCascade(ctx.mockPrisma);
 
     const res = await request.post('/api/v1/dairy-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -75,19 +76,13 @@ test.describe('POST /api/v1/dairy-payments', () => {
     const recalcDates = [];
     ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
 
-    // Simulate two subsequent balance records that should be cascaded
-    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);  // no prior balance
-    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([
-      { balanceDate: new Date('2026-05-01') },
-      { balanceDate: new Date('2026-05-02') },
-    ]);
-    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
-    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
-      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
-      return { _sum: { amount: 5000 } };
+    mockDairyCascade(ctx.mockPrisma, {
+      subsequentDates: ['2026-05-01', '2026-05-02'],
+      onPaymentAggregate: async ({ where }) => {
+        recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+        return { _sum: { amount: 5000 } };
+      },
     });
-    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
 
     const res = await request.post('/api/v1/dairy-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -181,7 +176,7 @@ test.describe('PUT /api/v1/dairy-payments/:id', () => {
     const updated = { ...PAYMENT, amount: 6000 };
     ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
     ctx.mockPrisma.dairyPayment.update.mockResolvedValue(updated);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockDairyCascade(ctx.mockPrisma);
 
     const res = await request.put('/api/v1/dairy-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -237,16 +232,12 @@ test.describe('PUT /api/v1/dairy-payments/:id', () => {
     ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(existingOnOldDate);
     ctx.mockPrisma.dairyPayment.update.mockResolvedValue(updated);
 
-    // Track which dates balanceService recalculates for
-    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
-    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
-      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
-      return { _sum: { amount: null } };
+    mockDairyCascade(ctx.mockPrisma, {
+      onPaymentAggregate: async ({ where }) => {
+        recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+        return { _sum: { amount: null } };
+      },
     });
-    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
 
     const res = await request.put('/api/v1/dairy-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -264,15 +255,12 @@ test.describe('PUT /api/v1/dairy-payments/:id', () => {
     ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
     ctx.mockPrisma.dairyPayment.update.mockResolvedValue({ ...PAYMENT, amount: 6000 });
 
-    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
-    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
-      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
-      return { _sum: { amount: null } };
+    mockDairyCascade(ctx.mockPrisma, {
+      onPaymentAggregate: async ({ where }) => {
+        recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+        return { _sum: { amount: null } };
+      },
     });
-    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
 
     const res = await request.put('/api/v1/dairy-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -296,7 +284,7 @@ test.describe('DELETE /api/v1/dairy-payments/:id', () => {
   test('returns 200 when payment is deleted', async ({ request }) => {
     ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
     ctx.mockPrisma.dairyPayment.delete.mockResolvedValue(PAYMENT);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockDairyCascade(ctx.mockPrisma);
 
     const res = await request.delete('/api/v1/dairy-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -331,19 +319,13 @@ test.describe('DELETE /api/v1/dairy-payments/:id', () => {
     ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
     ctx.mockPrisma.dairyPayment.delete.mockResolvedValue(PAYMENT);
 
-    // Two subsequent balance records
-    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([
-      { balanceDate: new Date('2026-05-01') },
-      { balanceDate: new Date('2026-05-02') },
-    ]);
-    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
-    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async ({ where }) => {
-      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
-      return { _sum: { amount: null } };
+    mockDairyCascade(ctx.mockPrisma, {
+      subsequentDates: ['2026-05-01', '2026-05-02'],
+      onPaymentAggregate: async ({ where }) => {
+        recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+        return { _sum: { amount: null } };
+      },
     });
-    ctx.mockPrisma.dairyBalance.upsert.mockResolvedValue({});
 
     const res = await request.delete('/api/v1/dairy-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

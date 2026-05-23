@@ -296,11 +296,16 @@ export default function SalespersonStockEntry() {
     const items = products
       .map(p => ({ productId: p.productId, quantity: parseFloat(qty[p.productId]) || 0, unitPrice: p.sellingPrice ?? 0 }))
       .filter(i => i.quantity > 0);
-    if (!items.length) { notify('Enter at least one quantity before saving.', 'warning'); return; }
+    // Empty items + no existing draft = nothing to do
+    if (!items.length && !dispatch) {
+      notify('Enter at least one quantity before saving.', 'warning');
+      return;
+    }
+    const isClear = items.length === 0 && dispatch;
     setSaving(true);
     try {
       await api.post('/dispatches', { dispatchDate: date, items });
-      notify('Stock entry saved as draft.', 'success');
+      notify(isClear ? 'Stock entry cleared.' : 'Stock entry saved as draft.', 'success');
       await refreshState();
     } catch (e) {
       notify(e.response?.data?.error ?? 'Save failed.', 'error');
@@ -658,11 +663,11 @@ export default function SalespersonStockEntry() {
             <div className="flex gap-2.5">
               <button
                 onClick={handleSave}
-                disabled={isBusy || filledCount === 0}
+                disabled={isBusy || (filledCount === 0 && !dispatch)}
                 className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-bold text-sm disabled:opacity-40 active:bg-slate-50 transition"
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                Save Draft
+                {filledCount === 0 && dispatch ? 'Clear Draft' : 'Save Draft'}
               </button>
               <button
                 onClick={() => setShowSubmitConfirm(true)}

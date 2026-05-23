@@ -7,6 +7,7 @@
 
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
+const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -98,7 +99,7 @@ test.describe('POST /api/v1/dispatches', () => {
     mockStockAvailable(ctx.mockPrisma);
     ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null); // new dispatch
     ctx.mockPrisma.stockDispatch.create.mockResolvedValue(DISPATCH);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -124,15 +125,36 @@ test.describe('POST /api/v1/dispatches', () => {
 
     expect(res.status()).toBe(400);
     const body = await res.json();
-    expect(body.code).toBe('STOCK_INSUFFICIENT');
+    expect(body.error).toMatch(/Insufficient stock/);
+    expect(body.error).toMatch(/Milk 500ml/);
+    expect(body.error).toMatch(/need 10/);
+    expect(body.error).toMatch(/have 2/);
   });
 
-  test('returns 400 when items array is empty', async ({ request }) => {
+  test('empty items + no existing dispatch → 200 no-op ("Nothing to save")', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
     });
-    expect(res.status()).toBe(400);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/Nothing to save/i);
+  });
+
+  test('empty items + existing dispatch → deletes dispatch and cascades balance', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH);
+    ctx.mockPrisma.stockDispatch.delete.mockResolvedValue(DISPATCH);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/cleared/i);
   });
 
   test('returns 400 when salespersonId is missing', async ({ request }) => {
@@ -228,7 +250,7 @@ test.describe('DELETE /api/v1/dispatches/:id', () => {
   test('returns 200 when dispatch is deleted', async ({ request }) => {
     ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH);
     ctx.mockPrisma.stockDispatch.delete.mockResolvedValue(DISPATCH);
-    ctx.mockPrisma.$transaction.mockResolvedValue(undefined); // balance recalc
+    mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.delete('/api/v1/dispatches/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -284,6 +306,125 @@ test.describe('DELETE /api/v1/dispatches/:id', () => {
     expect(recalcDates).toContain('2026-04-30');
     expect(recalcDates).toContain('2026-05-01');
     expect(recalcDates).toContain('2026-05-02');
+  });
+});
+
+// ─── PATCH /api/v1/dispatches/:id/submit ─────────────────────────────────────
+
+test.describe('PATCH /api/v1/dispatches/:id/submit', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/submit');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 404 when dispatch does not exist', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    const res = await request.patch('/api/v1/dispatches/999/submit', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('returns 400 for non-numeric dispatch ID', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/abc/submit', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('admin can submit any dispatch, locks it', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH);
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: true, isAdminUnlocked: false };
+    });
+
+    const res = await request.patch('/api/v1/dispatches/1/submit', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
+    expect(updateArgs.where).toEqual({ id: 1 });
+  });
+});
+
+// ─── PATCH /api/v1/dispatches/:id/lock ───────────────────────────────────────
+
+test.describe('PATCH /api/v1/dispatches/:id/lock', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/lock');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 404 when dispatch does not exist', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    const res = await request.patch('/api/v1/dispatches/999/lock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('admin locks the dispatch (sets isSubmitted=true, isAdminUnlocked=false)', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isSubmitted: false, isAdminUnlocked: true });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: true, isAdminUnlocked: false };
+    });
+
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
+  });
+});
+
+// ─── PATCH /api/v1/dispatches/:id/unlock ─────────────────────────────────────
+
+test.describe('PATCH /api/v1/dispatches/:id/unlock', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/unlock');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 404 when dispatch does not exist', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    const res = await request.patch('/api/v1/dispatches/999/unlock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('admin unlocks the dispatch (sets isSubmitted=false, isAdminUnlocked=true)', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isSubmitted: true, isAdminUnlocked: false });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: false, isAdminUnlocked: true };
+    });
+
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: false, isAdminUnlocked: true });
+  });
+
+  test('returns 200 and is idempotent when called on already-unlocked dispatch', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isSubmitted: false, isAdminUnlocked: true });
+    ctx.mockPrisma.stockDispatch.update.mockResolvedValue({ ...DISPATCH, isSubmitted: false, isAdminUnlocked: true });
+
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
   });
 });
 

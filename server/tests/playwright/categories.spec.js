@@ -239,3 +239,41 @@ test.describe('DELETE /api/v1/categories/:id', () => {
     expect(res.status()).toBe(400);
   });
 });
+
+// ─── PATCH /api/v1/categories/salesperson-reorder ────────────────────────────
+
+test.describe('PATCH /api/v1/categories/salesperson-reorder', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/categories/salesperson-reorder', { data: [] });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when payload is not an array', async ({ request }) => {
+    const res = await request.patch('/api/v1/categories/salesperson-reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { foo: 'bar' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 and writes to salespersonDisplayOrder', async ({ request }) => {
+    const updateCalls = [];
+    ctx.mockPrisma.category.update.mockImplementation(async (args) => {
+      updateCalls.push(args);
+      return {};
+    });
+
+    const res = await request.patch('/api/v1/categories/salesperson-reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: [
+        { id: 1, displayOrder: 3 },
+        { id: 2, displayOrder: 1 },
+      ],
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[0]).toEqual({ where: { id: 1 }, data: { salespersonDisplayOrder: 3 } });
+    expect(updateCalls[1]).toEqual({ where: { id: 2 }, data: { salespersonDisplayOrder: 1 } });
+  });
+});
