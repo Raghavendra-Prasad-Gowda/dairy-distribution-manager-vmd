@@ -31,16 +31,13 @@ function LoaderCore({ label, hideBrand, size = 'md', light = false }) {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="relative flex items-center justify-center">
-        {/* Soft pulsing halo behind the glass */}
+      {/* Fixed-size wrapper so the halo never overflows whatever box we're in. */}
+      <div className={`relative ${s.ring} flex items-center justify-center overflow-hidden`}>
+        {/* Soft halo — opacity-only pulse (no scale → can't overflow). */}
         <span
           aria-hidden="true"
-          className={`absolute inline-block rounded-full ${ringTint} ${s.ring} animate-ping opacity-60`}
+          className={`absolute inset-0 rounded-full ${ringTint} animate-pulse`}
           style={{ animationDuration: '2.2s' }}
-        />
-        <span
-          aria-hidden="true"
-          className={`absolute inline-block rounded-full ${ringTint} ${s.ring} opacity-50`}
         />
         {/* Brand mark */}
         <span className={`relative ${s.emoji} leading-none select-none`} role="img" aria-label="Vikas Milk Dairy">
