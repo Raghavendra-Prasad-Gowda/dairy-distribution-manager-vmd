@@ -330,6 +330,61 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     expect(body.data.grandTotalReceived).toBe(2200);
     expect(body.data.grandTotalDispatched).toBe(240);
   });
+
+  test('receipt rows carry unitsPerContainer, costPrice, displayOrder, routeNumber for the new UI columns', async ({ request }) => {
+    // The Stock Summary period-summary table renders:
+    //   - "Total Crates" column   → needs unitsPerContainer
+    //   - "Unit Price" column     → needs product.costPrice (configured price)
+    //   - sort order in the table → needs product.displayOrder (matches receipt page)
+    //   - Route badges            → needs receipt.routeNumber resolved from routeId
+    // Lock the response shape so a casual controller change can't break the UI.
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-30'), quantity: 100, unitPrice: 22, routeId: 7,
+        product: { name: 'Toned 500ml', unitsPerContainer: 20, costPrice: 22, displayOrder: 3 },
+        brand:   { name: 'Nandini' },
+      },
+    ]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([{ id: 7, routeNumber: 'R3' }]);
+
+    const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const receipt = (await res.json()).data.rows[0].receipts[0];
+    expect(receipt).toMatchObject({
+      productName:       'Toned 500ml',
+      brandName:         'Nandini',
+      quantity:          100,
+      unitPrice:         22,
+      amount:            2200,
+      routeNumber:       'R3',
+      unitsPerContainer: 20,
+      costPrice:         22,
+      displayOrder:      3,
+    });
+  });
+
+  test('routeId=0 receipts (non-route brands like Jersey/Gowardhan) have routeNumber=null', async ({ request }) => {
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-30'), quantity: 50, unitPrice: 30, routeId: 0,
+        product: { name: 'Ghee 500ml', unitsPerContainer: null, costPrice: 30, displayOrder: 0 },
+        brand:   { name: 'Jersey' },
+      },
+    ]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect((await res.json()).data.rows[0].receipts[0].routeNumber).toBeNull();
+  });
 });
 
 // ─── GET /api/v1/reports/outstanding ─────────────────────────────────────────

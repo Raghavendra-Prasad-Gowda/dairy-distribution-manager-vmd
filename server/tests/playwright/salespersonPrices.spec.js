@@ -156,4 +156,103 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('single-item save (per-row pencil edit) uses item.effectiveFrom for upsert key', async ({ request }) => {
+    // The admin Prices page now saves one price at a time via the pencil-edit
+    // modal. Each call posts a 1-item array with its own effectiveFrom. The
+    // upsert must use that per-item date as the composite-key dimension so
+    // editing a price for a NEW date creates a fresh historical row instead
+    // of overwriting the previous one.
+    let upsertArgs = null;
+    ctx.mockPrisma.salespersonPrice.upsert.mockImplementation(async (args) => {
+      upsertArgs = args;
+      return { id: 1, salespersonId: 5, productId: 42, sellingPrice: 30, effectiveFrom: new Date('2026-05-24') };
+    });
+
+    const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        effectiveFrom: '2026-05-24',
+        prices: [{ productId: 42, sellingPrice: 30, effectiveFrom: '2026-05-24' }],
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(upsertArgs).not.toBeNull();
+    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.salespersonId).toBe(5);
+    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.productId).toBe(42);
+    // The composite-key date must come from item.effectiveFrom, parsed as UTC midnight
+    const keyDate = upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom;
+    expect(keyDate.toISOString().slice(0, 10)).toBe('2026-05-24');
+    expect(upsertArgs.update.sellingPrice).toBe(30);
+    expect(upsertArgs.create.sellingPrice).toBe(30);
+  });
+
+  test('item without effectiveFrom falls back to the global date', async ({ request }) => {
+    // Backwards-compatibility: the contract still allows omitting per-item
+    // effectiveFrom, in which case the controller uses the top-level
+    // effectiveFrom for every item.
+    let upsertArgs = null;
+    ctx.mockPrisma.salespersonPrice.upsert.mockImplementation(async (args) => {
+      upsertArgs = args;
+      return {};
+    });
+
+    const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        effectiveFrom: '2026-04-01',
+        prices: [{ productId: 42, sellingPrice: 30 }], // no effectiveFrom
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom.toISOString().slice(0, 10)).toBe('2026-04-01');
+  });
+});
+
+// ─── GET response shape contract — used by the admin prices UI ───────────────
+
+test.describe('GET /api/v1/salespeople/:id/prices — UI contract', () => {
+  test('response carries the fields the admin Edit Price modal reads', async ({ request }) => {
+    // The pencil-edit modal renders: productName, brandName, category,
+    // unitType, unitSize, containerType, unitsPerContainer, dairyCostPrice,
+    // dairySellingPrice, sellingPrice (current), effectiveFrom (current).
+    // Locking the shape so a casual controller refactor can't silently drop a
+    // field the UI depends on.
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{
+      id: 1, name: 'Toned 500ml', brandId: 10, brand: { id: 10, name: 'Nandini', salespersonDisplayOrder: 1 },
+      category: 'Milk', salespersonDisplayOrder: 1,
+      unitType: 'ml', unitSize: 500, containerType: 'crate', unitsPerContainer: 20,
+      showInStockReceipt: true, salespersonEnabled: true,
+      costPrice: 22, sellingPrice: 24,
+    }]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { id: 99, productId: 1, sellingPrice: 25, effectiveFrom: new Date('2026-05-01') },
+    ]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/5/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row).toMatchObject({
+      productId:         1,
+      productName:       'Toned 500ml',
+      brandId:           10,
+      brandName:         'Nandini',
+      category:          'Milk',
+      unitType:          'ml',
+      unitSize:          500,
+      containerType:     'crate',
+      unitsPerContainer: 20,
+      dairyCostPrice:    22,
+      dairySellingPrice: 24,
+      sellingPrice:      25,
+    });
+    expect(row.effectiveFrom).toBeTruthy();
+    expect(String(row.effectiveFrom).slice(0, 10)).toBe('2026-05-01');
+  });
 });
