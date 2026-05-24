@@ -1,9 +1,17 @@
 const { z } = require('zod');
 const AppError = require('./AppError');
+const { getIndiaDateStr } = require('./dateUtils');
 
 // ─── Shared building blocks ──────────────────────────────────────────────────
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const dateString = (msg = 'Date must be YYYY-MM-DD') => z.string().regex(DATE_REGEX, msg);
+// For price effective-from fields: must be today (IST) or later. Past dates
+// would either re-bill historical transactions or sit invisible — we disallow
+// both at the schema boundary.
+const todayOrLaterDateString = (msg = 'Effective date must be today or later') =>
+  z.string()
+    .regex(DATE_REGEX, 'Date must be YYYY-MM-DD')
+    .refine((v) => v >= getIndiaDateStr(), { message: msg });
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Online'];
 const paymentMode  = z.enum(PAYMENT_MODES).optional();
 const shortText    = z.string().max(500).optional();
@@ -49,8 +57,8 @@ const schemas = {
     unitsPerContainer:          z.number().int().positive().optional().nullable(),
     costPrice:                  z.number().min(0).default(0),
     sellingPrice:               z.number().min(0).default(0),
-    effectiveFrom:              dateString().optional(),
-    sellingPriceEffectiveFrom:  dateString().optional(),
+    effectiveFrom:              todayOrLaterDateString('Cost price effective date must be today or later').optional(),
+    sellingPriceEffectiveFrom:  todayOrLaterDateString('Selling price effective date must be today or later').optional(),
   }),
   updateProduct: z.object({
     name:                       z.string().min(1).optional(),
@@ -65,8 +73,8 @@ const schemas = {
     isActive:                   z.boolean().optional(),
     showInStockReceipt:         z.boolean().optional(),
     depositEnabled:             z.boolean().optional(),
-    effectiveFrom:              dateString().optional(),
-    sellingPriceEffectiveFrom:  dateString().optional(),
+    effectiveFrom:              todayOrLaterDateString('Cost price effective date must be today or later').optional(),
+    sellingPriceEffectiveFrom:  todayOrLaterDateString('Selling price effective date must be today or later').optional(),
   }),
 
   // Layout reordering — dairy
@@ -164,13 +172,16 @@ const schemas = {
     })).min(1, 'At least one product is required'),
   }),
 
-  // Salesperson Prices
+  // Salesperson Prices — effective dates must be today (IST) or later.
+  // Past dates are rejected: they'd be invisible (GET filters lte today)
+  // and changing the past would either sit silently or re-bill old
+  // dispatches. Future dates are explicitly allowed (scheduled changes).
   bulkSalespersonPrices: z.object({
-    effectiveFrom: dateString(),
+    effectiveFrom: todayOrLaterDateString(),
     prices: z.array(z.object({
       productId:     z.number().int().positive(),
       sellingPrice:  z.number().min(0),
-      effectiveFrom: dateString().optional(),
+      effectiveFrom: todayOrLaterDateString().optional(),
     })),
   }),
 

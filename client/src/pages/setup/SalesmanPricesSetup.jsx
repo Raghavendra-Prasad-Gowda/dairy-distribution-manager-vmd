@@ -105,18 +105,20 @@ export default function SalesmanPricesSetup() {
   // ── Per-row price edit ────────────────────────────────────────────────────────
   function openPriceEdit(p) {
     setEditingPrice({
-      productId:         p.productId,
-      productName:       p.productName,
-      brandName:         p.brandName,
-      category:          p.category,
-      currentPrice:      p.sellingPrice,
-      currentEffective:  p.effectiveFrom,
-      dairyCostPrice:    p.dairyCostPrice,
-      dairySellingPrice: p.dairySellingPrice,
-      unitType:          p.unitType,
-      unitSize:          p.unitSize,
-      containerType:     p.containerType,
-      unitsPerContainer: p.unitsPerContainer,
+      productId:             p.productId,
+      productName:           p.productName,
+      brandName:             p.brandName,
+      category:              p.category,
+      currentPrice:          p.sellingPrice,
+      currentEffective:      p.effectiveFrom,
+      upcomingPrice:         p.upcomingSellingPrice,
+      upcomingEffective:     p.upcomingEffectiveFrom,
+      dairyCostPrice:        p.dairyCostPrice,
+      dairySellingPrice:     p.dairySellingPrice,
+      unitType:              p.unitType,
+      unitSize:              p.unitSize,
+      containerType:         p.containerType,
+      unitsPerContainer:     p.unitsPerContainer,
     });
     setPriceForm({
       sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : '',
@@ -279,7 +281,7 @@ export default function SalesmanPricesSetup() {
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
-  const colSpan = isGlobal ? 4 : 7;
+  const colSpan = isGlobal ? 4 : 9;
 
   return (
     <div className="flex flex-col h-full">
@@ -415,6 +417,8 @@ export default function SalesmanPricesSetup() {
                           <>
                             <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Prices From</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-amber-200 uppercase tracking-wider w-28">Upcoming</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-amber-200 uppercase tracking-wider w-32">From</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-20">Edit</th>
                           </>
                         )}
@@ -521,6 +525,16 @@ export default function SalesmanPricesSetup() {
                                       ? <span className="text-xs font-semibold text-amber-600 tabular-nums">{formatDateShort(p.effectiveFrom)}</span>
                                       : <span className="text-xs text-slate-300">—</span>}
                                   </td>
+                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
+                                    {p.upcomingSellingPrice != null
+                                      ? <span className="text-sm font-semibold text-amber-700">₹{Number(p.upcomingSellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                                      : <span className="text-xs text-slate-300">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
+                                    {p.upcomingEffectiveFrom
+                                      ? <span className="text-xs font-semibold text-amber-700 tabular-nums">{formatDateShort(p.upcomingEffectiveFrom)}</span>
+                                      : <span className="text-xs text-slate-300">—</span>}
+                                  </td>
                                   <td className="px-4 py-3.5 text-center align-middle">
                                     <button
                                       onClick={() => openPriceEdit(p)}
@@ -620,6 +634,17 @@ export default function SalesmanPricesSetup() {
                         </div>
                       </div>
                     )}
+                    {editingPrice.upcomingPrice != null && (
+                      <div className="col-span-2 pt-2 border-t border-amber-200 bg-amber-50/40 -mx-4 -mb-4 px-4 py-2 rounded-b-xl">
+                        <p className="text-amber-600 uppercase tracking-wider font-semibold mb-0.5">Upcoming · saving will replace this</p>
+                        <div className="flex items-baseline justify-between">
+                          <p className="text-sm text-amber-700 font-bold tabular-nums">{fmt(editingPrice.upcomingPrice)}</p>
+                          {editingPrice.upcomingEffective && (
+                            <p className="text-[10px] text-amber-700/80 tabular-nums">from {formatDateShort(editingPrice.upcomingEffective)}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -642,20 +667,25 @@ export default function SalesmanPricesSetup() {
                   </div>
                 </div>
 
-                {/* Editable: Effective From */}
+                {/* Editable: Effective From — today or any future date.
+                    Past dates are blocked via min so admin can't accidentally
+                    back-date a change that would either be invisible or
+                    re-bill old transactions. */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Effective From
+                    Prices From
                   </label>
                   <input
                     type="date"
                     value={priceForm.effectiveFrom}
                     onChange={e => setPriceForm(f => ({ ...f, effectiveFrom: e.target.value }))}
-                    max={getIndiaDate()}
+                    min={getIndiaDate()}
                     className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                     required
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Past prices are kept for history</p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Pick today to make it the current price, or a future date to schedule the change.
+                  </p>
                 </div>
 
                 <div className="flex gap-3 pt-1">

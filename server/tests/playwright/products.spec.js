@@ -196,9 +196,11 @@ test.describe('PUT /api/v1/products/:id', () => {
     ctx.mockPrisma.productCostPrice.upsert.mockResolvedValue({});
     ctx.mockPrisma.productCostPrice.findFirst.mockResolvedValue({ costPrice: 20 });
 
+    // Effective date must be today or later (past dates rejected by validation)
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const res = await request.put('/api/v1/products/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
-      data: { costPrice: 20, effectiveFrom: '2026-05-01' },
+      data: { costPrice: 20, effectiveFrom: todayIST },
     });
 
     expect(res.status()).toBe(200);
@@ -271,5 +273,93 @@ test.describe('DELETE /api/v1/products/:id', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(400);
+  });
+});
+
+// ─── Future-scheduled prices ─────────────────────────────────────────────────
+
+test.describe('Future-scheduled prices', () => {
+  const todayStr  = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const futureStr = (days = 30) => {
+    const d = new Date(todayStr());
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString('en-CA');
+  };
+
+  test('POST rejects past effectiveFrom (today-or-later validation)', async ({ request }) => {
+    const res = await request.post('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, name: 'X', costPrice: 10, effectiveFrom: '2020-01-01' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('PUT rejects past effectiveFrom', async ({ request }) => {
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { costPrice: 20, effectiveFrom: '2020-01-01' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('PUT with FUTURE effectiveFrom does NOT promote into Product.costPrice', async ({ request }) => {
+    let productUpdates = [];
+    ctx.mockPrisma.product.update.mockImplementation(async (args) => {
+      productUpdates.push(args);
+      return { ...PRODUCT, ...args.data };
+    });
+    ctx.mockPrisma.productCostPrice.upsert.mockResolvedValue({});
+    // Only past/today rows exist — no row matches the lte:today filter for
+    // promotion to denorm, so denorm should NOT be updated with the future value.
+    ctx.mockPrisma.productCostPrice.findFirst.mockResolvedValue(null);
+
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { costPrice: 999, effectiveFrom: futureStr(30) },
+    });
+
+    expect(res.status()).toBe(200);
+    // No update should have set costPrice on Product (only the initial update without it)
+    const costUpdates = productUpdates.filter(u => u.data.costPrice !== undefined);
+    expect(costUpdates).toHaveLength(0);
+  });
+
+  test('PUT with TODAY effectiveFrom DOES update Product.costPrice (the latest <= today)', async ({ request }) => {
+    let productUpdates = [];
+    ctx.mockPrisma.product.update.mockImplementation(async (args) => {
+      productUpdates.push(args);
+      return { ...PRODUCT, ...args.data };
+    });
+    ctx.mockPrisma.productCostPrice.upsert.mockResolvedValue({});
+    ctx.mockPrisma.productCostPrice.findFirst.mockResolvedValue({ costPrice: 30 });
+
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { costPrice: 30, effectiveFrom: todayStr() },
+    });
+
+    expect(res.status()).toBe(200);
+    const costUpdates = productUpdates.filter(u => u.data.costPrice !== undefined);
+    expect(costUpdates).toHaveLength(1);
+    expect(costUpdates[0].data.costPrice).toBe(30);
+  });
+
+  test('GET returns upcomingCostPrice / upcomingCostPriceFrom when a future row exists', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
+    const future = new Date(futureStr(14));
+    ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue([
+      { productId: 1, costPrice: 99, effectiveFrom: future },
+    ]);
+    ctx.mockPrisma.productSellingPrice.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row.upcomingCostPrice).toBe(99);
+    expect(row.upcomingCostPriceFrom).toBeTruthy();
+    expect(row.upcomingSellingPrice).toBeNull();
+    expect(row.upcomingSellingPriceFrom).toBeNull();
   });
 });

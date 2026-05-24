@@ -67,46 +67,72 @@ test.describe('GET /api/v1/salespeople/:id/prices', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('filters effective_from in IST date space, not UTC instant (regression)', async ({ request }) => {
-    // The bug: a price saved with effectiveFrom = today (IST) is stored as
-    // today's UTC midnight. Between 00:00–05:30 IST the UTC clock is still
-    // on yesterday, so a naive `lte: new Date()` filter would exclude the
-    // freshly-saved price and the admin would see "no change" after saving.
-    // The fix uses `lte: new Date(getIndiaDateStr())` — an IST-date upper bound.
-    let findManyArgs = null;
-    ctx.mockPrisma.product.findMany.mockResolvedValue([]);
+  test('GET splits price rows into current (latest <= today) and upcoming (earliest > today)', async ({ request }) => {
+    // Three price rows: a past, an "in-effect-since" current, and a future.
+    // Response must surface the latest <=today as `sellingPrice`+`effectiveFrom`,
+    // and the earliest >today as `upcomingSellingPrice`+`upcomingEffectiveFrom`.
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
     ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
     ctx.mockPrisma.category.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.salespersonPrice.findMany.mockImplementation(async (args) => {
-      findManyArgs = args;
-      return [];
-    });
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const past   = new Date(today); past.setDate(past.getDate() - 30);
+    const future = new Date(today); future.setDate(future.getDate() + 7);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      // desc order
+      { productId: 1, sellingPrice: 30, effectiveFrom: future },
+      { productId: 1, sellingPrice: 25, effectiveFrom: new Date(today) },
+      { productId: 1, sellingPrice: 20, effectiveFrom: past },
+    ]);
 
     const res = await request.get('/api/v1/salespeople/1/prices', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row.sellingPrice).toBe(25);
+    expect(row.upcomingSellingPrice).toBe(30);
+    expect(String(row.effectiveFrom).slice(0, 10)).toBe(today);
+    expect(row.upcomingEffectiveFrom).toBeTruthy();
+  });
 
-    const upperBound = findManyArgs.where.effectiveFrom.lte;
-    // Upper bound must be midnight UTC of today's IST date (not "now" UTC).
-    expect(upperBound).toBeInstanceOf(Date);
-    expect(upperBound.getUTCHours()).toBe(0);
-    expect(upperBound.getUTCMinutes()).toBe(0);
-    expect(upperBound.getUTCSeconds()).toBe(0);
+  test('GET returns upcoming=null when no future-scheduled price exists', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { productId: 1, sellingPrice: 25, effectiveFrom: new Date(today) },
+    ]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row.sellingPrice).toBe(25);
+    expect(row.upcomingSellingPrice).toBeNull();
+    expect(row.upcomingEffectiveFrom).toBeNull();
   });
 });
 
 // ─── POST /api/v1/salespeople/:id/prices/bulk ────────────────────────────────
 
 test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
-  const validPayload = {
-    effectiveFrom: '2026-04-01',
-    prices: [{ productId: 1, sellingPrice: 25 }],
+  // Effective dates must be today (IST) or later — past dates are rejected.
+  const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const future = (days = 7) => {
+    const d = new Date(today());
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString('en-CA');
   };
+  const validPayload = () => ({
+    effectiveFrom: today(),
+    prices: [{ productId: 1, sellingPrice: 25 }],
+  });
 
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.post('/api/v1/salespeople/1/prices/bulk', {
-      data: validPayload,
+      data: validPayload(),
     });
     expect(res.status()).toBe(403);
   });
@@ -116,7 +142,7 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
 
     const res = await request.post('/api/v1/salespeople/1/prices/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
-      data: validPayload,
+      data: validPayload(),
     });
 
     expect(res.status()).toBe(200);
@@ -144,7 +170,28 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
   test('returns 400 when prices array is missing', async ({ request }) => {
     const res = await request.post('/api/v1/salespeople/1/prices/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
-      data: { effectiveFrom: '2026-04-01' },
+      data: { effectiveFrom: today() },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when effectiveFrom is a past date (today-or-later validation)', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/1/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { effectiveFrom: '2020-01-01', prices: [{ productId: 1, sellingPrice: 25 }] },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error || body.errors || JSON.stringify(body)).toMatch(/today or later/i);
+  });
+
+  test('returns 400 when per-item effectiveFrom is a past date', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/1/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        effectiveFrom: today(),
+        prices: [{ productId: 1, sellingPrice: 25, effectiveFrom: '2020-01-01' }],
+      },
     });
     expect(res.status()).toBe(400);
   });
@@ -152,17 +199,40 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
   test('returns 400 for non-numeric salesperson ID', async ({ request }) => {
     const res = await request.post('/api/v1/salespeople/abc/prices/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
-      data: validPayload,
+      data: validPayload(),
     });
     expect(res.status()).toBe(400);
   });
 
-  test('save with earlier date supersedes later-dated rows for same (sp, product)', async ({ request }) => {
-    // Bug fix regression: previously, editing to an earlier effective date
-    // left the later-dated row in place, so the desc ordering on the GET
-    // kept showing the later date — admin's change appeared not to take.
-    // bulkSave now deleteMany's rows with effectiveFrom > the new date for
-    // the same (salesperson, product), so the saved date is the latest.
+  test('today-dated save preserves an existing future-scheduled row (no deleteMany)', async ({ request }) => {
+    // Saving today's price must NOT wipe a previously-scheduled future change.
+    // The two prices are independent: today's becomes the new current, the
+    // future schedule still kicks in on its date.
+    let deleteCalled = false;
+    let upsertArgs = null;
+    ctx.mockPrisma.salespersonPrice.deleteMany.mockImplementation(async () => {
+      deleteCalled = true;
+      return { count: 0 };
+    });
+    ctx.mockPrisma.salespersonPrice.upsert.mockImplementation(async (args) => {
+      upsertArgs = args;
+      return {};
+    });
+
+    const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        effectiveFrom: today(),
+        prices: [{ productId: 42, sellingPrice: 30, effectiveFrom: today() }],
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(deleteCalled).toBe(false);
+    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom.toISOString().slice(0, 10)).toBe(today());
+  });
+
+  test('future-dated save replaces existing future row (only one upcoming at a time)', async ({ request }) => {
     let deleteArgs = null;
     let upsertArgs = null;
     ctx.mockPrisma.salespersonPrice.deleteMany.mockImplementation(async (args) => {
@@ -174,73 +244,42 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
       return {};
     });
 
+    const futureDate = future(14);
     const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: {
-        effectiveFrom: '2026-05-23',
-        prices: [{ productId: 42, sellingPrice: 30, effectiveFrom: '2026-05-23' }],
+        effectiveFrom: futureDate,
+        prices: [{ productId: 42, sellingPrice: 30, effectiveFrom: futureDate }],
       },
     });
 
     expect(res.status()).toBe(200);
     expect(deleteArgs).not.toBeNull();
     expect(deleteArgs.where).toMatchObject({ salespersonId: 5, productId: 42 });
+    // deleteMany targets other future rows: gt today, not the row we're upserting
     expect(deleteArgs.where.effectiveFrom.gt).toBeInstanceOf(Date);
-    expect(deleteArgs.where.effectiveFrom.gt.toISOString().slice(0, 10)).toBe('2026-05-23');
-    expect(upsertArgs).not.toBeNull();
-  });
-
-  test('single-item save (per-row pencil edit) uses item.effectiveFrom for upsert key', async ({ request }) => {
-    // The admin Prices page now saves one price at a time via the pencil-edit
-    // modal. Each call posts a 1-item array with its own effectiveFrom. The
-    // upsert must use that per-item date as the composite-key dimension so
-    // editing a price for a NEW date creates a fresh historical row instead
-    // of overwriting the previous one.
-    let upsertArgs = null;
-    ctx.mockPrisma.salespersonPrice.upsert.mockImplementation(async (args) => {
-      upsertArgs = args;
-      return { id: 1, salespersonId: 5, productId: 42, sellingPrice: 30, effectiveFrom: new Date('2026-05-24') };
-    });
-
-    const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
-      data: {
-        effectiveFrom: '2026-05-24',
-        prices: [{ productId: 42, sellingPrice: 30, effectiveFrom: '2026-05-24' }],
-      },
-    });
-
-    expect(res.status()).toBe(200);
-    expect(upsertArgs).not.toBeNull();
-    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.salespersonId).toBe(5);
-    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.productId).toBe(42);
-    // The composite-key date must come from item.effectiveFrom, parsed as UTC midnight
-    const keyDate = upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom;
-    expect(keyDate.toISOString().slice(0, 10)).toBe('2026-05-24');
-    expect(upsertArgs.update.sellingPrice).toBe(30);
-    expect(upsertArgs.create.sellingPrice).toBe(30);
+    expect(deleteArgs.where.effectiveFrom.not).toBeInstanceOf(Date);
+    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom.toISOString().slice(0, 10)).toBe(futureDate);
   });
 
   test('item without effectiveFrom falls back to the global date', async ({ request }) => {
-    // Backwards-compatibility: the contract still allows omitting per-item
-    // effectiveFrom, in which case the controller uses the top-level
-    // effectiveFrom for every item.
     let upsertArgs = null;
     ctx.mockPrisma.salespersonPrice.upsert.mockImplementation(async (args) => {
       upsertArgs = args;
       return {};
     });
 
+    const todayStr = today();
     const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: {
-        effectiveFrom: '2026-04-01',
-        prices: [{ productId: 42, sellingPrice: 30 }], // no effectiveFrom
+        effectiveFrom: todayStr,
+        prices: [{ productId: 42, sellingPrice: 30 }], // no per-item effectiveFrom
       },
     });
 
     expect(res.status()).toBe(200);
-    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom.toISOString().slice(0, 10)).toBe('2026-04-01');
+    expect(upsertArgs.where.salespersonId_productId_effectiveFrom.effectiveFrom.toISOString().slice(0, 10)).toBe(todayStr);
   });
 });
 
