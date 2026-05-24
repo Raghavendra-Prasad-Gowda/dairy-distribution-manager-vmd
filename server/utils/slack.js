@@ -216,25 +216,29 @@ function buildCard(event, data) {
       ], `Frontend crash on ${data.page}: ${data.message}`);
 
     // ── Auth ───────────────────────────────────────────────────────────────
-    case SLACK_EVENTS.LOGIN:
+    case SLACK_EVENTS.LOGIN: {
+      const loginRole = data.role || 'Admin';
       return card(event, [
-        headerBlock('🔓 Admin Login'),
+        headerBlock(`🔓 ${loginRole} Login`),
         fieldsBlock([
           ['👤 Username', data.username || 'unknown'],
-          ['👑 Role',     data.role     || 'Admin'],
+          ['👑 Role',     loginRole],
           ['🌐 IP Address', data.ip     || 'unknown'],
         ]),
-      ], `Admin Login — ${data.username} from ${data.ip}`);
+      ], `${loginRole} Login — ${data.username} from ${data.ip}`);
+    }
 
-    case SLACK_EVENTS.LOGOUT:
+    case SLACK_EVENTS.LOGOUT: {
+      const logoutRole = data.role || 'Admin';
       return card(event, [
-        headerBlock('🚪 Admin Logout'),
+        headerBlock(`🚪 ${logoutRole} Logout`),
         fieldsBlock([
           ['👤 Username', data.username || 'unknown'],
-          ['👑 Role',     data.role     || 'Admin'],
+          ['👑 Role',     logoutRole],
           ['🌐 IP Address', data.ip     || 'unknown'],
         ]),
-      ], `Admin Logout — ${data.username} from ${data.ip}`);
+      ], `${logoutRole} Logout — ${data.username} from ${data.ip}`);
+    }
 
     case SLACK_EVENTS.FAILED_LOGIN:
       return card(event, [
