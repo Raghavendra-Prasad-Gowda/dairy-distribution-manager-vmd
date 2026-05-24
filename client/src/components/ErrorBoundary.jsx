@@ -10,7 +10,8 @@ class ErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     const chunkError =
       error?.name === 'ChunkLoadError' ||
-      error?.message?.includes('Failed to fetch dynamically imported module');
+      error?.message?.includes('Failed to fetch dynamically imported module') ||
+      error?.message?.includes('is not a valid JavaScript MIME type');
     return { hasError: true, chunkError };
   }
 

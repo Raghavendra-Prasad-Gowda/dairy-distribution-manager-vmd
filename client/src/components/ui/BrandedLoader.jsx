@@ -23,7 +23,7 @@ const SIZE = {
   lg: { emoji: 'text-7xl', ring: 'w-40 h-40', title: 'text-xl',   label: 'text-xs' },
 };
 
-function LoaderCore({ label, hideBrand, size = 'md', light = false }) {
+function LoaderCore({ label, hideBrand, size = 'md', light = false, lively = false }) {
   const s = SIZE[size] ?? SIZE.md;
   const titleColor = light ? 'text-white' : 'text-slate-800';
   const labelColor = light ? 'text-white/70' : 'text-slate-500';
@@ -33,14 +33,27 @@ function LoaderCore({ label, hideBrand, size = 'md', light = false }) {
     <div className="flex flex-col items-center gap-4">
       {/* Fixed-size wrapper so the halo never overflows whatever box we're in. */}
       <div className={`relative ${s.ring} flex items-center justify-center overflow-hidden`}>
-        {/* Soft halo — opacity-only pulse (no scale → can't overflow). */}
+        {/* Sonar ping ring — expands outward, only when lively. */}
+        {lively && (
+          <span
+            aria-hidden="true"
+            className={`absolute inset-0 rounded-full ${ringTint} animate-ping`}
+            style={{ animationDuration: '1.8s' }}
+          />
+        )}
+        {/* Soft halo — steady opacity pulse. */}
         <span
           aria-hidden="true"
           className={`absolute inset-0 rounded-full ${ringTint} animate-pulse`}
           style={{ animationDuration: '2.2s' }}
         />
-        {/* Brand mark */}
-        <span className={`relative ${s.emoji} leading-none select-none`} role="img" aria-label="Vikas Milk Dairy">
+        {/* Brand mark — bounce when loading, slow fade when cold-starting. */}
+        <span
+          className={`relative ${s.emoji} leading-none select-none ${lively ? 'animate-pulse' : 'animate-bounce'}`}
+          style={lively ? { animationDuration: '3s' } : { animationDuration: '1.2s' }}
+          role="img"
+          aria-label="Vikas Milk Dairy"
+        >
           🥛
         </span>
       </div>
@@ -65,6 +78,7 @@ export default function BrandedLoader({
   size         = 'md',
   tone         = 'card',  // 'card' | 'brand' | 'transparent' — overlay only
   inlinePadY   = 'py-16',
+  lively       = false,
 }) {
   if (overlay && !open) return null;
 
@@ -76,7 +90,7 @@ export default function BrandedLoader({
           aria-live="polite"
           className="fixed inset-0 z-[200] flex items-center justify-center bg-gradient-to-b from-emerald-700 to-emerald-900"
         >
-          <LoaderCore label={label} hideBrand={hideBrand} size={size === 'md' ? 'lg' : size} light />
+          <LoaderCore label={label} hideBrand={hideBrand} size={size === 'md' ? 'lg' : size} light lively={lively} />
         </div>
       );
     }

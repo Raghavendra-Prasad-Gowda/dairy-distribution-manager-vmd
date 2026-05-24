@@ -52,12 +52,14 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
           </p>
         )}
         {(totalCrates > 0 || totalUnits > 0) && (
-          <p className="text-[11px] text-emerald-300 tabular-nums leading-tight">
+          <p className="text-[11px] tabular-nums leading-tight">
             {totalCrates > 0 && (
-              <>{Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}</>
+              <span className="font-bold text-emerald-300">
+                {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}
+              </span>
             )}
-            {totalCrates > 0 && totalUnits > 0 && ' · '}
-            {totalUnits > 0 && <>{totalUnits} units</>}
+            {totalCrates > 0 && totalUnits > 0 && <span className="text-emerald-300"> · </span>}
+            {totalUnits > 0 && <span className="text-emerald-300">{totalUnits} units</span>}
           </p>
         )}
       </div>
@@ -414,10 +416,10 @@ export default function SalespersonStockEntry() {
                       <span className="flex-shrink-0 text-amber-700 font-bold text-base self-center px-0.5">+</span>
                     )}
                     <div className="flex-1 min-w-0 bg-amber-300/60 rounded-lg px-3 py-2">
-                      <p className="text-[10px] font-bold text-amber-800 mb-1 truncate">{b.brandName}</p>
+                      <p className="text-xs font-bold text-amber-800 mb-1 truncate">{b.brandName}</p>
                       <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
                       {b.crates > 0 && (
-                        <p className="text-[10px] font-semibold text-amber-700 tabular-nums">
+                        <p className="text-xs font-bold text-amber-800 tabular-nums">
                           {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
                         </p>
                       )}
@@ -430,12 +432,12 @@ export default function SalespersonStockEntry() {
                 <div className="bg-amber-300/60 rounded-lg px-3 py-2 flex items-center justify-between gap-4">
                   <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Total</p>
                   <div className="flex items-center gap-3">
+                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
                     {grandTotal.crates > 0 && (
-                      <p className="text-[10px] font-bold text-amber-800 tabular-nums">
-                        {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates
+                      <p className="text-xs font-bold text-amber-800 tabular-nums">
+                        ({Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates)
                       </p>
                     )}
-                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
                   </div>
                 </div>
               )}
@@ -646,7 +648,12 @@ export default function SalespersonStockEntry() {
               <div className="flex items-center justify-between bg-emerald-800 px-4 py-3.5">
                 <div>
                   <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Grand Total</p>
-                  <p className="text-xs text-emerald-400 mt-0.5">{filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units</p>
+                  <p className="text-xs text-emerald-400 mt-0.5">
+                    {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units
+                    {grandTotal.crates > 0 && (
+                      <span className="font-bold"> · {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates</span>
+                    )}
+                  </p>
                 </div>
                 <p className="text-xl font-extrabold text-amber-300 tabular-nums">{formatCurrency(grandTotal.value)}</p>
               </div>

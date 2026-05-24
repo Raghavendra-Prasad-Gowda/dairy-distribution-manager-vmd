@@ -112,14 +112,15 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     return res.json({ success: true, data: { message: 'Stock entry cleared' } });
   }
 
-  // Stock-availability guard: requested qty must not exceed (received − already dispatched)
-  const stockErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
-  if (stockErrors.length) {
-    const detail = stockErrors
-      .map(e => `${e.productName} (need ${e.requested}, have ${e.available})`)
-      .join('; ');
-    throw new AppError(`Insufficient stock: ${detail}`, 400);
-  }
+  // Stock-availability guard temporarily disabled — re-enable once entries,
+  // calculations, and balance carry-forwards are verified in production.
+  // const stockErrors = await validateDispatchStock(data.items, data.dispatchDate, existing?.id ?? null);
+  // if (stockErrors.length) {
+  //   const detail = stockErrors
+  //     .map(e => `${e.productName} (need ${e.requested}, have ${e.available})`)
+  //     .join('; ');
+  //   throw new AppError(`Insufficient stock: ${detail}`, 400);
+  // }
 
   const dispatch = await prisma.$transaction(async (tx) => {
     let saved;
