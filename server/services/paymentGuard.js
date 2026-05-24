@@ -56,7 +56,61 @@ async function assertSalespersonPaymentWithinBalance(tx, salespersonId, amount) 
   }
 }
 
+// ─── UPDATE-side guards ──────────────────────────────────────────────────────
+//
+// The latest closingBalance already factors in the *old* amount, so a naive
+// recheck on the new amount would block valid edits (e.g. lowering a payment)
+// and let through some invalid ones. The right test is delta:
+//   delta = newAmount − oldAmount
+//   reject when delta > outstanding   (increase would overdraw)
+//   decreases are always safe (outstanding goes back up)
+//
+// Date changes don't complicate this: the global closing only changes by
+// delta regardless of where the payment lives in time.
+
+async function assertDairyPaymentUpdateWithinBalance(tx, brandId, newAmount, oldAmount) {
+  const delta = newAmount - oldAmount;
+  if (delta <= 0) return; // decreases (or no-change) are always safe
+
+  const latest = await tx.dairyBalance.findFirst({
+    where: { brandId },
+    orderBy: { balanceDate: 'desc' },
+    select: { closingBalance: true },
+  });
+  const outstanding = Math.max(0, Number(latest?.closingBalance ?? 0));
+  if (delta > outstanding) {
+    throw new AppError(
+      outstanding === 0
+        ? `Cannot increase payment by ₹${delta} — no remaining outstanding balance for this brand.`
+        : `Increase of ₹${delta} would exceed remaining outstanding balance of ₹${outstanding.toFixed(2)}.`,
+      400,
+    );
+  }
+}
+
+async function assertSalespersonPaymentUpdateWithinBalance(tx, salespersonId, newAmount, oldAmount) {
+  const delta = newAmount - oldAmount;
+  if (delta <= 0) return;
+
+  const latest = await tx.salespersonBalance.findFirst({
+    where: { salespersonId },
+    orderBy: { balanceDate: 'desc' },
+    select: { closingBalance: true },
+  });
+  const outstanding = Math.max(0, Number(latest?.closingBalance ?? 0));
+  if (delta > outstanding) {
+    throw new AppError(
+      outstanding === 0
+        ? `Cannot increase payment by ₹${delta} — no remaining outstanding balance for this salesperson.`
+        : `Increase of ₹${delta} would exceed remaining outstanding balance of ₹${outstanding.toFixed(2)}.`,
+      400,
+    );
+  }
+}
+
 module.exports = {
   assertDairyPaymentWithinBalance,
   assertSalespersonPaymentWithinBalance,
+  assertDairyPaymentUpdateWithinBalance,
+  assertSalespersonPaymentUpdateWithinBalance,
 };

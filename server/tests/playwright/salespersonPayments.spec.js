@@ -179,12 +179,7 @@ test.describe('PUT /api/v1/salesperson-payments/:id', () => {
     const updated = { ...PAYMENT, amount: 2000 };
     ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(PAYMENT);
     ctx.mockPrisma.salespersonPayment.update.mockResolvedValue(updated);
-    // Balance recalc mocks
-    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
-    ctx.mockPrisma.salespersonPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
-    ctx.mockPrisma.salespersonBalance.upsert.mockResolvedValue({});
+    mockSalespersonCascade(ctx.mockPrisma); // routes findFirst — outstanding defaults large enough
 
     const res = await request.put('/api/v1/salesperson-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -231,6 +226,52 @@ test.describe('PUT /api/v1/salesperson-payments/:id', () => {
     expect(res.status()).toBe(400);
   });
 
+  // ─── Update-side over-payment guard ────────────────────────────────────────
+
+  test('PUT rejects when bumping amount past remaining outstanding (delta > outstanding)', async ({ request }) => {
+    // Existing payment ₹1500; remaining outstanding is ₹500;
+    // edit to ₹2500 → delta 1000 > 500 → reject.
+    ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(PAYMENT);
+    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 500 });
+
+    const res = await request.put('/api/v1/salesperson-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 2500, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Increase of ₹1000 would exceed remaining outstanding balance of ₹500/i);
+  });
+
+  test('PUT allows decreasing the amount even when outstanding is 0', async ({ request }) => {
+    // Decrease is always safe — outstanding goes back up. PAYMENT.amount = 1500.
+    ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.salespersonPayment.update.mockResolvedValue({ ...PAYMENT, amount: 500 });
+    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 0 });
+
+    const res = await request.put('/api/v1/salesperson-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 500, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('PUT allows an increase up to remaining outstanding (boundary)', async ({ request }) => {
+    // PAYMENT 1500, outstanding 500, edit to 2000 → delta exactly 500 → allow.
+    ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.salespersonPayment.update.mockResolvedValue({ ...PAYMENT, amount: 2000 });
+    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 500 });
+
+    const res = await request.put('/api/v1/salesperson-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 2000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
   test('returns 400 when paymentDate format is invalid', async ({ request }) => {
     const res = await request.put('/api/v1/salesperson-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -248,15 +289,12 @@ test.describe('PUT /api/v1/salesperson-payments/:id', () => {
     ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(existingOnOldDate);
     ctx.mockPrisma.salespersonPayment.update = async () => updated;
 
-    // Track which dates recalculation is triggered for by intercepting $transaction
-    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
-    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
-    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
-    ctx.mockPrisma.salespersonPayment.aggregate.mockImplementation(async ({ where }) => {
-      recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
-      return { _sum: { amount: null } };
+    mockSalespersonCascade(ctx.mockPrisma, {
+      onPaymentAggregate: async ({ where }) => {
+        recalcDates.push(where.paymentDate.toISOString().slice(0, 10));
+        return { _sum: { amount: null } };
+      },
     });
-    ctx.mockPrisma.salespersonBalance.upsert.mockResolvedValue({});
 
     const res = await request.put('/api/v1/salesperson-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
