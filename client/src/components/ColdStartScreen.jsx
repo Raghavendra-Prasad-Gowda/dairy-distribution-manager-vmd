@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react';
 import { subscribe } from '../api/coldStart';
 import BrandedLoader from './ui/BrandedLoader';
 
-/**
- * Brand-gradient overlay shown only during the login → dashboard transition
- * when the server is cold (Render free-tier sleeps after 15 min idle, and
- * the first request can take 30-50s to wake). Armed by Login.jsx via
- * armForLogin(); auto-disarms once the screen hides, so ordinary slow
- * requests later in the session don't re-trigger it.
- */
+const DOTS = ['', '.', '..', '...'];
+
 export default function ColdStartScreen() {
-  const [waking, setWaking] = useState(false);
+  const [waking, setWaking]   = useState(false);
+  const [dotIdx, setDotIdx]   = useState(0);
 
   useEffect(() => subscribe(setWaking), []);
+
+  useEffect(() => {
+    if (!waking) { setDotIdx(0); return; }
+    const t = setInterval(() => setDotIdx(i => (i + 1) % DOTS.length), 600);
+    return () => clearInterval(t);
+  }, [waking]);
 
   if (!waking) return null;
 
@@ -20,7 +22,8 @@ export default function ColdStartScreen() {
     <BrandedLoader
       overlay
       tone="brand"
-      label="Loading…"
+      lively
+      label={`Loading${DOTS[dotIdx]}`}
     />
   );
 }
