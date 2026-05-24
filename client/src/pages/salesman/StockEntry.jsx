@@ -649,7 +649,10 @@ export default function SalespersonStockEntry() {
                 <div>
                   <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">Grand Total</p>
                   <p className="text-xs text-emerald-400 mt-0.5">
-                    {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units{grandTotal.crates > 0 ? ` · ${Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates` : ''}
+                    {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units
+                    {grandTotal.crates > 0 && (
+                      <span className="font-bold"> · {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates</span>
+                    )}
                   </p>
                 </div>
                 <p className="text-xl font-extrabold text-amber-300 tabular-nums">{formatCurrency(grandTotal.value)}</p>
