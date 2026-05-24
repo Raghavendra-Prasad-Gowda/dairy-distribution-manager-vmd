@@ -417,7 +417,7 @@ export default function SalespersonStockEntry() {
                       <p className="text-[10px] font-bold text-amber-800 mb-1 truncate">{b.brandName}</p>
                       <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
                       {b.crates > 0 && (
-                        <p className="text-sm font-bold text-amber-900 tabular-nums">
+                        <p className="text-xs font-bold text-amber-800 tabular-nums">
                           {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
                         </p>
                       )}
