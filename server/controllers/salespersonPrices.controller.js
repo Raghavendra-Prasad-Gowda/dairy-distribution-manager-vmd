@@ -16,6 +16,8 @@ const getPrices = asyncHandler(async (req, res) => {
 
   const isSalesman = req.user.role === 'salesman';
 
+  const todayIST = new Date(getIndiaDateStr());
+
   const [products, enabledRows, priceRows, categories] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, showInStockReceipt: true, ...(isSalesman ? { salespersonEnabled: true } : {}) },
@@ -30,12 +32,12 @@ const getPrices = asyncHandler(async (req, res) => {
       where: { salespersonId },
       select: { productId: true, isEnabled: true },
     }),
-    // Compare in IST date space, not UTC instant. effective_from is a DATE
-    // column; a price saved today (IST) stores as today's UTC midnight. Between
-    // 00:00–05:30 IST the UTC clock is still on yesterday, so a naive
-    // `lte: new Date()` would silently exclude prices the admin just saved.
+    // Fetch ALL price rows for this salesperson — we split into "current"
+    // (latest with effectiveFrom <= today IST) and "upcoming" (earliest with
+    // effectiveFrom > today IST) below. Past/today rows live in priceMap;
+    // future rows live in upcomingMap.
     prisma.salespersonPrice.findMany({
-      where: { salespersonId, effectiveFrom: { lte: new Date(getIndiaDateStr()) } },
+      where: { salespersonId },
       orderBy: { effectiveFrom: 'desc' },
     }),
     prisma.category.findMany({
@@ -45,9 +47,19 @@ const getPrices = asyncHandler(async (req, res) => {
 
   const enabledMap = Object.fromEntries(enabledRows.map(r => [r.productId, r.isEnabled]));
 
+  // priceMap: current effective (latest with effectiveFrom <= today)
+  // upcomingMap: earliest future-scheduled (effectiveFrom > today)
   const priceMap = {};
+  const upcomingMap = {};
   for (const row of priceRows) {
-    if (!priceMap[row.productId]) priceMap[row.productId] = row;
+    if (row.effectiveFrom > todayIST) {
+      // priceRows is desc-ordered, so the LAST one we see for a product is
+      // the earliest upcoming. Just overwrite — final value wins.
+      upcomingMap[row.productId] = row;
+    } else {
+      // First we see (desc order) is the latest current.
+      if (!priceMap[row.productId]) priceMap[row.productId] = row;
+    }
   }
 
   // Build category display-order lookup keyed by "brandId|categoryName"
@@ -60,25 +72,27 @@ const getPrices = asyncHandler(async (req, res) => {
   const visibleProducts = products;
 
   const result = visibleProducts.map((p) => ({
-    productId:            p.id,
-    productName:          p.name,
-    brandId:              p.brandId,
-    brandName:            p.brand.name,
-    brandDisplayOrder:    p.brand.salespersonDisplayOrder,
-    displayOrder:         p.salespersonDisplayOrder,
-    category:             p.category,
-    categoryDisplayOrder: catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
-    unitType:             p.unitType,
-    unitSize:             p.unitSize,
-    containerType:        p.containerType,
-    unitsPerContainer:    p.unitsPerContainer,
-    showInStockReceipt:   p.showInStockReceipt,
-    salespersonEnabled:   p.salespersonEnabled,
-    isEnabled:            p.salespersonEnabled && (enabledMap[p.id] ?? true),
-    dairyCostPrice:       Number(p.costPrice),
-    dairySellingPrice:    Number(p.sellingPrice),
-    sellingPrice:         priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
-    effectiveFrom:        priceMap[p.id]?.effectiveFrom ?? null,
+    productId:               p.id,
+    productName:             p.name,
+    brandId:                 p.brandId,
+    brandName:               p.brand.name,
+    brandDisplayOrder:       p.brand.salespersonDisplayOrder,
+    displayOrder:            p.salespersonDisplayOrder,
+    category:                p.category,
+    categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+    unitType:                p.unitType,
+    unitSize:                p.unitSize,
+    containerType:           p.containerType,
+    unitsPerContainer:       p.unitsPerContainer,
+    showInStockReceipt:      p.showInStockReceipt,
+    salespersonEnabled:      p.salespersonEnabled,
+    isEnabled:               p.salespersonEnabled && (enabledMap[p.id] ?? true),
+    dairyCostPrice:          Number(p.costPrice),
+    dairySellingPrice:       Number(p.sellingPrice),
+    sellingPrice:            priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
+    effectiveFrom:           priceMap[p.id]?.effectiveFrom ?? null,
+    upcomingSellingPrice:    upcomingMap[p.id] ? Number(upcomingMap[p.id].sellingPrice) : null,
+    upcomingEffectiveFrom:   upcomingMap[p.id]?.effectiveFrom ?? null,
   }));
 
   res.json({ success: true, data: result });
@@ -93,22 +107,27 @@ const bulkSave = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const globalDate = new Date(data.effectiveFrom);
-  // For each price, also delete any later-dated rows for the same (salesperson,
-  // product). Without this, picking an EARLIER effective date leaves the
-  // existing later-dated row as the "latest" — so the admin's change
-  // (yesterday) is invisible because today's row still wins the desc ordering.
-  // Earlier rows are preserved (historical record of "this price was active
-  // starting on X").
+  const todayIST   = new Date(getIndiaDateStr());
+  // Save semantics (past dates already rejected by schema validation):
+  //   - newDate == today: just upsert (any existing today row is the target).
+  //     Future-scheduled rows are PRESERVED — independent of today's change.
+  //   - newDate >  today: scheduling a future. Replace any OTHER future-dated
+  //     row for the same (sp, product) so the invariant "at most one upcoming"
+  //     holds. The today row (if any) stays untouched.
   const ops = data.prices.flatMap((item) => {
     const effectiveFrom = item.effectiveFrom ? new Date(item.effectiveFrom) : globalDate;
+    const isFuture = effectiveFrom > todayIST;
+    const before = isFuture
+      ? [prisma.salespersonPrice.deleteMany({
+          where: {
+            salespersonId,
+            productId:     item.productId,
+            effectiveFrom: { gt: todayIST, not: effectiveFrom },
+          },
+        })]
+      : [];
     return [
-      prisma.salespersonPrice.deleteMany({
-        where: {
-          salespersonId,
-          productId: item.productId,
-          effectiveFrom: { gt: effectiveFrom },
-        },
-      }),
+      ...before,
       prisma.salespersonPrice.upsert({
         where: { salespersonId_productId_effectiveFrom: { salespersonId, productId: item.productId, effectiveFrom } },
         update: { sellingPrice: item.sellingPrice },

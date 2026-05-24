@@ -112,13 +112,10 @@ export default function ProductsSetup() {
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
     setEditingProduct(p);
-    // Server returns effectiveFrom as a UTC-midnight ISO string for DATE columns.
-    // Slice the date prefix directly — avoids the new Date() round-trip that would
-    // drift on non-IST browsers.
-    const currentEffectiveFrom = p.costPrices?.[0]?.effectiveFrom
-      ? String(p.costPrices[0].effectiveFrom).slice(0, 10)
-      : getIndiaDate();
-    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: currentEffectiveFrom });
+    // Effective date defaults to today — past dates are blocked by min, and
+    // pre-filling with the existing (possibly-old) effective date would just
+    // bounce off the picker's min constraint.
+    setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: getIndiaDate() });
     setIsModalOpen(true);
   };
 
@@ -252,18 +249,22 @@ export default function ProductsSetup() {
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Unit</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Container</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Cost Price</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider min-w-[7rem]">Prices From</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider min-w-[7rem]">Cost From</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-amber-200 uppercase tracking-wider min-w-[8rem]">Upcoming Cost</th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-amber-200 uppercase tracking-wider min-w-[7rem]">Cost From</th>
                 <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider min-w-[9rem]">Sell Price</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-amber-200 uppercase tracking-wider min-w-[8rem]">Upcoming Sell</th>
+                <th className="px-4 py-3 text-center text-xs font-bold text-amber-200 uppercase tracking-wider min-w-[7rem]">Sell From</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider">Show in Receipt</th>
                 <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={9}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+                <tr><td colSpan={13}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-14 text-center text-slate-400 text-sm">
+                  <td colSpan={13} className="px-6 py-14 text-center text-slate-400 text-sm">
                     {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
@@ -271,7 +272,7 @@ export default function ProductsSetup() {
                 pageGroups.map(([category, items]) => (
                   <React.Fragment key={category}>
                     <tr className="cat-row bg-slate-100 border-l-4 border-emerald-500">
-                      <td colSpan={9} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
+                      <td colSpan={13} className="px-6 py-2 text-xs font-bold text-slate-600 uppercase tracking-widest">
                         {category}
                       </td>
                     </tr>
@@ -303,6 +304,16 @@ export default function ProductsSetup() {
                             ? <span className="text-amber-700 font-semibold">{new Date(p.costPrices[0].effectiveFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                             : <span className="text-slate-300">—</span>}
                         </td>
+                        <td className="px-4 py-4 text-right tabular-nums">
+                          {p.upcomingCostPrice != null
+                            ? <span className="text-sm font-semibold text-amber-700">₹{Number(p.upcomingCostPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-4 text-xs text-center tabular-nums">
+                          {p.upcomingCostPriceFrom
+                            ? <span className="text-amber-700 font-semibold">{new Date(p.upcomingCostPriceFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            : <span className="text-slate-300">—</span>}
+                        </td>
                         <td className="px-6 py-4 text-right tabular-nums">
                           <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
@@ -313,6 +324,16 @@ export default function ProductsSetup() {
                                 </div>
                               : null; })()}
                           </div>
+                        </td>
+                        <td className="px-4 py-4 text-right tabular-nums">
+                          {p.upcomingSellingPrice != null
+                            ? <span className="text-sm font-semibold text-amber-700">₹{Number(p.upcomingSellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-4 text-xs text-center tabular-nums">
+                          {p.upcomingSellingPriceFrom
+                            ? <span className="text-amber-700 font-semibold">{new Date(p.upcomingSellingPriceFrom).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
@@ -513,16 +534,17 @@ export default function ProductsSetup() {
                 {/* Price effective date (applies to both cost and selling price) */}
                 <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
                   <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">Price Change Effective From</p>
-                  <p className="text-[10px] text-amber-600 mb-2">Applies to both cost and selling price</p>
+                  <p className="text-[10px] text-amber-600 mb-2">Applies to both cost and selling price · today or future</p>
                   <input
                     type="date"
                     value={form.effectiveFrom}
                     onChange={e => setForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                    min={getIndiaDate()}
                     className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
-                  {form.effectiveFrom && form.effectiveFrom < getIndiaDate() && (
-                    <p className="text-[10px] text-red-600 font-semibold mt-1.5">
-                      ⚠ Past date — stock receipts already saved from {new Date(form.effectiveFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} will show new amounts. Re-save those receipts to update their balances.
+                  {form.effectiveFrom && form.effectiveFrom > getIndiaDate() && (
+                    <p className="text-[10px] text-amber-700 font-semibold mt-1.5">
+                      Scheduled — kicks in on {new Date(form.effectiveFrom + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Stock receipts before then keep the current price.
                     </p>
                   )}
                 </div>

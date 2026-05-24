@@ -4,11 +4,14 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { getIndiaDateStr } = require('../utils/dateUtils');
 
 const router = express.Router();
 
 // GET /products?brandId=&date=YYYY-MM-DD
 // When ?date= is supplied, costPrice on each product reflects the price effective on that date.
+// Always returns upcomingCostPrice / upcomingSellingPrice (+ their dates) for any
+// future-scheduled change, so the UI can render the "Upcoming" columns.
 router.get('/', asyncHandler(async (req, res) => {
   const where = { isActive: true };
   if (req.query.brandId) where.brandId = parseId(req.query.brandId, 'Brand ID');
@@ -38,6 +41,41 @@ router.get('/', asyncHandler(async (req, res) => {
     }
     for (const p of products) {
       if (p.id in priceMap) p.costPrice = priceMap[p.id];
+    }
+  }
+
+  // Fetch any future-scheduled price for both cost and selling. Earliest > today
+  // wins (the next scheduled change). productIds is empty-safe.
+  if (products.length) {
+    const productIds = products.map(p => p.id);
+    const todayIST = new Date(getIndiaDateStr());
+    const [upcomingCostRaw, upcomingSellRaw] = await Promise.all([
+      prisma.productCostPrice.findMany({
+        where: { productId: { in: productIds }, effectiveFrom: { gt: todayIST } },
+        orderBy: { effectiveFrom: 'asc' },
+      }),
+      prisma.productSellingPrice.findMany({
+        where: { productId: { in: productIds }, effectiveFrom: { gt: todayIST } },
+        orderBy: { effectiveFrom: 'asc' },
+      }),
+    ]);
+    const upcomingCost = upcomingCostRaw ?? [];
+    const upcomingSell = upcomingSellRaw ?? [];
+    const upcomingCostMap = {};
+    for (const row of upcomingCost) {
+      if (!(row.productId in upcomingCostMap)) upcomingCostMap[row.productId] = row;
+    }
+    const upcomingSellMap = {};
+    for (const row of upcomingSell) {
+      if (!(row.productId in upcomingSellMap)) upcomingSellMap[row.productId] = row;
+    }
+    for (const p of products) {
+      const uc = upcomingCostMap[p.id];
+      const us = upcomingSellMap[p.id];
+      p.upcomingCostPrice        = uc ? Number(uc.costPrice)     : null;
+      p.upcomingCostPriceFrom    = uc ? uc.effectiveFrom         : null;
+      p.upcomingSellingPrice     = us ? Number(us.sellingPrice)  : null;
+      p.upcomingSellingPriceFrom = us ? us.effectiveFrom         : null;
     }
   }
 
@@ -72,24 +110,34 @@ router.patch('/salesperson-reorder', asyncHandler(async (req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const data = validate(schemas.createProduct, req, res);
   if (!data) return;
+  const todayIST = new Date(getIndiaDateStr());
   const product = await prisma.$transaction(async (tx) => {
     const { effectiveFrom: effectiveFromStr, sellingPriceEffectiveFrom: spEffectiveFromStr, ...productData } = data;
+    // If the cost price's effectiveFrom is in the future, don't seed the
+    // denormalized Product.costPrice with that future value — it would
+    // immediately become "current" everywhere it's read.
+    const costEff = effectiveFromStr ? new Date(effectiveFromStr) : todayIST;
+    if (costEff > todayIST && productData.costPrice !== undefined) {
+      productData.costPrice = 0; // keep denorm zero until the schedule kicks in
+    }
+    const sellEff = spEffectiveFromStr ? new Date(spEffectiveFromStr) : todayIST;
+    if (sellEff > todayIST && productData.sellingPrice !== undefined) {
+      productData.sellingPrice = 0;
+    }
     const created = await tx.product.create({
       data:    productData,
       include: { brand: { select: { id: true, name: true } } },
     });
-    if (productData.costPrice > 0) {
-      const effectiveFrom = effectiveFromStr ? new Date(effectiveFromStr) : new Date();
-      effectiveFrom.setUTCHours(0, 0, 0, 0);
+    if (data.costPrice > 0) {
+      costEff.setUTCHours(0, 0, 0, 0);
       await tx.productCostPrice.create({
-        data: { productId: created.id, costPrice: productData.costPrice, effectiveFrom },
+        data: { productId: created.id, costPrice: data.costPrice, effectiveFrom: costEff },
       });
     }
-    if (productData.sellingPrice > 0) {
-      const effectiveFrom = spEffectiveFromStr ? new Date(spEffectiveFromStr) : new Date();
-      effectiveFrom.setUTCHours(0, 0, 0, 0);
+    if (data.sellingPrice > 0) {
+      sellEff.setUTCHours(0, 0, 0, 0);
       await tx.productSellingPrice.create({
-        data: { productId: created.id, sellingPrice: productData.sellingPrice, effectiveFrom },
+        data: { productId: created.id, sellingPrice: data.sellingPrice, effectiveFrom: sellEff },
       });
     }
     return created;
@@ -166,36 +214,50 @@ router.put('/:id', asyncHandler(async (req, res) => {
   if (!data) return;
 
   const { effectiveFrom: effectiveFromStr, sellingPriceEffectiveFrom: spEffectiveFromStr, ...productData } = data;
+  const todayIST = new Date(getIndiaDateStr());
+
+  // Drop costPrice / sellingPrice from the immediate Product update — we set
+  // them below from the latest <= today price-history row. Otherwise a
+  // future-dated PUT would land the future price on Product.costPrice for an
+  // instant before being reverted.
+  const denormCost    = productData.costPrice;
+  const denormSelling = productData.sellingPrice;
+  delete productData.costPrice;
+  delete productData.sellingPrice;
 
   const product = await prisma.$transaction(async (tx) => {
     let updated = await tx.product.update({ where: { id }, data: productData });
 
-    if (productData.costPrice !== undefined) {
-      const effectiveFrom = effectiveFromStr ? new Date(effectiveFromStr) : new Date();
+    if (denormCost !== undefined) {
+      const effectiveFrom = effectiveFromStr ? new Date(effectiveFromStr) : todayIST;
       effectiveFrom.setUTCHours(0, 0, 0, 0);
       await tx.productCostPrice.upsert({
         where:  { productId_effectiveFrom: { productId: id, effectiveFrom } },
-        update: { costPrice: productData.costPrice },
-        create: { productId: id, costPrice: productData.costPrice, effectiveFrom },
+        update: { costPrice: denormCost },
+        create: { productId: id, costPrice: denormCost, effectiveFrom },
       });
+      // Pick the latest price whose effectiveFrom is today or earlier — NEVER
+      // promote a future-scheduled price into Product.costPrice.
       const latestCost = await tx.productCostPrice.findFirst({
-        where: { productId: id }, orderBy: { effectiveFrom: 'desc' },
+        where: { productId: id, effectiveFrom: { lte: todayIST } },
+        orderBy: { effectiveFrom: 'desc' },
       });
       if (latestCost) {
         updated = await tx.product.update({ where: { id }, data: { costPrice: latestCost.costPrice } });
       }
     }
 
-    if (productData.sellingPrice !== undefined) {
-      const effectiveFrom = spEffectiveFromStr ? new Date(spEffectiveFromStr) : new Date();
+    if (denormSelling !== undefined) {
+      const effectiveFrom = spEffectiveFromStr ? new Date(spEffectiveFromStr) : todayIST;
       effectiveFrom.setUTCHours(0, 0, 0, 0);
       await tx.productSellingPrice.upsert({
         where:  { productId_effectiveFrom: { productId: id, effectiveFrom } },
-        update: { sellingPrice: productData.sellingPrice },
-        create: { productId: id, sellingPrice: productData.sellingPrice, effectiveFrom },
+        update: { sellingPrice: denormSelling },
+        create: { productId: id, sellingPrice: denormSelling, effectiveFrom },
       });
       const latestSelling = await tx.productSellingPrice.findFirst({
-        where: { productId: id }, orderBy: { effectiveFrom: 'desc' },
+        where: { productId: id, effectiveFrom: { lte: todayIST } },
+        orderBy: { effectiveFrom: 'desc' },
       });
       if (latestSelling) {
         updated = await tx.product.update({ where: { id }, data: { sellingPrice: latestSelling.sellingPrice } });

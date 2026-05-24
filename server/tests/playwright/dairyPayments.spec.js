@@ -251,6 +251,51 @@ test.describe('PUT /api/v1/dairy-payments/:id', () => {
     expect(res.status()).toBe(400);
   });
 
+  // ─── Update-side over-payment guard ────────────────────────────────────────
+
+  test('PUT rejects when bumping amount past remaining outstanding (delta > outstanding)', async ({ request }) => {
+    // PAYMENT.amount = 5000, remaining outstanding ₹1000, edit to ₹7000
+    // → delta 2000 > 1000 → reject.
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
+    mockDairyCascade(ctx.mockPrisma, { outstanding: 1000 });
+
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 7000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Increase of ₹2000 would exceed remaining outstanding balance of ₹1000/i);
+  });
+
+  test('PUT allows decreasing the amount even when outstanding is 0', async ({ request }) => {
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.dairyPayment.update.mockResolvedValue({ ...PAYMENT, amount: 1000 });
+    mockDairyCascade(ctx.mockPrisma, { outstanding: 0 });
+
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 1000, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('PUT allows an increase up to remaining outstanding (boundary)', async ({ request }) => {
+    // PAYMENT 5000, outstanding 500, edit to 5500 → delta exactly 500 → allow.
+    ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
+    ctx.mockPrisma.dairyPayment.update.mockResolvedValue({ ...PAYMENT, amount: 5500 });
+    mockDairyCascade(ctx.mockPrisma, { outstanding: 500 });
+
+    const res = await request.put('/api/v1/dairy-payments/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { amount: 5500, paymentDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
   test('triggers recalculation for both old and new date when date changes', async ({ request }) => {
     // Payment originally on 2026-04-29, being moved to 2026-04-30
     const existingOnOldDate = { ...PAYMENT, paymentDate: new Date('2026-04-29'), brandId: 1 };
