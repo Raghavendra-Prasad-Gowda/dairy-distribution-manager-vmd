@@ -47,10 +47,10 @@ function LoaderCore({ label, hideBrand, size = 'md', light = false, lively = fal
           className={`absolute inset-0 rounded-full ${ringTint} animate-pulse`}
           style={{ animationDuration: '2.2s' }}
         />
-        {/* Brand mark — slow gentle fade when lively. */}
+        {/* Brand mark — bounce when loading, slow fade when cold-starting. */}
         <span
-          className={`relative ${s.emoji} leading-none select-none ${lively ? 'animate-pulse' : ''}`}
-          style={lively ? { animationDuration: '3s' } : undefined}
+          className={`relative ${s.emoji} leading-none select-none ${lively ? 'animate-pulse' : 'animate-bounce'}`}
+          style={lively ? { animationDuration: '3s' } : { animationDuration: '1.2s' }}
           role="img"
           aria-label="Vikas Milk Dairy"
         >
