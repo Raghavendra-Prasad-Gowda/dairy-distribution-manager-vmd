@@ -430,12 +430,12 @@ export default function SalespersonStockEntry() {
                 <div className="bg-amber-300/60 rounded-lg px-3 py-2 flex items-center justify-between gap-4">
                   <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">Total</p>
                   <div className="flex items-center gap-3">
+                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
                     {grandTotal.crates > 0 && (
-                      <p className="text-sm font-bold text-amber-900 tabular-nums">
+                      <p className="text-xs font-bold text-amber-800 tabular-nums">
                         ({Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates)
                       </p>
                     )}
-                    <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
                   </div>
                 </div>
               )}
