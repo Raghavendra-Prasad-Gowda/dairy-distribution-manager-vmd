@@ -3,6 +3,7 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+const { assertSalespersonPaymentWithinBalance } = require('../services/paymentGuard');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -14,6 +15,7 @@ const create = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const payment = await prisma.$transaction(async (tx) => {
+    await assertSalespersonPaymentWithinBalance(tx, data.salespersonId, data.amount);
     const created = await tx.salespersonPayment.create({
       data: { ...data, paymentDate: new Date(data.paymentDate) },
     });

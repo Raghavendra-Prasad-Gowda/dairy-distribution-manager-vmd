@@ -12,9 +12,23 @@
  * sane no-op responses.
  */
 
+/**
+ * findFirst routing: the payment over-payment guard and the cascade both
+ * call findFirst on the balance table, but with different WHERE clauses:
+ *   - guard:   where: { brandId }                  → returns latest balance
+ *   - cascade: where: { brandId, balanceDate:{lt} } → returns prior balance
+ * Discriminate on `where.balanceDate` to give each call the right answer.
+ */
+function makeFindFirstRouter(outstanding) {
+  return async ({ where }) => {
+    if (where && where.balanceDate) return null;       // cascade "prior" lookup
+    return outstanding > 0 ? { closingBalance: outstanding } : null; // guard lookup
+  };
+}
+
 /** Mocks all reads/writes used by the dairy balance cascade. */
-function mockDairyCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate } = {}) {
-  mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);
+function mockDairyCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate, outstanding = 1e9 } = {}) {
+  mockPrisma.dairyBalance.findFirst.mockImplementation(makeFindFirstRouter(outstanding));
   mockPrisma.dairyBalance.findMany.mockResolvedValue(
     subsequentDates.map(d => ({ balanceDate: new Date(d) }))
   );
@@ -30,8 +44,8 @@ function mockDairyCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate
 }
 
 /** Mocks all reads/writes used by the salesperson balance cascade. */
-function mockSalespersonCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate } = {}) {
-  mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
+function mockSalespersonCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate, outstanding = 1e9 } = {}) {
+  mockPrisma.salespersonBalance.findFirst.mockImplementation(makeFindFirstRouter(outstanding));
   mockPrisma.salespersonBalance.findMany.mockResolvedValue(
     subsequentDates.map(d => ({ balanceDate: new Date(d) }))
   );
