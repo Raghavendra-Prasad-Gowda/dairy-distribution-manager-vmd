@@ -54,11 +54,11 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
         {(totalCrates > 0 || totalUnits > 0) && (
           <p className="text-[11px] tabular-nums leading-tight">
             {totalCrates > 0 && (
-              <span className="font-bold text-amber-300">
+              <span className="font-bold text-emerald-300">
                 {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}
               </span>
             )}
-            {totalCrates > 0 && totalUnits > 0 && <span className="text-emerald-400"> · </span>}
+            {totalCrates > 0 && totalUnits > 0 && <span className="text-emerald-300"> · </span>}
             {totalUnits > 0 && <span className="text-emerald-300">{totalUnits} units</span>}
           </p>
         )}
