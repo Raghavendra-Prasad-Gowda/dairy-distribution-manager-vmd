@@ -5,6 +5,19 @@ on:
     branches: [main]
 
 jobs:
+  lint-timezone:
+    name: Lint — timezone safety
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-timezone-safety.js
+
   api-tests:
     name: API Tests (server)
     runs-on: ubuntu-latest

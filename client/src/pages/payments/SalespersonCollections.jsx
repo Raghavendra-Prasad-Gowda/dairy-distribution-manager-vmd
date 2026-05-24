@@ -8,6 +8,7 @@ import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 
 const MODE_COLORS = {
   Cash:   'bg-emerald-100 text-emerald-700',
@@ -374,9 +375,7 @@ export default function SalespersonCollections() {
         <div className="flex-1 flex flex-col overflow-y-auto bg-slate-50">
           {selectedSp ? (
             loading ? (
-              <div className="flex items-center justify-center flex-1 py-16">
-                <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-              </div>
+              <div className="flex-1"><BrandedLoader /></div>
             ) : (
               <div className="p-5 md:p-6 grid grid-cols-1 lg:grid-cols-5 gap-5">
 

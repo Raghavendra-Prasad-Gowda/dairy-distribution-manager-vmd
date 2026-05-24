@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, Loader2, AlertCircle, User } from 'lucide-react';
+import { Download, ChevronDown, ChevronRight, AlertCircle, User } from 'lucide-react';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
@@ -196,11 +197,7 @@ export default function SalespersonStatement() {
             </thead>
             <tbody className="bg-white">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center">
-                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                  </td>
-                </tr>
+                <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : !selectedSp ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">Select a salesperson to view their statement</td>

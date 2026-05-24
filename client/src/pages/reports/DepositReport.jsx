@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Download, Loader2, AlertCircle, Droplets, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, AlertCircle, Droplets, ChevronDown, ChevronRight } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getYesterday, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
@@ -160,11 +161,7 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
       )}
 
       {/* Loading */}
-      {loading && (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-        </div>
-      )}
+      {loading && <BrandedLoader />}
 
       {/* Summary cards */}
       {!loading && data && data.depositEnabled && (

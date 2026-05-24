@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Milk, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
+import { armForLogin } from '../api/coldStart';
 
 export default function Login() {
   const { login, user } = useAuth();
@@ -29,6 +30,10 @@ export default function Login() {
     if (!username || !password) return setError('Username and password are required');
     setError('');
     setLoading(true);
+    // Arm the global cold-start screen: if the login + initial dashboard
+    // requests hang past 2s (Render free-tier wake), show the branded overlay.
+    // Auto-disarms after the first wake hides.
+    armForLogin();
     const result = await login(username, password);
     setLoading(false);
     if (!result.success) setError(result.message);

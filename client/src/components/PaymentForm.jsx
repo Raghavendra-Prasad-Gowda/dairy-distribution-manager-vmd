@@ -49,14 +49,16 @@ export default function PaymentForm({
   const handleSubmit = (e) => {
     e.preventDefault();
     const amt = parseFloat(form.amount);
-    if (hasBalance && amt > closingBalance) return; // guard — button should be disabled anyway
+    if (isExcess) return; // guard — button should be disabled anyway
     onSubmit({ ...form, amount: amt });
     setForm(blankForm);
   };
 
   const hasBalance = closingBalance > 0;
   const enteredAmount = parseFloat(form.amount) || 0;
-  const isExcess = hasBalance && enteredAmount > closingBalance;
+  // Block any payment that would push the balance below zero. When balance
+  // is already 0 (settled) or negative (credit), ANY positive amount overpays.
+  const isExcess = enteredAmount > Math.max(0, closingBalance);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -88,7 +90,9 @@ export default function PaymentForm({
         {/* Excess payment warning */}
         {isExcess && (
           <p className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
-            ⚠ Exceeds outstanding balance of {formatCurrency(closingBalance)}
+            ⚠ {closingBalance <= 0
+                ? 'No outstanding balance — nothing to pay'
+                : `Exceeds outstanding balance of ${formatCurrency(closingBalance)}`}
           </p>
         )}
 

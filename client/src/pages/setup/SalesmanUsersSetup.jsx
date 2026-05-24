@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle } from 'lucide-react';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -395,11 +396,7 @@ export default function SalesmanUsersSetup() {
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
                   {loading ? (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-16 text-center">
-                        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                      </td>
-                    </tr>
+                    <tr><td colSpan={4}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
                   ) : paged.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-sm">

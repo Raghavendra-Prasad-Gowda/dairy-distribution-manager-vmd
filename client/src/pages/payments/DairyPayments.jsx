@@ -5,6 +5,7 @@ import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
@@ -295,9 +296,7 @@ export default function DairyPayments() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center flex-1 py-16">
-          <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-        </div>
+        <div className="flex-1"><BrandedLoader /></div>
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="p-5 md:p-6 max-w-5xl mx-auto">

@@ -68,6 +68,34 @@ test.describe('POST /api/v1/dairy-payments', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  // ─── Over-payment guard ─────────────────────────────────────────────────────
+
+  test('rejects payment when brand has no outstanding balance', async ({ request }) => {
+    mockDairyCascade(ctx.mockPrisma, { outstanding: 0 });
+
+    const res = await request.post('/api/v1/dairy-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, paymentDate: '2026-04-30', amount: 5000 },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/No outstanding balance/i);
+  });
+
+  test('rejects payment that exceeds outstanding balance', async ({ request }) => {
+    mockDairyCascade(ctx.mockPrisma, { outstanding: 1000 });
+
+    const res = await request.post('/api/v1/dairy-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, paymentDate: '2026-04-30', amount: 5000 },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/exceeds outstanding balance of ₹1000/i);
+  });
 });
 
   test('triggers balance recalculation on create (cascade runs)', async ({ request }) => {

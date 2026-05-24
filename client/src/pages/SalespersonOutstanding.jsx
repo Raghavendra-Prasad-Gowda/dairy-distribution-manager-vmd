@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, AlertCircle, CreditCard } from 'lucide-react';
+import { AlertCircle, CreditCard } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
+import BrandedLoader from '../components/ui/BrandedLoader';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
@@ -153,9 +154,7 @@ export default function SalespersonOutstanding() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-        </div>
+        <BrandedLoader />
       ) : balances.length === 0 ? (
         <div className="ddm-card p-12 text-center text-slate-400 text-sm">
           No salespeople configured. Go to Setup → Salespeople &amp; Rates.

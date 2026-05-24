@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Save, Loader2, ShoppingCart, TrendingUp, Search, X,
-  ChevronDown, ChevronRight, CheckCircle, AlertCircle, Minus, Plus, Lock,
+  ChevronDown, ChevronRight, AlertCircle, Minus, Plus, Lock,
 } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 
@@ -50,25 +51,30 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
             {formatCurrency(totalValue)}
           </p>
         )}
-        {totalCrates > 0 && (
+        {(totalCrates > 0 || totalUnits > 0) && (
           <p className="text-[11px] text-emerald-300 tabular-nums leading-tight">
-            {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}
+            {totalCrates > 0 && (
+              <>{Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}</>
+            )}
+            {totalCrates > 0 && totalUnits > 0 && ' · '}
+            {totalUnits > 0 && <>{totalUnits} units</>}
           </p>
-        )}
-        {!totalValue && totalUnits > 0 && (
-          <p className="text-xs text-emerald-300 tabular-nums">{totalUnits} units</p>
         )}
       </div>
     </button>
   );
 }
 
-function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, onClick }) {
+function CategoryHeader({ name, collapsed, totalUnits, totalAmount, totalCrates = 0, crateLabel = 'Crate', onClick }) {
+  const cratesLabel = totalCrates > 0
+    ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} ${crateLabel}${totalCrates !== 1 ? 's' : ''}`
+    : null;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-2.5 bg-slate-50 active:bg-slate-100 border-l-4 border-emerald-400 px-4 py-3 text-left select-none transition-colors"
+      className="w-full flex items-center gap-2 bg-slate-50 active:bg-slate-100 border-l-4 border-emerald-400 px-4 py-3 text-left select-none transition-colors"
     >
       {collapsed
         ? <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
@@ -77,14 +83,18 @@ function CategoryHeader({ name, count, collapsed, totalUnits, totalAmount, onCli
       <span className="flex-1 text-xs font-bold uppercase tracking-wider text-slate-600 leading-tight">
         {name}
       </span>
-      <span className="text-[11px] text-slate-400 tabular-nums">{count}</span>
+      {cratesLabel && (
+        <span className="text-[11px] font-semibold text-amber-700 tabular-nums bg-amber-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+          {cratesLabel}
+        </span>
+      )}
       {totalUnits > 0 && (
-        <span className="text-[11px] font-semibold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-full">
+        <span className="text-[11px] font-semibold text-emerald-700 tabular-nums bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
           {totalUnits} units
         </span>
       )}
       {totalAmount > 0 && (
-        <span className="text-[11px] font-bold text-amber-700 tabular-nums">
+        <span className="text-[11px] font-bold text-amber-700 tabular-nums whitespace-nowrap">
           {formatCurrency(totalAmount)}
         </span>
       )}
@@ -474,9 +484,7 @@ export default function SalespersonStockEntry() {
 
         {/* ── Product list ──────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-          </div>
+          <BrandedLoader />
         ) : products.length === 0 ? (
           <div className="mx-3 mt-3 bg-white rounded-2xl border border-amber-200 px-5 py-8 flex items-start gap-3">
             <AlertCircle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -518,15 +526,25 @@ export default function SalespersonStockEntry() {
                     const catCollapsed = collapsedCats[catKey] ?? false;
                     const catUnits  = cat.products.reduce((s, p) => s + (parseFloat(qty[p.productId]) || 0), 0);
                     const catAmount = cat.products.reduce((s, p) => s + (parseFloat(qty[p.productId]) || 0) * (p.sellingPrice ?? 0), 0);
+                    let catCrates = 0;
+                    let catCrateLabel = null;
+                    for (const p of cat.products) {
+                      const q = parseFloat(qty[p.productId]) || 0;
+                      if (p.containerType && p.unitsPerContainer && q > 0) {
+                        catCrates += q / p.unitsPerContainer;
+                        if (!catCrateLabel) catCrateLabel = p.containerType.charAt(0).toUpperCase() + p.containerType.slice(1);
+                      }
+                    }
 
                     return (
                       <React.Fragment key={catKey}>
                         <CategoryHeader
                           name={cat.name}
-                          count={cat.products.length}
                           collapsed={catCollapsed}
                           totalUnits={catUnits}
                           totalAmount={catAmount}
+                          totalCrates={catCrates}
+                          crateLabel={catCrateLabel ?? 'Crate'}
                           onClick={() => setCollapsedCats(prev => ({ ...prev, [catKey]: !prev[catKey] }))}
                         />
 
@@ -595,7 +613,11 @@ export default function SalespersonStockEntry() {
                                   min="0"
                                   placeholder="0"
                                   disabled={noPrice || isLocked}
-                                  className="flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums disabled:bg-slate-50 disabled:text-slate-300 border-slate-200 text-slate-900 bg-white"
+                                  className={`flex-1 h-11 text-center font-bold text-lg border-2 rounded-xl focus:outline-none focus:border-emerald-500 tabular-nums border-slate-200 bg-white ${
+                                    isLocked && qtyNum > 0
+                                      ? 'text-slate-900 disabled:text-slate-900 disabled:bg-emerald-50 disabled:border-emerald-200 disabled:opacity-100'
+                                      : 'text-slate-900 disabled:bg-slate-50 disabled:text-slate-300'
+                                  }`}
                                 />
 
                                 {/* Increment */}
@@ -639,21 +661,29 @@ export default function SalespersonStockEntry() {
       {/* ── Sticky action bar ────────────────────────────────────────────────── */}
       {!loading && products.length > 0 && (
         isLocked ? (
-          <div className="flex-shrink-0 bg-slate-800 border-t border-slate-700 px-4 py-3.5 flex items-center gap-3">
-            <Lock size={16} className="text-slate-400 flex-shrink-0" />
+          <div
+            className="flex-shrink-0 bg-emerald-50 border-t-2 border-emerald-300 px-4 py-4 flex items-center gap-3.5 shadow-[0_-4px_12px_-2px_rgba(16,185,129,0.15)]"
+            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
+            <div className="w-11 h-11 rounded-full bg-red-100 ring-2 ring-red-200 flex items-center justify-center flex-shrink-0">
+              <Lock size={22} className="text-red-600" strokeWidth={2.5} />
+            </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white leading-tight">
+              <p className="text-sm font-extrabold text-emerald-900 leading-tight">
                 {dispatch?.isAdminUnlocked === false && dispatch?.isSubmitted
                   ? 'Submitted & locked'
                   : isPast
                   ? 'Past date — locked'
                   : 'Locked'}
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">Contact your admin to make changes</p>
+              <p className="text-xs text-emerald-700/80 mt-0.5">Contact your admin to make changes</p>
             </div>
           </div>
         ) : (
-          <div className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2">
+          <div
+            className="flex-shrink-0 bg-white border-t border-slate-200 px-3 py-3 space-y-2"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
             {filledCount > 0 && (
               <p className="text-xs text-center text-slate-500 font-medium">
                 {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units ·{' '}
@@ -664,18 +694,18 @@ export default function SalespersonStockEntry() {
               <button
                 onClick={handleSave}
                 disabled={isBusy || (filledCount === 0 && !dispatch)}
-                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-bold text-sm disabled:opacity-40 active:bg-slate-50 transition"
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-slate-800 text-white font-bold text-sm disabled:bg-slate-300 disabled:text-slate-500 hover:bg-slate-900 active:bg-slate-900 transition shadow-sm"
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                {filledCount === 0 && dispatch ? 'Clear Draft' : 'Save Draft'}
+                {filledCount === 0 && dispatch ? 'Clear' : 'Save'}
               </button>
               <button
                 onClick={() => setShowSubmitConfirm(true)}
                 disabled={isBusy || filledCount === 0}
-                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:opacity-40 active:bg-emerald-800 transition shadow-sm"
+                className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:bg-emerald-300 active:bg-emerald-800 transition shadow-sm"
               >
-                {submitting ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                Save &amp; Submit
+                {submitting ? <Loader2 className="animate-spin" size={16} /> : <Lock size={16} strokeWidth={2.5} />}
+                Finalize &amp; Submit
               </button>
             </div>
           </div>
@@ -686,13 +716,13 @@ export default function SalespersonStockEntry() {
       <Modal
         open={showSubmitConfirm}
         onClose={() => setShowSubmitConfirm(false)}
-        title="Submit stock entry?"
+        title="Finalize stock entry?"
         size="sm"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowSubmitConfirm(false)}>Cancel</Button>
             <Button variant="primary" onClick={() => { setShowSubmitConfirm(false); handleSaveAndSubmit(); }}>
-              Submit &amp; Lock
+              Finalize &amp; Submit
             </Button>
           </>
         }

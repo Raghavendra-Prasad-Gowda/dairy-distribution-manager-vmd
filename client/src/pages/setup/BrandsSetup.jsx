@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Store, Loader2, Save } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -239,9 +240,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5 md:p-8">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-          </div>
+          <BrandedLoader />
         ) : !brand ? null : (
           <div className="max-w-xl space-y-6">
 

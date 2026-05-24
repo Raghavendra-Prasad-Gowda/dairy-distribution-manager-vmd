@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Settings, Loader2 } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import { BRAND_COLORS } from '../../utils/constants';
 import BrandsSetup      from './BrandsSetup';
@@ -96,9 +97,7 @@ export default function DairySettings() {
 
       {/* Content */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-        </div>
+        <div className="flex-1"><BrandedLoader /></div>
       ) : (
         <div className="flex-1 overflow-hidden">
           {activeSection === 'brands'     && <BrandsSetup   shellActiveBrandId={activeBrandId} />}

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit2, Trash2, Info, Search, Loader2, X } from 'lucide-react';
+import { Edit2, Trash2, Info, Search, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -208,11 +209,7 @@ export default function DairyPriceSetup() {
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
-                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                  </td>
-                </tr>
+                <tr><td colSpan={5}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : pageGroups.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-sm">

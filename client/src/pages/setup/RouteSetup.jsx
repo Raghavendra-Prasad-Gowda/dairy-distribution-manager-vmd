@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Loader2, Navigation, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Navigation, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
 
@@ -156,11 +157,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-100">
                   {loading ? (
-                    <tr>
-                      <td colSpan={3} className="px-6 py-16 text-center">
-                        <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
-                      </td>
-                    </tr>
+                    <tr><td colSpan={3}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
                   ) : routes.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="px-6 py-16 text-center text-slate-400 text-sm">

@@ -55,6 +55,16 @@ export function formatDateDisplay(dateStr) {
   });
 }
 
+/** Compact "24 May 2026" format — safe for any browser TZ. Accepts YYYY-MM-DD or ISO. */
+export function formatDateShort(dateStr) {
+  if (!dateStr) return '—';
+  const ymd = String(dateStr).slice(0, 10);
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d} ${months[m - 1]} ${y}`;
+}
+
 /** Formats as "₹1,23,456.00" in Indian locale */
 export function formatCurrency(amount) {
   return new Intl.NumberFormat('en-IN', {

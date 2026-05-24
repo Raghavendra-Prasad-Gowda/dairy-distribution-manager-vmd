@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, AlertCircle, Package, ChevronRight, ChevronDown } from 'lucide-react';
+import { AlertCircle, Package, ChevronRight, ChevronDown } from 'lucide-react';
+import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
@@ -152,9 +153,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
           )}
 
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-            </div>
+            <BrandedLoader />
           ) : data ? (
             <div className="space-y-4">
 

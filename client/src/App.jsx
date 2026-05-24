@@ -5,7 +5,8 @@ import { NotificationProvider } from './context/NotificationContext';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
-import { Loader2 } from 'lucide-react';
+import BrandedLoader from './components/ui/BrandedLoader';
+import ColdStartScreen from './components/ColdStartScreen';
 
 // Admin pages
 const Dashboard              = lazy(() => import('./pages/Dashboard'));
@@ -34,11 +35,7 @@ const DairyReports           = lazy(() => import('./pages/reports/DairyReports')
 const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
 
 function PageLoader() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
-    </div>
-  );
+  return <BrandedLoader label="Loading…" />;
 }
 
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -129,6 +126,7 @@ export default function App() {
         <AuthProvider>
           <NotificationProvider>
             <AppRoutes />
+            <ColdStartScreen />
           </NotificationProvider>
         </AuthProvider>
       </BrowserRouter>

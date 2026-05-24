@@ -77,6 +77,48 @@ test.describe('POST /api/v1/salesperson-payments', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  // ─── Over-payment guard (the reported bug) ──────────────────────────────────
+
+  test('rejects payment when salesperson has no outstanding balance', async ({ request }) => {
+    // No balance row exists OR closingBalance is 0 → guard treats as settled.
+    // This is the bug the user reported: collecting from a settled salesperson.
+    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 0 });
+
+    const res = await request.post('/api/v1/salesperson-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, paymentDate: '2026-04-30', amount: 500 },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/No outstanding balance/i);
+  });
+
+  test('rejects payment that exceeds outstanding balance', async ({ request }) => {
+    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 200 });
+
+    const res = await request.post('/api/v1/salesperson-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, paymentDate: '2026-04-30', amount: 500 },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/exceeds outstanding balance of ₹200/i);
+  });
+
+  test('accepts payment exactly equal to outstanding balance', async ({ request }) => {
+    ctx.mockPrisma.salespersonPayment.create.mockResolvedValue({ id: 1, salespersonId: 1, amount: 500, paymentDate: new Date('2026-04-30') });
+    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 500 });
+
+    const res = await request.post('/api/v1/salesperson-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, paymentDate: '2026-04-30', amount: 500 },
+    });
+
+    expect(res.status()).toBe(201);
+  });
 });
 
 // ─── GET /api/v1/salesperson-payments ────────────────────────────────────────
