@@ -5,7 +5,7 @@ import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
-import { getIndiaDate } from '../../utils/dateUtils';
+import { getIndiaDate, formatDateShort } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
@@ -414,7 +414,7 @@ export default function SalesmanPricesSetup() {
                         {!isGlobal && (
                           <>
                             <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
-                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Eff. From</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Prices From</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-20">Edit</th>
                           </>
                         )}
@@ -518,7 +518,7 @@ export default function SalesmanPricesSetup() {
                                   </td>
                                   <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
                                     {p.effectiveFrom
-                                      ? <span className="text-xs text-slate-500 tabular-nums">{String(p.effectiveFrom).slice(0, 10)}</span>
+                                      ? <span className="text-xs font-semibold text-amber-600 tabular-nums">{formatDateShort(p.effectiveFrom)}</span>
                                       : <span className="text-xs text-slate-300">—</span>}
                                   </td>
                                   <td className="px-4 py-3.5 text-center align-middle">
@@ -615,7 +615,7 @@ export default function SalesmanPricesSetup() {
                         <div className="flex items-baseline justify-between">
                           <p className="text-sm text-emerald-700 font-bold tabular-nums">{fmt(editingPrice.currentPrice)}</p>
                           {editingPrice.currentEffective && (
-                            <p className="text-[10px] text-slate-500 tabular-nums">since {String(editingPrice.currentEffective).slice(0, 10)}</p>
+                            <p className="text-[10px] text-slate-500 tabular-nums">since {formatDateShort(editingPrice.currentEffective)}</p>
                           )}
                         </div>
                       </div>

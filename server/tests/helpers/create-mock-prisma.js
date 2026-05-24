@@ -100,6 +100,7 @@ function createMockPrisma() {
       create:     mockFn(),
       update:     mockFn(),
       delete:     mockFn(),
+      deleteMany: mockFn(),
       upsert:     mockFn(),
     },
     stockDispatch: {

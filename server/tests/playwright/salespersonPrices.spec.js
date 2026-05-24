@@ -157,6 +157,39 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
     expect(res.status()).toBe(400);
   });
 
+  test('save with earlier date supersedes later-dated rows for same (sp, product)', async ({ request }) => {
+    // Bug fix regression: previously, editing to an earlier effective date
+    // left the later-dated row in place, so the desc ordering on the GET
+    // kept showing the later date — admin's change appeared not to take.
+    // bulkSave now deleteMany's rows with effectiveFrom > the new date for
+    // the same (salesperson, product), so the saved date is the latest.
+    let deleteArgs = null;
+    let upsertArgs = null;
+    ctx.mockPrisma.salespersonPrice.deleteMany.mockImplementation(async (args) => {
+      deleteArgs = args;
+      return { count: 1 };
+    });
+    ctx.mockPrisma.salespersonPrice.upsert.mockImplementation(async (args) => {
+      upsertArgs = args;
+      return {};
+    });
+
+    const res = await request.post('/api/v1/salespeople/5/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        effectiveFrom: '2026-05-23',
+        prices: [{ productId: 42, sellingPrice: 30, effectiveFrom: '2026-05-23' }],
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(deleteArgs).not.toBeNull();
+    expect(deleteArgs.where).toMatchObject({ salespersonId: 5, productId: 42 });
+    expect(deleteArgs.where.effectiveFrom.gt).toBeInstanceOf(Date);
+    expect(deleteArgs.where.effectiveFrom.gt.toISOString().slice(0, 10)).toBe('2026-05-23');
+    expect(upsertArgs).not.toBeNull();
+  });
+
   test('single-item save (per-row pencil edit) uses item.effectiveFrom for upsert key', async ({ request }) => {
     // The admin Prices page now saves one price at a time via the pencil-edit
     // modal. Each call posts a 1-item array with its own effectiveFrom. The
