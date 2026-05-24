@@ -104,7 +104,20 @@ export default function SalesmanPricesSetup() {
 
   // ── Per-row price edit ────────────────────────────────────────────────────────
   function openPriceEdit(p) {
-    setEditingPrice({ productId: p.productId, productName: p.productName, currentPrice: p.sellingPrice, category: p.category, dairyCostPrice: p.dairyCostPrice });
+    setEditingPrice({
+      productId:         p.productId,
+      productName:       p.productName,
+      brandName:         p.brandName,
+      category:          p.category,
+      currentPrice:      p.sellingPrice,
+      currentEffective:  p.effectiveFrom,
+      dairyCostPrice:    p.dairyCostPrice,
+      dairySellingPrice: p.dairySellingPrice,
+      unitType:          p.unitType,
+      unitSize:          p.unitSize,
+      containerType:     p.containerType,
+      unitsPerContainer: p.unitsPerContainer,
+    });
     setPriceForm({
       sellingPrice: p.sellingPrice != null ? String(p.sellingPrice) : '',
       effectiveFrom: getIndiaDate(),
@@ -266,7 +279,7 @@ export default function SalesmanPricesSetup() {
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
-  const colSpan = isGlobal ? 4 : 6;
+  const colSpan = isGlobal ? 4 : 7;
 
   return (
     <div className="flex flex-col h-full">
@@ -401,6 +414,7 @@ export default function SalesmanPricesSetup() {
                         {!isGlobal && (
                           <>
                             <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Eff. From</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-20">Edit</th>
                           </>
                         )}
@@ -502,6 +516,11 @@ export default function SalesmanPricesSetup() {
                                       : <span className="text-amber-600 font-semibold text-xs">Not set</span>
                                     }
                                   </td>
+                                  <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
+                                    {p.effectiveFrom
+                                      ? <span className="text-xs text-slate-500 tabular-nums">{String(p.effectiveFrom).slice(0, 10)}</span>
+                                      : <span className="text-xs text-slate-300">—</span>}
+                                  </td>
                                   <td className="px-4 py-3.5 text-center align-middle">
                                     <button
                                       onClick={() => openPriceEdit(p)}
@@ -533,65 +552,126 @@ export default function SalesmanPricesSetup() {
       </div>
 
       {/* Per-row price edit modal */}
-      {editingPrice && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePriceEdit}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Edit Price</h3>
-              <button onClick={closePriceEdit} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
-                <X size={16} />
-              </button>
-            </div>
-            <form onSubmit={handleSavePrice} className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Product</label>
-                <p className="text-sm font-semibold text-slate-800">{editingPrice.productName}</p>
-                {editingPrice.category && (
-                  <p className="text-xs text-slate-400 mt-0.5">{editingPrice.category}</p>
-                )}
-                {editingPrice.dairyCostPrice > 0 && (
-                  <p className="text-[11px] text-slate-400 mt-1.5">Dairy cost: <span className="font-semibold tabular-nums">{fmt(editingPrice.dairyCostPrice)}</span></p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Selling Price (₹) <span className="normal-case font-normal text-slate-400">for this salesperson</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                  <input
-                    autoFocus
-                    type="number" step="0.0001" min="0"
-                    value={priceForm.sellingPrice}
-                    onChange={e => setPriceForm(f => ({ ...f, sellingPrice: e.target.value }))}
-                    placeholder="0.00"
-                    className="ddm-input pl-7 text-right tabular-nums"
-                    required
-                  />
+      {editingPrice && (() => {
+        const unitLabel = editingPrice.unitType === 'ml' && editingPrice.unitSize
+          ? `${editingPrice.unitSize} ml`
+          : editingPrice.unitType === 'gram' && editingPrice.unitSize
+          ? `${editingPrice.unitSize} g`
+          : editingPrice.unitType ?? '—';
+        const containerLabel = editingPrice.containerType && editingPrice.unitsPerContainer
+          ? `${editingPrice.unitsPerContainer} / ${editingPrice.containerType}`
+          : null;
+        return (
+          <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePriceEdit}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              {/* Emerald header bar — matches the app's page-header chrome */}
+              <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-white leading-tight">Edit Price</h3>
+                  <p className="text-[11px] text-emerald-200 mt-0.5">Update salesperson selling price</p>
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Effective From</label>
-                <input
-                  type="date"
-                  value={priceForm.effectiveFrom}
-                  onChange={e => setPriceForm(f => ({ ...f, effectiveFrom: e.target.value }))}
-                  max={getIndiaDate()}
-                  className="ddm-input"
-                  required
-                />
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={closePriceEdit} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition">Cancel</button>
-                <button type="submit" disabled={savingPrice} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2">
-                  {savingPrice ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  {savingPrice ? 'Saving…' : 'Save Price'}
+                <button onClick={closePriceEdit} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
+                  <X size={16} />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSavePrice} className="px-5 py-5 space-y-5">
+
+                {/* Product details — read only */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 leading-tight">{editingPrice.productName}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {editingPrice.brandName && (
+                        <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">{editingPrice.brandName}</span>
+                      )}
+                      {editingPrice.category && (
+                        <span className="text-[10px] font-semibold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{editingPrice.category}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+                    <div>
+                      <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Unit</p>
+                      <p className="text-slate-700 font-semibold tabular-nums">{unitLabel}</p>
+                    </div>
+                    {containerLabel && (
+                      <div>
+                        <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Pack</p>
+                        <p className="text-slate-700 font-semibold tabular-nums">{containerLabel}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Dairy Cost</p>
+                      <p className="text-slate-700 font-semibold tabular-nums">{fmt(editingPrice.dairyCostPrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Dairy Selling</p>
+                      <p className="text-slate-700 font-semibold tabular-nums">{fmt(editingPrice.dairySellingPrice)}</p>
+                    </div>
+                    {editingPrice.currentPrice != null && (
+                      <div className="col-span-2 pt-2 border-t border-slate-200">
+                        <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Current Price</p>
+                        <div className="flex items-baseline justify-between">
+                          <p className="text-sm text-emerald-700 font-bold tabular-nums">{fmt(editingPrice.currentPrice)}</p>
+                          {editingPrice.currentEffective && (
+                            <p className="text-[10px] text-slate-500 tabular-nums">since {String(editingPrice.currentEffective).slice(0, 10)}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Editable: Selling Price */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    New Selling Price (₹)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                    <input
+                      autoFocus
+                      type="number" step="0.0001" min="0"
+                      value={priceForm.sellingPrice}
+                      onChange={e => setPriceForm(f => ({ ...f, sellingPrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full pl-7 pr-3 py-2.5 text-sm text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Editable: Effective From */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Effective From
+                  </label>
+                  <input
+                    type="date"
+                    value={priceForm.effectiveFrom}
+                    onChange={e => setPriceForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                    max={getIndiaDate()}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Past prices are kept for history</p>
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button type="button" onClick={closePriceEdit} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={savingPrice} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                    {savingPrice ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                    {savingPrice ? 'Saving…' : 'Save Price'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
