@@ -416,7 +416,7 @@ export default function SalespersonStockEntry() {
                       <span className="flex-shrink-0 text-amber-700 font-bold text-base self-center px-0.5">+</span>
                     )}
                     <div className="flex-1 min-w-0 bg-amber-300/60 rounded-lg px-3 py-2">
-                      <p className="text-[10px] font-bold text-amber-800 mb-1 truncate">{b.brandName}</p>
+                      <p className="text-xs font-bold text-amber-800 mb-1 truncate">{b.brandName}</p>
                       <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
                       {b.crates > 0 && (
                         <p className="text-xs font-bold text-amber-800 tabular-nums">
