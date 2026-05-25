@@ -27,7 +27,8 @@ const reportsRoutes             = require('./routes/reports');
 const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
 const clientErrorsRoutes        = require('./routes/clientErrors');
-const { authenticate, requireAdmin } = require('./middleware/auth');
+const adminUsersRoutes          = require('./routes/adminUsers');
+const { authenticate, requireAdmin, requireSuperAdmin } = require('./middleware/auth');
 
 const app = express();
 
@@ -115,6 +116,9 @@ app.use('/api/v1/salespeople',          requireAdmin, salespeopleRoutes);
 app.use('/api/v1/reports',              requireAdmin, reportsRoutes);
 app.use('/api/v1/pin',                  requireAdmin, pinRoutes);
 app.use('/api/v1/routes',               requireAdmin, routesRoutes);
+
+// Super-admin-only routes
+app.use('/api/v1/admin-users',          requireSuperAdmin, adminUsersRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 // Must be the last middleware

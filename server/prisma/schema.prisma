@@ -323,3 +323,17 @@ model AppSettings {
 
   @@map("app_settings")
 }
+
+// ─── Admin Users ──────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("admin") // 'admin' | 'superadmin'
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
