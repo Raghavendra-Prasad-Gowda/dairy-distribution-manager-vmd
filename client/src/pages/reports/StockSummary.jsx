@@ -237,19 +237,19 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                           return (
                             <React.Fragment key={brand.brandName}>
                               {/* Brand header */}
-                              <tr className="bg-emerald-700">
+                              <tr className="bg-slate-700">
                                 <td colSpan={2} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
                                   {brand.brandName}
-                                  <span className="ml-2 font-normal text-emerald-300 normal-case tracking-normal">
+                                  <span className="ml-2 font-normal text-slate-300 normal-case tracking-normal">
                                     {productCount} product{productCount !== 1 ? 's' : ''}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">
+                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
                                   {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{brand.totalQty}</td>
-                                <td className="px-3 py-2 text-right text-xs text-emerald-500">—</td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
+                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
+                                <td className="px-3 py-2 text-right text-xs text-slate-500">—</td>
+                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
                               </tr>
 
                               {brand.categories.map(cat => (
