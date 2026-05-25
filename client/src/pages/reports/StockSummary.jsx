@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AlertCircle, Package, ChevronRight, ChevronDown } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
@@ -47,25 +47,40 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     });
   }
 
-  // Aggregate by brand → product (with nested routes)
+  // Aggregate by brand → category → product (with nested routes), respecting layout display order
   const productSummary = useMemo(() => {
     if (!data?.rows) return [];
 
-    // brandName → productName → { routes[], upc, costPrice }
     const brandMap = new Map();
-    const ensureProd = (brand, productName) => {
-      if (!brandMap.has(brand)) brandMap.set(brand, new Map());
-      const bm = brandMap.get(brand);
-      if (!bm.has(productName)) bm.set(productName, { routes: new Map(), upc: null, costPrice: null, displayOrder: 0 });
-      return bm.get(productName);
+
+    const ensureProd = (brandName, brandDisplayOrder, catName, catDisplayOrder, productName) => {
+      if (!brandMap.has(brandName)) {
+        brandMap.set(brandName, { brandDisplayOrder, categories: new Map() });
+      }
+      const bm = brandMap.get(brandName);
+      if (!bm.categories.has(catName)) {
+        bm.categories.set(catName, { categoryDisplayOrder: catDisplayOrder, products: new Map() });
+      }
+      const cm = bm.categories.get(catName);
+      if (!cm.products.has(productName)) {
+        cm.products.set(productName, { routes: new Map(), upc: null, costPrice: null, displayOrder: 0 });
+      }
+      return cm.products.get(productName);
     };
 
     for (const row of data.rows) {
       for (const r of row.receipts) {
-        const prod = ensureProd(r.brandName, r.productName);
-        if (!prod.upc && r.unitsPerContainer)    prod.upc = r.unitsPerContainer;
-        if (!prod.costPrice && r.costPrice)      prod.costPrice = r.costPrice;
-        if (r.displayOrder != null)              prod.displayOrder = r.displayOrder;
+        const catName = r.category ?? 'General';
+        const prod = ensureProd(
+          r.brandName,
+          r.brandDisplayOrder ?? 0,
+          catName,
+          r.categoryDisplayOrder ?? 999,
+          r.productName,
+        );
+        if (!prod.upc && r.unitsPerContainer)  prod.upc = r.unitsPerContainer;
+        if (!prod.costPrice && r.costPrice)    prod.costPrice = r.costPrice;
+        if (r.displayOrder != null)            prod.displayOrder = r.displayOrder;
 
         const rk = r.routeNumber ?? '';
         if (!prod.routes.has(rk)) prod.routes.set(rk, { routeNumber: r.routeNumber ?? null, qty: 0, value: 0 });
@@ -76,37 +91,46 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     }
 
     return Array.from(brandMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([brandName, bm]) => {
-        const products = Array.from(bm.entries())
-          .sort(([nameA, a], [nameB, b]) => a.displayOrder - b.displayOrder || nameA.localeCompare(nameB))
-          .map(([productName, pd]) => {
-            const routes = Array.from(pd.routes.values())
-              .sort((a, b) => (a.routeNumber ?? '').localeCompare(b.routeNumber ?? ''))
-              .map(rt => ({
-                routeNumber: rt.routeNumber,
-                qty:    rt.qty,
-                value:  rt.value,
-                crates: fmtCrates(rt.qty, pd.upc),
-              }));
+      .sort(([nameA, a], [nameB, b]) => a.brandDisplayOrder - b.brandDisplayOrder || nameA.localeCompare(nameB))
+      .map(([brandName, bdata]) => {
+        const categories = Array.from(bdata.categories.entries())
+          .sort(([nameA, a], [nameB, b]) => a.categoryDisplayOrder - b.categoryDisplayOrder || nameA.localeCompare(nameB))
+          .map(([catName, cdata]) => {
+            const products = Array.from(cdata.products.entries())
+              .sort(([nameA, a], [nameB, b]) => a.displayOrder - b.displayOrder || nameA.localeCompare(nameB))
+              .map(([productName, pd]) => {
+                const routes = Array.from(pd.routes.values())
+                  .sort((a, b) => (a.routeNumber ?? '').localeCompare(b.routeNumber ?? ''))
+                  .map(rt => ({
+                    routeNumber: rt.routeNumber,
+                    qty:    rt.qty,
+                    value:  rt.value,
+                    crates: fmtCrates(rt.qty, pd.upc),
+                  }));
 
-            const totalQty   = routes.reduce((s, r) => s + r.qty,   0);
-            const totalValue = routes.reduce((s, r) => s + r.value,  0);
-            return {
-              productName,
-              routes,
-              upc:         pd.upc,
-              unitPrice:   pd.costPrice ?? 0,
-              totalQty,
-              totalValue,
-              totalCrates: fmtCrates(totalQty, pd.upc),
-            };
+                const totalQty   = routes.reduce((s, r) => s + r.qty,   0);
+                const totalValue = routes.reduce((s, r) => s + r.value,  0);
+                return {
+                  productName,
+                  routes,
+                  upc:         pd.upc,
+                  unitPrice:   pd.costPrice ?? 0,
+                  totalQty,
+                  totalValue,
+                  totalCrates: fmtCrates(totalQty, pd.upc),
+                };
+              });
+
+            const catQty    = products.reduce((s, p) => s + p.totalQty, 0);
+            const catValue  = products.reduce((s, p) => s + p.totalValue, 0);
+            const catCrates = products.reduce((s, p) => s + (p.upc ? p.totalQty / p.upc : p.totalQty), 0);
+            return { name: catName, products, catQty, catValue, catCrates };
           });
 
-        const totalQty    = products.reduce((s, p) => s + p.totalQty,   0);
-        const totalValue  = products.reduce((s, p) => s + p.totalValue,  0);
-        const totalCrates = products.reduce((s, p) => s + (p.upc ? p.totalQty / p.upc : p.totalQty), 0);
-        return { brandName, products, totalQty, totalValue, totalCrates };
+        const totalQty    = categories.reduce((s, c) => s + c.catQty, 0);
+        const totalValue  = categories.reduce((s, c) => s + c.catValue, 0);
+        const totalCrates = categories.reduce((s, c) => s + c.catCrates, 0);
+        return { brandName, categories, totalQty, totalValue, totalCrates };
       });
   }, [data]);
 
@@ -194,98 +218,114 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                       {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
                     </p>
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-auto max-h-[60vh]">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
-                      <thead>
-                        <tr className="bg-slate-100 border-b border-slate-200">
-                          <th className="px-4 py-2.5 text-left  text-[11px] font-bold text-slate-500 uppercase tracking-wider">Product</th>
-                          <th className="px-3 py-2.5 text-left  text-[11px] font-bold text-slate-500 uppercase tracking-wider">Route</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Crates</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider">Quantity</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Unit Price</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Total Price</th>
+                      <thead className="bg-emerald-700 sticky top-0 z-10">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left  text-[11px] font-bold text-white uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2.5 text-left  text-[11px] font-bold text-white uppercase tracking-wider">Route</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Crates</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Quantity</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Unit Price</th>
+                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Price</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {productSummary.map(brand => (
-                          <>
-                            {/* Brand header */}
-                            <tr key={brand.brandName} className="bg-emerald-700">
-                              <td colSpan={2} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
-                                {brand.brandName}
-                                <span className="ml-2 font-normal text-emerald-300 normal-case tracking-normal">
-                                  {brand.products.length} product{brand.products.length !== 1 ? 's' : ''}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">
-                                {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
-                              </td>
-                              <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{brand.totalQty}</td>
-                              <td className="px-3 py-2 text-right text-xs text-emerald-500">—</td>
-                              <td className="px-3 py-2 text-right text-xs font-bold text-emerald-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
-                            </tr>
+                        {productSummary.map(brand => {
+                          const productCount  = brand.categories.reduce((s, c) => s + c.products.length, 0);
+                          const multiCategory = brand.categories.length > 1;
+                          return (
+                            <React.Fragment key={brand.brandName}>
+                              {/* Brand header */}
+                              <tr className="bg-slate-700">
+                                <td colSpan={2} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                                  {brand.brandName}
+                                  <span className="ml-2 font-normal text-slate-300 normal-case tracking-normal">
+                                    {productCount} product{productCount !== 1 ? 's' : ''}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
+                                  {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
+                                </td>
+                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
+                                <td className="px-3 py-2 text-right text-xs text-slate-500">—</td>
+                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
+                              </tr>
 
-                            {/* Product rows (collapsed by default) */}
-                            {brand.products.map((p, idx) => {
-                              const expandKey   = `${brand.brandName}::${p.productName}`;
-                              const isOpen      = expanded.has(expandKey);
-                              const multiRoute  = p.routes.length > 1;
-                              const singleRoute = p.routes.length === 1 ? p.routes[0].routeNumber : null;
-
-                              return (
-                                <>
-                                  {/* Product summary row */}
-                                  <tr
-                                    key={expandKey}
-                                    onClick={() => multiRoute && toggle(expandKey)}
-                                    className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${multiRoute ? 'cursor-pointer hover:bg-emerald-50/40' : ''}`}
-                                  >
-                                    <td className="px-4 py-2.5 pl-5">
-                                      <div className="flex items-center gap-1.5">
-                                        {multiRoute
-                                          ? (isOpen
-                                              ? <ChevronDown  size={13} className="text-emerald-500 flex-shrink-0" />
-                                              : <ChevronRight size={13} className="text-emerald-500 flex-shrink-0" />)
-                                          : <span className="w-[13px] flex-shrink-0" />}
-                                        <span className="text-sm font-medium text-slate-800">{p.productName}</span>
-                                      </div>
-                                    </td>
-                                    <td className="px-3 py-2.5">
-                                      {multiRoute
-                                        ? <span className="text-[11px] text-slate-400">{p.routes.length} routes</span>
-                                        : singleRoute
-                                          ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{singleRoute}</span>
-                                          : <span className="text-slate-300 text-xs">—</span>}
-                                    </td>
-                                    <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalCrates}</td>
-                                    <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalQty}</td>
-                                    <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">{fmtPrice(p.unitPrice)}</td>
-                                    <td className="px-3 py-2.5 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(p.totalValue)}</td>
-                                  </tr>
-
-                                  {/* Route sub-rows — shown only when expanded */}
-                                  {isOpen && p.routes.map(rt => (
-                                    <tr
-                                      key={`${expandKey}::${rt.routeNumber ?? ''}`}
-                                      className="bg-emerald-50/60 border-b border-emerald-100"
-                                    >
-                                      <td className="px-4 py-2 pl-10 text-xs text-slate-500 italic">{p.productName}</td>
-                                      <td className="px-3 py-2">
-                                        {rt.routeNumber
-                                          ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{rt.routeNumber}</span>
-                                          : <span className="text-slate-300 text-xs">—</span>}
+                              {brand.categories.map(cat => (
+                                <React.Fragment key={`${brand.brandName}::${cat.name}`}>
+                                  {/* Category sub-header — only when brand has multiple categories */}
+                                  {multiCategory && (
+                                    <tr className="bg-slate-100 border-b border-slate-200">
+                                      <td colSpan={6} className="px-4 py-2 text-left text-xs font-bold text-slate-700">
+                                        {cat.name}
                                       </td>
-                                      <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.crates}</td>
-                                      <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.qty}</td>
-                                      <td className="px-3 py-2 text-right text-xs text-slate-400 tabular-nums">{fmtPrice(p.unitPrice)}</td>
-                                      <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatCurrency(rt.value)}</td>
                                     </tr>
-                                  ))}
-                                </>
-                              );
-                            })}
-                          </>
-                        ))}
+                                  )}
+
+                                  {/* Product rows */}
+                                  {cat.products.map((p, idx) => {
+                                    const expandKey  = `${brand.brandName}::${cat.name}::${p.productName}`;
+                                    const isOpen     = expanded.has(expandKey);
+                                    const multiRoute  = p.routes.length > 1;
+                                    const singleRoute = p.routes.length === 1 ? p.routes[0].routeNumber : null;
+
+                                    return (
+                                      <React.Fragment key={expandKey}>
+                                        {/* Product summary row */}
+                                        <tr
+                                          onClick={() => multiRoute && toggle(expandKey)}
+                                          className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${multiRoute ? 'cursor-pointer hover:bg-emerald-50/40' : ''}`}
+                                        >
+                                          <td className="px-4 py-2.5 pl-5">
+                                            <div className="flex items-center gap-1.5">
+                                              {multiRoute
+                                                ? (isOpen
+                                                    ? <ChevronDown  size={13} className="text-emerald-500 flex-shrink-0" />
+                                                    : <ChevronRight size={13} className="text-emerald-500 flex-shrink-0" />)
+                                                : <span className="w-[13px] flex-shrink-0" />}
+                                              <span className="text-sm font-medium text-slate-800">{p.productName}</span>
+                                            </div>
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            {multiRoute
+                                              ? <span className="text-[11px] text-slate-400">{p.routes.length} routes</span>
+                                              : singleRoute
+                                                ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{singleRoute}</span>
+                                                : <span className="text-slate-300 text-xs">—</span>}
+                                          </td>
+                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalCrates}</td>
+                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalQty}</td>
+                                          <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">{fmtPrice(p.unitPrice)}</td>
+                                          <td className="px-3 py-2.5 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(p.totalValue)}</td>
+                                        </tr>
+
+                                        {/* Route sub-rows — shown only when expanded */}
+                                        {isOpen && p.routes.map(rt => (
+                                          <tr
+                                            key={`${expandKey}::${rt.routeNumber ?? ''}`}
+                                            className="bg-emerald-50/60 border-b border-emerald-100"
+                                          >
+                                            <td className="px-4 py-2 pl-10 text-xs text-slate-500 italic">{p.productName}</td>
+                                            <td className="px-3 py-2">
+                                              {rt.routeNumber
+                                                ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{rt.routeNumber}</span>
+                                                : <span className="text-slate-300 text-xs">—</span>}
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.crates}</td>
+                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.qty}</td>
+                                            <td className="px-3 py-2 text-right text-xs text-slate-400 tabular-nums">{fmtPrice(p.unitPrice)}</td>
+                                            <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatCurrency(rt.value)}</td>
+                                          </tr>
+                                        ))}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </React.Fragment>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
                       </tbody>
 
                       {/* Grand total footer */}

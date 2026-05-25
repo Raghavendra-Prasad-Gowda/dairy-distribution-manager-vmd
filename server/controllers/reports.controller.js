@@ -156,13 +156,16 @@ const stockSummary = asyncHandler(async (req, res) => {
   const toDate     = new Date(toStr);
   const brandFilter = brandId ? parseId(brandId, 'Brand ID') : null;
 
-  const [receipts, dispatches, allRoutes] = await Promise.all([
+  const [receipts, dispatches, allRoutes, allCategories] = await Promise.all([
     prisma.stockReceipt.findMany({
       where: {
         receiptDate: { gte: fromDate, lte: toDate },
         ...(brandFilter ? { brandId: brandFilter } : {}),
       },
-      include: { product: { select: { name: true, unitsPerContainer: true, costPrice: true, displayOrder: true } }, brand: { select: { name: true } } },
+      include: {
+        product: { select: { name: true, category: true, unitsPerContainer: true, costPrice: true, displayOrder: true } },
+        brand:   { select: { name: true, displayOrder: true } },
+      },
       orderBy: [{ receiptDate: 'asc' }, { brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
     }),
     prisma.stockDispatch.findMany({
@@ -177,8 +180,13 @@ const stockSummary = asyncHandler(async (req, res) => {
       orderBy: [{ dispatchDate: 'asc' }, { salesperson: { name: 'asc' } }],
     }),
     prisma.route.findMany({ select: { id: true, routeNumber: true } }),
+    prisma.category.findMany({
+      where: brandFilter ? { brandId: brandFilter } : {},
+      select: { brandId: true, name: true, displayOrder: true },
+    }),
   ]);
-  const routeMap = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
+  const routeMap   = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
+  const catOrderMap = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
 
   // Build date-keyed map
   const dateMap = new Map();
@@ -190,15 +198,18 @@ const stockSummary = asyncHandler(async (req, res) => {
   for (const r of receipts) {
     const key = r.receiptDate.toISOString().slice(0, 10);
     ensureDay(key).receipts.push({
-      brandName:        r.brand.name,
-      productName:      r.product.name,
-      quantity:         Number(r.quantity),
-      unitPrice:        Number(r.unitPrice),
-      amount:           Number(r.quantity) * Number(r.unitPrice),
-      routeNumber:      r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
-      unitsPerContainer: r.product.unitsPerContainer ?? null,
-      costPrice:         Number(r.product.costPrice ?? 0),
-      displayOrder:      r.product.displayOrder ?? 0,
+      brandName:            r.brand.name,
+      brandDisplayOrder:    r.brand.displayOrder ?? 0,
+      productName:          r.product.name,
+      category:             r.product.category ?? null,
+      categoryDisplayOrder: catOrderMap.get(`${r.brandId}::${r.product.category}`) ?? 999,
+      quantity:             Number(r.quantity),
+      unitPrice:            Number(r.unitPrice),
+      amount:               Number(r.quantity) * Number(r.unitPrice),
+      routeNumber:          r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
+      unitsPerContainer:    r.product.unitsPerContainer ?? null,
+      costPrice:            Number(r.product.costPrice ?? 0),
+      displayOrder:         r.product.displayOrder ?? 0,
     });
   }
 
