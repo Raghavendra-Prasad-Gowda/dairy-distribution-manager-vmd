@@ -35,12 +35,19 @@ async function seedFoundationData(externalPrisma) {
   }
 
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
+  // Env vars are authoritative — always sync username + password on every boot.
   const rawSuperUsername = process.env.SUPERADMIN_USERNAME;
   const rawSuperPassword = process.env.SUPERADMIN_PASSWORD;
   if (rawSuperUsername && rawSuperPassword) {
     const existingSuperAdmin = await prisma.adminUser.findFirst({ where: { role: 'superadmin' } });
-    if (!existingSuperAdmin) {
-      const passwordHash = await bcrypt.hash(rawSuperPassword, BCRYPT_ROUNDS);
+    const passwordHash = await bcrypt.hash(rawSuperPassword, BCRYPT_ROUNDS);
+    if (existingSuperAdmin) {
+      await prisma.adminUser.update({
+        where: { id: existingSuperAdmin.id },
+        data: { username: rawSuperUsername, passwordHash },
+      });
+      logger.info('Synced superadmin credentials from env vars', { username: rawSuperUsername });
+    } else {
       await prisma.adminUser.create({
         data: { username: rawSuperUsername, passwordHash, role: 'superadmin' },
       });
