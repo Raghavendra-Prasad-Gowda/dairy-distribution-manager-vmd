@@ -266,6 +266,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -287,6 +288,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-01&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -316,6 +318,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
       },
     ]);
     ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -347,6 +350,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     ]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     ctx.mockPrisma.route.findMany.mockResolvedValue([{ id: 7, routeNumber: 'R3' }]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -377,6 +381,7 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
     ]);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     ctx.mockPrisma.route.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

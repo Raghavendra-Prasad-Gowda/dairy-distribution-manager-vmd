@@ -192,6 +192,7 @@ test.describe('Multi-route Nandini receipts', () => {
       { id: 1, routeNumber: 'R1' },
       { id: 2, routeNumber: 'R2' },
     ]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/reports/stock-summary?from=2026-04-30&to=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
