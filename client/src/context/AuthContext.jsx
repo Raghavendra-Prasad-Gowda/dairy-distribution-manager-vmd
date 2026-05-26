@@ -3,7 +3,7 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
-const SESSION_MS = 12 * 60 * 60 * 1000; // 12 hours — matches JWT expiry
+const SESSION_MS = 2 * 60 * 60 * 1000; // 2 hours — matches JWT expiry
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(null);
