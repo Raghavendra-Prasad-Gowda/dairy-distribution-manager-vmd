@@ -43,7 +43,10 @@ export default function Login() {
     // requests hang past 2s (Render free-tier wake), show the branded overlay.
     // Auto-disarms after the first wake hides.
     armForLogin();
-    const result = await login(username, password);
+    const [result] = await Promise.all([
+      login(username, password),
+      new Promise(r => setTimeout(r, 1200)), // min display so bounce completes one cycle
+    ]);
     setLoading(false);
     if (!result.success) setError(result.message);
   };
