@@ -13,26 +13,11 @@ function getClient(externalClient) {
 const BCRYPT_ROUNDS = 10;
 
 /**
- * Idempotent — creates the admin account if it doesn't exist.
- * Safe to call on every deployment startup.
+ * Bootstraps the superadmin account from env vars on every boot.
+ * If SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD are not set, nothing is created.
  */
 async function seedFoundationData(externalPrisma) {
   const prisma = getClient(externalPrisma);
-
-  // ─── Admin user (AppSettings — legacy, backward-compat) ──────────────────
-  const existing = await prisma.appSettings.findFirst();
-  if (!existing) {
-    if (!process.env.ADMIN_PASSWORD) {
-      logger.warn('ADMIN_PASSWORD env var not set — admin account will use insecure default password. Set this in production.');
-    }
-    const rawUsername = process.env.ADMIN_USERNAME || 'admin';
-    const rawPassword = process.env.ADMIN_PASSWORD || 'admin123';
-    const passwordHash = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
-    await prisma.appSettings.create({
-      data: { businessName: 'Vikas Milk Dairy', username: rawUsername, passwordHash },
-    });
-    logger.info('Created admin user', { username: rawUsername });
-  }
 
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
   // Env vars are authoritative — always sync username + password on every boot.
