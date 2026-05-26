@@ -35,18 +35,19 @@ async function seedFoundationData(externalPrisma) {
   }
 
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
-  const existingSuperAdmin = await prisma.adminUser.findFirst({ where: { role: 'superadmin' } });
-  if (!existingSuperAdmin) {
-    if (!process.env.SUPERADMIN_PASSWORD) {
-      logger.warn('SUPERADMIN_PASSWORD env var not set — superadmin account will use insecure default password. Set this in production.');
+  const rawSuperUsername = process.env.SUPERADMIN_USERNAME;
+  const rawSuperPassword = process.env.SUPERADMIN_PASSWORD;
+  if (rawSuperUsername && rawSuperPassword) {
+    const existingSuperAdmin = await prisma.adminUser.findFirst({ where: { role: 'superadmin' } });
+    if (!existingSuperAdmin) {
+      const passwordHash = await bcrypt.hash(rawSuperPassword, BCRYPT_ROUNDS);
+      await prisma.adminUser.create({
+        data: { username: rawSuperUsername, passwordHash, role: 'superadmin' },
+      });
+      logger.info('Created superadmin user', { username: rawSuperUsername });
     }
-    const rawUsername = process.env.SUPERADMIN_USERNAME || 'superadmin';
-    const rawPassword = process.env.SUPERADMIN_PASSWORD || 'superadmin123';
-    const passwordHash = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
-    await prisma.adminUser.create({
-      data: { username: rawUsername, passwordHash, role: 'superadmin' },
-    });
-    logger.info('Created superadmin user', { username: rawUsername });
+  } else {
+    logger.info('SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD not set — skipping superadmin seed');
   }
 }
 
