@@ -5,7 +5,7 @@ const prisma = require('../lib/prisma');
 
 // Admin only — returns all active products with isEnabled status for a salesperson
 const getProducts = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
 
@@ -42,7 +42,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
 // Admin only — bulk enable/disable products for a salesperson
 const bulkUpdate = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
   const data = validate(schemas.bulkSalespersonProducts, req, res);

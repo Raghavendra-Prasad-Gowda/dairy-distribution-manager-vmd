@@ -39,7 +39,7 @@ async function buildSalespersonBalance(salespersonId, date) {
 
 // Admin only: get all salespeople balances for a date
 const getAll = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 

@@ -9,7 +9,8 @@ const { getIndiaDateStr } = require('../utils/dateUtils');
 // but if that middleware is ever moved or misconfigured, the controller still
 // refuses. Salespeople have no business reading aggregate reports.
 function assertAdmin(req) {
-  if (req.user?.role !== 'admin') {
+  const role = req.user?.role;
+  if (role !== 'admin' && role !== 'superadmin') {
     throw new AppError('Admin access required', 403);
   }
 }

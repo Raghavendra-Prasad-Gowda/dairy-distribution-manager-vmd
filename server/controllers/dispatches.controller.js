@@ -197,7 +197,7 @@ const submit = asyncHandler(async (req, res) => {
 
 // Admin locks an entry (regardless of whether salesman submitted)
 const lock = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
@@ -214,7 +214,7 @@ const lock = asyncHandler(async (req, res) => {
 
 // Admin unlocks a submitted or past-date entry so salesman can re-edit
 const unlock = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });

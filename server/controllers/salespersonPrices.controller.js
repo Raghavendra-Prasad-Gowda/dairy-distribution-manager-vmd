@@ -100,7 +100,7 @@ const getPrices = asyncHandler(async (req, res) => {
 
 // Admin only — sets prices for a salesperson
 const bulkSave = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
   const data = validate(schemas.bulkSalespersonPrices, req, res);
