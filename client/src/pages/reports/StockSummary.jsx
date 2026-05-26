@@ -136,6 +136,19 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
 
   const grandTotalCrates = productSummary.reduce((s, b) => s + b.totalCrates, 0);
 
+  const expandableKeys = useMemo(() => {
+    const keys = [];
+    productSummary.forEach(brand =>
+      brand.categories.forEach(cat =>
+        cat.products.forEach(p => {
+          if (p.routes.length > 1) keys.push(`${brand.brandName}::${cat.name}::${p.productName}`);
+        })
+      )
+    );
+    return keys;
+  }, [productSummary]);
+  const allExpanded = expandableKeys.length > 0 && expandableKeys.every(k => expanded.has(k));
+
   return (
     <div className="flex flex-col h-full">
 
@@ -212,11 +225,23 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                 </div>
               ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-700">
-                    <h2 className="text-sm font-bold text-white">Period Summary</h2>
-                    <p className="text-xs text-slate-400">
-                      {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
-                    </p>
+                  <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-bold text-white">Period Summary</h2>
+                      <p className="text-xs text-slate-400">
+                        {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
+                      </p>
+                    </div>
+                    {expandableKeys.length > 0 && (
+                      <button
+                        onClick={() => allExpanded ? setExpanded(new Set()) : setExpanded(new Set(expandableKeys))}
+                        className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
+                      >
+                        {allExpanded
+                          ? <><ChevronRight size={13} /> Collapse All</>
+                          : <><ChevronDown  size={13} /> Expand All</>}
+                      </button>
+                    )}
                   </div>
                   <div className="overflow-auto max-h-[60vh]">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
