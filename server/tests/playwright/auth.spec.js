@@ -10,18 +10,19 @@ const { setupSuite } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
-const ADMIN_SETTINGS = {
+const ADMIN_USER = {
   id:           1,
   username:     'admin',
   passwordHash: 'hashed',
-  businessName: 'Vikas Milk Dairy',
+  role:         'admin',
+  isActive:     true,
 };
 
 // ─── POST /api/v1/auth/login ──────────────────────────────────────────────────
 
 test.describe('POST /api/v1/auth/login', () => {
   test('returns 200 with accessToken on valid credentials', async ({ request }) => {
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(ADMIN_USER);
     ctx.mockBcrypt.compare = async () => true;
 
     const res = await request.post('/api/v1/auth/login', {
@@ -36,7 +37,8 @@ test.describe('POST /api/v1/auth/login', () => {
   });
 
   test('returns 401 when username does not exist', async ({ request }) => {
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(null);
 
     const res = await request.post('/api/v1/auth/login', {
       data: { username: 'nobody', password: 'anypass' },
@@ -46,7 +48,7 @@ test.describe('POST /api/v1/auth/login', () => {
   });
 
   test('returns 401 when password is wrong', async ({ request }) => {
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(ADMIN_USER);
     ctx.mockBcrypt.compare = async () => false;
 
     const res = await request.post('/api/v1/auth/login', {
@@ -82,10 +84,10 @@ test.describe('POST /api/v1/auth/change-password', () => {
   });
 
   test('returns 200 when password is changed successfully', async ({ request }) => {
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(ADMIN_USER);
     ctx.mockBcrypt.compare = async () => true;
     ctx.mockBcrypt.hash = async () => 'new_hashed_password';
-    ctx.mockPrisma.appSettings.update.mockResolvedValue({ ...ADMIN_SETTINGS, passwordHash: 'new_hashed_password' });
+    ctx.mockPrisma.adminUser.update.mockResolvedValue({ ...ADMIN_USER, passwordHash: 'new_hashed_password' });
 
     const res = await request.post('/api/v1/auth/change-password', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -99,7 +101,7 @@ test.describe('POST /api/v1/auth/change-password', () => {
   });
 
   test('returns 401 when current password is wrong', async ({ request }) => {
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(ADMIN_USER);
     ctx.mockBcrypt.compare = async () => false;
 
     const res = await request.post('/api/v1/auth/change-password', {
@@ -136,7 +138,7 @@ test.describe('POST /api/v1/auth/logout', () => {
   });
 
   test('returns 200 and clears the cookie with a valid token', async ({ request }) => {
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue(ADMIN_SETTINGS);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(ADMIN_USER);
     const res = await request.post('/api/v1/auth/logout', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
