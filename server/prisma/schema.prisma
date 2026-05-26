@@ -311,19 +311,6 @@ model SalespersonPayment {
   @@map("salesperson_payments")
 }
 
-// ─── App Settings ─────────────────────────────────────────────────────────────
-
-model AppSettings {
-  id           Int      @id @default(autoincrement())
-  businessName String   @default("Vikas Milk Dairy") @map("business_name")
-  username     String   @default("admin")
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  @@map("app_settings")
-}
-
 // ─── Admin Users ──────────────────────────────────────────────────────────────
 
 model AdminUser {
