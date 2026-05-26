@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck
 } from 'lucide-react';
 
 // ─── Admin nav tree ────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
             <div>
               <p className="text-white font-bold text-sm leading-tight">{user?.businessName ?? 'Vikas Milk Dairy'}</p>
               <p className="text-emerald-300 text-xs leading-tight">
-                {user?.role === 'salesman' ? (user.salespersonName ?? 'Salesman') : 'Admin'}
+                {user?.role === 'salesman' ? (user.salespersonName ?? 'Salesman') : user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
               </p>
             </div>
           </div>
@@ -155,6 +155,24 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
             )}
             {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
             <SidebarLink item={DASHBOARD_ITEM} compact={compact} setMobileOpen={setMobileOpen} />
+          </div>
+        )}
+
+        {user?.role === 'superadmin' && (
+          <div>
+            {!compact && (
+              <p className="px-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-amber-400/90">
+                SUPER ADMIN
+              </p>
+            )}
+            {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
+            <div className="space-y-0.5">
+              <SidebarLink
+                item={{ to: '/admin/users', icon: ShieldCheck, label: 'Admin Users' }}
+                compact={compact}
+                setMobileOpen={setMobileOpen}
+              />
+            </div>
           </div>
         )}
 

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Milk, Lock, User, AlertCircle } from 'lucide-react';
 import { armForLogin } from '../api/coldStart';
+import BrandedLoader from '../components/ui/BrandedLoader';
 
 export default function Login() {
   const { login, user } = useAuth();
@@ -23,7 +24,15 @@ export default function Login() {
     return () => clearTimeout(slowTimer.current);
   }, [loading]);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user)    return <Navigate to="/" replace />;
+  if (loading) return (
+    <BrandedLoader
+      overlay
+      open
+      tone="brand"
+      label={slowWarning ? 'Server is warming up…' : 'Signing in…'}
+    />
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +43,10 @@ export default function Login() {
     // requests hang past 2s (Render free-tier wake), show the branded overlay.
     // Auto-disarms after the first wake hides.
     armForLogin();
-    const result = await login(username, password);
+    const [result] = await Promise.all([
+      login(username, password),
+      new Promise(r => setTimeout(r, 1200)), // min display so bounce completes one cycle
+    ]);
     setLoading(false);
     if (!result.success) setError(result.message);
   };
@@ -59,96 +71,63 @@ export default function Login() {
             <p className="text-emerald-200 mt-1 text-sm font-medium">Distribution Manager</p>
           </div>
 
-          {/* Form / Loading state */}
+          {/* Form */}
           <div className="px-8 py-8">
-            {loading ? (
-              <div className="flex flex-col items-center gap-4 py-4">
-                <div className="relative w-28 h-28 flex items-center justify-center">
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-full bg-emerald-100 animate-ping"
-                    style={{ animationDuration: '1.8s' }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-full bg-emerald-100 animate-pulse"
-                    style={{ animationDuration: '2.2s' }}
-                  />
-                  <span
-                    className="relative text-6xl leading-none select-none animate-bounce"
-                    style={{ animationDuration: '1.2s' }}
-                    role="img"
-                    aria-label="Signing in"
-                  >
-                    🥛
-                  </span>
+            <p className="text-slate-500 text-sm mb-6 text-center">Sign in to access your dashboard</p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-600 tracking-wide">Signing in…</p>
-                {slowWarning && (
-                  <p className="text-center text-xs text-slate-400 animate-pulse">
-                    Server is warming up, please wait…
-                  </p>
-                )}
+              )}
+
+              <div>
+                <label htmlFor="username" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Username
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50"
+                    autoFocus
+                  />
+                </div>
               </div>
-            ) : (
-              <>
-                <p className="text-slate-500 text-sm mb-6 text-center">Sign in to access your dashboard</p>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && (
-                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                  )}
+              <div>
+                <label htmlFor="password" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50"
+                  />
+                </div>
+              </div>
 
-                  <div>
-                    <label htmlFor="username" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Username
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        id="username"
-                        type="text"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Enter your username"
-                        required
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50"
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="password" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
-                        required
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-slate-50"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={!username || !password}
-                    className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white font-semibold py-2.5 px-4 rounded-lg transition-all text-sm mt-2"
-                  >
-                    Sign In
-                  </button>
-                </form>
-              </>
-            )}
+              <button
+                type="submit"
+                disabled={!username || !password}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white font-semibold py-2.5 px-4 rounded-lg transition-all text-sm mt-2"
+              >
+                Sign In
+              </button>
+            </form>
           </div>
         </div>
 

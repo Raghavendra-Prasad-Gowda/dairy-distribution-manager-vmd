@@ -29,7 +29,7 @@ const SECRET = 'test-secret-for-ci';
 
 /** Returns a signed JWT for the single admin user. */
 const makeAuthToken = () =>
-  jwt.sign({ id: 1 }, SECRET, { expiresIn: '1h' });
+  jwt.sign({ id: 1, role: 'admin', adminUserId: 1 }, SECRET, { expiresIn: '1h' });
 
 /**
  * Returns a signed JWT for a salesman. Carries role: 'salesman' and the

@@ -13,25 +13,33 @@ function getClient(externalClient) {
 const BCRYPT_ROUNDS = 10;
 
 /**
- * Idempotent — creates the admin account if it doesn't exist.
- * Safe to call on every deployment startup.
+ * Bootstraps the superadmin account from env vars on every boot.
+ * If SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD are not set, nothing is created.
  */
 async function seedFoundationData(externalPrisma) {
   const prisma = getClient(externalPrisma);
 
-  // ─── Admin user ───────────────────────────────────────────────────────────
-  const existing = await prisma.appSettings.findFirst();
-  if (!existing) {
-    if (!process.env.ADMIN_PASSWORD) {
-      logger.warn('ADMIN_PASSWORD env var not set — admin account will use insecure default password. Set this in production.');
+  // ─── Super admin user (AdminUser table) ───────────────────────────────────
+  // Env vars are authoritative — always sync username + password on every boot.
+  const rawSuperUsername = process.env.SUPERADMIN_USERNAME;
+  const rawSuperPassword = process.env.SUPERADMIN_PASSWORD;
+  if (rawSuperUsername && rawSuperPassword) {
+    const existingSuperAdmin = await prisma.adminUser.findFirst({ where: { role: 'superadmin' } });
+    const passwordHash = await bcrypt.hash(rawSuperPassword, BCRYPT_ROUNDS);
+    if (existingSuperAdmin) {
+      await prisma.adminUser.update({
+        where: { id: existingSuperAdmin.id },
+        data: { username: rawSuperUsername, passwordHash },
+      });
+      logger.info('Synced superadmin credentials from env vars', { username: rawSuperUsername });
+    } else {
+      await prisma.adminUser.create({
+        data: { username: rawSuperUsername, passwordHash, role: 'superadmin' },
+      });
+      logger.info('Created superadmin user', { username: rawSuperUsername });
     }
-    const rawUsername = process.env.ADMIN_USERNAME || 'admin';
-    const rawPassword = process.env.ADMIN_PASSWORD || 'admin123';
-    const passwordHash = await bcrypt.hash(rawPassword, BCRYPT_ROUNDS);
-    await prisma.appSettings.create({
-      data: { businessName: 'Vikas Milk Dairy', username: rawUsername, passwordHash },
-    });
-    logger.info('Created admin user', { username: rawUsername });
+  } else {
+    logger.info('SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD not set — skipping superadmin seed');
   }
 }
 

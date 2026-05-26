@@ -216,7 +216,7 @@ test.describe('CORS', () => {
 test.describe('Rate limits — auth login', () => {
   test('21 login attempts in the window → 429 on the 21st', async ({ request }) => {
     ctx.mockBcrypt.compare = async () => false; // login always fails
-    ctx.mockPrisma.appSettings.findFirst.mockResolvedValue({ username: 'admin', passwordHash: 'x' });
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({ id: 1, username: 'admin', passwordHash: 'x', role: 'admin', isActive: true });
     ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(null);
 
     let last;

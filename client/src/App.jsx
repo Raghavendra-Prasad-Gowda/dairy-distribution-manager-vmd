@@ -31,6 +31,8 @@ const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
 const DairySettings          = lazy(() => import('./pages/setup/DairySettings'));
 const DairyReports           = lazy(() => import('./pages/reports/DairyReports'));
 
+const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
+
 // Salesman pages
 const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
 
@@ -38,10 +40,11 @@ function PageLoader() {
   return <BrandedLoader label="Loading…" />;
 }
 
-function ProtectedRoute({ children, adminOnly = false }) {
+function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (adminOnly && user.role !== 'admin') return <Navigate to="/" replace />;
+  if (superAdminOnly && user.role !== 'superadmin') return <Navigate to="/" replace />;
+  if (adminOnly && user.role !== 'admin' && user.role !== 'superadmin') return <Navigate to="/" replace />;
   return children;
 }
 
@@ -102,6 +105,11 @@ function AppRoutes() {
             <Route path="reports/stock-balance"   element={S(StockBalanceSummary)} />
             <Route path="reports/deposit"         element={S(DepositReport)} />
             <Route path="salesperson-outstanding" element={S(SalespersonOutstanding)} />
+
+            {/* SUPER ADMIN */}
+            <Route path="admin/users" element={
+              <ProtectedRoute superAdminOnly>{S(AdminUsersSetup)}</ProtectedRoute>
+            } />
 
             {/* Legacy redirects */}
             <Route path="daily/receipt"        element={<Navigate to="/dairy/stock/nandini" replace />} />

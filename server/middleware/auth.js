@@ -16,19 +16,28 @@ const authenticate = (req, res, next) => {
       return next(new AppError('Unauthorized. Token is invalid or expired.', 401));
     }
     req.user = {
-      id: decoded.id,
-      role: decoded.role ?? 'admin',
+      id:            decoded.id,
+      role:          decoded.role ?? 'admin',
       salespersonId: decoded.salespersonId ?? null,
+      adminUserId:   decoded.adminUserId   ?? null,
     };
     next();
   });
 };
 
 const requireAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
+  const { role } = req.user ?? {};
+  if (role !== 'admin' && role !== 'superadmin') {
     return next(new AppError('Admin access required.', 403));
   }
   next();
 };
 
-module.exports = { authenticate, requireAdmin };
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user?.role !== 'superadmin') {
+    return next(new AppError('Super admin access required.', 403));
+  }
+  next();
+};
+
+module.exports = { authenticate, requireAdmin, requireSuperAdmin };

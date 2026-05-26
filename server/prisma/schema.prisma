@@ -311,15 +311,16 @@ model SalespersonPayment {
   @@map("salesperson_payments")
 }
 
-// ─── App Settings ─────────────────────────────────────────────────────────────
+// ─── Admin Users ──────────────────────────────────────────────────────────────
 
-model AppSettings {
+model AdminUser {
   id           Int      @id @default(autoincrement())
-  businessName String   @default("Vikas Milk Dairy") @map("business_name")
-  username     String   @default("admin")
+  username     String   @unique
   passwordHash String   @map("password_hash")
+  role         String   @default("admin") // 'admin' | 'superadmin'
+  isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@map("app_settings")
+  @@map("admin_users")
 }

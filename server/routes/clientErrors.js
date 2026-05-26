@@ -16,8 +16,13 @@ router.post('/', async (req, res) => {
     const token = req.cookies?.token;
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const settings = await prisma.appSettings.findFirst({ where: { id: decoded.id }, select: { username: true } });
-      username = settings?.username ?? null;
+      if (decoded.adminUserId) {
+        const au = await prisma.adminUser.findUnique({ where: { id: decoded.adminUserId }, select: { username: true } });
+        username = au?.username ?? null;
+      } else if (decoded.salespersonId) {
+        const sp = await prisma.salesperson.findUnique({ where: { id: decoded.salespersonId }, select: { username: true, name: true } });
+        username = sp?.username ?? sp?.name ?? null;
+      }
     }
   } catch (_) { /* no valid session — report anonymously */ }
 

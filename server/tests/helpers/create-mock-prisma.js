@@ -8,12 +8,12 @@ const { mockFn } = require('./mock-fn');
  */
 function createMockPrisma() {
   const mock = {
-    appSettings: {
+    adminUser: {
       findFirst:  mockFn(),
+      findUnique: mockFn(),
       findMany:   mockFn(),
       create:     mockFn(),
       update:     mockFn(),
-      upsert:     mockFn(),
     },
     brand: {
       findMany:   mockFn(),

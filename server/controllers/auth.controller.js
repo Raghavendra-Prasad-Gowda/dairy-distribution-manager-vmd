@@ -7,46 +7,60 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
+const BUSINESS_NAME = 'Vikas Milk Dairy';
+
+function setCookie(res, token) {
+  const isDeployed = process.env.NODE_ENV !== 'development';
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: isDeployed,
+    sameSite: isDeployed ? 'none' : 'lax',
+    maxAge: JWT_EXPIRES_IN * 1000,
+  });
+}
+
 const login = asyncHandler(async (req, res) => {
   const data = validate(schemas.login, req, res);
   if (!data) return;
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
 
-  // Try admin first
-  const settings = await prisma.appSettings.findFirst({
+  // ── 1. Try AdminUser table (superadmin + managed admins) ─────────────────
+  const adminUser = await prisma.adminUser.findFirst({
     where: { username: data.username },
   });
 
-  if (settings) {
-    const valid = await bcrypt.compare(data.password, settings.passwordHash);
+  if (adminUser) {
+    if (!adminUser.isActive) {
+      void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Account disabled' });
+      throw new AppError('Invalid username or password', 401);
+    }
+    const valid = await bcrypt.compare(data.password, adminUser.passwordHash);
     if (!valid) {
       void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Wrong password' });
       throw new AppError('Invalid username or password', 401);
     }
 
     const token = jwt.sign(
-      { id: settings.id, role: 'admin' },
+      { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
       process.env.JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    setCookie(res, token);
 
-    const isDeployed = process.env.NODE_ENV !== 'development';
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: isDeployed,
-      sameSite: isDeployed ? 'none' : 'lax',
-      maxAge: JWT_EXPIRES_IN * 1000,
-    });
-
-    void notifySlack(SLACK_EVENTS.LOGIN, { username: settings.username, role: 'Admin', ip });
+    void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminUser.role === 'superadmin' ? 'Super Admin' : 'Admin', ip });
     return res.json({
       success: true,
-      data: { accessToken: token, businessName: settings.businessName, role: 'admin' },
+      data: {
+        accessToken:  token,
+        businessName: BUSINESS_NAME,
+        role:         adminUser.role,
+        adminUserId:  adminUser.id,
+      },
     });
   }
 
-  // Try salesman
+  // ── 2. Try salesperson ────────────────────────────────────────────────────
   const salesperson = await prisma.salesperson.findFirst({
     where: { username: data.username, isActive: true },
   });
@@ -67,24 +81,16 @@ const login = asyncHandler(async (req, res) => {
     process.env.JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
+  setCookie(res, token);
 
-  const isDeployed = process.env.NODE_ENV !== 'development';
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: isDeployed,
-    sameSite: isDeployed ? 'none' : 'lax',
-    maxAge: JWT_EXPIRES_IN * 1000,
-  });
-
-  const settings2 = await prisma.appSettings.findFirst({ select: { businessName: true } });
   void notifySlack(SLACK_EVENTS.LOGIN, { username: salesperson.username, role: 'Salesman', ip });
   res.json({
     success: true,
     data: {
-      accessToken: token,
-      businessName: settings2?.businessName ?? 'Vikas Milk Dairy',
-      role: 'salesman',
-      salespersonId: salesperson.id,
+      accessToken:     token,
+      businessName:    BUSINESS_NAME,
+      role:            'salesman',
+      salespersonId:   salesperson.id,
       salespersonName: salesperson.name,
     },
   });
@@ -94,16 +100,19 @@ const changePassword = asyncHandler(async (req, res) => {
   const data = validate(schemas.changePassword, req, res);
   if (!data) return;
 
-  if (req.user.role !== 'admin') throw new AppError('Only admin can change password via this endpoint', 403);
+  const { role, adminUserId } = req.user;
+  if (role !== 'admin' && role !== 'superadmin') {
+    throw new AppError('Only admin can change password via this endpoint', 403);
+  }
 
-  const settings = await prisma.appSettings.findFirst();
-  if (!settings) throw new AppError('App settings not found', 404);
+  const adminUser = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
+  if (!adminUser) throw new AppError('Admin user not found', 404);
 
-  const valid = await bcrypt.compare(data.currentPassword, settings.passwordHash);
+  const valid = await bcrypt.compare(data.currentPassword, adminUser.passwordHash);
   if (!valid) throw new AppError('Current password is incorrect', 401);
 
   const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
-  await prisma.appSettings.update({ where: { id: settings.id }, data: { passwordHash } });
+  await prisma.adminUser.update({ where: { id: adminUserId }, data: { passwordHash } });
 
   res.json({ success: true, data: { message: 'Password changed successfully' } });
 });
@@ -113,10 +122,10 @@ const logout = asyncHandler(async (req, res) => {
   let username = 'unknown';
   let role = 'unknown';
 
-  if (req.user?.role === 'admin') {
-    const settings = await prisma.appSettings.findFirst({ where: { id: req.user.id }, select: { username: true } });
-    username = settings?.username ?? 'unknown';
-    role = 'Admin';
+  if (req.user?.adminUserId) {
+    const au = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId }, select: { username: true, role: true } });
+    username = au?.username ?? 'unknown';
+    role = au?.role === 'superadmin' ? 'Super Admin' : 'Admin';
   } else if (req.user?.role === 'salesman') {
     const sp = await prisma.salesperson.findUnique({ where: { id: req.user.salespersonId }, select: { username: true, name: true } });
     username = sp?.username ?? sp?.name ?? 'unknown';
