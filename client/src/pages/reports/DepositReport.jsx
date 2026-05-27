@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, AlertCircle, Droplets, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, AlertCircle, Droplets, ChevronDown, ChevronRight, Printer } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getYesterday, formatCurrency } from '../../utils/dateUtils';
@@ -113,12 +113,20 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
             </div>
           </div>
           {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
-            <button
-              onClick={() => exportCSV(data)}
-              className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-            >
-              <Download size={13} /> Export CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportCSV(data)}
+                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              >
+                <Download size={13} /> Export CSV
+              </button>
+              <button
+                onClick={() => window.open(`/print/deposit?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
+                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              >
+                <Printer size={13} /> Print
+              </button>
+            </div>
           )}
         </div>
       )}

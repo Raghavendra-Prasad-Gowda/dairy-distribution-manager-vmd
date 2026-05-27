@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AlertCircle, Package, ChevronRight, ChevronDown } from 'lucide-react';
+import { AlertCircle, Package, ChevronRight, ChevronDown, Printer } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -232,16 +232,27 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                         {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
                       </p>
                     </div>
-                    {expandableKeys.length > 0 && (
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {expandableKeys.length > 0 && (
+                        <button
+                          onClick={() => allExpanded ? setExpanded(new Set()) : setExpanded(new Set(expandableKeys))}
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap"
+                        >
+                          {allExpanded
+                            ? <><ChevronRight size={13} /> Collapse All</>
+                            : <><ChevronDown  size={13} /> Expand All</>}
+                        </button>
+                      )}
                       <button
-                        onClick={() => allExpanded ? setExpanded(new Set()) : setExpanded(new Set(expandableKeys))}
-                        className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
+                        onClick={() => {
+                          const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
+                          window.open(`/print/stock-summary?from=${from}&to=${to}${brandParam}`, '_blank');
+                        }}
+                        className="flex items-center gap-1 text-xs font-semibold text-emerald-300 hover:text-white transition whitespace-nowrap"
                       >
-                        {allExpanded
-                          ? <><ChevronRight size={13} /> Collapse All</>
-                          : <><ChevronDown  size={13} /> Expand All</>}
+                        <Printer size={13} /> Print
                       </button>
-                    )}
+                    </div>
                   </div>
                   <div className="overflow-auto max-h-[60vh]">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
