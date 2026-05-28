@@ -22,7 +22,6 @@ export default function ColdStartScreen() {
     <BrandedLoader
       overlay
       tone="brand"
-      lively
       label={`Loading${DOTS[dotIdx]}`}
     />
   );

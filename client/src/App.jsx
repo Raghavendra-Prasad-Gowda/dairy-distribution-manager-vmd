@@ -30,6 +30,8 @@ const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
 const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
 const DairySettings          = lazy(() => import('./pages/setup/DairySettings'));
 const DairyReports           = lazy(() => import('./pages/reports/DairyReports'));
+const StockSummaryPrint      = lazy(() => import('./pages/reports/StockSummaryPrint'));
+const DepositPrint           = lazy(() => import('./pages/reports/DepositPrint'));
 
 const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
 
@@ -56,6 +58,15 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
+      {/* Print / PDF routes — full-page, no Layout */}
+      <Route path="/print/stock-summary" element={
+        <ProtectedRoute>{S(StockSummaryPrint)}</ProtectedRoute>
+      } />
+      <Route path="/print/deposit" element={
+        <ProtectedRoute>{S(DepositPrint)}</ProtectedRoute>
+      } />
+
       <Route
         path="/"
         element={

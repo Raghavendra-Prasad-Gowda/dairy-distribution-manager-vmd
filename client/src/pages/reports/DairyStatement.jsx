@@ -82,14 +82,13 @@ function ReceiptsDetail({ receipts }) {
   );
 }
 
-function ExpandableRow({ row }) {
-  const [open, setOpen] = useState(false);
+function ExpandableRow({ row, open, onToggle }) {
   const isOwing = row.closingBalance > 0;
   return (
     <React.Fragment>
       <tr
         className="hover:bg-slate-50/60 transition-colors cursor-pointer border-b border-slate-100"
-        onClick={() => setOpen(!open)}
+        onClick={onToggle}
       >
         <td className="px-4 py-2.5 text-xs text-slate-600 tabular-nums whitespace-nowrap">
           {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
@@ -149,6 +148,23 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   const [rows, setRows]            = useState([]);
   const [loading, setLoading]      = useState(false);
   const [error, setError]          = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  const expandableIndices = rows.reduce((acc, r, i) => {
+    if (r.receipts?.length > 0 || r.payments?.length > 0) acc.push(i);
+    return acc;
+  }, []);
+  const allExpanded = expandableIndices.length > 0 && expandableIndices.every(i => expandedRows.has(i));
+
+  function toggleRow(i) {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  }
+  function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
+  function collapseAll() { setExpandedRows(new Set()); }
 
   useEffect(() => {
     if (inShell) return;
@@ -165,6 +181,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
 
   async function fetchReport() {
     setLoading(true); setError('');
+    setExpandedRows(new Set());
     try {
       const r = await api.get(`/reports/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`);
       setRows(r.data.data);
@@ -246,6 +263,18 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
 
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
+        {expandableIndices.length > 0 && !loading && (
+          <div className="flex justify-end px-3 py-2 border-b border-slate-100 bg-slate-50">
+            <button
+              onClick={allExpanded ? collapseAll : expandAll}
+              className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
+            >
+              {allExpanded
+                ? <><ChevronRight size={13} /> Collapse All</>
+                : <><ChevronDown  size={13} /> Expand All</>}
+            </button>
+          </div>
+        )}
         <div className="overflow-auto max-h-[60vh]">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-emerald-700 sticky top-0 z-10">
@@ -266,7 +295,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                   <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
                 </tr>
               ) : (
-                rows.map((row, i) => <ExpandableRow key={i} row={row} />)
+                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
               )}
             </tbody>
             {rows.length > 0 && !loading && (() => {
