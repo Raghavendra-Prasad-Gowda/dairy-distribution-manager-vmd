@@ -1,22 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-function exportCSV(rows, brandName) {
-  const lines = [['Date', 'Opening (₹)', 'Bill (₹)', 'Paid (₹)', 'Closing (₹)'].join(',')];
-  rows.forEach((r) => {
-    lines.push([
-      new Date(r.date).toLocaleDateString('en-IN'),
-      r.openingBalance, r.stockValue + (r.depositValue ?? 0), r.amountPaid, r.closingBalance,
-    ].join(','));
-  });
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `dairy-statement-${brandName}.csv`; a.click();
-}
 
 const ROUTE_COLORS = [
   { bg: 'bg-sky-100',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
@@ -237,12 +225,12 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             Balance: {formatCurrency(closingBalance)}
           </div>
         )}
-        {rows.length > 0 && (
+        {rows.length > 0 && activeBrandId && (
           <button
-            onClick={() => exportCSV(rows, activeBrand?.name)}
+            onClick={() => window.open(`/print/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
             className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-3 py-1.5 transition"
           >
-            <Download size={13} /> Export CSV
+            <Printer size={13} /> Print
           </button>
         )}
       </div>

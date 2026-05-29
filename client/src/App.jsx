@@ -32,6 +32,7 @@ const DairySettings          = lazy(() => import('./pages/setup/DairySettings'))
 const DairyReports           = lazy(() => import('./pages/reports/DairyReports'));
 const StockSummaryPrint      = lazy(() => import('./pages/reports/StockSummaryPrint'));
 const DepositPrint           = lazy(() => import('./pages/reports/DepositPrint'));
+const DairyStatementPrint    = lazy(() => import('./pages/reports/DairyStatementPrint'));
 
 const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
 
@@ -65,6 +66,9 @@ function AppRoutes() {
       } />
       <Route path="/print/deposit" element={
         <ProtectedRoute>{S(DepositPrint)}</ProtectedRoute>
+      } />
+      <Route path="/print/dairy-statement" element={
+        <ProtectedRoute>{S(DairyStatementPrint)}</ProtectedRoute>
       } />
 
       <Route
