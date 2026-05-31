@@ -164,7 +164,7 @@ const stockSummary = asyncHandler(async (req, res) => {
         ...(brandFilter ? { brandId: brandFilter } : {}),
       },
       include: {
-        product: { select: { name: true, category: true, unitsPerContainer: true, costPrice: true, displayOrder: true, unitSize: true, unitType: true } },
+        product: { select: { name: true, category: true, unitsPerContainer: true, costPrice: true, displayOrder: true, unitSize: true, unitType: true, containerType: true } },
         brand:   { select: { name: true, displayOrder: true } },
       },
       orderBy: [{ receiptDate: 'asc' }, { brandId: 'asc' }, { routeId: 'asc' }, { productId: 'asc' }],
@@ -209,6 +209,7 @@ const stockSummary = asyncHandler(async (req, res) => {
       amount:               Number(r.quantity) * Number(r.unitPrice),
       routeNumber:          r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
       unitsPerContainer:    r.product.unitsPerContainer ?? null,
+      containerType:        r.product.containerType ?? null,
       unitSize:             r.product.unitType === 'ml' ? (r.product.unitSize ?? null) : null,
       costPrice:            Number(r.product.costPrice ?? 0),
       displayOrder:         r.product.displayOrder ?? 0,

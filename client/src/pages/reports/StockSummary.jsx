@@ -69,7 +69,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
       }
       const cm = bm.categories.get(catName);
       if (!cm.products.has(productName)) {
-        cm.products.set(productName, { routes: new Map(), upc: null, unitSize: null, costPrice: null, displayOrder: 0 });
+        cm.products.set(productName, { routes: new Map(), upc: null, containerType: null, unitSize: null, costPrice: null, displayOrder: 0 });
       }
       return cm.products.get(productName);
     };
@@ -84,9 +84,10 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
           r.categoryDisplayOrder ?? 999,
           r.productName,
         );
-        if (!prod.upc && r.unitsPerContainer)  prod.upc = r.unitsPerContainer;
-        if (!prod.unitSize && r.unitSize)       prod.unitSize = r.unitSize;
-        if (!prod.costPrice && r.costPrice)    prod.costPrice = r.costPrice;
+        if (!prod.upc && r.unitsPerContainer)        prod.upc = r.unitsPerContainer;
+        if (!prod.containerType && r.containerType)  prod.containerType = r.containerType;
+        if (!prod.unitSize && r.unitSize)             prod.unitSize = r.unitSize;
+        if (!prod.costPrice && r.costPrice)          prod.costPrice = r.costPrice;
         if (r.displayOrder != null)            prod.displayOrder = r.displayOrder;
 
         const rk = r.routeNumber ?? '';
@@ -106,13 +107,14 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
             const products = Array.from(cdata.products.entries())
               .sort(([nameA, a], [nameB, b]) => a.displayOrder - b.displayOrder || nameA.localeCompare(nameB))
               .map(([productName, pd]) => {
+                const isCrate  = pd.containerType === 'crate';
                 const routes = Array.from(pd.routes.values())
                   .sort((a, b) => (a.routeNumber ?? '').localeCompare(b.routeNumber ?? ''))
                   .map(rt => ({
                     routeNumber: rt.routeNumber,
                     qty:    rt.qty,
                     value:  rt.value,
-                    crates: fmtCrates(rt.qty, pd.upc),
+                    crates: isCrate ? fmtCrates(rt.qty, pd.upc) : null,
                   }));
 
                 const totalQty   = routes.reduce((s, r) => s + r.qty,   0);
@@ -120,36 +122,40 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                 return {
                   productName,
                   routes,
-                  upc:         pd.upc,
-                  unitSize:    pd.unitSize,
-                  unitPrice:   pd.costPrice ?? 0,
+                  upc:           pd.upc,
+                  containerType: pd.containerType,
+                  unitSize:      pd.unitSize,
+                  unitPrice:     pd.costPrice ?? 0,
                   totalQty,
                   totalValue,
-                  totalCrates: fmtCrates(totalQty, pd.upc),
-                  totalLiters: pd.unitSize ? (totalQty * pd.unitSize) / 1000 : null,
+                  totalCrates:   isCrate ? fmtCrates(totalQty, pd.upc) : null,
+                  totalLiters:   pd.unitSize ? (totalQty * pd.unitSize) / 1000 : null,
                 };
               });
 
             const catQty    = products.reduce((s, p) => s + p.totalQty, 0);
             const catValue  = products.reduce((s, p) => s + p.totalValue, 0);
-            const catCrates = products.reduce((s, p) => s + (p.upc ? p.totalQty / p.upc : p.totalQty), 0);
+            const catCrates = products.filter(p => p.containerType === 'crate').reduce((s, p) => s + (p.upc ? p.totalQty / p.upc : 0), 0);
+            const hasCrates = products.some(p => p.containerType === 'crate');
             const catLiters = products.some(p => p.totalLiters != null)
               ? products.reduce((s, p) => s + (p.totalLiters ?? 0), 0)
               : null;
-            return { name: catName, products, catQty, catValue, catCrates, catLiters };
+            return { name: catName, products, catQty, catValue, catCrates, hasCrates, catLiters };
           });
 
         const totalQty    = categories.reduce((s, c) => s + c.catQty, 0);
         const totalValue  = categories.reduce((s, c) => s + c.catValue, 0);
         const totalCrates = categories.reduce((s, c) => s + c.catCrates, 0);
+        const hasCrates   = categories.some(c => c.hasCrates);
         const totalLiters = categories.some(c => c.catLiters != null)
           ? categories.reduce((s, c) => s + (c.catLiters ?? 0), 0)
           : null;
-        return { brandName, categories, totalQty, totalValue, totalCrates, totalLiters };
+        return { brandName, categories, totalQty, totalValue, totalCrates, hasCrates, totalLiters };
       });
   }, [data]);
 
-  const grandTotalCrates = productSummary.reduce((s, b) => s + b.totalCrates, 0);
+  const grandTotalCrates   = productSummary.reduce((s, b) => s + b.totalCrates, 0);
+  const grandHasCrates     = productSummary.some(b => b.hasCrates);
   const grandTotalLiters = productSummary.some(b => b.totalLiters != null)
     ? productSummary.reduce((s, b) => s + (b.totalLiters ?? 0), 0)
     : null;
@@ -300,7 +306,9 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                   </span>
                                 </td>
                                 <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
-                                  {Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}
+                                  {brand.hasCrates
+                                    ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1))
+                                    : <span className="text-slate-500">—</span>}
                                 </td>
                                 <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
                                 <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
@@ -354,7 +362,9 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                                 ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{singleRoute}</span>
                                                 : <span className="text-slate-300 text-xs">—</span>}
                                           </td>
-                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalCrates}</td>
+                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
+                                            {p.totalCrates ?? <span className="text-slate-300">—</span>}
+                                          </td>
                                           <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalQty}</td>
                                           <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
                                             {fmtLiters(p.totalQty, p.unitSize) ?? <span className="text-slate-300">—</span>}
@@ -375,7 +385,9 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                                 ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{rt.routeNumber}</span>
                                                 : <span className="text-slate-300 text-xs">—</span>}
                                             </td>
-                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.crates}</td>
+                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">
+                                              {rt.crates ?? <span className="text-slate-300">—</span>}
+                                            </td>
                                             <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.qty}</td>
                                             <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">
                                               {fmtLiters(rt.qty, p.unitSize) ?? <span className="text-slate-300">—</span>}
@@ -399,7 +411,9 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                         <tr className="bg-slate-800">
                           <td colSpan={2} className="px-4 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-wider">Grand Total</td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
-                            {Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1)}
+                            {grandHasCrates
+                              ? (Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1))
+                              : <span className="text-slate-500">—</span>}
                           </td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
                             {productSummary.reduce((s, b) => s + b.totalQty, 0)}
