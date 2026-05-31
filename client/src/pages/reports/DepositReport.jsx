@@ -108,9 +108,9 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
         {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
           <button
             onClick={() => window.open(`/print/deposit?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
-            className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-3 py-1.5 transition"
+            className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
           >
-            <Printer size={13} /> Print
+            <Printer size={15} /> Print
           </button>
         )}
       </div>
