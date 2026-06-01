@@ -1,40 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Download, AlertCircle, Droplets, ChevronDown, ChevronRight, Printer } from 'lucide-react';
+import { AlertCircle, Droplets, ChevronDown, ChevronRight, Printer } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getYesterday, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-function exportCSV(data) {
-  const lines = [
-    ['Date', 'Product', 'Category', 'Qty', 'Size', 'L / kg', `₹/unit`, 'Deposit (₹)', 'Running Total (₹)'].join(','),
-  ];
-  let running = 0;
-  for (const row of data.rows) {
-    const dateStr = new Date(row.date).toLocaleDateString('en-IN');
-    if (row.items.length === 0) {
-      lines.push([dateStr, '—', '—', '', '', '', '', '0', running].join(','));
-    } else {
-      row.items.forEach((item, i) => {
-        const sizeStr = item.unitType === 'gram' ? `${item.unitSize}g` : `${item.unitSize}ml`;
-        running += i === row.items.length - 1 ? row.dailyDeposit : 0;
-        lines.push([
-          i === 0 ? dateStr : '',
-          item.productName, item.category,
-          item.quantity, sizeStr,
-          item.volumeOrWeight, item.depositPerLitre, item.depositAmount,
-          i === row.items.length - 1 ? running : '',
-        ].join(','));
-      });
-    }
-  }
-  lines.push(['', 'TOTAL', '', '', '', '', '', data.totalDeposit, ''].join(','));
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `deposit-report-${data.brandName}.csv`; a.click();
-  URL.revokeObjectURL(url);
-}
 
 export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
@@ -104,30 +74,12 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
 
       {/* Header — hidden in shell mode */}
       {!inShell && (
-        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
-          <div className="flex items-center gap-2.5">
-            <Droplets size={17} className="text-emerald-300 flex-shrink-0" />
-            <div>
-              <h1 className="text-sm font-bold text-white leading-tight">Deposit Report</h1>
-              <p className="text-emerald-300 text-xs">Deposit per litre over time</p>
-            </div>
+        <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800">
+          <Droplets size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Deposit Report</h1>
+            <p className="text-emerald-300 text-xs">Deposit per litre over time</p>
           </div>
-          {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => exportCSV(data)}
-                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-              >
-                <Download size={13} /> Export CSV
-              </button>
-              <button
-                onClick={() => window.open(`/print/deposit?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
-                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-              >
-                <Printer size={13} /> Print
-              </button>
-            </div>
-          )}
         </div>
       )}
 
@@ -149,9 +101,17 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
             className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
         </div>
         {data && (
-          <span className="text-xs text-slate-400 ml-auto">
+          <span className="text-xs text-slate-400">
             Rate: <span className="font-semibold text-slate-600">₹{data.depositPerLitre}/L</span>
           </span>
+        )}
+        {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
+          <button
+            onClick={() => window.open(`/print/deposit?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
+            className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
+          >
+            <Printer size={15} /> Print
+          </button>
         )}
       </div>
 
@@ -194,20 +154,25 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
             </div>
           ) : (
             <div className="mx-4 mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              {/* Expand / Collapse all */}
-              {depositRows.length > 0 && (
-                <div className="flex justify-end px-3 py-2 border-b border-slate-100 bg-slate-50">
+              <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-white">Deposit Details</h2>
+                  <p className="text-xs text-slate-400">
+                    {daysWithDeposit} day{daysWithDeposit !== 1 ? 's' : ''} with deposit · tap a date row to expand
+                  </p>
+                </div>
+                {depositRows.length > 0 && (
                   <button
                     onClick={allCollapsed ? expandAll : collapseAll}
-                    className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
                   >
                     {allCollapsed
-                      ? <><ChevronDown size={13} /> Expand All</>
+                      ? <><ChevronDown  size={13} /> Expand All</>
                       : <><ChevronRight size={13} /> Collapse All</>
                     }
                   </button>
-                </div>
-              )}
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-separate border-spacing-0" style={{ minWidth: 520 }}>
                       <thead className="sticky top-0 z-10">

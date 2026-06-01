@@ -1,22 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-function exportCSV(rows, brandName) {
-  const lines = [['Date', 'Opening (₹)', 'Bill (₹)', 'Paid (₹)', 'Closing (₹)'].join(',')];
-  rows.forEach((r) => {
-    lines.push([
-      new Date(r.date).toLocaleDateString('en-IN'),
-      r.openingBalance, r.stockValue + (r.depositValue ?? 0), r.amountPaid, r.closingBalance,
-    ].join(','));
-  });
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `dairy-statement-${brandName}.csv`; a.click();
-}
 
 const ROUTE_COLORS = [
   { bg: 'bg-sky-100',     text: 'text-sky-700',     dot: 'bg-sky-400'     },
@@ -200,40 +188,24 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
 
       {/* ── Page header — hidden in shell mode ──────────────────────── */}
       {!inShell && (
-        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <FileText size={17} className="text-emerald-300 flex-shrink-0" />
-            <div>
-              <h1 className="text-sm font-bold text-white leading-tight">Dairy Statement</h1>
-              <p className="text-emerald-300 text-xs">Account statement per dairy brand</p>
-            </div>
+        <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+          <FileText size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Dairy Statement</h1>
+            <p className="text-emerald-300 text-xs">Account statement per dairy brand</p>
           </div>
-          {rows.length > 0 && (
-            <button onClick={() => exportCSV(rows, activeBrand?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition">
-              <Download size={13} /> Export CSV
-            </button>
-          )}
         </div>
       )}
 
     <div className="flex-1 overflow-y-auto">
     <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
 
-      {/* Export button in shell mode */}
-      {inShell && rows.length > 0 && (
-        <div className="flex justify-end">
-          <button onClick={() => exportCSV(rows, activeBrand?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 border border-emerald-300 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition">
-            <Download size={13} /> Export CSV
-          </button>
-        </div>
-      )}
-
       {!inShell && brands.length > 0 && (
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
       )}
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
-      <div className="ddm-card p-4 flex flex-wrap gap-3 items-end">
+      <div className="ddm-card p-4 flex flex-wrap gap-3 items-center">
         {[['from', 'From', from, setFrom], ['to', 'To', to, setTo]].map(([id, label, val, setter]) => (
           <div key={id}>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
@@ -253,6 +225,14 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             Balance: {formatCurrency(closingBalance)}
           </div>
         )}
+        {rows.length > 0 && activeBrandId && (
+          <button
+            onClick={() => window.open(`/print/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
+            className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
+          >
+            <Printer size={15} /> Print
+          </button>
+        )}
       </div>
 
       {error && (
@@ -263,18 +243,24 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
 
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
-        {expandableIndices.length > 0 && !loading && (
-          <div className="flex justify-end px-3 py-2 border-b border-slate-100 bg-slate-50">
+        <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-white">Account Statement</h2>
+            <p className="text-xs text-slate-400">
+              {rows.length} day{rows.length !== 1 ? 's' : ''} · tap a row to see receipt &amp; payment details
+            </p>
+          </div>
+          {expandableIndices.length > 0 && !loading && (
             <button
               onClick={allExpanded ? collapseAll : expandAll}
-              className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition"
+              className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
             >
               {allExpanded
                 ? <><ChevronRight size={13} /> Collapse All</>
                 : <><ChevronDown  size={13} /> Expand All</>}
             </button>
-          </div>
-        )}
+          )}
+        </div>
         <div className="overflow-auto max-h-[60vh]">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-emerald-700 sticky top-0 z-10">

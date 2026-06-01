@@ -15,14 +15,13 @@ function exportCSV(rows, spName) {
   const a = document.createElement('a'); a.href = url; a.download = `sp-statement-${spName}.csv`; a.click();
 }
 
-function ExpandableRow({ row }) {
-  const [open, setOpen] = useState(false);
+function ExpandableRow({ row, open, onToggle }) {
   const isOwing = row.closingBalance > 0;
   return (
     <React.Fragment>
       <tr
         className="hover:bg-slate-50/60 transition-colors cursor-pointer border-b border-slate-100"
-        onClick={() => setOpen(!open)}
+        onClick={onToggle}
       >
         <td className="px-4 py-2.5 text-xs text-slate-600 tabular-nums whitespace-nowrap">
           {new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
@@ -89,6 +88,23 @@ export default function SalespersonStatement() {
   const [rows, setRows]              = useState([]);
   const [loading, setLoading]        = useState(false);
   const [error, setError]            = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  const expandableIndices = rows.reduce((acc, r, i) => {
+    if (r.items?.length > 0 || r.payments?.length > 0) acc.push(i);
+    return acc;
+  }, []);
+  const allExpanded = expandableIndices.length > 0 && expandableIndices.every(i => expandedRows.has(i));
+
+  function toggleRow(i) {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  }
+  function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
+  function collapseAll() { setExpandedRows(new Set()); }
 
   useEffect(() => {
     api.get('/salespeople')
@@ -100,6 +116,7 @@ export default function SalespersonStatement() {
 
   async function fetchReport() {
     setLoading(true); setError('');
+    setExpandedRows(new Set());
     try {
       const r = await api.get(`/reports/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}`);
       setRows(r.data.data);
@@ -183,7 +200,25 @@ export default function SalespersonStatement() {
 
       {/* ── Statement table ───────────────────────────────────────────── */}
       <div className="ddm-card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-white">Account Statement</h2>
+            <p className="text-xs text-slate-400">
+              {rows.length} day{rows.length !== 1 ? 's' : ''} · tap a row to see dispatch &amp; collection details
+            </p>
+          </div>
+          {expandableIndices.length > 0 && !loading && (
+            <button
+              onClick={allExpanded ? collapseAll : expandAll}
+              className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
+            >
+              {allExpanded
+                ? <><ChevronRight size={13} /> Collapse All</>
+                : <><ChevronDown  size={13} /> Expand All</>}
+            </button>
+          )}
+        </div>
+        <div className="overflow-auto max-h-[60vh]">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-emerald-700 sticky top-0 z-10">
               <tr>
@@ -207,7 +242,7 @@ export default function SalespersonStatement() {
                   <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
                 </tr>
               ) : (
-                rows.map((row, i) => <ExpandableRow key={i} row={row} />)
+                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
               )}
             </tbody>
           </table>
