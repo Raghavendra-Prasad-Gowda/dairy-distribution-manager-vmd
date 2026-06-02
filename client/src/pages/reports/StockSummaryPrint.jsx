@@ -23,15 +23,19 @@ function fmtLiters(qty, unitSize) {
 
 export default function StockSummaryPrint() {
   const [params] = useSearchParams();
-  const from     = params.get('from') ?? '';
-  const to       = params.get('to')   ?? '';
-  const brandId  = params.get('brandId') ?? '';
+  const from    = params.get('from')    ?? '';
+  const to      = params.get('to')      ?? '';
+  const brandId = params.get('brandId') ?? '';
+  const routeId = params.get('routeId') ?? '';
 
   const [data,  setData]  = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const q = brandId ? `&brandId=${brandId}` : '';
+    const q = [
+      brandId ? `&brandId=${brandId}` : '',
+      routeId ? `&routeId=${routeId}` : '',
+    ].join('');
     api.get(`/reports/stock-summary?from=${from}&to=${to}${q}`)
       .then(r => setData(r.data.data))
       .catch(() => setError('Failed to load report'));
@@ -146,6 +150,11 @@ export default function StockSummaryPrint() {
             <div className="title">Stock Summary Report</div>
             <div className="sub">{BUSINESS}</div>
             <div className="sub">{dateLabel}</div>
+            {routeId && params.get('routeNumber') && (
+              <div className="sub" style={{ fontWeight: 600, color: '#059669' }}>
+                Route: {params.get('routeNumber')}
+              </div>
+            )}
           </div>
           <div className="meta">
             <div>Total Received: <strong>{formatCurrency(data?.grandTotalReceived ?? 0)}</strong></div>
