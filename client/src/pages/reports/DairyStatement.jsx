@@ -70,8 +70,12 @@ function ReceiptsDetail({ receipts }) {
   );
 }
 
-function ExpandableRow({ row, open, onToggle }) {
+function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
   const isOwing = row.closingBalance > 0;
+  const visibleReceipts = selectedRouteId
+    ? (row.receipts ?? []).filter(r => String(r.routeId) === String(selectedRouteId))
+    : row.receipts;
+  const hasDetail = visibleReceipts?.length > 0 || row.payments?.length > 0;
   return (
     <React.Fragment>
       <tr
@@ -97,15 +101,18 @@ function ExpandableRow({ row, open, onToggle }) {
           {open ? <ChevronDown size={13} className="ml-auto" /> : <ChevronRight size={13} className="ml-auto" />}
         </td>
       </tr>
-      {open && (row.receipts?.length > 0 || row.payments?.length > 0) && (
+      {open && hasDetail && (
         <tr>
           <td colSpan={6} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
             <div className="space-y-3">
-              {row.receipts?.length > 0 && (
+              {visibleReceipts?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-600 mb-1.5">Stock Received</p>
-                  <ReceiptsDetail receipts={row.receipts} />
+                  <ReceiptsDetail receipts={visibleReceipts} />
                 </div>
+              )}
+              {selectedRouteId && visibleReceipts?.length === 0 && row.receipts?.length > 0 && (
+                <p className="text-xs text-slate-400 italic">No receipts for this route on this date</p>
               )}
               {row.payments?.length > 0 && (
                 <div>
@@ -137,6 +144,8 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   const [loading, setLoading]      = useState(false);
   const [error, setError]          = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [routes, setRoutes]             = useState([]);
+  const [selectedRouteId, setSelectedRouteId] = useState('');
 
   const expandableIndices = rows.reduce((acc, r, i) => {
     if (r.receipts?.length > 0 || r.payments?.length > 0) acc.push(i);
@@ -164,6 +173,14 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   useEffect(() => {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    setSelectedRouteId('');
+    api.get(`/routes?brandId=${activeBrandId}`)
+      .then(r => setRoutes(r.data.data ?? []))
+      .catch(() => setRoutes([]));
+  }, [activeBrandId]);
 
   useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, from, to]);
 
@@ -220,6 +237,21 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             />
           </div>
         ))}
+        {routes.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Route</label>
+            <select
+              value={selectedRouteId}
+              onChange={e => setSelectedRouteId(e.target.value)}
+              className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+            >
+              <option value="">All Routes</option>
+              {routes.map(rt => (
+                <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {rows.length > 0 && (
           <div className={`px-3 py-2 rounded-xl font-bold text-sm ${closingBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
             Balance: {formatCurrency(closingBalance)}
@@ -227,7 +259,12 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
         )}
         {rows.length > 0 && activeBrandId && (
           <button
-            onClick={() => window.open(`/print/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
+            onClick={() => {
+              const selectedRoute = routes.find(rt => String(rt.id) === String(selectedRouteId));
+              const routeParam    = selectedRouteId ? `&routeId=${selectedRouteId}` : '';
+              const routeNumParam = selectedRoute ? `&routeNumber=${encodeURIComponent(selectedRoute.routeNumber)}` : '';
+              window.open(`/print/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}${routeParam}${routeNumParam}`, '_blank');
+            }}
             className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
           >
             <Printer size={15} /> Print
@@ -281,7 +318,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                   <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
                 </tr>
               ) : (
-                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
+                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} selectedRouteId={selectedRouteId} />)
               )}
             </tbody>
             {rows.length > 0 && !loading && (() => {

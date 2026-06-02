@@ -7,9 +7,11 @@ const BUSINESS = 'Vikas Milk Dairy';
 
 export default function DairyStatementPrint() {
   const [params]  = useSearchParams();
-  const from      = params.get('from')     ?? '';
-  const to        = params.get('to')       ?? '';
-  const brandId   = params.get('brandId')  ?? '';
+  const from        = params.get('from')        ?? '';
+  const to          = params.get('to')          ?? '';
+  const brandId     = params.get('brandId')     ?? '';
+  const routeId     = params.get('routeId')     ?? '';
+  const routeNumber = params.get('routeNumber') ?? '';
 
   const [rows,  setRows]  = useState(null);
   const [brand, setBrand] = useState('');
@@ -76,6 +78,9 @@ export default function DairyStatementPrint() {
             <div className="title">Dairy Statement</div>
             <div className="sub">{BUSINESS}{brand ? ` — ${brand}` : ''}</div>
             <div className="sub">{dateLabel}</div>
+            {routeNumber && (
+              <div className="sub" style={{ fontWeight: 600, color: '#059669' }}>Route: {routeNumber}</div>
+            )}
           </div>
           <div className="meta">
             <div>Total Bill: <strong>{formatCurrency(totalBill)}</strong></div>
