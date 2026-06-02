@@ -199,51 +199,87 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
 
-          {/* Date range picker + route filter */}
-          <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">From</label>
-              <input
-                type="date" value={from} onChange={e => setFrom(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To</label>
-              <input
-                type="date" value={to} onChange={e => setTo(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-            {routes.length > 0 && (
+          {/* Filter + toolbar card */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {/* Date row + route filter */}
+            <div className="px-4 py-3 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Route</label>
-                <select
-                  value={selectedRouteId}
-                  onChange={e => setSelectedRouteId(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                >
-                  <option value="">All Routes</option>
-                  {routes.map(rt => (
-                    <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
-                  ))}
-                </select>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">From</label>
+                <input
+                  type="date" value={from} onChange={e => setFrom(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
               </div>
-            )}
-            {data && (
-              <button
-                onClick={() => {
-                  const brandParam  = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
-                  const routeParam  = selectedRouteId ? `&routeId=${selectedRouteId}` : '';
-                  const selectedRoute = routes.find(rt => String(rt.id) === String(selectedRouteId));
-                  const routeNumParam = selectedRoute ? `&routeNumber=${encodeURIComponent(selectedRoute.routeNumber)}` : '';
-                  window.open(`/print/stock-summary?from=${from}&to=${to}${brandParam}${routeParam}${routeNumParam}`, '_blank');
-                }}
-                className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
-              >
-                <Printer size={15} /> Print
-              </button>
-            )}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To</label>
+                <input
+                  type="date" value={to} onChange={e => setTo(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              {routes.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Route</label>
+                  <select
+                    value={selectedRouteId}
+                    onChange={e => setSelectedRouteId(e.target.value)}
+                    className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  >
+                    <option value="">All Routes</option>
+                    {routes.map(rt => (
+                      <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Toolbar strip — summary stats + actions */}
+            {data && (() => {
+              const net = data.grandTotalReceived - data.grandTotalDispatched;
+              return (
+                <div className="border-t border-slate-100 bg-slate-50 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Received</span>
+                    <span className="text-sm font-extrabold text-blue-700 tabular-nums">{formatCurrency(data.grandTotalReceived)}</span>
+                  </div>
+                  <div className="w-px h-4 bg-slate-200 hidden sm:block" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">Dispatched</span>
+                    <span className="text-sm font-extrabold text-emerald-700 tabular-nums">{formatCurrency(data.grandTotalDispatched)}</span>
+                  </div>
+                  <div className="w-px h-4 bg-slate-200 hidden sm:block" />
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${net >= 0 ? 'text-slate-500' : 'text-red-500'}`}>Net</span>
+                    <span className={`text-sm font-extrabold tabular-nums ${net >= 0 ? 'text-slate-700' : 'text-red-600'}`}>{formatCurrency(net)}</span>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    {expandableKeys.length > 0 && !loading && (
+                      <button
+                        onClick={() => allExpanded ? setExpanded(new Set()) : setExpanded(new Set(expandableKeys))}
+                        className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 transition"
+                      >
+                        {allExpanded
+                          ? <><ChevronRight size={14} /> Collapse All</>
+                          : <><ChevronDown  size={14} /> Expand All</>}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        const brandParam    = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
+                        const routeParam    = selectedRouteId ? `&routeId=${selectedRouteId}` : '';
+                        const selectedRoute = routes.find(rt => String(rt.id) === String(selectedRouteId));
+                        const routeNumParam = selectedRoute ? `&routeNumber=${encodeURIComponent(selectedRoute.routeNumber)}` : '';
+                        window.open(`/print/stock-summary?from=${from}&to=${to}${brandParam}${routeParam}${routeNumParam}`, '_blank');
+                      }}
+                      className="flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-1.5 transition"
+                    >
+                      <Printer size={15} /> Print
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {error && (
@@ -257,29 +293,6 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
           ) : data ? (
             <div className="space-y-4">
 
-              {/* Period chips */}
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
-                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Total Received</span>
-                  <span className="text-sm font-extrabold text-blue-700 tabular-nums">{formatCurrency(data.grandTotalReceived)}</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
-                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">Total Dispatched</span>
-                  <span className="text-sm font-extrabold text-emerald-700 tabular-nums">{formatCurrency(data.grandTotalDispatched)}</span>
-                </div>
-                <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border ${
-                  data.grandTotalReceived - data.grandTotalDispatched >= 0
-                    ? 'bg-slate-50 border-slate-200' : 'bg-red-50 border-red-200'
-                }`}>
-                  <span className={`text-[10px] font-bold uppercase tracking-wide ${
-                    data.grandTotalReceived - data.grandTotalDispatched >= 0 ? 'text-slate-500' : 'text-red-500'
-                  }`}>Net</span>
-                  <span className={`text-sm font-extrabold tabular-nums ${
-                    data.grandTotalReceived - data.grandTotalDispatched >= 0 ? 'text-slate-700' : 'text-red-600'
-                  }`}>{formatCurrency(data.grandTotalReceived - data.grandTotalDispatched)}</span>
-                </div>
-              </div>
-
               {/* Product summary table */}
               {productSummary.length === 0 ? (
                 <div className="bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center py-12 gap-2">
@@ -288,23 +301,11 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                 </div>
               ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-sm font-bold text-white">Period Summary</h2>
-                      <p className="text-xs text-slate-400">
-                        {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
-                      </p>
-                    </div>
-                    {expandableKeys.length > 0 && (
-                      <button
-                        onClick={() => allExpanded ? setExpanded(new Set()) : setExpanded(new Set(expandableKeys))}
-                        className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
-                      >
-                        {allExpanded
-                          ? <><ChevronRight size={13} /> Collapse All</>
-                          : <><ChevronDown  size={13} /> Expand All</>}
-                      </button>
-                    )}
+                  <div className="px-4 py-3 bg-slate-700">
+                    <h2 className="text-sm font-bold text-white">Period Summary</h2>
+                    <p className="text-xs text-slate-400">
+                      {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
+                    </p>
                   </div>
                   <div className="overflow-auto max-h-[60vh]">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
