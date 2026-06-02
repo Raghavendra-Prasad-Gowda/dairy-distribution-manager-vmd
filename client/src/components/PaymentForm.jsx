@@ -48,7 +48,7 @@ export default function PaymentForm({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const amt = parseFloat(form.amount);
+    const amt = Math.round(parseFloat(form.amount));
     if (isExcess) return; // guard — button should be disabled anyway
     onSubmit({ ...form, amount: amt });
     setForm(blankForm);
@@ -56,9 +56,10 @@ export default function PaymentForm({
 
   const hasBalance = closingBalance > 0;
   const enteredAmount = parseFloat(form.amount) || 0;
+  const roundedAmount = Math.round(enteredAmount);
   // Block any payment that would push the balance below zero. When balance
   // is already 0 (settled) or negative (credit), ANY positive amount overpays.
-  const isExcess = enteredAmount > Math.max(0, closingBalance);
+  const isExcess = roundedAmount > Math.max(0, Math.round(closingBalance));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -80,11 +81,18 @@ export default function PaymentForm({
           />
         </div>
 
-        {/* Amount in words */}
+        {/* Amount in words — always reflects the rounded value that will be stored */}
         {enteredAmount > 0 && !isExcess && (
-          <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
-            {numberToWords(enteredAmount)}
-          </p>
+          <>
+            <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
+              {numberToWords(roundedAmount)}
+            </p>
+            {enteredAmount !== roundedAmount && (
+              <p className="mt-0.5 text-[10px] text-amber-600 font-semibold">
+                Rounded to ₹{roundedAmount.toLocaleString('en-IN')}
+              </p>
+            )}
+          </>
         )}
 
         {/* Excess payment warning */}
@@ -96,18 +104,18 @@ export default function PaymentForm({
           </p>
         )}
 
-        {/* Quick-fill buttons */}
+        {/* Quick-fill buttons — amounts pre-rounded to nearest rupee */}
         {hasBalance && (
           <div className="flex gap-2 mt-2">
-            <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.5).toFixed(2) }))}
+            <button type="button" onClick={() => setForm(f => ({ ...f, amount: String(Math.round(closingBalance * 0.5)) }))}
               className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
               50%
             </button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.75).toFixed(2) }))}
+            <button type="button" onClick={() => setForm(f => ({ ...f, amount: String(Math.round(closingBalance * 0.75)) }))}
               className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
               75%
             </button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, amount: closingBalance.toFixed(2) }))}
+            <button type="button" onClick={() => setForm(f => ({ ...f, amount: String(Math.round(closingBalance)) }))}
               className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-2 transition whitespace-nowrap">
               Full {formatCurrency(closingBalance)}
             </button>
