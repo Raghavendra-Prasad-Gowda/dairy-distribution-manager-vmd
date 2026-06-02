@@ -22,21 +22,31 @@ function fmtLiters(qty, unitSize) {
 
 export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
   const isShell = inShell || shellActiveBrandId != null;
-  const [from, setFrom]       = useState(getFirstDayOfMonth());
-  const [to, setTo]           = useState(getIndiaDate());
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-  const [expanded, setExpanded] = useState(new Set());
+  const [from, setFrom]             = useState(getFirstDayOfMonth());
+  const [to, setTo]                 = useState(getIndiaDate());
+  const [data, setData]             = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  const [expanded, setExpanded]     = useState(new Set());
+  const [routes, setRoutes]         = useState([]);
+  const [selectedRouteId, setSelectedRouteId] = useState('');
 
-  useEffect(() => { fetchSummary(); }, [from, to, shellActiveBrandId]);
+  useEffect(() => {
+    const brandParam = shellActiveBrandId ? `?brandId=${shellActiveBrandId}` : '';
+    api.get(`/routes${brandParam}`)
+      .then(r => setRoutes(r.data.data ?? []))
+      .catch(() => {});
+  }, [shellActiveBrandId]);
+
+  useEffect(() => { fetchSummary(); }, [from, to, shellActiveBrandId, selectedRouteId]);
 
   async function fetchSummary() {
     setLoading(true); setError('');
     setExpanded(new Set());
     try {
       const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
-      const r = await api.get(`/reports/stock-summary?from=${from}&to=${to}${brandParam}`);
+      const routeParam = selectedRouteId   ? `&routeId=${selectedRouteId}`     : '';
+      const r = await api.get(`/reports/stock-summary?from=${from}&to=${to}${brandParam}${routeParam}`);
       setData(r.data.data);
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load summary');
@@ -191,7 +201,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
 
           {/* Filter + toolbar card */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            {/* Date row */}
+            {/* Date row + route filter */}
             <div className="px-4 py-3 flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">From</label>
@@ -207,6 +217,21 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                   className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
+              {routes.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Route</label>
+                  <select
+                    value={selectedRouteId}
+                    onChange={e => setSelectedRouteId(e.target.value)}
+                    className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  >
+                    <option value="">All Routes</option>
+                    {routes.map(rt => (
+                      <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Toolbar strip — summary stats + actions */}
@@ -241,8 +266,11 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                     )}
                     <button
                       onClick={() => {
-                        const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
-                        window.open(`/print/stock-summary?from=${from}&to=${to}${brandParam}`, '_blank');
+                        const brandParam    = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
+                        const routeParam    = selectedRouteId ? `&routeId=${selectedRouteId}` : '';
+                        const selectedRoute = routes.find(rt => String(rt.id) === String(selectedRouteId));
+                        const routeNumParam = selectedRoute ? `&routeNumber=${encodeURIComponent(selectedRoute.routeNumber)}` : '';
+                        window.open(`/print/stock-summary?from=${from}&to=${to}${brandParam}${routeParam}${routeNumParam}`, '_blank');
                       }}
                       className="flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-1.5 transition"
                     >
