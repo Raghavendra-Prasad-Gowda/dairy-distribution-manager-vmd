@@ -32,16 +32,16 @@ function DairyPayableCard({ brandId, brandName, opening, stockValue, depositValu
           {isOwing ? 'You Owe' : 'Settled'}
         </p>
         <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatCurrency(Math.abs(closing))}
+          {formatCurrency(Math.round(Math.abs(closing)))}
         </p>
       </div>
 
       {/* Breakdown row */}
       <div className="grid grid-cols-3 border-t border-slate-100 bg-slate-50/60">
         {[
-          { label: 'Opening', value: opening,                  cls: 'text-slate-600' },
-          { label: 'Bill',    value: stockValue + depositValue, cls: 'text-blue-600' },
-          { label: 'Paid',    value: paid,                      cls: 'text-emerald-600' },
+          { label: 'Opening', value: Math.round(opening),                             cls: 'text-slate-600' },
+          { label: 'Bill',    value: Math.round(stockValue + depositValue),           cls: 'text-blue-600' },
+          { label: 'Paid',    value: Math.round(paid),                                cls: 'text-emerald-600' },
         ].map(({ label, value, cls }, i) => (
           <div key={label} className={`py-2.5 text-center ${i < 2 ? 'border-r border-slate-200' : ''}`}>
             <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-0.5">{label}</p>
@@ -148,7 +148,7 @@ export default function Dashboard() {
               <p className="ddm-section-label">Dairy Payables</p>
               {totalDairyOwing > 0 && (
                 <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                  {formatCurrency(totalDairyOwing)} total
+                  {formatCurrency(Math.round(totalDairyOwing))} total
                 </span>
               )}
             </div>
