@@ -70,8 +70,15 @@ function ReceiptsDetail({ receipts }) {
   );
 }
 
-function ExpandableRow({ row, open, onToggle }) {
+function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
   const isOwing = row.closingBalance > 0;
+  const visibleReceipts = selectedRouteId
+    ? (row.receipts ?? []).filter(r => String(r.routeId) === String(selectedRouteId))
+    : row.receipts;
+  const hasDetail = visibleReceipts?.length > 0 || row.payments?.length > 0;
+  const billDisplay = selectedRouteId
+    ? visibleReceipts.reduce((s, r) => s + r.amount, 0)
+    : row.stockValue + (row.depositValue ?? 0);
   return (
     <React.Fragment>
       <tr
@@ -85,27 +92,34 @@ function ExpandableRow({ row, open, onToggle }) {
           {formatCurrency(row.openingBalance)}
         </td>
         <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
-          {formatCurrency(row.stockValue + (row.depositValue ?? 0))}
+          {formatCurrency(billDisplay)}
         </td>
-        <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
-          {formatCurrency(row.amountPaid)}
-        </td>
-        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatCurrency(row.closingBalance)}
-        </td>
+        {!selectedRouteId && (
+          <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
+            {formatCurrency(row.amountPaid)}
+          </td>
+        )}
+        {!selectedRouteId && (
+          <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+            {formatCurrency(row.closingBalance)}
+          </td>
+        )}
         <td className="px-4 py-2.5 text-right text-slate-400">
           {open ? <ChevronDown size={13} className="ml-auto" /> : <ChevronRight size={13} className="ml-auto" />}
         </td>
       </tr>
-      {open && (row.receipts?.length > 0 || row.payments?.length > 0) && (
+      {open && hasDetail && (
         <tr>
-          <td colSpan={6} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
+          <td colSpan={selectedRouteId ? 4 : 6} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
             <div className="space-y-3">
-              {row.receipts?.length > 0 && (
+              {visibleReceipts?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-600 mb-1.5">Stock Received</p>
-                  <ReceiptsDetail receipts={row.receipts} />
+                  <ReceiptsDetail receipts={visibleReceipts} />
                 </div>
+              )}
+              {selectedRouteId && visibleReceipts?.length === 0 && row.receipts?.length > 0 && (
+                <p className="text-xs text-slate-400 italic">No receipts for this route on this date</p>
               )}
               {row.payments?.length > 0 && (
                 <div>
@@ -137,22 +151,34 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   const [loading, setLoading]      = useState(false);
   const [error, setError]          = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [routes, setRoutes]             = useState([]);
+  const [selectedRouteId, setSelectedRouteId] = useState('');
 
-  const expandableIndices = rows.reduce((acc, r, i) => {
-    if (r.receipts?.length > 0 || r.payments?.length > 0) acc.push(i);
-    return acc;
-  }, []);
-  const allExpanded = expandableIndices.length > 0 && expandableIndices.every(i => expandedRows.has(i));
+  // Filter rows to only dates that have receipts for the selected route.
+  const visibleRows = selectedRouteId
+    ? rows.filter(row => row.receipts?.some(r => String(r.routeId) === String(selectedRouteId)))
+    : rows;
 
-  function toggleRow(i) {
+  // Use date strings as keys so filtering doesn't break expanded-state indices.
+  const expandableDates = visibleRows
+    .filter(r => r.receipts?.length > 0 || r.payments?.length > 0)
+    .map(r => r.date);
+  const allExpanded = expandableDates.length > 0 && expandableDates.every(d => expandedRows.has(d));
+
+  function toggleRow(date) {
     setExpandedRows(prev => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      next.has(date) ? next.delete(date) : next.add(date);
       return next;
     });
   }
-  function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
+  function expandAll()   { setExpandedRows(new Set(expandableDates)); }
   function collapseAll() { setExpandedRows(new Set()); }
+
+  // When route changes, collapse all rows (user can expand manually).
+  useEffect(() => {
+    setExpandedRows(new Set());
+  }, [selectedRouteId]);
 
   useEffect(() => {
     if (inShell) return;
@@ -164,6 +190,14 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   useEffect(() => {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    setSelectedRouteId('');
+    api.get(`/routes?brandId=${activeBrandId}`)
+      .then(r => setRoutes(r.data.data ?? []))
+      .catch(() => setRoutes([]));
+  }, [activeBrandId]);
 
   useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, from, to]);
 
@@ -220,6 +254,21 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             />
           </div>
         ))}
+        {routes.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Route</label>
+            <select
+              value={selectedRouteId}
+              onChange={e => setSelectedRouteId(e.target.value)}
+              className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+            >
+              <option value="">All Routes</option>
+              {routes.map(rt => (
+                <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {rows.length > 0 && (
           <div className={`px-3 py-2 rounded-xl font-bold text-sm ${closingBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
             Balance: {formatCurrency(closingBalance)}
@@ -227,7 +276,12 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
         )}
         {rows.length > 0 && activeBrandId && (
           <button
-            onClick={() => window.open(`/print/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
+            onClick={() => {
+              const selectedRoute = routes.find(rt => String(rt.id) === String(selectedRouteId));
+              const routeParam    = selectedRouteId ? `&routeId=${selectedRouteId}` : '';
+              const routeNumParam = selectedRoute ? `&routeNumber=${encodeURIComponent(selectedRoute.routeNumber)}` : '';
+              window.open(`/print/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}${routeParam}${routeNumParam}`, '_blank');
+            }}
             className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
           >
             <Printer size={15} /> Print
@@ -247,10 +301,10 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
           <div>
             <h2 className="text-sm font-bold text-white">Account Statement</h2>
             <p className="text-xs text-slate-400">
-              {rows.length} day{rows.length !== 1 ? 's' : ''} · tap a row to see receipt &amp; payment details
+              {visibleRows.length} day{visibleRows.length !== 1 ? 's' : ''} · tap a row to see receipt &amp; payment details
             </p>
           </div>
-          {expandableIndices.length > 0 && !loading && (
+          {expandableDates.length > 0 && !loading && (
             <button
               onClick={allExpanded ? collapseAll : expandAll}
               className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
@@ -268,24 +322,28 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                 <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Bill</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Paid</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Closing</th>
+                {!selectedRouteId && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Paid</th>}
+                {!selectedRouteId && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Closing</th>}
                 <th className="px-4 py-3 w-8" />
               </tr>
             </thead>
             <tbody className="bg-white">
               {loading ? (
-                <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
-              ) : rows.length === 0 ? (
+                <tr><td colSpan={selectedRouteId ? 4 : 6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+              ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
+                  <td colSpan={selectedRouteId ? 4 : 6} className="py-12 text-center text-slate-400 text-sm">
+                    {selectedRouteId ? 'No receipts for this route in the selected period' : 'No data for this period'}
+                  </td>
                 </tr>
               ) : (
-                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
+                visibleRows.map(row => <ExpandableRow key={row.date} row={row} open={expandedRows.has(row.date)} onToggle={() => toggleRow(row.date)} selectedRouteId={selectedRouteId} />)
               )}
             </tbody>
-            {rows.length > 0 && !loading && (() => {
-              const totalBill = rows.reduce((s, r) => s + r.stockValue + (r.depositValue ?? 0), 0);
+            {visibleRows.length > 0 && !loading && (() => {
+              const totalBill = selectedRouteId
+                ? visibleRows.reduce((s, r) => s + r.receipts.filter(rc => String(rc.routeId) === String(selectedRouteId)).reduce((ss, rc) => ss + rc.amount, 0), 0)
+                : rows.reduce((s, r) => s + r.stockValue + (r.depositValue ?? 0), 0);
               const totalPaid = rows.reduce((s, r) => s + r.amountPaid, 0);
               return (
                 <tfoot>
@@ -293,8 +351,8 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                     <td className="px-4 py-3 text-xs font-bold text-white uppercase tracking-wider">Total</td>
                     <td className="px-4 py-3" />
                     <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalBill)}</td>
-                    <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalPaid)}</td>
-                    <td className="px-4 py-3" />
+                    {!selectedRouteId && <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalPaid)}</td>}
+                    {!selectedRouteId && <td className="px-4 py-3" />}
                     <td className="px-4 py-3" />
                   </tr>
                 </tfoot>

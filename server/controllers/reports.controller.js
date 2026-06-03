@@ -146,22 +146,24 @@ const salespersonStatement = asyncHandler(async (req, res) => {
 
 const stockSummary = asyncHandler(async (req, res) => {
   assertAdmin(req);
-  const { from, to, brandId, date } = req.query;
+  const { from, to, brandId, date, routeId } = req.query;
 
   // Support legacy single-date param
   const fromStr = from ?? date;
   const toStr   = to   ?? date;
   if (!fromStr) throw new AppError('from (or date) query param is required', 400);
 
-  const fromDate   = new Date(fromStr);
-  const toDate     = new Date(toStr);
+  const fromDate    = new Date(fromStr);
+  const toDate      = new Date(toStr);
   const brandFilter = brandId ? parseId(brandId, 'Brand ID') : null;
+  const routeFilter = routeId != null && routeId !== '' ? parseId(routeId, 'Route ID') : null;
 
   const [receipts, dispatches, allRoutes, allCategories] = await Promise.all([
     prisma.stockReceipt.findMany({
       where: {
         receiptDate: { gte: fromDate, lte: toDate },
         ...(brandFilter ? { brandId: brandFilter } : {}),
+        ...(routeFilter !== null ? { routeId: routeFilter } : {}),
       },
       include: {
         product: { select: { name: true, category: true, unitsPerContainer: true, costPrice: true, displayOrder: true, unitSize: true, unitType: true, containerType: true } },
