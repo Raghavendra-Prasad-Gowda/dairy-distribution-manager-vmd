@@ -94,19 +94,23 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
         <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
           {formatCurrency(billDisplay)}
         </td>
-        <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
-          {formatCurrency(row.amountPaid)}
-        </td>
-        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatCurrency(row.closingBalance)}
-        </td>
+        {!selectedRouteId && (
+          <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
+            {formatCurrency(row.amountPaid)}
+          </td>
+        )}
+        {!selectedRouteId && (
+          <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+            {formatCurrency(row.closingBalance)}
+          </td>
+        )}
         <td className="px-4 py-2.5 text-right text-slate-400">
           {open ? <ChevronDown size={13} className="ml-auto" /> : <ChevronRight size={13} className="ml-auto" />}
         </td>
       </tr>
       {open && hasDetail && (
         <tr>
-          <td colSpan={6} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
+          <td colSpan={selectedRouteId ? 4 : 6} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
             <div className="space-y-3">
               {visibleReceipts?.length > 0 && (
                 <div>
@@ -318,17 +322,17 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                 <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Bill</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Paid</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Closing</th>
+                {!selectedRouteId && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Paid</th>}
+                {!selectedRouteId && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Closing</th>}
                 <th className="px-4 py-3 w-8" />
               </tr>
             </thead>
             <tbody className="bg-white">
               {loading ? (
-                <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+                <tr><td colSpan={selectedRouteId ? 4 : 6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={selectedRouteId ? 4 : 6} className="py-12 text-center text-slate-400 text-sm">
                     {selectedRouteId ? 'No receipts for this route in the selected period' : 'No data for this period'}
                   </td>
                 </tr>
@@ -347,8 +351,8 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                     <td className="px-4 py-3 text-xs font-bold text-white uppercase tracking-wider">Total</td>
                     <td className="px-4 py-3" />
                     <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalBill)}</td>
-                    <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalPaid)}</td>
-                    <td className="px-4 py-3" />
+                    {!selectedRouteId && <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalPaid)}</td>}
+                    {!selectedRouteId && <td className="px-4 py-3" />}
                     <td className="px-4 py-3" />
                   </tr>
                 </tfoot>
