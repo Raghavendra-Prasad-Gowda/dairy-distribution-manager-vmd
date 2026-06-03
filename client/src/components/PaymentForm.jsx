@@ -117,7 +117,7 @@ export default function PaymentForm({
             </button>
             <button type="button" onClick={() => setForm(f => ({ ...f, amount: String(Math.round(closingBalance)) }))}
               className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-2 transition whitespace-nowrap">
-              Full {formatCurrency(closingBalance)}
+              Full {formatCurrency(Math.round(closingBalance))}
             </button>
           </div>
         )}
