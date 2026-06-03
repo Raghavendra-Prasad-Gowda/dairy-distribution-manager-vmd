@@ -212,7 +212,8 @@ const stockSummary = asyncHandler(async (req, res) => {
       routeNumber:          r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
       unitsPerContainer:    r.product.unitsPerContainer ?? null,
       containerType:        r.product.containerType ?? null,
-      unitSize:             r.product.unitType === 'ml' ? (r.product.unitSize ?? null) : null,
+      unitSize:             r.product.unitType === 'ml'   ? (r.product.unitSize ?? null) : null,
+      unitSizeGrams:        r.product.unitType === 'gram' ? (r.product.unitSize ?? null) : null,
       costPrice:            Number(r.product.costPrice ?? 0),
       displayOrder:         r.product.displayOrder ?? 0,
     });

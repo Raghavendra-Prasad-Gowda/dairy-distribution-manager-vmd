@@ -21,6 +21,12 @@ function fmtLiters(qty, unitSize) {
   return Number.isInteger(l) ? String(l) : l.toFixed(2);
 }
 
+function fmtKgs(qty, unitSizeGrams) {
+  if (!unitSizeGrams) return null;
+  const k = (qty * unitSizeGrams) / 1000;
+  return Number.isInteger(k) ? String(k) : k.toFixed(2);
+}
+
 export default function StockSummaryPrint() {
   const [params] = useSearchParams();
   const from    = params.get('from')    ?? '';
@@ -54,7 +60,7 @@ export default function StockSummaryPrint() {
       const bm = brandMap.get(brandName);
       if (!bm.categories.has(catName)) bm.categories.set(catName, { categoryDisplayOrder: catDisplayOrder, products: new Map() });
       const cm = bm.categories.get(catName);
-      if (!cm.products.has(productName)) cm.products.set(productName, { qty: 0, value: 0, upc: null, unitSize: null, costPrice: null, displayOrder: 0 });
+      if (!cm.products.has(productName)) cm.products.set(productName, { qty: 0, value: 0, upc: null, containerType: null, unitSize: null, unitSizeGrams: null, costPrice: null, displayOrder: 0 });
       return cm.products.get(productName);
     };
 
@@ -64,9 +70,11 @@ export default function StockSummaryPrint() {
         const prod = ensureProd(r.brandName, r.brandDisplayOrder ?? 0, cat, r.categoryDisplayOrder ?? 999, r.productName);
         prod.qty   += r.quantity;
         prod.value += r.amount;
-        if (!prod.upc && r.unitsPerContainer) prod.upc = r.unitsPerContainer;
-        if (!prod.unitSize && r.unitSize)     prod.unitSize = r.unitSize;
-        if (!prod.costPrice && r.costPrice)   prod.costPrice = r.costPrice;
+        if (!prod.upc && r.unitsPerContainer)         prod.upc = r.unitsPerContainer;
+        if (!prod.containerType && r.containerType)   prod.containerType = r.containerType;
+        if (!prod.unitSize && r.unitSize)             prod.unitSize = r.unitSize;
+        if (!prod.unitSizeGrams && r.unitSizeGrams)   prod.unitSizeGrams = r.unitSizeGrams;
+        if (!prod.costPrice && r.costPrice)           prod.costPrice = r.costPrice;
         if (r.displayOrder != null)           prod.displayOrder = r.displayOrder;
       }
     }
@@ -80,30 +88,41 @@ export default function StockSummaryPrint() {
             name: catName,
             products: Array.from(cdata.products.entries())
               .sort(([, a], [, b]) => a.displayOrder - b.displayOrder)
-              .map(([productName, pd]) => ({
-                productName,
-                upc:        pd.upc,
-                unitSize:   pd.unitSize,
-                unitPrice:  pd.costPrice ?? 0,
-                totalQty:   pd.qty,
-                totalValue: pd.value,
-                totalCrates: fmtCrates(pd.qty, pd.upc),
-              })),
+              .map(([productName, pd]) => {
+                const isCrate = pd.containerType === 'crate';
+                return {
+                  productName,
+                  upc:        pd.upc,
+                  unitSize:   pd.unitSize,
+                  unitPrice:  pd.costPrice ?? 0,
+                  totalQty:   pd.qty,
+                  totalValue: pd.value,
+                  totalCrates: fmtCrates(pd.qty, pd.upc),
+                  totalLiters: isCrate && pd.unitSize ? (pd.qty * pd.unitSize) / 1000 : null,
+                  totalKgs:    isCrate && pd.unitSizeGrams ? (pd.qty * pd.unitSizeGrams) / 1000 : null,
+                };
+              }),
           }));
 
         const totalQty    = categories.reduce((s, c) => s + c.products.reduce((ss, p) => ss + p.totalQty,   0), 0);
         const totalValue  = categories.reduce((s, c) => s + c.products.reduce((ss, p) => ss + p.totalValue, 0), 0);
         const totalCrates = categories.reduce((s, c) => s + c.products.reduce((ss, p) => ss + (p.upc ? p.totalQty / p.upc : p.totalQty), 0), 0);
         const allProducts = categories.flatMap(c => c.products);
-        const totalLiters = allProducts.some(p => p.unitSize != null)
-          ? allProducts.reduce((s, p) => s + (p.unitSize ? (p.totalQty * p.unitSize) / 1000 : 0), 0)
+        const totalLiters = allProducts.some(p => p.totalLiters != null)
+          ? allProducts.reduce((s, p) => s + (p.totalLiters ?? 0), 0)
+          : null;
+        const totalKgs = allProducts.some(p => p.totalKgs != null)
+          ? allProducts.reduce((s, p) => s + (p.totalKgs ?? 0), 0)
           : null;
         const productCount = categories.reduce((s, c) => s + c.products.length, 0);
-        return { brandName, categories, totalQty, totalValue, totalCrates, totalLiters, productCount };
+        return { brandName, categories, totalQty, totalValue, totalCrates, totalLiters, totalKgs, productCount };
       });
   }, [data]);
 
   const grandTotalCrates = productSummary.reduce((s, b) => s + b.totalCrates, 0);
+  const grandTotalKgs = productSummary.some(b => b.totalKgs != null)
+    ? productSummary.reduce((s, b) => s + (b.totalKgs ?? 0), 0)
+    : null;
   const dateLabel = from === to ? from : `${from} to ${to}`;
   const printedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -171,9 +190,10 @@ export default function StockSummaryPrint() {
           <table>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', width: '34%' }}>Product</th>
+                <th style={{ textAlign: 'left', width: '30%' }}>Product</th>
                 <th className="right">Qty Received</th>
                 <th className="right">Liters</th>
+                <th className="right">Kgs</th>
                 <th className="right">Crates</th>
                 <th className="right">Unit Price (₹)</th>
                 <th className="right">Total (₹)</th>
@@ -189,6 +209,7 @@ export default function StockSummaryPrint() {
                       <span style={{ fontWeight: 400, fontSize: 9, opacity: 0.8 }}>({brand.productCount} items)</span>
                     </td>
                     <td className="right">{brand.totalLiters != null ? (Number.isInteger(brand.totalLiters) ? brand.totalLiters : brand.totalLiters.toFixed(2)) : '—'}</td>
+                    <td className="right">{brand.totalKgs != null ? (Number.isInteger(brand.totalKgs) ? brand.totalKgs : brand.totalKgs.toFixed(2)) : '—'}</td>
                     <td className="right">{Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}</td>
                     <td />
                     <td className="right">{formatCurrency(brand.totalValue)}</td>
@@ -197,14 +218,15 @@ export default function StockSummaryPrint() {
                   ...brand.categories.flatMap(cat => [
                     multiCat && (
                       <tr key={`cat-${brand.brandName}-${cat.name}`} className="cat-row">
-                        <td colSpan={6}>{cat.name}</td>
+                        <td colSpan={7}>{cat.name}</td>
                       </tr>
                     ),
                     ...cat.products.map(p => (
                       <tr key={`${brand.brandName}-${cat.name}-${p.productName}`}>
                         <td>{p.productName}</td>
                         <td className="right">{p.totalQty % 1 === 0 ? p.totalQty : p.totalQty.toFixed(2)}</td>
-                        <td className="right">{fmtLiters(p.totalQty, p.unitSize) ?? '—'}</td>
+                        <td className="right">{p.totalLiters != null ? (Number.isInteger(p.totalLiters) ? p.totalLiters : p.totalLiters.toFixed(2)) : '—'}</td>
+                        <td className="right">{p.totalKgs != null ? (Number.isInteger(p.totalKgs) ? p.totalKgs : p.totalKgs.toFixed(2)) : '—'}</td>
                         <td className="right">{p.totalCrates}</td>
                         <td className="right">{fmtPrice(p.unitPrice)}</td>
                         <td className="right">{formatCurrency(p.totalValue)}</td>
@@ -225,6 +247,9 @@ export default function StockSummaryPrint() {
                       : null;
                     return gl != null ? (Number.isInteger(gl) ? gl : gl.toFixed(2)) : '—';
                   })()}
+                </td>
+                <td className="right">
+                  {grandTotalKgs != null ? (Number.isInteger(grandTotalKgs) ? grandTotalKgs : grandTotalKgs.toFixed(2)) : '—'}
                 </td>
                 <td className="right">{Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1)}</td>
                 <td />
