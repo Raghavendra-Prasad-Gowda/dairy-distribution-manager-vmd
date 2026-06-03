@@ -76,6 +76,9 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
     ? (row.receipts ?? []).filter(r => String(r.routeId) === String(selectedRouteId))
     : row.receipts;
   const hasDetail = visibleReceipts?.length > 0 || row.payments?.length > 0;
+  const billDisplay = selectedRouteId
+    ? visibleReceipts.reduce((s, r) => s + r.amount, 0)
+    : row.stockValue + (row.depositValue ?? 0);
   return (
     <React.Fragment>
       <tr
@@ -89,7 +92,7 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
           {formatCurrency(row.openingBalance)}
         </td>
         <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
-          {formatCurrency(row.stockValue + (row.depositValue ?? 0))}
+          {formatCurrency(billDisplay)}
         </td>
         <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.amountPaid)}
@@ -147,35 +150,35 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   const [routes, setRoutes]             = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState('');
 
-  const expandableIndices = rows.reduce((acc, r, i) => {
-    if (r.receipts?.length > 0 || r.payments?.length > 0) acc.push(i);
-    return acc;
-  }, []);
-  const allExpanded = expandableIndices.length > 0 && expandableIndices.every(i => expandedRows.has(i));
+  // Filter rows to only dates that have receipts for the selected route.
+  const visibleRows = selectedRouteId
+    ? rows.filter(row => row.receipts?.some(r => String(r.routeId) === String(selectedRouteId)))
+    : rows;
 
-  function toggleRow(i) {
+  // Use date strings as keys so filtering doesn't break expanded-state indices.
+  const expandableDates = visibleRows
+    .filter(r => r.receipts?.length > 0 || r.payments?.length > 0)
+    .map(r => r.date);
+  const allExpanded = expandableDates.length > 0 && expandableDates.every(d => expandedRows.has(d));
+
+  function toggleRow(date) {
     setExpandedRows(prev => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      next.has(date) ? next.delete(date) : next.add(date);
       return next;
     });
   }
-  function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
+  function expandAll()   { setExpandedRows(new Set(expandableDates)); }
   function collapseAll() { setExpandedRows(new Set()); }
 
-  // When a route is selected, auto-expand rows that have receipts for that route
-  // so the filter effect is immediately visible.
+  // When route changes, auto-expand all rows for that route so the effect is immediate.
   useEffect(() => {
-    if (!selectedRouteId) {
-      setExpandedRows(new Set());
-      return;
-    }
-    const toExpand = rows.reduce((acc, row, i) => {
-      if (row.receipts?.some(r => String(r.routeId) === String(selectedRouteId))) acc.push(i);
-      return acc;
-    }, []);
+    if (!selectedRouteId) { setExpandedRows(new Set()); return; }
+    const toExpand = rows
+      .filter(row => row.receipts?.some(r => String(r.routeId) === String(selectedRouteId)))
+      .map(row => row.date);
     setExpandedRows(new Set(toExpand));
-  }, [selectedRouteId]);
+  }, [selectedRouteId, rows]);
 
   useEffect(() => {
     if (inShell) return;
@@ -264,9 +267,6 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                 <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
               ))}
             </select>
-            {selectedRouteId && (
-              <p className="mt-1 text-[10px] text-emerald-600 font-semibold">Showing receipt details for selected route</p>
-            )}
           </div>
         )}
         {rows.length > 0 && (
@@ -301,10 +301,10 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
           <div>
             <h2 className="text-sm font-bold text-white">Account Statement</h2>
             <p className="text-xs text-slate-400">
-              {rows.length} day{rows.length !== 1 ? 's' : ''} · tap a row to see receipt &amp; payment details
+              {visibleRows.length} day{visibleRows.length !== 1 ? 's' : ''} · tap a row to see receipt &amp; payment details
             </p>
           </div>
-          {expandableIndices.length > 0 && !loading && (
+          {expandableDates.length > 0 && !loading && (
             <button
               onClick={allExpanded ? collapseAll : expandAll}
               className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
@@ -330,16 +330,20 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             <tbody className="bg-white">
               {loading ? (
                 <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
-              ) : rows.length === 0 ? (
+              ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
+                    {selectedRouteId ? 'No receipts for this route in the selected period' : 'No data for this period'}
+                  </td>
                 </tr>
               ) : (
-                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} selectedRouteId={selectedRouteId} />)
+                visibleRows.map(row => <ExpandableRow key={row.date} row={row} open={expandedRows.has(row.date)} onToggle={() => toggleRow(row.date)} selectedRouteId={selectedRouteId} />)
               )}
             </tbody>
-            {rows.length > 0 && !loading && (() => {
-              const totalBill = rows.reduce((s, r) => s + r.stockValue + (r.depositValue ?? 0), 0);
+            {visibleRows.length > 0 && !loading && (() => {
+              const totalBill = selectedRouteId
+                ? visibleRows.reduce((s, r) => s + r.receipts.filter(rc => String(rc.routeId) === String(selectedRouteId)).reduce((ss, rc) => ss + rc.amount, 0), 0)
+                : rows.reduce((s, r) => s + r.stockValue + (r.depositValue ?? 0), 0);
               const totalPaid = rows.reduce((s, r) => s + r.amountPaid, 0);
               return (
                 <tfoot>
