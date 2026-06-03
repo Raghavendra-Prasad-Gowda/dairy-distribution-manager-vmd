@@ -163,6 +163,20 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
   function collapseAll() { setExpandedRows(new Set()); }
 
+  // When a route is selected, auto-expand rows that have receipts for that route
+  // so the filter effect is immediately visible.
+  useEffect(() => {
+    if (!selectedRouteId) {
+      setExpandedRows(new Set());
+      return;
+    }
+    const toExpand = rows.reduce((acc, row, i) => {
+      if (row.receipts?.some(r => String(r.routeId) === String(selectedRouteId))) acc.push(i);
+      return acc;
+    }, []);
+    setExpandedRows(new Set(toExpand));
+  }, [selectedRouteId]);
+
   useEffect(() => {
     if (inShell) return;
     api.get('/brands')
@@ -250,6 +264,9 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                 <option key={rt.id} value={rt.id}>{rt.routeNumber}</option>
               ))}
             </select>
+            {selectedRouteId && (
+              <p className="mt-1 text-[10px] text-emerald-600 font-semibold">Showing receipt details for selected route</p>
+            )}
           </div>
         )}
         {rows.length > 0 && (
