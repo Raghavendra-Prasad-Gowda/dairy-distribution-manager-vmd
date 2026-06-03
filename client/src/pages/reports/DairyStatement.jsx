@@ -171,14 +171,10 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   function expandAll()   { setExpandedRows(new Set(expandableDates)); }
   function collapseAll() { setExpandedRows(new Set()); }
 
-  // When route changes, auto-expand all rows for that route so the effect is immediate.
+  // When route changes, collapse all rows (user can expand manually).
   useEffect(() => {
-    if (!selectedRouteId) { setExpandedRows(new Set()); return; }
-    const toExpand = rows
-      .filter(row => row.receipts?.some(r => String(r.routeId) === String(selectedRouteId)))
-      .map(row => row.date);
-    setExpandedRows(new Set(toExpand));
-  }, [selectedRouteId, rows]);
+    setExpandedRows(new Set());
+  }, [selectedRouteId]);
 
   useEffect(() => {
     if (inShell) return;
