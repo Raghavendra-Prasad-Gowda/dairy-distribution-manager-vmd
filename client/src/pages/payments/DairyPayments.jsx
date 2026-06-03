@@ -37,9 +37,9 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
   const isOwing = closing > 0;
 
   const tiles = [
-    { label: 'Opening', value: Math.round(opening),                             cls: 'text-slate-600'  },
-    { label: 'Stock',   value: Math.round(stockValue + depositValue),            cls: 'text-blue-600'   },
-    { label: 'Paid',    value: Math.round(paid),                                 cls: 'text-emerald-600' },
+    { label: 'Opening', value: opening,                  cls: 'text-slate-600'  },
+    { label: 'Stock',   value: stockValue + depositValue, cls: 'text-blue-600'   },
+    { label: 'Paid',    value: paid,                      cls: 'text-emerald-600' },
   ];
 
   return (
@@ -61,7 +61,7 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
           {isOwing ? 'You Owe' : 'Settled'}
         </p>
         <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatCurrency(Math.round(Math.abs(closing)))}
+          {formatCurrency(Math.abs(closing))}
         </p>
       </div>
 
