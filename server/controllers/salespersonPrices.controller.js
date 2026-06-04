@@ -68,8 +68,11 @@ const getPrices = asyncHandler(async (req, res) => {
     catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
   }
 
-  // Salesman: DB already filters salespersonEnabled=true; no extra JS filter needed
-  const visibleProducts = products;
+  // Salesman: only show products explicitly enabled for them (isEnabled=true).
+  // No SalespersonProduct row defaults to hidden (false) for salesmen.
+  const visibleProducts = isSalesman
+    ? products.filter(p => enabledMap[p.id] ?? false)
+    : products;
 
   const result = visibleProducts.map((p) => ({
     productId:               p.id,
