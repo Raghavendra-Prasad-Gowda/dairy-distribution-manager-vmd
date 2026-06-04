@@ -334,14 +334,14 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                     <table className="min-w-full text-sm border-separate border-spacing-0">
                       <thead className="bg-emerald-700 sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-2.5 text-left  text-[11px] font-bold text-white uppercase tracking-wider">Product</th>
-                          <th className="px-3 py-2.5 text-left  text-[11px] font-bold text-white uppercase tracking-wider">Route</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Crates</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Quantity</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Liters</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Kgs</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Unit Price</th>
-                          <th className="px-3 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Price</th>
+                          <th className="px-4 py-2.5 text-left   text-[11px] font-bold text-white uppercase tracking-wider">Product</th>
+                          <th className="px-3 py-2.5 text-left   text-[11px] font-bold text-white uppercase tracking-wider">Route</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Crates</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider">Quantity</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider">Liters</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider">Kgs</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Unit Price</th>
+                          <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Price</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -358,24 +358,24 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                     {productCount} product{productCount !== 1 ? 's' : ''}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
+                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
                                   {brand.hasCrates
                                     ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
+                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
+                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
                                   {brand.totalLiters != null
                                     ? (Number.isInteger(brand.totalLiters) ? brand.totalLiters : brand.totalLiters.toFixed(2))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">
+                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
                                   {brand.totalKgs != null
                                     ? (Number.isInteger(brand.totalKgs) ? brand.totalKgs : brand.totalKgs.toFixed(2))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs text-slate-500">—</td>
-                                <td className="px-3 py-2 text-right text-xs font-bold text-slate-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
+                                <td className="px-3 py-2 text-center text-xs text-slate-500">—</td>
+                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
                               </tr>
 
                               {brand.categories.map(cat => (
@@ -420,22 +420,22 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                                 ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{singleRoute}</span>
                                                 : <span className="text-slate-300 text-xs">—</span>}
                                           </td>
-                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
+                                          <td className="px-3 py-2.5 text-center font-bold text-slate-700 tabular-nums">
                                             {p.totalCrates ?? <span className="text-slate-300">—</span>}
                                           </td>
-                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">{p.totalQty}</td>
-                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
+                                          <td className="px-3 py-2.5 text-center font-bold text-slate-700 tabular-nums">{p.totalQty}</td>
+                                          <td className="px-3 py-2.5 text-center font-bold text-slate-700 tabular-nums">
                                             {p.totalLiters != null
                                               ? (Number.isInteger(p.totalLiters) ? p.totalLiters : p.totalLiters.toFixed(2))
                                               : <span className="text-slate-300">—</span>}
                                           </td>
-                                          <td className="px-3 py-2.5 text-right font-bold text-slate-700 tabular-nums">
+                                          <td className="px-3 py-2.5 text-center font-bold text-slate-700 tabular-nums">
                                             {p.totalKgs != null
                                               ? (Number.isInteger(p.totalKgs) ? p.totalKgs : p.totalKgs.toFixed(2))
                                               : <span className="text-slate-300">—</span>}
                                           </td>
-                                          <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">{fmtPrice(p.unitPrice)}</td>
-                                          <td className="px-3 py-2.5 text-right font-bold text-emerald-700 tabular-nums">{formatCurrency(p.totalValue)}</td>
+                                          <td className="px-3 py-2.5 text-center text-slate-500 tabular-nums">{fmtPrice(p.unitPrice)}</td>
+                                          <td className="px-3 py-2.5 text-center font-bold text-emerald-700 tabular-nums">{formatCurrency(p.totalValue)}</td>
                                         </tr>
 
                                         {/* Route sub-rows — shown only when expanded */}
@@ -450,18 +450,18 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                                 ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{rt.routeNumber}</span>
                                                 : <span className="text-slate-300 text-xs">—</span>}
                                             </td>
-                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">
+                                            <td className="px-3 py-2 text-center text-xs font-semibold text-slate-600 tabular-nums">
                                               {rt.crates ?? <span className="text-slate-300">—</span>}
                                             </td>
-                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">{rt.qty}</td>
-                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">
+                                            <td className="px-3 py-2 text-center text-xs font-semibold text-slate-600 tabular-nums">{rt.qty}</td>
+                                            <td className="px-3 py-2 text-center text-xs font-semibold text-slate-600 tabular-nums">
                                               {rt.liters ?? <span className="text-slate-300">—</span>}
                                             </td>
-                                            <td className="px-3 py-2 text-right text-xs font-semibold text-slate-600 tabular-nums">
+                                            <td className="px-3 py-2 text-center text-xs font-semibold text-slate-600 tabular-nums">
                                               {rt.kgs ?? <span className="text-slate-300">—</span>}
                                             </td>
-                                            <td className="px-3 py-2 text-right text-xs text-slate-400 tabular-nums">{fmtPrice(p.unitPrice)}</td>
-                                            <td className="px-3 py-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatCurrency(rt.value)}</td>
+                                            <td className="px-3 py-2 text-center text-xs text-slate-400 tabular-nums">{fmtPrice(p.unitPrice)}</td>
+                                            <td className="px-3 py-2 text-center text-xs font-semibold text-emerald-700 tabular-nums">{formatCurrency(rt.value)}</td>
                                           </tr>
                                         ))}
                                       </React.Fragment>
@@ -477,27 +477,27 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                       {/* Grand total footer */}
                       <tfoot>
                         <tr className="bg-slate-800">
-                          <td colSpan={2} className="px-4 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-wider">Grand Total</td>
-                          <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
+                          <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider border-r border-slate-600">Grand Total</td>
+                          <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                             {grandHasCrates
                               ? (Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1))
                               : <span className="text-slate-500">—</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
+                          <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                             {productSummary.reduce((s, b) => s + b.totalQty, 0)}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
+                          <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                             {grandTotalLiters != null
                               ? (Number.isInteger(grandTotalLiters) ? grandTotalLiters : grandTotalLiters.toFixed(2))
                               : <span className="text-slate-500">—</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">
+                          <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                             {grandHasKgs && grandTotalKgs != null
                               ? (Number.isInteger(grandTotalKgs) ? grandTotalKgs : grandTotalKgs.toFixed(2))
                               : <span className="text-slate-500">—</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-slate-500">—</td>
-                          <td className="px-3 py-2.5 text-right text-sm font-extrabold text-white tabular-nums">
+                          <td className="px-3 py-3 text-center text-slate-500 border-r border-slate-600">—</td>
+                          <td className="px-3 py-3 text-center text-sm font-extrabold text-white tabular-nums">
                             {formatCurrency(productSummary.reduce((s, b) => s + b.totalValue, 0))}
                           </td>
                         </tr>
