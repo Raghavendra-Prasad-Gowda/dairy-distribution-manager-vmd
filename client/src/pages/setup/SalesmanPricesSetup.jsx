@@ -219,7 +219,7 @@ export default function SalesmanPricesSetup() {
     const source = isGlobal ? globalProducts : prices;
     const brandItems = source
       .filter(p => p.brandId === activeBrandId)
-      .filter(p => isGlobal || !showEnabledOnly || p.isEnabled);
+      .filter(p => isGlobal || !showEnabledOnly || p.isEnabled || dirtyToggles[p.productId] !== undefined);
     const q = search.trim().toLowerCase();
     const filtered = q
       ? brandItems.filter(p =>
@@ -236,7 +236,7 @@ export default function SalesmanPricesSetup() {
     }, {});
 
     return Object.entries(grouped);
-  }, [isGlobal, globalProducts, prices, activeBrandId, search, showEnabledOnly]);
+  }, [isGlobal, globalProducts, prices, activeBrandId, search, showEnabledOnly, dirtyToggles]);
 
   const totalFiltered = filteredGrouped.reduce((s, [, arr]) => s + arr.length, 0);
 
