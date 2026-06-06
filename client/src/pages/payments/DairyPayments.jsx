@@ -228,7 +228,7 @@ export default function DairyPayments() {
     try {
       await api.put(`/dairy-payments/${editPayment.id}`, {
         ...editForm,
-        amount: Math.round(parseFloat(editForm.amount)),
+        amount: parseFloat(editForm.amount),
       });
       notify('Payment updated successfully', 'success');
       setEditPayment(null);
@@ -379,10 +379,10 @@ export default function DairyPayments() {
                           </tfoot>
                         </table>
                         {Number(balance?.closingBalance ?? 0) > 0 && (() => {
-                          const payAmount = Math.round(Math.min(grandTotal, Number(balance.closingBalance)));
+                          const payAmount = Math.min(grandTotal, Number(balance.closingBalance));
                           return (
                             <button
-                              onClick={() => setPaymentPrefill({ amount: String(payAmount), paymentDate: today, paymentMode: 'RTGS', reference: '' })}
+                              onClick={() => setPaymentPrefill({ amount: String(payAmount.toFixed(2)), paymentDate: today, paymentMode: 'RTGS', reference: '' })}
                               className="mt-3 w-full ddm-btn-primary text-xs justify-center"
                             >
                               Pay Today's Bill — {formatCurrency(payAmount)}
@@ -634,22 +634,11 @@ export default function DairyPayments() {
                     className="w-full pl-8 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white tabular-nums"
                   />
                 </div>
-                {parseFloat(editForm.amount) > 0 && (() => {
-                  const raw = parseFloat(editForm.amount);
-                  const rounded = Math.round(raw);
-                  return (
-                    <>
-                      <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
-                        {numberToWords(rounded)}
-                      </p>
-                      {raw !== rounded && (
-                        <p className="mt-0.5 text-[10px] text-amber-600 font-semibold">
-                          Rounded to ₹{rounded.toLocaleString('en-IN')}
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
+                {parseFloat(editForm.amount) > 0 && (
+                  <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
+                    {numberToWords(parseFloat(editForm.amount))}
+                  </p>
+                )}
               </div>
 
               {/* Mode */}
