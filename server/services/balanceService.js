@@ -34,19 +34,19 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
     }),
   ]);
 
-  const stockValue = Math.round(receipts.reduce(
+  const stockValue = receipts.reduce(
     (sum, r) => sum + Number(r.quantity) * Number(r.unitPrice),
     0
-  ));
+  );
 
   const enabledCategories = new Set(
     categories.filter(c => c.depositEnabled).map(c => c.name)
   );
 
-  const depositValue = Math.round(receipts.reduce((sum, r) => {
+  const depositValue = receipts.reduce((sum, r) => {
     if (!qualifiesForDeposit(r.product, brand, enabledCategories)) return sum;
     return sum + calculateLineDeposit(r.quantity, r.product.unitSize, brand.depositPerLitre);
-  }, 0));
+  }, 0);
 
   const amountPaid = Number(paymentAgg._sum.amount ?? 0);
   const closingBalance = openingBalance + stockValue + depositValue - amountPaid;

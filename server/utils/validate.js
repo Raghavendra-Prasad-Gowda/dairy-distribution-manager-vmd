@@ -120,7 +120,7 @@ const schemas = {
 
   // Dairy Payment
   updateDairyPayment: z.object({
-    amount:      z.number().positive('Amount must be positive').transform(v => Math.round(v)),
+    amount:      z.number().positive('Amount must be positive'),
     paymentDate: dateString(),
     paymentMode,
     reference:   shortText,
@@ -129,7 +129,7 @@ const schemas = {
   createDairyPayment: z.object({
     brandId:     z.number().int().positive(),
     paymentDate: dateString(),
-    amount:      z.number().positive('Amount must be positive').transform(v => Math.round(v)),
+    amount:      z.number().positive('Amount must be positive'),
     paymentMode,
     reference:   shortText,
     notes:       shortText,
