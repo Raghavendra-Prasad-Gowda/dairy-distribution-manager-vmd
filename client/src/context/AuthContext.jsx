@@ -58,10 +58,10 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await api.post('/auth/login', { username, password });
-      const { accessToken, businessName, role, salespersonId, salespersonName, adminUserId, dairyId } = response.data.data;
+      const { accessToken, businessName, role, salespersonId, salespersonName, adminUserId } = response.data.data;
 
       const loginTime = Date.now();
-      const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null, adminUserId: adminUserId ?? null, dairyId: dairyId ?? null };
+      const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null, adminUserId: adminUserId ?? null };
 
       localStorage.setItem('token', accessToken);
       localStorage.setItem('user', JSON.stringify(userObj));

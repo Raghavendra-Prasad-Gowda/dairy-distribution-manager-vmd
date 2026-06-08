@@ -6,8 +6,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 
 const SAFE_SELECT = {
-  id: true, username: true, role: true, dairyId: true, isActive: true, createdAt: true,
-  dairy: { select: { id: true, name: true } },
+  id: true, username: true, role: true, isActive: true, createdAt: true,
 };
 
 const getAll = asyncHandler(async (req, res) => {
@@ -24,7 +23,7 @@ const create = asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
   const user = await prisma.adminUser.create({
-    data: { username: data.username, passwordHash, role: data.role, dairyId: data.dairyId ?? null },
+    data: { username: data.username, passwordHash, role: data.role },
     select: SAFE_SELECT,
   });
   res.status(201).json({ success: true, data: user });
@@ -48,7 +47,6 @@ const update = asyncHandler(async (req, res) => {
   if (data.username !== undefined) updateData.username = data.username;
   if (data.role     !== undefined) updateData.role     = data.role;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
-  if ('dairyId' in data)           updateData.dairyId  = data.dairyId ?? null;
   if (data.password) {
     updateData.passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
   }

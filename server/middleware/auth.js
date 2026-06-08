@@ -20,7 +20,6 @@ const authenticate = (req, res, next) => {
       role:          decoded.role ?? 'admin',
       salespersonId: decoded.salespersonId ?? null,
       adminUserId:   decoded.adminUserId   ?? null,
-      dairyId:       decoded.dairyId       ?? null,
     };
     next();
   });

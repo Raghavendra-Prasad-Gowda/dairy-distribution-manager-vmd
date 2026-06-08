@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Building2
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck
 } from 'lucide-react';
 
 // ─── Admin nav tree ────────────────────────────────────────────────────────────
@@ -167,11 +167,6 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
             )}
             {compact && <div className="h-px bg-white/10 mx-1 mb-2" />}
             <div className="space-y-0.5">
-              <SidebarLink
-                item={{ to: '/admin/dairies', icon: Building2, label: 'Dairies' }}
-                compact={compact}
-                setMobileOpen={setMobileOpen}
-              />
               <SidebarLink
                 item={{ to: '/admin/users', icon: ShieldCheck, label: 'Admin Users' }}
                 compact={compact}

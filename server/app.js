@@ -28,7 +28,6 @@ const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
 const clientErrorsRoutes        = require('./routes/clientErrors');
 const adminUsersRoutes          = require('./routes/adminUsers');
-const dairiesRoutes             = require('./routes/dairies');
 const { authenticate, requireAdmin, requireSuperAdmin } = require('./middleware/auth');
 
 const app = express();
@@ -120,7 +119,6 @@ app.use('/api/v1/routes',               requireAdmin, routesRoutes);
 
 // Super-admin-only routes
 app.use('/api/v1/admin-users',          requireSuperAdmin, adminUsersRoutes);
-app.use('/api/v1/dairies',              requireSuperAdmin, dairiesRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 // Must be the last middleware
