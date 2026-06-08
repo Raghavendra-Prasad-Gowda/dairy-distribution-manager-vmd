@@ -18,7 +18,7 @@ function fmtPriceDate(iso) {
   const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
   return { date, time };
 }
-const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 225, 250, 400, 450, 500, 1000, 2000, 5000, 15000];
+const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 210, 225, 250, 400, 450, 490, 500, 1000, 2000, 5000, 15000];
 const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
 
 export default function ProductsSetup() {
