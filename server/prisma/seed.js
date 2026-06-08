@@ -19,6 +19,15 @@ const BCRYPT_ROUNDS = 10;
 async function seedFoundationData(externalPrisma) {
   const prisma = getClient(externalPrisma);
 
+  // ─── Default dairy (Vikas Milk Dairy) ────────────────────────────────────
+  // Ensures the first dairy always exists so existing admin users have something to link to.
+  await prisma.dairy.upsert({
+    where: { name: 'Vikas Milk Dairy' },
+    update: {},
+    create: { name: 'Vikas Milk Dairy' },
+  });
+  logger.info('Ensured default dairy exists: Vikas Milk Dairy');
+
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
   // Env vars are authoritative — always sync username + password on every boot.
   const rawSuperUsername = process.env.SUPERADMIN_USERNAME;

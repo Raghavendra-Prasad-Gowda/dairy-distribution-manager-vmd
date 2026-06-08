@@ -35,6 +35,7 @@ const DepositPrint           = lazy(() => import('./pages/reports/DepositPrint')
 const DairyStatementPrint    = lazy(() => import('./pages/reports/DairyStatementPrint'));
 
 const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
+const DairiesSetup           = lazy(() => import('./pages/setup/DairiesSetup'));
 
 // Salesman pages
 const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
@@ -124,6 +125,9 @@ function AppRoutes() {
             {/* SUPER ADMIN */}
             <Route path="admin/users" element={
               <ProtectedRoute superAdminOnly>{S(AdminUsersSetup)}</ProtectedRoute>
+            } />
+            <Route path="admin/dairies" element={
+              <ProtectedRoute superAdminOnly>{S(DairiesSetup)}</ProtectedRoute>
             } />
 
             {/* Legacy redirects */}

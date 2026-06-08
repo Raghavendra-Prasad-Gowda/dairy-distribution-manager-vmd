@@ -311,6 +311,22 @@ model SalespersonPayment {
   @@map("salesperson_payments")
 }
 
+// ─── Dairies ──────────────────────────────────────────────────────────────────
+
+model Dairy {
+  id        Int         @id @default(autoincrement())
+  name      String      @unique
+  phone     String?
+  address   String?
+  isActive  Boolean     @default(true) @map("is_active")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  admins AdminUser[]
+
+  @@map("dairies")
+}
+
 // ─── Admin Users ──────────────────────────────────────────────────────────────
 
 model AdminUser {
@@ -318,9 +334,12 @@ model AdminUser {
   username     String   @unique
   passwordHash String   @map("password_hash")
   role         String   @default("admin") // 'admin' | 'superadmin'
+  dairyId      Int?     @map("dairy_id")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+
+  dairy Dairy? @relation(fields: [dairyId], references: [id])
 
   @@map("admin_users")
 }

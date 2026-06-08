@@ -7,7 +7,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
-const BUSINESS_NAME = 'Vikas Milk Dairy';
+const DEFAULT_BUSINESS_NAME = 'Vikas Milk Dairy';
 
 function setCookie(res, token) {
   const isDeployed = process.env.NODE_ENV !== 'development';
@@ -28,6 +28,7 @@ const login = asyncHandler(async (req, res) => {
   // ── 1. Try AdminUser table (superadmin + managed admins) ─────────────────
   const adminUser = await prisma.adminUser.findFirst({
     where: { username: data.username },
+    include: { dairy: { select: { id: true, name: true } } },
   });
 
   if (adminUser) {
@@ -41,8 +42,9 @@ const login = asyncHandler(async (req, res) => {
       throw new AppError('Invalid username or password', 401);
     }
 
+    const businessName = adminUser.dairy?.name ?? DEFAULT_BUSINESS_NAME;
     const token = jwt.sign(
-      { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
+      { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id, dairyId: adminUser.dairyId ?? null },
       process.env.JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -53,9 +55,10 @@ const login = asyncHandler(async (req, res) => {
       success: true,
       data: {
         accessToken:  token,
-        businessName: BUSINESS_NAME,
+        businessName,
         role:         adminUser.role,
         adminUserId:  adminUser.id,
+        dairyId:      adminUser.dairyId ?? null,
       },
     });
   }

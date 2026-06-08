@@ -221,11 +221,26 @@ const schemas = {
     username: z.string().min(3, 'Username must be at least 3 characters'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     role:     z.enum(['admin', 'superadmin']).default('admin'),
+    dairyId:  z.number().int().positive().optional().nullable(),
   }),
   updateAdminUser: z.object({
     username: z.string().min(3, 'Username must be at least 3 characters').optional(),
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
     role:     z.enum(['admin', 'superadmin']).optional(),
+    isActive: z.boolean().optional(),
+    dairyId:  z.number().int().positive().optional().nullable(),
+  }),
+
+  // Dairies (superadmin-only)
+  createDairy: z.object({
+    name:    z.string().min(1, 'Dairy name is required'),
+    phone:   z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+  }),
+  updateDairy: z.object({
+    name:     z.string().min(1, 'Dairy name is required').optional(),
+    phone:    z.string().optional().nullable(),
+    address:  z.string().optional().nullable(),
     isActive: z.boolean().optional(),
   }),
 };

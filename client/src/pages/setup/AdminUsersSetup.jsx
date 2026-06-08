@@ -19,23 +19,24 @@ export default function AdminUsersSetup() {
   const { user: me } = useAuth();
 
   const [users, setUsers]               = useState([]);
+  const [dairies, setDairies]           = useState([]);
   const [loading, setLoading]           = useState(false);
   const [search, setSearch]             = useState('');
 
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newUser, setNewUser]           = useState({ username: '', password: '', role: 'admin' });
+  const [newUser, setNewUser]           = useState({ username: '', password: '', role: 'admin', dairyId: '' });
   const [showNewPw, setShowNewPw]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
 
   const [editUser, setEditUser]         = useState(null);
-  const [editForm, setEditForm]         = useState({ username: '', password: '', role: 'admin', isActive: true });
+  const [editForm, setEditForm]         = useState({ username: '', password: '', role: 'admin', isActive: true, dairyId: '' });
   const [showEditPw, setShowEditPw]     = useState(false);
   const [saving, setSaving]             = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]         = useState(false);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadDairies(); }, []);
 
   async function load() {
     setLoading(true);
@@ -49,12 +50,22 @@ export default function AdminUsersSetup() {
     }
   }
 
+  async function loadDairies() {
+    try {
+      const r = await api.get('/dairies');
+      setDairies(r.data.data.filter(d => d.isActive));
+    } catch {
+      // non-critical
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
     return users.filter(u =>
       u.username.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q)
+      u.role.toLowerCase().includes(q) ||
+      (u.dairy?.name ?? '').toLowerCase().includes(q)
     );
   }, [users, search]);
 
@@ -63,9 +74,15 @@ export default function AdminUsersSetup() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post('/admin-users', newUser);
+      const payload = {
+        username: newUser.username,
+        password: newUser.password,
+        role:     newUser.role,
+        dairyId:  newUser.dairyId ? Number(newUser.dairyId) : null,
+      };
+      await api.post('/admin-users', payload);
       notify('Admin user created', 'success');
-      setNewUser({ username: '', password: '', role: 'admin' });
+      setNewUser({ username: '', password: '', role: 'admin', dairyId: '' });
       setShowNewPw(false);
       setShowAddModal(false);
       load();
@@ -79,7 +96,7 @@ export default function AdminUsersSetup() {
   // ── Edit ────────────────────────────────────────────────────────────────────
   function openEdit(u) {
     setEditUser(u);
-    setEditForm({ username: u.username, password: '', role: u.role, isActive: u.isActive });
+    setEditForm({ username: u.username, password: '', role: u.role, isActive: u.isActive, dairyId: u.dairyId ? String(u.dairyId) : '' });
     setShowEditPw(false);
   }
 
@@ -91,6 +108,7 @@ export default function AdminUsersSetup() {
         username: editForm.username,
         role:     editForm.role,
         isActive: editForm.isActive,
+        dairyId:  editForm.dairyId ? Number(editForm.dairyId) : null,
       };
       if (editForm.password) payload.password = editForm.password;
       await api.put(`/admin-users/${editUser.id}`, payload);
@@ -168,6 +186,7 @@ export default function AdminUsersSetup() {
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Username</th>
                     <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Role</th>
+                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider hidden sm:table-cell">Dairy</th>
                     <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Status</th>
                     <th className="px-4 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Actions</th>
                   </tr>
@@ -180,6 +199,9 @@ export default function AdminUsersSetup() {
                         <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
                           {ROLE_LABEL[u.role] ?? u.role}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs hidden sm:table-cell">
+                        {u.dairy?.name ?? <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
@@ -266,6 +288,21 @@ export default function AdminUsersSetup() {
               <option value="superadmin">Super Admin</option>
             </select>
           </div>
+          {newUser.role === 'admin' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy</label>
+              <select
+                value={newUser.dairyId}
+                onChange={e => setNewUser(p => ({ ...p, dairyId: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+              >
+                <option value="">— No dairy assigned —</option>
+                {dairies.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </form>
       </Modal>
 
@@ -324,6 +361,21 @@ export default function AdminUsersSetup() {
               <option value="superadmin">Super Admin</option>
             </select>
           </div>
+          {editForm.role === 'admin' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Dairy</label>
+              <select
+                value={editForm.dairyId}
+                onChange={e => setEditForm(p => ({ ...p, dairyId: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+              >
+                <option value="">— No dairy assigned —</option>
+                {dairies.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-slate-700">Active</label>
             <button
