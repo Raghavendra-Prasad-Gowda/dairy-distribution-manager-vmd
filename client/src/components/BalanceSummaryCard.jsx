@@ -1,6 +1,6 @@
 import { ArrowRight, ArrowRightCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/dateUtils';
-import { BRAND_COLORS } from '../utils/constants';
+import { getBrandColors } from '../utils/constants';
 import { Link } from 'react-router-dom';
 
 function LedgerBox({ label, value, valueClass = 'text-slate-800', prefix = '' }) {
@@ -17,7 +17,7 @@ function LedgerBox({ label, value, valueClass = 'text-slate-800', prefix = '' })
 }
 
 export default function BalanceSummaryCard({ brandName, opening, stockValue, paid, closing, payLink }) {
-  const colors = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
+  const colors = getBrandColors(brandName);
   const isOwing = closing > 0;
 
   return (
