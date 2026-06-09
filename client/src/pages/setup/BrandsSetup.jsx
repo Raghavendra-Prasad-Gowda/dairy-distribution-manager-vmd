@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { Store, Loader2, Plus, Pencil, Check, X as XIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Store, Plus, Pencil, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { getBrandColors } from '../../utils/constants';
@@ -13,20 +14,15 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'superadmin';
 
-  const [brands, setBrands]   = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [brands, setBrands]       = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Brand management state
-  const [addingNew, setAddingNew]       = useState(false);
-  const [newBrandName, setNewBrandName] = useState('');
-  const [copyFromId, setCopyFromId]     = useState(null);
-  const [addSaving, setAddSaving]       = useState(false);
-  const [renamingId, setRenamingId]     = useState(null);
-  const [renameValue, setRenameValue]   = useState('');
-  const [renameSaving, setRenameSaving] = useState(false);
-
-  const addInputRef    = useRef(null);
-  const renameInputRef = useRef(null);
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBrand, setEditingBrand] = useState(null); // null = add mode
+  const [formName, setFormName]       = useState('');
+  const [copyFromId, setCopyFromId]   = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -36,88 +32,78 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (addingNew) addInputRef.current?.focus();
-  }, [addingNew]);
+  const openAdd = () => {
+    setEditingBrand(null);
+    setFormName('');
+    setCopyFromId(null);
+    setIsModalOpen(true);
+  };
 
-  useEffect(() => {
-    if (renamingId) renameInputRef.current?.focus();
-  }, [renamingId]);
+  const openEdit = (b) => {
+    setEditingBrand(b);
+    setFormName(b.name);
+    setCopyFromId(null);
+    setIsModalOpen(true);
+  };
 
-  // ── Brand management ──────────────────────────────────────────────────────
-  const handleAddBrand = async () => {
-    const name = newBrandName.trim();
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingBrand(null);
+    setFormName('');
+    setCopyFromId(null);
+  };
+
+  // ── Add brand ─────────────────────────────────────────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const name = formName.trim();
     if (!name) return;
-    setAddSaving(true);
-    try {
-      const res = await api.post('/brands', { name });
-      const created = res.data.data;
-      setBrands(prev => [...prev, created]);
+    setSubmitting(true);
 
-      if (copyFromId) {
-        try {
-          const copyRes = await api.post(`/brands/${created.id}/copy-products`, { sourceBrandId: copyFromId });
-          const { copiedProducts } = copyRes.data.data;
-          notify(`Brand "${created.name}" added with ${copiedProducts} product${copiedProducts !== 1 ? 's' : ''} copied`, 'success');
-        } catch {
-          notify(`Brand "${created.name}" added, but product copy failed`, 'error');
+    try {
+      if (editingBrand) {
+        // Rename flow
+        const original = brands.find(b => b.id === editingBrand.id)?.name;
+        if (name !== original) {
+          await api.put(`/brands/${editingBrand.id}`, { name });
+          setBrands(prev => prev.map(b => b.id === editingBrand.id ? { ...b, name } : b));
+          notify(`Brand renamed to "${name}"`, 'success');
         }
+        closeModal();
       } else {
-        notify(`Brand "${created.name}" added`, 'success');
+        // Add flow
+        const res = await api.post('/brands', { name });
+        const created = res.data.data;
+        setBrands(prev => [...prev, created]);
+
+        if (copyFromId) {
+          try {
+            const copyRes = await api.post(`/brands/${created.id}/copy-products`, { sourceBrandId: copyFromId });
+            const { copiedProducts } = copyRes.data.data;
+            notify(
+              `Brand "${created.name}" added with ${copiedProducts} product${copiedProducts !== 1 ? 's' : ''} copied`,
+              'success'
+            );
+          } catch {
+            notify(`Brand "${created.name}" added, but product copy failed`, 'error');
+          }
+        } else {
+          notify(`Brand "${created.name}" added`, 'success');
+        }
+        closeModal();
       }
-
-      setNewBrandName('');
-      setCopyFromId(null);
-      setAddingNew(false);
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to add brand', 'error');
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to save brand', 'error');
     } finally {
-      setAddSaving(false);
+      setSubmitting(false);
     }
-  };
-
-  const handleStartRename = (b) => {
-    setRenamingId(b.id);
-    setRenameValue(b.name);
-    setAddingNew(false);
-  };
-
-  const handleCancelRename = () => {
-    setRenamingId(null);
-    setRenameValue('');
-  };
-
-  const handleConfirmRename = async (id) => {
-    const name = renameValue.trim();
-    if (!name) return;
-    const original = brands.find(b => b.id === id)?.name;
-    if (name === original) { handleCancelRename(); return; }
-    setRenameSaving(true);
-    try {
-      await api.put(`/brands/${id}`, { name });
-      setBrands(prev => prev.map(b => b.id === id ? { ...b, name } : b));
-      setRenamingId(null);
-      setRenameValue('');
-      notify(`Brand renamed to "${name}"`, 'success');
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to rename brand', 'error');
-    } finally {
-      setRenameSaving(false);
-    }
-  };
-
-  const handleAddKeyDown = (e) => {
-    if (e.key === 'Enter') handleAddBrand();
-    if (e.key === 'Escape') { setAddingNew(false); setNewBrandName(''); setCopyFromId(null); }
-  };
-
-  const handleRenameKeyDown = (e, id) => {
-    if (e.key === 'Enter') handleConfirmRename(id);
-    if (e.key === 'Escape') handleCancelRename();
   };
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* Saving overlay */}
+      <LoadingOverlay open={submitting} message={editingBrand ? 'Renaming brand…' : 'Adding brand…'} />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (
@@ -142,9 +128,8 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                 {isSuperAdmin && (
                   <button
                     type="button"
-                    onClick={() => { setAddingNew(true); setRenamingId(null); }}
-                    disabled={addingNew}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    onClick={openAdd}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition"
                   >
                     <Plus size={13} />
                     Add Brand
@@ -155,107 +140,25 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
               <ul className="divide-y divide-slate-100">
                 {brands.map((b, index) => {
                   const colors = getBrandColors(b.name, index);
-                  const isRenaming = renamingId === b.id;
                   return (
                     <li key={b.id} className="flex items-center gap-3 px-5 py-3">
                       <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.dot}`} />
-                      {isRenaming ? (
-                        <>
-                          <input
-                            ref={renameInputRef}
-                            type="text"
-                            value={renameValue}
-                            onChange={e => setRenameValue(e.target.value)}
-                            onKeyDown={e => handleRenameKeyDown(e, b.id)}
-                            className="flex-1 text-sm font-medium border border-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmRename(b.id)}
-                            disabled={renameSaving || !renameValue.trim()}
-                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 transition"
-                          >
-                            {renameSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelRename}
-                            disabled={renameSaving}
-                            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-40 transition"
-                          >
-                            <XIcon size={14} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
-                          {isSuperAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => handleStartRename(b)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                              title="Rename brand"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                          )}
-                        </>
+                      <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => openEdit(b)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                          title="Rename brand"
+                        >
+                          <Pencil size={13} />
+                        </button>
                       )}
                     </li>
                   );
                 })}
 
-                {/* Add brand form row */}
-                {addingNew && (
-                  <li className="flex flex-col gap-2 px-5 py-3 bg-emerald-50/50">
-                    <div className="flex items-center gap-3">
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-slate-300" />
-                      <input
-                        ref={addInputRef}
-                        type="text"
-                        value={newBrandName}
-                        onChange={e => setNewBrandName(e.target.value)}
-                        onKeyDown={handleAddKeyDown}
-                        placeholder="Brand name"
-                        className="flex-1 text-sm font-medium border border-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddBrand}
-                        disabled={addSaving || !newBrandName.trim()}
-                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 transition"
-                      >
-                        {addSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setAddingNew(false); setNewBrandName(''); setCopyFromId(null); }}
-                        disabled={addSaving}
-                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-40 transition"
-                      >
-                        <XIcon size={14} />
-                      </button>
-                    </div>
-                    {brands.length > 0 && (
-                      <div className="ml-5 flex items-center gap-2">
-                        <label className="text-xs text-slate-500 whitespace-nowrap">Copy products from:</label>
-                        <select
-                          value={copyFromId ?? ''}
-                          onChange={e => setCopyFromId(e.target.value ? Number(e.target.value) : null)}
-                          disabled={addSaving}
-                          className="flex-1 text-xs border border-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white text-slate-700 disabled:opacity-50"
-                        >
-                          <option value="">None (start empty)</option>
-                          {brands.map(b => (
-                            <option key={b.id} value={b.id}>{b.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </li>
-                )}
-
-                {brands.length === 0 && !addingNew && (
+                {brands.length === 0 && (
                   <li className="px-5 py-6 text-center text-sm text-slate-400 italic">
                     No brands yet — add one above
                   </li>
@@ -271,6 +174,91 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
           </div>
         )}
       </div>
+
+      {/* ── Add / Rename Modal ────────────────────────────────────────────────── */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
+                  <Store size={15} className="text-emerald-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">
+                    {editingBrand ? 'Rename Brand' : 'Add Brand'}
+                  </p>
+                  <p className="text-emerald-300 text-[11px]">
+                    {editingBrand ? 'Update the brand name' : 'Create a new dairy brand'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeModal} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Brand Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  autoFocus
+                  required
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder="e.g. Amul, Nandini, Heritage"
+                  className="ddm-input"
+                />
+              </div>
+
+              {/* Copy products — only shown in add mode when there are existing brands */}
+              {!editingBrand && brands.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Copy Products From
+                  </label>
+                  <select
+                    value={copyFromId ?? ''}
+                    onChange={e => setCopyFromId(e.target.value ? Number(e.target.value) : null)}
+                    className="ddm-input"
+                  >
+                    <option value="">None (start empty)</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  {copyFromId && (
+                    <p className="mt-1.5 text-[11px] text-slate-400">
+                      All active products and categories will be copied into the new brand.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !formName.trim()}
+                  className="ddm-btn-primary flex-1 justify-center"
+                >
+                  {editingBrand ? 'Save Changes' : 'Add Brand'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
