@@ -13,6 +13,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const { notify } = useNotification();
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'superadmin';
+  const isAdmin      = isSuperAdmin || user?.role === 'admin';
 
   const [brands, setBrands]       = useState([]);
   const [loading, setLoading]     = useState(false);
@@ -21,8 +22,9 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null); // null = add mode
-  const [formName, setFormName]       = useState('');
-  const [copyFromId, setCopyFromId]   = useState(null);
+  const [formName, setFormName]           = useState('');
+  const [copyFromId, setCopyFromId]       = useState(null);
+  const [mergePrimaryId, setMergePrimaryId] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -43,6 +45,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setEditingBrand(b);
     setFormName(b.name);
     setCopyFromId(null);
+    setMergePrimaryId(b.salespersonPrimaryBrandId ?? null);
     setIsModalOpen(true);
   };
 
@@ -51,6 +54,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setEditingBrand(null);
     setFormName('');
     setCopyFromId(null);
+    setMergePrimaryId(null);
   };
 
   // ── Add brand ─────────────────────────────────────────────────────────────
@@ -62,12 +66,32 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
 
     try {
       if (editingBrand) {
-        // Rename flow
-        const original = brands.find(b => b.id === editingBrand.id)?.name;
-        if (name !== original) {
-          await api.put(`/brands/${editingBrand.id}`, { name });
-          setBrands(prev => prev.map(b => b.id === editingBrand.id ? { ...b, name } : b));
-          notify(`Brand renamed to "${name}"`, 'success');
+        const original     = brands.find(b => b.id === editingBrand.id);
+        const nameChanged  = name !== original?.name;
+        const mergeChanged = mergePrimaryId !== (original?.salespersonPrimaryBrandId ?? null);
+
+        if (nameChanged || mergeChanged) {
+          const payload = {};
+          if (nameChanged)  payload.name = name;
+          if (mergeChanged) payload.salespersonPrimaryBrandId = mergePrimaryId;
+
+          await api.put(`/brands/${editingBrand.id}`, payload);
+          setBrands(prev => prev.map(b => b.id === editingBrand.id
+            ? { ...b, ...(nameChanged ? { name } : {}), salespersonPrimaryBrandId: mergePrimaryId }
+            : b
+          ));
+
+          if (nameChanged && mergeChanged) {
+            notify(`Brand renamed and salesperson grouping updated`, 'success');
+          } else if (nameChanged) {
+            notify(`Brand renamed to "${name}"`, 'success');
+          } else {
+            notify(mergePrimaryId
+              ? `Brand will now appear merged under "${brands.find(b => b.id === mergePrimaryId)?.name}" in salesperson view`
+              : 'Brand is now standalone in salesperson view',
+              'success'
+            );
+          }
         }
         closeModal();
       } else {
@@ -144,12 +168,12 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                     <li key={b.id} className="flex items-center gap-3 px-5 py-3">
                       <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.dot}`} />
                       <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
-                      {isSuperAdmin && (
+                      {isAdmin && (
                         <button
                           type="button"
                           onClick={() => openEdit(b)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                          title="Rename brand"
+                          title={isSuperAdmin ? 'Rename / merge brand' : 'Merge brand'}
                         >
                           <Pencil size={13} />
                         </button>
@@ -165,9 +189,9 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                 )}
               </ul>
 
-              {isSuperAdmin && brands.length > 0 && (
+              {isAdmin && brands.length > 0 && (
                 <p className="px-5 py-2.5 text-[10px] text-slate-400 border-t border-slate-100">
-                  Renaming a brand updates its navigation link — old bookmarks may break.
+                  {isSuperAdmin ? 'Renaming a brand updates its navigation link — old bookmarks may break.' : 'Use the edit button to configure salesperson view grouping.'}
                 </p>
               )}
             </div>
@@ -201,19 +225,51 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
             </div>
 
             <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Brand Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  autoFocus
-                  required
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  placeholder="e.g. Amul, Nandini, Heritage"
-                  className="ddm-input"
-                />
-              </div>
+              {/* Name field — only shown to superadmin (rename requires superadmin) */}
+              {(!editingBrand || isSuperAdmin) && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Brand Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    autoFocus
+                    required
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="e.g. Amul, Nandini, Heritage"
+                    className="ddm-input"
+                  />
+                </div>
+              )}
+
+              {/* Merge under brand — edit mode only */}
+              {editingBrand && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Salesperson View — Merge Under Brand
+                  </label>
+                  <select
+                    value={mergePrimaryId ?? ''}
+                    onChange={e => setMergePrimaryId(e.target.value ? Number(e.target.value) : null)}
+                    className="ddm-input"
+                  >
+                    <option value="">(standalone — show separately)</option>
+                    {brands
+                      .filter(b => b.id !== editingBrand.id && !b.salespersonPrimaryBrandId)
+                      .map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))
+                    }
+                  </select>
+                  {mergePrimaryId && (
+                    <p className="mt-1.5 text-[11px] text-slate-400">
+                      In the salesman dispatch screen, this brand's products will appear merged under{' '}
+                      <strong>{brands.find(b => b.id === mergePrimaryId)?.name}</strong>.
+                      Quantities will be split based on available stock.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Copy products — only shown in add mode when there are existing brands */}
               {!editingBrand && brands.length > 0 && (

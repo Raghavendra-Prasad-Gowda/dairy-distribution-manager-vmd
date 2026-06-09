@@ -33,6 +33,19 @@ const update = asyncHandler(async (req, res) => {
   if (data.name !== undefined && req.user.role !== 'superadmin') {
     throw new AppError('Only super admins can rename brands.', 403);
   }
+  if (data.salespersonPrimaryBrandId != null) {
+    if (data.salespersonPrimaryBrandId === id) {
+      throw new AppError('A brand cannot be merged with itself.', 400);
+    }
+    const target = await prisma.brand.findUnique({
+      where: { id: data.salespersonPrimaryBrandId },
+      select: { salespersonPrimaryBrandId: true },
+    });
+    if (!target) throw new AppError('Target brand not found.', 404);
+    if (target.salespersonPrimaryBrandId != null) {
+      throw new AppError('Cannot chain brand merges — target brand is already merged under another brand.', 400);
+    }
+  }
   const brand = await prisma.brand.update({ where: { id }, data });
   res.json({ success: true, data: brand });
 });
