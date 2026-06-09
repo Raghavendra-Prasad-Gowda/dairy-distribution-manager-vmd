@@ -36,8 +36,9 @@ const ADMIN_NAV_STATIC = [
       {
         label: 'SETUP',
         items: [
-          { to: '/dairy/setup/products', icon: Package,    label: 'Products' },
-          { to: '/dairy/setup',          icon: LayoutGrid, label: 'Settings' },
+          { to: '/dairy/setup/brands',   icon: Store,       label: 'Brands',   superAdminOnly: true },
+          { to: '/dairy/setup/products', icon: Package,     label: 'Products' },
+          { to: '/dairy/setup',          icon: LayoutGrid,  label: 'Settings' },
         ],
       },
       {
@@ -224,9 +225,11 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
                     </div>
                   )}
                   <div className="space-y-0.5">
-                    {section.items.map((item) => (
-                      <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
-                    ))}
+                    {section.items
+                      .filter(item => !item.superAdminOnly || user?.role === 'superadmin')
+                      .map((item) => (
+                        <SidebarLink key={item.to} item={item} compact={compact} setMobileOpen={setMobileOpen} />
+                      ))}
                   </div>
                 </div>
               ))}
