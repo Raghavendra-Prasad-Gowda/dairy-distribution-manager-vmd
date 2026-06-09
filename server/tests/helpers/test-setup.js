@@ -31,6 +31,10 @@ const SECRET = 'test-secret-for-ci';
 const makeAuthToken = () =>
   jwt.sign({ id: 1, role: 'admin', adminUserId: 1 }, SECRET, { expiresIn: '1h' });
 
+/** Returns a signed JWT for a super admin user. */
+const makeSuperAdminToken = () =>
+  jwt.sign({ id: 1, role: 'superadmin', adminUserId: 1 }, SECRET, { expiresIn: '1h' });
+
 /**
  * Returns a signed JWT for a salesman. Carries role: 'salesman' and the
  * salespersonId on which scope-by-role logic depends.
@@ -89,7 +93,7 @@ function setupSuite(bcryptDefaults = {}) {
     ctx.mockBcrypt.compare = defaultCompare;
   });
 
-  return { test, ctx, makeAuthToken };
+  return { test, ctx, makeAuthToken, makeSuperAdminToken };
 }
 
-module.exports = { setupSuite, makeAuthToken, makeSalesmanToken, makeExpiredToken };
+module.exports = { setupSuite, makeAuthToken, makeSuperAdminToken, makeSalesmanToken, makeExpiredToken };
