@@ -1,12 +1,14 @@
 const express = require('express');
 const controller = require('../controllers/brands.controller');
+const { requireAdmin, requireSuperAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.get('/',                        controller.getAll);
-router.patch('/reorder',               controller.reorder);
-router.patch('/salesperson-reorder',   controller.salespersonReorder);
-router.post('/',                       controller.create);
-router.put('/:id',                     controller.update);
+router.patch('/reorder',               requireAdmin, controller.reorder);
+router.patch('/salesperson-reorder',   requireAdmin, controller.salespersonReorder);
+router.post('/',                       requireSuperAdmin, controller.create);
+router.post('/:id/copy-products',      requireAdmin, controller.copyProducts);
+router.put('/:id',                     requireAdmin, controller.update);
 
 module.exports = router;

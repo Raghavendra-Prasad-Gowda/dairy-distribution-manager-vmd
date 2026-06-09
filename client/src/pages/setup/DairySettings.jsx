@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
-import { BRAND_COLORS } from '../../utils/constants';
+import { getBrandColors } from '../../utils/constants';
 import BrandsSetup      from './BrandsSetup';
 import RouteSetup       from './RouteSetup';
 import CategorySetup    from './CategorySetup';
@@ -51,9 +51,9 @@ export default function DairySettings() {
         <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-3 pb-0 flex-shrink-0">
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <div className="flex gap-1.5 pb-0.5">
-              {brands.map(brand => {
+              {brands.map((brand, index) => {
                 const isActive = brand.id === activeBrandId;
-                const colors = BRAND_COLORS[brand.name] ?? BRAND_COLORS['Nandini'];
+                const colors = getBrandColors(brand.name, index);
                 return (
                   <button
                     key={brand.id}

@@ -1,223 +1,109 @@
 import { useState, useEffect } from 'react';
-import { Store, Loader2, Save } from 'lucide-react';
-import BrandTabs from '../../components/BrandTabs';
+import { Store, Plus, Pencil, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
+import { getBrandColors } from '../../utils/constants';
 import api from '../../api/axios';
-
-// ── Small deposit toggle pill ─────────────────────────────────────────────────
-function DepositToggle({ enabled, disabled, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onToggle}
-      disabled={disabled}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 ${
-        disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-      } ${enabled && !disabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-    >
-      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${enabled && !disabled ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
-    </button>
-  );
-}
-
-// ── Category + products deposit config ────────────────────────────────────────
-function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
-  const [expanded, setExpanded] = useState({});
-
-  const grouped = {};
-  for (const p of brand.products ?? []) {
-    const key = p.category || 'Other';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(p);
-  }
-
-  const catOrderMap = Object.fromEntries(
-    (brand.categories ?? []).map(c => [c.name, c.displayOrder ?? 0])
-  );
-  const entries = Object.entries(grouped).sort(([a], [b]) => {
-    const oa = catOrderMap[a] ?? 9999;
-    const ob = catOrderMap[b] ?? 9999;
-    return oa !== ob ? oa - ob : a.localeCompare(b);
-  });
-
-  if (entries.length === 0) {
-    return <p className="text-xs text-slate-400 italic">No products enabled in stock receipt</p>;
-  }
-
-  return (
-    <div className="space-y-1.5">
-      {entries.map(([catName, catProds]) => {
-        const cat = (brand.categories ?? []).find(c => c.name === catName);
-        const isOpen = expanded[catName] ?? true;
-        return (
-          <div key={catName}>
-            <div
-              className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer select-none"
-              onClick={() => setExpanded(prev => ({ ...prev, [catName]: !isOpen }))}
-            >
-              <span className="flex-1 text-sm font-bold text-slate-700">{catName}</span>
-              <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Deposit</span>
-                {cat ? (
-                  <DepositToggle
-                    enabled={cat.depositEnabled}
-                    disabled={!brand.depositEnabled}
-                    onToggle={() => onCategoryToggle(cat)}
-                  />
-                ) : (
-                  <span className="text-[10px] text-slate-300">—</span>
-                )}
-              </div>
-              <span className="text-xs text-slate-400 ml-1">{isOpen ? '▲' : '▼'}</span>
-            </div>
-
-            {isOpen && (
-              <div className="ml-5 mt-1 space-y-1">
-                {catProds.map(p => (
-                  <div key={p.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-                    <span className="flex-1 text-sm text-slate-700">{p.name}</span>
-                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                      {p.unitType === 'ml'
-                        ? `${p.unitSize ?? '?'}ml`
-                        : p.unitType === 'gram'
-                        ? `${p.unitSize ?? '?'}g`
-                        : 'piece'}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Deposit</span>
-                      <DepositToggle
-                        enabled={p.depositEnabled}
-                        disabled={!brand.depositEnabled}
-                        onToggle={() => onProductToggle(p)}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]         = useState([]);
-  const [activeBrandId, setActive]  = useState(null);
-  const [loading, setLoading]       = useState(false);
-  const [saving, setSaving]         = useState(false);
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'superadmin';
+
+  const [brands, setBrands]       = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBrand, setEditingBrand] = useState(null); // null = add mode
+  const [formName, setFormName]       = useState('');
+  const [copyFromId, setCopyFromId]   = useState(null);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      api.get('/brands'),
-      api.get('/categories'),
-      api.get('/products?all=true'),
-    ]).then(([brandsRes, catsRes, prodsRes]) => {
-      const rawBrands = brandsRes.data.data ?? [];
-      const allCats   = catsRes.data.data ?? [];
-      const allProds  = (prodsRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
-      const enriched  = rawBrands.map(b => {
-        const qualifyingProds = allProds.filter(p =>
-          p.brandId === b.id &&
-          (p.unitType === 'ml' || p.unitType === 'gram') &&
-          p.containerType === 'crate'
-        );
-        const qualifyingCatNames = new Set(qualifyingProds.map(p => p.category || 'Other'));
-        return {
-          ...b,
-          categories: allCats.filter(c => c.brandId === b.id && qualifyingCatNames.has(c.name)),
-          products:   qualifyingProds,
-        };
-      });
-      setBrands(enriched);
-      setActive(shellActiveBrandId ?? (enriched.length ? enriched[0].id : null));
-    }).catch(() => notify('Failed to load brands', 'error'))
+    api.get('/brands')
+      .then(r => setBrands(r.data.data ?? []))
+      .catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (inShell) setActive(shellActiveBrandId);
-  }, [shellActiveBrandId]);
-
-  const brand = brands.find(b => b.id === activeBrandId) ?? null;
-
-  const updateBrandField = (field, value) => {
-    setBrands(prev => prev.map(b => b.id === activeBrandId ? { ...b, [field]: value } : b));
+  const openAdd = () => {
+    setEditingBrand(null);
+    setFormName('');
+    setCopyFromId(null);
+    setIsModalOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!brand) return;
-    setSaving(true);
+  const openEdit = (b) => {
+    setEditingBrand(b);
+    setFormName(b.name);
+    setCopyFromId(null);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingBrand(null);
+    setFormName('');
+    setCopyFromId(null);
+  };
+
+  // ── Add brand ─────────────────────────────────────────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const name = formName.trim();
+    if (!name) return;
+    setSubmitting(true);
+
     try {
-      await api.put(`/brands/${brand.id}`, {
-        depositEnabled:  brand.depositEnabled,
-        depositPerLitre: parseFloat(brand.depositPerLitre) || 0,
-      });
-      notify(`${brand.name} deposit settings saved`, 'success');
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to save', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCategoryToggle = async (cat) => {
-    const next = !cat.depositEnabled;
-    // Optimistically update category + all products in that category
-    setBrands(prev => prev.map(b => b.id === activeBrandId
-      ? {
-          ...b,
-          categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: next } : c),
-          products:   b.products.map(p => (p.category || 'Other') === cat.name ? { ...p, depositEnabled: next } : p),
+      if (editingBrand) {
+        // Rename flow
+        const original = brands.find(b => b.id === editingBrand.id)?.name;
+        if (name !== original) {
+          await api.put(`/brands/${editingBrand.id}`, { name });
+          setBrands(prev => prev.map(b => b.id === editingBrand.id ? { ...b, name } : b));
+          notify(`Brand renamed to "${name}"`, 'success');
         }
-      : b
-    ));
-    try {
-      const brand = brands.find(b => b.id === activeBrandId);
-      const prodsInCat = (brand?.products ?? []).filter(p => (p.category || 'Other') === cat.name);
-      await Promise.all([
-        api.put(`/categories/${cat.id}`, { depositEnabled: next }),
-        ...prodsInCat.map(p => api.put(`/products/${p.id}`, { depositEnabled: next })),
-      ]);
-    } catch {
-      // Revert
-      setBrands(prev => prev.map(b => b.id === activeBrandId
-        ? {
-            ...b,
-            categories: b.categories.map(c => c.id === cat.id ? { ...c, depositEnabled: cat.depositEnabled } : c),
-            products:   b.products.map(p => (p.category || 'Other') === cat.name ? { ...p, depositEnabled: cat.depositEnabled } : p),
-          }
-        : b
-      ));
-      notify('Failed to update deposit setting', 'error');
-    }
-  };
+        closeModal();
+      } else {
+        // Add flow
+        const res = await api.post('/brands', { name });
+        const created = res.data.data;
+        setBrands(prev => [...prev, created]);
 
-  const handleProductToggle = async (prod) => {
-    const next = !prod.depositEnabled;
-    setBrands(prev => prev.map(b => b.id === activeBrandId
-      ? { ...b, products: b.products.map(p => p.id === prod.id ? { ...p, depositEnabled: next } : p) }
-      : b
-    ));
-    try {
-      await api.put(`/products/${prod.id}`, { depositEnabled: next });
-    } catch {
-      setBrands(prev => prev.map(b => b.id === activeBrandId
-        ? { ...b, products: b.products.map(p => p.id === prod.id ? { ...p, depositEnabled: prod.depositEnabled } : p) }
-        : b
-      ));
-      notify('Failed to update deposit setting', 'error');
+        if (copyFromId) {
+          try {
+            const copyRes = await api.post(`/brands/${created.id}/copy-products`, { sourceBrandId: copyFromId });
+            const { copiedProducts } = copyRes.data.data;
+            notify(
+              `Brand "${created.name}" added with ${copiedProducts} product${copiedProducts !== 1 ? 's' : ''} copied`,
+              'success'
+            );
+          } catch {
+            notify(`Brand "${created.name}" added, but product copy failed`, 'error');
+          }
+        } else {
+          notify(`Brand "${created.name}" added`, 'success');
+        }
+        closeModal();
+      }
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to save brand', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* Saving overlay */}
+      <LoadingOverlay open={submitting} message={editingBrand ? 'Renaming brand…' : 'Adding brand…'} />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (
@@ -225,15 +111,8 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
           <Store size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Brands</h1>
-            <p className="text-emerald-300 text-xs">Configure deposit settings per dairy brand</p>
+            <p className="text-emerald-300 text-xs">Add and rename dairy brands</p>
           </div>
-        </div>
-      )}
-
-      {/* Brand tabs strip — hidden in shell mode */}
-      {!inShell && !loading && brands.length > 0 && (
-        <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-3 pb-0">
-          <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActive} />
         </div>
       )}
 
@@ -241,74 +120,145 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       <div className="flex-1 overflow-y-auto p-5 md:p-8">
         {loading ? (
           <BrandedLoader />
-        ) : !brand ? null : (
-          <div className="max-w-xl space-y-6">
-
-            {/* Deposit toggle */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Deposit settings</p>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">Charge deposit</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Calculate deposit on ml/gram crate products — ₹X per 1000ml or 1kg</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => updateBrandField('depositEnabled', !brand.depositEnabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${brand.depositEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${brand.depositEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
+        ) : (
+          <div className="max-w-xl">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dairy Brands</p>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={openAdd}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition"
+                  >
+                    <Plus size={13} />
+                    Add Brand
+                  </button>
+                )}
               </div>
 
-              {brand.depositEnabled && (
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Deposit rate (₹ per 1000ml / 1kg)
-                  </label>
-                  <div className="relative max-w-xs">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-semibold">₹</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={brand.depositPerLitre ?? ''}
-                      onChange={e => updateBrandField('depositPerLitre', e.target.value)}
-                      placeholder="e.g. 0.20"
-                      className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">e.g. ₹0.20 means 20 paise per 1000ml (or per 1kg) received</p>
-                </div>
-              )}
+              <ul className="divide-y divide-slate-100">
+                {brands.map((b, index) => {
+                  const colors = getBrandColors(b.name, index);
+                  return (
+                    <li key={b.id} className="flex items-center gap-3 px-5 py-3">
+                      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.dot}`} />
+                      <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => openEdit(b)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                          title="Rename brand"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
 
-
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm"
-              >
-                {saving ? <><Loader2 className="animate-spin" size={14} /> Saving…</> : <><Save size={14} /> Save</>}
-              </button>
-            </div>
-
-            {/* Category + product toggles */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Deposit by category &amp; product
-                {!brand.depositEnabled && (
-                  <span className="ml-2 normal-case font-normal text-slate-300">(enable deposit above to configure)</span>
+                {brands.length === 0 && (
+                  <li className="px-5 py-6 text-center text-sm text-slate-400 italic">
+                    No brands yet — add one above
+                  </li>
                 )}
-              </p>
-              <BrandDepositConfig
-                brand={brand}
-                onCategoryToggle={handleCategoryToggle}
-                onProductToggle={handleProductToggle}
-              />
-            </div>
+              </ul>
 
+              {isSuperAdmin && brands.length > 0 && (
+                <p className="px-5 py-2.5 text-[10px] text-slate-400 border-t border-slate-100">
+                  Renaming a brand updates its navigation link — old bookmarks may break.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* ── Add / Rename Modal ────────────────────────────────────────────────── */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 flex items-center justify-center">
+                  <Store size={15} className="text-emerald-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">
+                    {editingBrand ? 'Rename Brand' : 'Add Brand'}
+                  </p>
+                  <p className="text-emerald-300 text-[11px]">
+                    {editingBrand ? 'Update the brand name' : 'Create a new dairy brand'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeModal} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Brand Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  autoFocus
+                  required
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder="e.g. Amul, Nandini, Heritage"
+                  className="ddm-input"
+                />
+              </div>
+
+              {/* Copy products — only shown in add mode when there are existing brands */}
+              {!editingBrand && brands.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Copy Products From
+                  </label>
+                  <select
+                    value={copyFromId ?? ''}
+                    onChange={e => setCopyFromId(e.target.value ? Number(e.target.value) : null)}
+                    className="ddm-input"
+                  >
+                    <option value="">None (start empty)</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  {copyFromId && (
+                    <p className="mt-1.5 text-[11px] text-slate-400">
+                      All active products and categories will be copied into the new brand.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !formName.trim()}
+                  className="ddm-btn-primary flex-1 justify-center"
+                >
+                  {editingBrand ? 'Save Changes' : 'Add Brand'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

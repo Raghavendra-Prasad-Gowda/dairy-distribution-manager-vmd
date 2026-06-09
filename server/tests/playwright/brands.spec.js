@@ -8,7 +8,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
 
-const { test, ctx, makeAuthToken } = setupSuite();
+const { test, ctx, makeAuthToken, makeSuperAdminToken } = setupSuite();
 
 // ─── GET /api/v1/brands ───────────────────────────────────────────────────────
 
@@ -51,11 +51,19 @@ test.describe('POST /api/v1/brands', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('returns 201 when brand is created', async ({ request }) => {
+  test('returns 403 when admin (non-superadmin) tries to create a brand', async ({ request }) => {
+    const res = await request.post('/api/v1/brands', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { name: 'NewBrand' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 201 when superadmin creates a brand', async ({ request }) => {
     ctx.mockPrisma.brand.create.mockResolvedValue({ id: 3, name: 'NewBrand' });
 
     const res = await request.post('/api/v1/brands', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { name: 'NewBrand' },
     });
 
@@ -67,7 +75,7 @@ test.describe('POST /api/v1/brands', () => {
 
   test('returns 400 when name is missing', async ({ request }) => {
     const res = await request.post('/api/v1/brands', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: {},
     });
     expect(res.status()).toBe(400);
@@ -82,11 +90,19 @@ test.describe('PUT /api/v1/brands/:id', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('returns 200 when brand is updated', async ({ request }) => {
+  test('returns 403 when admin tries to rename a brand', async ({ request }) => {
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { name: 'Updated' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 when superadmin renames a brand', async ({ request }) => {
     ctx.mockPrisma.brand.update.mockResolvedValue({ id: 1, name: 'Updated' });
 
     const res = await request.put('/api/v1/brands/1', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { name: 'Updated' },
     });
 
@@ -103,7 +119,7 @@ test.describe('PUT /api/v1/brands/:id', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('returns 200 when depositEnabled is updated', async ({ request }) => {
+  test('returns 200 when admin updates depositEnabled', async ({ request }) => {
     ctx.mockPrisma.brand.update.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0 });
 
     const res = await request.put('/api/v1/brands/1', {
@@ -116,7 +132,7 @@ test.describe('PUT /api/v1/brands/:id', () => {
     expect(body.data).toHaveProperty('depositEnabled', true);
   });
 
-  test('returns 200 when depositPerLitre is updated', async ({ request }) => {
+  test('returns 200 when admin updates depositPerLitre', async ({ request }) => {
     ctx.mockPrisma.brand.update.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.2 });
 
     const res = await request.put('/api/v1/brands/1', {

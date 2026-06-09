@@ -148,7 +148,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
 // GET /products/salesperson-global — all products with global salespersonEnabled flag
 router.get('/salesperson-global', asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const [products, categories] = await Promise.all([
     prisma.product.findMany({
@@ -186,7 +186,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
 
 // PATCH /products/salesperson-global — bulk update salespersonEnabled flag
 router.patch('/salesperson-global', asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') throw new AppError('Admin access required', 403);
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const { products } = req.body;
   if (!Array.isArray(products) || !products.length) throw new AppError('products array is required', 400);
