@@ -11,7 +11,7 @@ import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
-import { BRAND_COLORS, PAYMENT_MODES } from '../../utils/constants';
+import { getBrandColors, PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
 
 // Matches the cycling palette used in StockReceipt for route pills
@@ -33,7 +33,7 @@ const MODE_COLORS = {
 
 /** Premium brand balance card — matches Dashboard DairyPayableCard style */
 function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, closing }) {
-  const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
+  const colors  = getBrandColors(brandName);
   const isOwing = closing > 0;
 
   const tiles = [

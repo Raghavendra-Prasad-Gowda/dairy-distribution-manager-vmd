@@ -1,12 +1,12 @@
-import { BRAND_COLORS } from '../utils/constants';
+import { getBrandColors } from '../utils/constants';
 
 export default function BrandTabs({ brands, activeBrandId, onChange }) {
   return (
     <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <div className="flex gap-1.5 pb-0.5">
-        {brands.map((brand) => {
+        {brands.map((brand, index) => {
           const isActive = brand.id === activeBrandId;
-          const colors = BRAND_COLORS[brand.name] ?? BRAND_COLORS['Nandini'];
+          const colors = getBrandColors(brand.name, index);
           return (
             <button
               key={brand.id}

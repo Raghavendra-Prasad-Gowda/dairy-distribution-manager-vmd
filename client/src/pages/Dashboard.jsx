@@ -4,13 +4,13 @@ import { Package, Truck, CreditCard, AlertCircle, ArrowRight, LayoutDashboard } 
 import DateSelector from '../components/DateSelector';
 import BrandedLoader from '../components/ui/BrandedLoader';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
-import { BRAND_COLORS } from '../utils/constants';
+import { getBrandColors } from '../utils/constants';
 import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
 
 /** Premium dairy payable card — brand-colored header, large owe amount, breakdown row */
 function DairyPayableCard({ brandId, brandName, opening, stockValue, depositValue, paid, closing }) {
-  const colors  = BRAND_COLORS[brandName] ?? BRAND_COLORS['Nandini'];
+  const colors  = getBrandColors(brandName);
   const isOwing = closing > 0;
 
   return (

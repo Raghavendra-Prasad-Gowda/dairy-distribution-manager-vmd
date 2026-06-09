@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -6,22 +6,26 @@ import {
   LogOut, Menu, Package, ShoppingCart,
   FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck
 } from 'lucide-react';
+import { getBrandColors } from '../utils/constants';
+import api from '../api/axios';
 
 // ─── Admin nav tree ────────────────────────────────────────────────────────────
 
 const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
 
-const ADMIN_NAV = [
+const FALLBACK_STOCK_ITEMS = [
+  { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
+  { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
+  { to: '/dairy/stock/gowardhan', dot: 'bg-violet-400', label: 'Gowardhan' },
+];
+
+const ADMIN_NAV_STATIC = [
   {
     moduleLabel: 'DAIRY',
     sections: [
       {
         label: 'STOCK RECEIPT',
-        items: [
-          { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
-          { to: '/dairy/stock/jersey',    dot: 'bg-sky-400',    label: 'Jersey' },
-          { to: '/dairy/stock/gowardhan', dot: 'bg-violet-400', label: 'Gowardhan' },
-        ],
+        dynamic: true,
       },
       {
         label: 'ACCOUNTS PAYABLE',
@@ -119,7 +123,31 @@ function SidebarLink({ item, compact, setMobileOpen }) {
 }
 
 function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
-  const navTree = user?.role === 'salesman' ? SALESMAN_NAV : ADMIN_NAV;
+  const [sidebarBrands, setSidebarBrands] = useState([]);
+
+  useEffect(() => {
+    if (user?.role === 'salesman') return;
+    api.get('/brands')
+      .then(r => setSidebarBrands(r.data.data ?? []))
+      .catch(() => {});
+  }, [user?.role]);
+
+  const stockItems = sidebarBrands.length > 0
+    ? sidebarBrands.map((b, i) => ({
+        to:    `/dairy/stock/${b.name.toLowerCase()}`,
+        dot:   getBrandColors(b.name, i).dot,
+        label: b.name,
+      }))
+    : FALLBACK_STOCK_ITEMS;
+
+  const adminNavTree = ADMIN_NAV_STATIC.map(module => ({
+    ...module,
+    sections: module.sections.map(section =>
+      section.dynamic ? { ...section, items: stockItems } : section
+    ),
+  }));
+
+  const navTree = user?.role === 'salesman' ? SALESMAN_NAV : adminNavTree;
   const showDashboard = user?.role !== 'salesman';
 
   return (
