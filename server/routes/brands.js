@@ -8,6 +8,7 @@ router.get('/',                        controller.getAll);
 router.patch('/reorder',               requireAdmin, controller.reorder);
 router.patch('/salesperson-reorder',   requireAdmin, controller.salespersonReorder);
 router.post('/',                       requireSuperAdmin, controller.create);
+router.post('/:id/copy-products',      requireAdmin, controller.copyProducts);
 router.put('/:id',                     requireAdmin, controller.update);
 
 module.exports = router;

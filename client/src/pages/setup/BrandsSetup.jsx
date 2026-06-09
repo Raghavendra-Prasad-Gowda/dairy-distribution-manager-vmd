@@ -19,6 +19,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // Brand management state
   const [addingNew, setAddingNew]       = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [copyFromId, setCopyFromId]     = useState(null);
   const [addSaving, setAddSaving]       = useState(false);
   const [renamingId, setRenamingId]     = useState(null);
   const [renameValue, setRenameValue]   = useState('');
@@ -52,9 +53,22 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       const res = await api.post('/brands', { name });
       const created = res.data.data;
       setBrands(prev => [...prev, created]);
+
+      if (copyFromId) {
+        try {
+          const copyRes = await api.post(`/brands/${created.id}/copy-products`, { sourceBrandId: copyFromId });
+          const { copiedProducts } = copyRes.data.data;
+          notify(`Brand "${created.name}" added with ${copiedProducts} product${copiedProducts !== 1 ? 's' : ''} copied`, 'success');
+        } catch {
+          notify(`Brand "${created.name}" added, but product copy failed`, 'error');
+        }
+      } else {
+        notify(`Brand "${created.name}" added`, 'success');
+      }
+
       setNewBrandName('');
+      setCopyFromId(null);
       setAddingNew(false);
-      notify(`Brand "${created.name}" added`, 'success');
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to add brand', 'error');
     } finally {
@@ -94,7 +108,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
 
   const handleAddKeyDown = (e) => {
     if (e.key === 'Enter') handleAddBrand();
-    if (e.key === 'Escape') { setAddingNew(false); setNewBrandName(''); }
+    if (e.key === 'Escape') { setAddingNew(false); setNewBrandName(''); setCopyFromId(null); }
   };
 
   const handleRenameKeyDown = (e, id) => {
@@ -193,33 +207,51 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
 
                 {/* Add brand form row */}
                 {addingNew && (
-                  <li className="flex items-center gap-3 px-5 py-3 bg-emerald-50/50">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-slate-300" />
-                    <input
-                      ref={addInputRef}
-                      type="text"
-                      value={newBrandName}
-                      onChange={e => setNewBrandName(e.target.value)}
-                      onKeyDown={handleAddKeyDown}
-                      placeholder="Brand name"
-                      className="flex-1 text-sm font-medium border border-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddBrand}
-                      disabled={addSaving || !newBrandName.trim()}
-                      className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 transition"
-                    >
-                      {addSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setAddingNew(false); setNewBrandName(''); }}
-                      disabled={addSaving}
-                      className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-40 transition"
-                    >
-                      <XIcon size={14} />
-                    </button>
+                  <li className="flex flex-col gap-2 px-5 py-3 bg-emerald-50/50">
+                    <div className="flex items-center gap-3">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-slate-300" />
+                      <input
+                        ref={addInputRef}
+                        type="text"
+                        value={newBrandName}
+                        onChange={e => setNewBrandName(e.target.value)}
+                        onKeyDown={handleAddKeyDown}
+                        placeholder="Brand name"
+                        className="flex-1 text-sm font-medium border border-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddBrand}
+                        disabled={addSaving || !newBrandName.trim()}
+                        className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 transition"
+                      >
+                        {addSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAddingNew(false); setNewBrandName(''); setCopyFromId(null); }}
+                        disabled={addSaving}
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-40 transition"
+                      >
+                        <XIcon size={14} />
+                      </button>
+                    </div>
+                    {brands.length > 0 && (
+                      <div className="ml-5 flex items-center gap-2">
+                        <label className="text-xs text-slate-500 whitespace-nowrap">Copy products from:</label>
+                        <select
+                          value={copyFromId ?? ''}
+                          onChange={e => setCopyFromId(e.target.value ? Number(e.target.value) : null)}
+                          disabled={addSaving}
+                          className="flex-1 text-xs border border-slate-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white text-slate-700 disabled:opacity-50"
+                        >
+                          <option value="">None (start empty)</option>
+                          {brands.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </li>
                 )}
 
