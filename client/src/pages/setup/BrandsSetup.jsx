@@ -3,6 +3,7 @@ import { Store, Loader2, Save, Plus, Pencil, Check, X as XIcon } from 'lucide-re
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { getBrandColors } from '../../utils/constants';
 import api from '../../api/axios';
 
@@ -108,6 +109,8 @@ function BrandDepositConfig({ brand, onCategoryToggle, onProductToggle }) {
 export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'superadmin';
 
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
@@ -321,15 +324,17 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dairy Brands</p>
-                  <button
-                    type="button"
-                    onClick={() => { setAddingNew(true); setRenamingId(null); }}
-                    disabled={addingNew}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    <Plus size={13} />
-                    Add Brand
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => { setAddingNew(true); setRenamingId(null); }}
+                      disabled={addingNew}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    >
+                      <Plus size={13} />
+                      Add Brand
+                    </button>
+                  )}
                 </div>
 
                 <ul className="divide-y divide-slate-100">
@@ -369,14 +374,16 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                         ) : (
                           <>
                             <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleStartRename(b)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                              title="Rename brand"
-                            >
-                              <Pencil size={13} />
-                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleStartRename(b)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                                title="Rename brand"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
                           </>
                         )}
                       </li>
@@ -422,7 +429,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                   )}
                 </ul>
 
-                {!inShell && brands.length > 0 && (
+                {isSuperAdmin && brands.length > 0 && (
                   <p className="px-5 py-2.5 text-[10px] text-slate-400 border-t border-slate-100">
                     Renaming a brand updates its navigation link — old bookmarks may break.
                   </p>

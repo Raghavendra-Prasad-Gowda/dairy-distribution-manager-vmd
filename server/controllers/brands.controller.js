@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const prisma = require('../lib/prisma');
+const AppError = require('../utils/AppError');
 
 const getAll = asyncHandler(async (req, res) => {
   const brands = await prisma.brand.findMany({ orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] });
@@ -29,6 +30,9 @@ const update = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Brand ID');
   const data = validate(schemas.updateBrand, req, res);
   if (!data) return;
+  if (data.name !== undefined && req.user.role !== 'superadmin') {
+    throw new AppError('Only super admins can rename brands.', 403);
+  }
   const brand = await prisma.brand.update({ where: { id }, data });
   res.json({ success: true, data: brand });
 });
