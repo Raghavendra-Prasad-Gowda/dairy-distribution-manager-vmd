@@ -70,7 +70,7 @@ const copyProducts = asyncHandler(async (req, res) => {
     prisma.product.findMany({ where: { brandId: sourceBrandId, isActive: true } }),
   ]);
 
-  const { copiedProducts, copiedCategories } = await prisma.$transaction(async (tx) => {
+  const { copiedProducts, copiedCategories, copiedSalespersonAssignments, copiedSalespersonPrices } = await prisma.$transaction(async (tx) => {
     const existingCatNames = new Set(
       (await tx.category.findMany({ where: { brandId: targetBrandId }, select: { name: true } }))
         .map(c => c.name)
@@ -93,7 +93,7 @@ const copyProducts = asyncHandler(async (req, res) => {
       },
     })));
 
-    await Promise.all(prodsToCreate.map(prod => tx.product.create({
+    const createdProds = await Promise.all(prodsToCreate.map(prod => tx.product.create({
       data: {
         brandId: targetBrandId,
         name: prod.name,
@@ -114,12 +114,41 @@ const copyProducts = asyncHandler(async (req, res) => {
       },
     })));
 
-    return { copiedProducts: prodsToCreate.length, copiedCategories: catsToCreate.length };
+    // Mirror salesperson product assignments and prices from source to newly created products
+    const nameToNewId = Object.fromEntries(createdProds.map(p => [p.name, p.id]));
+    const sourceIdToNewId = Object.fromEntries(prodsToCreate.map(p => [p.id, nameToNewId[p.name]]));
+    const sourceProductIds = prodsToCreate.map(p => p.id);
+
+    const [sourceSPRows, sourcePriceRows] = await Promise.all([
+      tx.salespersonProduct.findMany({
+        where: { productId: { in: sourceProductIds }, isEnabled: true },
+        select: { salespersonId: true, productId: true },
+      }),
+      tx.salespersonPrice.findMany({
+        where: { productId: { in: sourceProductIds } },
+        select: { salespersonId: true, productId: true, sellingPrice: true, effectiveFrom: true },
+      }),
+    ]);
+
+    await Promise.all([
+      ...sourceSPRows.map(row =>
+        tx.salespersonProduct.create({
+          data: { salespersonId: row.salespersonId, productId: sourceIdToNewId[row.productId], isEnabled: true },
+        })
+      ),
+      ...sourcePriceRows.map(row =>
+        tx.salespersonPrice.create({
+          data: { salespersonId: row.salespersonId, productId: sourceIdToNewId[row.productId], sellingPrice: row.sellingPrice, effectiveFrom: row.effectiveFrom },
+        })
+      ),
+    ]);
+
+    return { copiedProducts: prodsToCreate.length, copiedCategories: catsToCreate.length, copiedSalespersonAssignments: sourceSPRows.length, copiedSalespersonPrices: sourcePriceRows.length };
   });
 
   res.json({
     success: true,
-    data: { copiedProducts, copiedCategories, fromBrand: sourceBrand.name, toBrand: targetBrand.name },
+    data: { copiedProducts, copiedCategories, copiedSalespersonAssignments, copiedSalespersonPrices, fromBrand: sourceBrand.name, toBrand: targetBrand.name },
   });
 });
 

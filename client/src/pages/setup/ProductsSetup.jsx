@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, X, Package } from 'lucide-react';
+import { Plus, Edit2, Archive, Search, X, Package } from 'lucide-react';
 import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -153,11 +153,11 @@ export default function ProductsSetup() {
     }
   };
 
-  const confirmDelete = (p) => {
+  const confirmArchive = (p) => {
     setConfirmation({
       isOpen: true,
-      title: 'Delete Product',
-      message: `Delete "${p.name}"? It will be removed from daily operations but historical data is kept.`,
+      title: 'Archive Product',
+      message: `Archive "${p.name}"? It will be hidden from daily operations but all historical data is preserved. You can restore it later.`,
       action: () => archiveProduct(p),
       isDanger: true,
     });
@@ -167,14 +167,15 @@ export default function ProductsSetup() {
     setSubmitting(true);
     try {
       await api.put(`/products/${p.id}`, { isActive: false });
-      notify('Product deleted', 'success');
+      notify('Product archived', 'success');
       fetchAll();
     } catch {
-      notify('Failed to delete', 'error');
+      notify('Failed to archive product', 'error');
     } finally {
       setSubmitting(false);
     }
   };
+
 
   const toggleShowInReceipt = async (p) => {
     try {
@@ -349,8 +350,8 @@ export default function ProductsSetup() {
                             <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => confirmDelete(p)} className="text-red-500 hover:text-red-700 transition-colors" title="Delete">
-                              <Trash2 className="w-4 h-4" />
+                            <button onClick={() => confirmArchive(p)} className="text-amber-500 hover:text-amber-700 transition-colors" title="Archive">
+                              <Archive className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -574,7 +575,7 @@ export default function ProductsSetup() {
         title={confirmation.title}
         message={confirmation.message}
         isDanger={confirmation.isDanger}
-        confirmText="Delete"
+        confirmText="Archive"
       />
     </div>
     </div>
