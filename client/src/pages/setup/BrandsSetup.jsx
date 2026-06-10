@@ -289,7 +289,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                   </label>
                   {loadingCandidates ? (
                     <p className="text-[11px] text-slate-400 py-2">Checking product compatibility…</p>
-                  ) : mergeCandidates.length === 0 && !mergePrimaryId ? (
+                  ) : mergeCandidates.length === 0 && editingBrand.salespersonPrimaryBrandId == null ? (
                     <p className="text-[11px] text-slate-400 py-2">
                       No other brand has a matching product set — only brands with identical products can be merged.
                     </p>
@@ -301,6 +301,18 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                         className="ddm-input"
                       >
                         <option value="">(standalone — show separately)</option>
+                        {/* Always include the currently-merged primary so its option is visible even if
+                            it didn't pass the compatibility check (needed for the unmerge case). */}
+                        {editingBrand.salespersonPrimaryBrandId != null &&
+                          !mergeCandidates.some(c => c.id === editingBrand.salespersonPrimaryBrandId) && (
+                            (() => {
+                              const current = brands.find(b => b.id === editingBrand.salespersonPrimaryBrandId);
+                              return current
+                                ? <option key={current.id} value={current.id}>{current.name}</option>
+                                : null;
+                            })()
+                          )
+                        }
                         {mergeCandidates.map(b => (
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
