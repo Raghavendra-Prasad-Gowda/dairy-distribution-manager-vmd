@@ -155,11 +155,13 @@ export default function SalespersonStockEntry() {
         const todayDispatch = (dispatchRes.data.data ?? [])[0] ?? null;
         setProducts(priceItems);
         setDispatch(todayDispatch);
+
         const qtyMap = {};
         for (const item of todayDispatch?.items ?? []) {
           qtyMap[item.productId] = String(item.quantity);
         }
         setQty(qtyMap);
+
         const allBrandIds = [...new Set(priceItems.map(p => p.brandId))];
         setCollapsedBrands(Object.fromEntries(allBrandIds.map(id => [id, true])));
         const allCatKeys = [...new Set(priceItems.map(p => `${p.brandId}:${p.category || 'General'}`))];
@@ -197,6 +199,7 @@ export default function SalespersonStockEntry() {
       : products;
 
     const brandMap = {};
+
     for (const p of base) {
       if (!brandMap[p.brandId]) {
         brandMap[p.brandId] = {
@@ -206,6 +209,7 @@ export default function SalespersonStockEntry() {
           categories: {},
         };
       }
+
       const catKey = p.category || 'General';
       if (!brandMap[p.brandId].categories[catKey]) {
         brandMap[p.brandId].categories[catKey] = {
@@ -328,7 +332,7 @@ export default function SalespersonStockEntry() {
     const items = products
       .map(p => ({ productId: p.productId, quantity: parseFloat(qty[p.productId]) || 0, unitPrice: p.sellingPrice ?? 0 }))
       .filter(i => i.quantity > 0);
-    // Empty items + no existing draft = nothing to do
+
     if (!items.length && !dispatch) {
       notify('Enter at least one quantity before saving.', 'warning');
       return;
@@ -350,6 +354,7 @@ export default function SalespersonStockEntry() {
     const items = products
       .map(p => ({ productId: p.productId, quantity: parseFloat(qty[p.productId]) || 0, unitPrice: p.sellingPrice ?? 0 }))
       .filter(i => i.quantity > 0);
+
     if (!items.length) { notify('Enter at least one quantity before submitting.', 'warning'); return; }
     setSubmitting(true);
     try {

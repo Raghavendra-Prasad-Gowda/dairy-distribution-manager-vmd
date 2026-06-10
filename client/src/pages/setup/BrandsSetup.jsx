@@ -21,8 +21,8 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null); // null = add mode
-  const [formName, setFormName]       = useState('');
-  const [copyFromId, setCopyFromId]   = useState(null);
+  const [formName, setFormName]         = useState('');
+  const [copyFromId, setCopyFromId]     = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -53,7 +53,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setCopyFromId(null);
   };
 
-  // ── Add brand ─────────────────────────────────────────────────────────────
+  // ── Add / Rename brand ────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     const name = formName.trim();
@@ -62,9 +62,10 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
 
     try {
       if (editingBrand) {
-        // Rename flow
-        const original = brands.find(b => b.id === editingBrand.id)?.name;
-        if (name !== original) {
+        const original    = brands.find(b => b.id === editingBrand.id);
+        const nameChanged = name !== original?.name;
+
+        if (nameChanged) {
           await api.put(`/brands/${editingBrand.id}`, { name });
           setBrands(prev => prev.map(b => b.id === editingBrand.id ? { ...b, name } : b));
           notify(`Brand renamed to "${name}"`, 'success');

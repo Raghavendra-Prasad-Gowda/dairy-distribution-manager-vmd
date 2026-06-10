@@ -3,8 +3,8 @@ const controller = require('../controllers/dispatches.controller');
 
 const router = express.Router();
 
-router.get('/summary',      controller.getSummary);
-router.get('/',             controller.getAll);
+router.get('/summary', controller.getSummary);
+router.get('/',        controller.getAll);
 router.post('/',            controller.createOrUpdate);
 router.patch('/:id/submit', controller.submit);
 router.patch('/:id/lock',   controller.lock);
