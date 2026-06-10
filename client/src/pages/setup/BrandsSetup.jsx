@@ -281,8 +281,8 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                 </div>
               )}
 
-              {/* Merge under brand — edit mode only */}
-              {editingBrand && (
+              {/* Merge under brand — edit mode only, hidden if this brand is already a primary */}
+              {editingBrand && !brands.some(b => b.salespersonPrimaryBrandId === editingBrand.id) && (
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Salesperson View — Merge Under Brand
