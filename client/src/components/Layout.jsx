@@ -11,7 +11,7 @@ import api from '../api/axios';
 
 // ─── Admin nav tree ────────────────────────────────────────────────────────────
 
-const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard' };
+const DASHBOARD_ITEM = { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true };
 
 const FALLBACK_STOCK_ITEMS = [
   { to: '/dairy/stock/nandini',   dot: 'bg-amber-400',  label: 'Nandini' },
@@ -38,7 +38,7 @@ const ADMIN_NAV_STATIC = [
         items: [
           { to: '/dairy/setup/brands',   icon: Store,       label: 'Brands',   superAdminOnly: true },
           { to: '/dairy/setup/products', icon: Package,     label: 'Products' },
-          { to: '/dairy/setup',          icon: LayoutGrid,  label: 'Settings' },
+          { to: '/dairy/setup',          icon: LayoutGrid,  label: 'Settings', end: true },
         ],
       },
       {
@@ -101,7 +101,6 @@ function SidebarLink({ item, compact, setMobileOpen }) {
   return (
     <NavLink
       to={item.to}
-      end={item.to === '/'}
       onClick={() => setMobileOpen && setMobileOpen(false)}
       title={item.label}
       className={({ isActive }) =>
@@ -113,6 +112,7 @@ function SidebarLink({ item, compact, setMobileOpen }) {
             : 'text-emerald-200 hover:bg-white/10 hover:text-white'
         }`
       }
+      end={item.to === '/' || !!item.end}
     >
       {item.dot
         ? <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${item.dot}`} />
