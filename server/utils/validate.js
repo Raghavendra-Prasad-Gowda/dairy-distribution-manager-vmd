@@ -37,10 +37,9 @@ const schemas = {
     sourceBrandId: z.number().int().positive('Source brand ID is required'),
   }),
   updateBrand: z.object({
-    name:                      z.string().min(1, 'Brand name is required').optional(),
-    depositEnabled:            z.boolean().optional(),
-    depositPerLitre:           z.number().min(0).optional(),
-    salespersonPrimaryBrandId: z.number().int().positive().nullable().optional(),
+    name:           z.string().min(1, 'Brand name is required').optional(),
+    depositEnabled: z.boolean().optional(),
+    depositPerLitre: z.number().min(0).optional(),
   }),
 
   // Categories

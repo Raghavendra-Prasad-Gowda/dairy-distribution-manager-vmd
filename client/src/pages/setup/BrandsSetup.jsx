@@ -13,7 +13,6 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const { notify } = useNotification();
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'superadmin';
-  const isAdmin      = isSuperAdmin || user?.role === 'admin';
 
   const [brands, setBrands]       = useState([]);
   const [loading, setLoading]     = useState(false);
@@ -22,11 +21,8 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null); // null = add mode
-  const [formName, setFormName]           = useState('');
-  const [copyFromId, setCopyFromId]       = useState(null);
-  const [mergePrimaryId, setMergePrimaryId]   = useState(null);
-  const [mergeCandidates, setMergeCandidates] = useState([]); // brands eligible as merge targets
-  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [formName, setFormName]         = useState('');
+  const [copyFromId, setCopyFromId]     = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -43,48 +39,11 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setIsModalOpen(true);
   };
 
-  const openEdit = async (b) => {
+  const openEdit = (b) => {
     setEditingBrand(b);
     setFormName(b.name);
     setCopyFromId(null);
-    setMergePrimaryId(b.salespersonPrimaryBrandId ?? null);
-    setMergeCandidates([]);
     setIsModalOpen(true);
-    setLoadingCandidates(true);
-    try {
-      const res = await api.get('/products');
-      const allProducts = res.data.data ?? [];
-
-      // Build a set of active product names per brand.
-      const namesByBrand = {};
-      for (const p of allProducts) {
-        if (!namesByBrand[p.brandId]) namesByBrand[p.brandId] = new Set();
-        namesByBrand[p.brandId].add(p.name.trim().toLowerCase());
-      }
-
-      const currentNames = namesByBrand[b.id] ?? new Set();
-
-      // A brand qualifies as a merge candidate when ALL products of the
-      // smaller brand also exist in the larger brand — i.e. one is a subset
-      // of the other. This ensures only brands with identical (or copied)
-      // product catalogs can be merged.
-      const eligible = brands.filter(brand => {
-        if (brand.id === b.id) return false;
-        if (brand.salespersonPrimaryBrandId != null) return false; // already secondary
-        const otherNames = namesByBrand[brand.id] ?? new Set();
-        if (currentNames.size === 0 || otherNames.size === 0) return false;
-        const smaller = currentNames.size <= otherNames.size ? currentNames : otherNames;
-        const larger  = currentNames.size <= otherNames.size ? otherNames  : currentNames;
-        return [...smaller].every(n => larger.has(n));
-      });
-
-      setMergeCandidates(eligible);
-    } catch {
-      // If product load fails, show no candidates (safer than showing all).
-      setMergeCandidates([]);
-    } finally {
-      setLoadingCandidates(false);
-    }
   };
 
   const closeModal = () => {
@@ -92,11 +51,9 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setEditingBrand(null);
     setFormName('');
     setCopyFromId(null);
-    setMergePrimaryId(null);
-    setMergeCandidates([]);
   };
 
-  // ── Add brand ─────────────────────────────────────────────────────────────
+  // ── Add / Rename brand ────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     const name = formName.trim();
@@ -105,32 +62,13 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
 
     try {
       if (editingBrand) {
-        const original     = brands.find(b => b.id === editingBrand.id);
-        const nameChanged  = name !== original?.name;
-        const mergeChanged = mergePrimaryId !== (original?.salespersonPrimaryBrandId ?? null);
+        const original    = brands.find(b => b.id === editingBrand.id);
+        const nameChanged = name !== original?.name;
 
-        if (nameChanged || mergeChanged) {
-          const payload = {};
-          if (nameChanged)  payload.name = name;
-          if (mergeChanged) payload.salespersonPrimaryBrandId = mergePrimaryId;
-
-          await api.put(`/brands/${editingBrand.id}`, payload);
-          setBrands(prev => prev.map(b => b.id === editingBrand.id
-            ? { ...b, ...(nameChanged ? { name } : {}), salespersonPrimaryBrandId: mergePrimaryId }
-            : b
-          ));
-
-          if (nameChanged && mergeChanged) {
-            notify(`Brand renamed and salesperson grouping updated`, 'success');
-          } else if (nameChanged) {
-            notify(`Brand renamed to "${name}"`, 'success');
-          } else {
-            notify(mergePrimaryId
-              ? `Brand will now appear merged under "${brands.find(b => b.id === mergePrimaryId)?.name}" in salesperson view`
-              : 'Brand is now standalone in salesperson view',
-              'success'
-            );
-          }
+        if (nameChanged) {
+          await api.put(`/brands/${editingBrand.id}`, { name });
+          setBrands(prev => prev.map(b => b.id === editingBrand.id ? { ...b, name } : b));
+          notify(`Brand renamed to "${name}"`, 'success');
         }
         closeModal();
       } else {
@@ -207,12 +145,12 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                     <li key={b.id} className="flex items-center gap-3 px-5 py-3">
                       <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.dot}`} />
                       <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
-                      {isAdmin && (
+                      {isSuperAdmin && (
                         <button
                           type="button"
                           onClick={() => openEdit(b)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-                          title={isSuperAdmin ? 'Rename / merge brand' : 'Merge brand'}
+                          title="Rename brand"
                         >
                           <Pencil size={13} />
                         </button>
@@ -228,9 +166,9 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                 )}
               </ul>
 
-              {isAdmin && brands.length > 0 && (
+              {isSuperAdmin && brands.length > 0 && (
                 <p className="px-5 py-2.5 text-[10px] text-slate-400 border-t border-slate-100">
-                  {isSuperAdmin ? 'Renaming a brand updates its navigation link — old bookmarks may break.' : 'Use the edit button to configure salesperson view grouping.'}
+                  Renaming a brand updates its navigation link — old bookmarks may break.
                 </p>
               )}
             </div>
@@ -264,70 +202,19 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
             </div>
 
             <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
-              {/* Name field — only shown to superadmin (rename requires superadmin) */}
-              {(!editingBrand || isSuperAdmin) && (
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Brand Name <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    autoFocus
-                    required
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    placeholder="e.g. Amul, Nandini, Heritage"
-                    className="ddm-input"
-                  />
-                </div>
-              )}
-
-              {/* Merge under brand — edit mode only, hidden if this brand is already a primary */}
-              {editingBrand && !brands.some(b => b.salespersonPrimaryBrandId === editingBrand.id) && (
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Salesperson View — Merge Under Brand
-                  </label>
-                  {loadingCandidates ? (
-                    <p className="text-[11px] text-slate-400 py-2">Checking product compatibility…</p>
-                  ) : mergeCandidates.length === 0 && editingBrand.salespersonPrimaryBrandId == null ? (
-                    <p className="text-[11px] text-slate-400 py-2">
-                      No other brand has a matching product set — only brands with identical products can be merged.
-                    </p>
-                  ) : (
-                    <>
-                      <select
-                        value={mergePrimaryId ?? ''}
-                        onChange={e => setMergePrimaryId(e.target.value ? Number(e.target.value) : null)}
-                        className="ddm-input"
-                      >
-                        <option value="">(standalone — show separately)</option>
-                        {/* Always include the currently-merged primary so its option is visible even if
-                            it didn't pass the compatibility check (needed for the unmerge case). */}
-                        {editingBrand.salespersonPrimaryBrandId != null &&
-                          !mergeCandidates.some(c => c.id === editingBrand.salespersonPrimaryBrandId) && (
-                            (() => {
-                              const current = brands.find(b => b.id === editingBrand.salespersonPrimaryBrandId);
-                              return current
-                                ? <option key={current.id} value={current.id}>{current.name}</option>
-                                : null;
-                            })()
-                          )
-                        }
-                        {mergeCandidates.map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
-                      {mergePrimaryId && (
-                        <p className="mt-1.5 text-[11px] text-slate-400">
-                          In the salesman dispatch screen, this brand's products will appear merged under{' '}
-                          <strong>{brands.find(b => b.id === mergePrimaryId)?.name}</strong>.
-                          Quantities will be split based on available stock.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Brand Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  autoFocus
+                  required
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder="e.g. Amul, Nandini, Heritage"
+                  className="ddm-input"
+                />
+              </div>
 
               {/* Copy products — only shown in add mode when there are existing brands */}
               {!editingBrand && brands.length > 0 && (

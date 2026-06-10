@@ -257,23 +257,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
-// Returns { productId: totalReceivedQty } for a given date — used by salesman
-// dispatch UI to split quantities across merged brands proportionally.
-const getStockReceived = asyncHandler(async (req, res) => {
-  const { date } = req.query;
-  if (!date) throw new AppError('date query param is required', 400);
-
-  const receipts = await prisma.stockReceipt.groupBy({
-    by: ['productId'],
-    where: { receiptDate: new Date(date) },
-    _sum: { quantity: true },
-  });
-
-  const data = Object.fromEntries(
-    receipts.map(r => [r.productId, Number(r._sum.quantity ?? 0)])
-  );
-
-  res.json({ success: true, data });
-});
-
-module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, remove, getStockReceived };
+module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, remove };

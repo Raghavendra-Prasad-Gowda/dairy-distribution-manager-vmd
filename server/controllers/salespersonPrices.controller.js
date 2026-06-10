@@ -23,15 +23,7 @@ const getPrices = asyncHandler(async (req, res) => {
       where: { isActive: true, showInStockReceipt: true, ...(isSalesman ? { salespersonEnabled: true } : {}) },
       include: {
         brand: {
-          select: {
-            id: true,
-            name: true,
-            salespersonDisplayOrder: true,
-            salespersonPrimaryBrandId: true,
-            salespersonPrimaryBrand: {
-              select: { id: true, name: true, salespersonDisplayOrder: true },
-            },
-          },
+          select: { id: true, name: true, salespersonDisplayOrder: true },
         },
       },
       orderBy: [
@@ -80,32 +72,11 @@ const getPrices = asyncHandler(async (req, res) => {
     catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
   }
 
-  // Salesman: show individually-enabled products plus auto-include products from
-  // secondary brands that are merged under a primary brand this salesman can see.
-  // This ensures merged-brand split dispatch works without requiring the admin to
-  // manually enable each secondary brand's products per salesperson.
-  let visibleProducts;
-  if (isSalesman) {
-    const individuallyEnabled = products.filter(p => enabledMap[p.id] ?? false);
-
-    // Primary brand IDs where this salesman has at least one individually-enabled product.
-    const enabledPrimaryBrandIds = new Set(
-      individuallyEnabled
-        .filter(p => p.brand.salespersonPrimaryBrandId == null)
-        .map(p => p.brandId)
-    );
-
-    // Include secondary-brand products merged under those primaries (not already enabled).
-    const autoIncluded = products.filter(p =>
-      p.brand.salespersonPrimaryBrandId != null &&
-      enabledPrimaryBrandIds.has(p.brand.salespersonPrimaryBrandId) &&
-      !(enabledMap[p.id] ?? false)
-    );
-
-    visibleProducts = [...individuallyEnabled, ...autoIncluded];
-  } else {
-    visibleProducts = products;
-  }
+  // Salesman: only show products explicitly enabled for them (isEnabled=true).
+  // No SalespersonProduct row defaults to hidden (false) for salesmen.
+  const visibleProducts = isSalesman
+    ? products.filter(p => enabledMap[p.id] ?? false)
+    : products;
 
   const result = visibleProducts.map((p) => ({
     productId:               p.id,
@@ -113,9 +84,6 @@ const getPrices = asyncHandler(async (req, res) => {
     brandId:                 p.brandId,
     brandName:               p.brand.name,
     brandDisplayOrder:       p.brand.salespersonDisplayOrder,
-    brandPrimaryId:          p.brand.salespersonPrimaryBrandId ?? null,
-    brandPrimaryName:        p.brand.salespersonPrimaryBrand?.name ?? null,
-    brandPrimaryOrder:       p.brand.salespersonPrimaryBrand?.salespersonDisplayOrder ?? null,
     displayOrder:            p.salespersonDisplayOrder,
     category:                p.category,
     categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
