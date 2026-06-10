@@ -24,7 +24,9 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [editingBrand, setEditingBrand] = useState(null); // null = add mode
   const [formName, setFormName]           = useState('');
   const [copyFromId, setCopyFromId]       = useState(null);
-  const [mergePrimaryId, setMergePrimaryId] = useState(null);
+  const [mergePrimaryId, setMergePrimaryId]   = useState(null);
+  const [mergeCandidates, setMergeCandidates] = useState([]); // brands eligible as merge targets
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -41,12 +43,48 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setIsModalOpen(true);
   };
 
-  const openEdit = (b) => {
+  const openEdit = async (b) => {
     setEditingBrand(b);
     setFormName(b.name);
     setCopyFromId(null);
     setMergePrimaryId(b.salespersonPrimaryBrandId ?? null);
+    setMergeCandidates([]);
     setIsModalOpen(true);
+    setLoadingCandidates(true);
+    try {
+      const res = await api.get('/products');
+      const allProducts = res.data.data ?? [];
+
+      // Build a set of active product names per brand.
+      const namesByBrand = {};
+      for (const p of allProducts) {
+        if (!namesByBrand[p.brandId]) namesByBrand[p.brandId] = new Set();
+        namesByBrand[p.brandId].add(p.name.trim().toLowerCase());
+      }
+
+      const currentNames = namesByBrand[b.id] ?? new Set();
+
+      // A brand qualifies as a merge candidate when ALL products of the
+      // smaller brand also exist in the larger brand — i.e. one is a subset
+      // of the other. This ensures only brands with identical (or copied)
+      // product catalogs can be merged.
+      const eligible = brands.filter(brand => {
+        if (brand.id === b.id) return false;
+        if (brand.salespersonPrimaryBrandId != null) return false; // already secondary
+        const otherNames = namesByBrand[brand.id] ?? new Set();
+        if (currentNames.size === 0 || otherNames.size === 0) return false;
+        const smaller = currentNames.size <= otherNames.size ? currentNames : otherNames;
+        const larger  = currentNames.size <= otherNames.size ? otherNames  : currentNames;
+        return [...smaller].every(n => larger.has(n));
+      });
+
+      setMergeCandidates(eligible);
+    } catch {
+      // If product load fails, show no candidates (safer than showing all).
+      setMergeCandidates([]);
+    } finally {
+      setLoadingCandidates(false);
+    }
   };
 
   const closeModal = () => {
@@ -55,6 +93,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setFormName('');
     setCopyFromId(null);
     setMergePrimaryId(null);
+    setMergeCandidates([]);
   };
 
   // ── Add brand ─────────────────────────────────────────────────────────────
@@ -242,31 +281,50 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                 </div>
               )}
 
-              {/* Merge under brand — edit mode only */}
-              {editingBrand && (
+              {/* Merge under brand — edit mode only, hidden if this brand is already a primary */}
+              {editingBrand && !brands.some(b => b.salespersonPrimaryBrandId === editingBrand.id) && (
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Salesperson View — Merge Under Brand
                   </label>
-                  <select
-                    value={mergePrimaryId ?? ''}
-                    onChange={e => setMergePrimaryId(e.target.value ? Number(e.target.value) : null)}
-                    className="ddm-input"
-                  >
-                    <option value="">(standalone — show separately)</option>
-                    {brands
-                      .filter(b => b.id !== editingBrand.id && !b.salespersonPrimaryBrandId)
-                      .map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))
-                    }
-                  </select>
-                  {mergePrimaryId && (
-                    <p className="mt-1.5 text-[11px] text-slate-400">
-                      In the salesman dispatch screen, this brand's products will appear merged under{' '}
-                      <strong>{brands.find(b => b.id === mergePrimaryId)?.name}</strong>.
-                      Quantities will be split based on available stock.
+                  {loadingCandidates ? (
+                    <p className="text-[11px] text-slate-400 py-2">Checking product compatibility…</p>
+                  ) : mergeCandidates.length === 0 && editingBrand.salespersonPrimaryBrandId == null ? (
+                    <p className="text-[11px] text-slate-400 py-2">
+                      No other brand has a matching product set — only brands with identical products can be merged.
                     </p>
+                  ) : (
+                    <>
+                      <select
+                        value={mergePrimaryId ?? ''}
+                        onChange={e => setMergePrimaryId(e.target.value ? Number(e.target.value) : null)}
+                        className="ddm-input"
+                      >
+                        <option value="">(standalone — show separately)</option>
+                        {/* Always include the currently-merged primary so its option is visible even if
+                            it didn't pass the compatibility check (needed for the unmerge case). */}
+                        {editingBrand.salespersonPrimaryBrandId != null &&
+                          !mergeCandidates.some(c => c.id === editingBrand.salespersonPrimaryBrandId) && (
+                            (() => {
+                              const current = brands.find(b => b.id === editingBrand.salespersonPrimaryBrandId);
+                              return current
+                                ? <option key={current.id} value={current.id}>{current.name}</option>
+                                : null;
+                            })()
+                          )
+                        }
+                        {mergeCandidates.map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                      {mergePrimaryId && (
+                        <p className="mt-1.5 text-[11px] text-slate-400">
+                          In the salesman dispatch screen, this brand's products will appear merged under{' '}
+                          <strong>{brands.find(b => b.id === mergePrimaryId)?.name}</strong>.
+                          Quantities will be split based on available stock.
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
