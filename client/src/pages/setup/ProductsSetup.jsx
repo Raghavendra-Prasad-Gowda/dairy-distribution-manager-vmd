@@ -157,7 +157,7 @@ export default function ProductsSetup() {
     setConfirmation({
       isOpen: true,
       title: 'Archive Product',
-      message: `Archive "${p.name}"? It will be hidden from daily operations but all historical data is preserved. You can restore it later.`,
+      message: `Archive "${p.name}"? It will be permanently hidden from daily operations. Historical data is preserved for reports.`,
       action: () => archiveProduct(p),
       isDanger: true,
     });
