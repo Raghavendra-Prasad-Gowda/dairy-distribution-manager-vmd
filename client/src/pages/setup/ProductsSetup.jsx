@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Archive, RotateCcw, Search, X, Package } from 'lucide-react';
+import { Plus, Edit2, Archive, Search, X, Package } from 'lucide-react';
 import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -180,18 +180,6 @@ export default function ProductsSetup() {
     }
   };
 
-  const restoreProduct = async (p) => {
-    setSubmitting(true);
-    try {
-      await api.put(`/products/${p.id}`, { isActive: true });
-      notify('Product restored', 'success');
-      fetchAll();
-    } catch {
-      notify('Failed to restore product', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const toggleShowInReceipt = async (p) => {
     try {
@@ -391,9 +379,7 @@ export default function ProductsSetup() {
                                 </button>
                               </>
                             ) : (
-                              <button onClick={() => restoreProduct(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Restore">
-                                <RotateCcw className="w-4 h-4" />
-                              </button>
+                              <span className="text-xs text-slate-400 italic">Archived</span>
                             )}
                           </div>
                         </td>
