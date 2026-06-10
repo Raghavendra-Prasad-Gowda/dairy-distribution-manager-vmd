@@ -21,7 +21,19 @@ const getPrices = asyncHandler(async (req, res) => {
   const [products, enabledRows, priceRows, categories] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, showInStockReceipt: true, ...(isSalesman ? { salespersonEnabled: true } : {}) },
-      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
+      include: {
+        brand: {
+          select: {
+            id: true,
+            name: true,
+            salespersonDisplayOrder: true,
+            salespersonPrimaryBrandId: true,
+            salespersonPrimaryBrand: {
+              select: { id: true, name: true, salespersonDisplayOrder: true },
+            },
+          },
+        },
+      },
       orderBy: [
         { brand: { salespersonDisplayOrder: 'asc' } },
         { salespersonDisplayOrder: 'asc' },
@@ -80,6 +92,9 @@ const getPrices = asyncHandler(async (req, res) => {
     brandId:                 p.brandId,
     brandName:               p.brand.name,
     brandDisplayOrder:       p.brand.salespersonDisplayOrder,
+    brandPrimaryId:          p.brand.salespersonPrimaryBrandId ?? null,
+    brandPrimaryName:        p.brand.salespersonPrimaryBrand?.name ?? null,
+    brandPrimaryOrder:       p.brand.salespersonPrimaryBrand?.salespersonDisplayOrder ?? null,
     displayOrder:            p.salespersonDisplayOrder,
     category:                p.category,
     categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,

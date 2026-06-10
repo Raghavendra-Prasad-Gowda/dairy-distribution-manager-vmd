@@ -129,6 +129,7 @@ export default function SalespersonStockEntry() {
   const [date, setDate]               = useState(getIndiaDate());
   const [products, setProducts]       = useState([]);
   const [qty, setQty]                 = useState({});
+  const [stockAvailability, setStockAvailability] = useState({});
   const [dispatch, setDispatch]       = useState(null);
   const [balance, setBalance]         = useState({ opening: 0, stockGiven: 0, paid: 0, closing: 0 });
   const [collapsedBrands, setCollapsedBrands] = useState({});
@@ -142,27 +143,50 @@ export default function SalespersonStockEntry() {
   const today = getIndiaDate();
   const salespersonId = user?.salespersonId;
 
-  // ─── Load products + dispatch ─────────────────────────────────────────────
+  // ─── Load products + dispatch + stock availability ────────────────────────
   useEffect(() => {
     if (!salespersonId) return;
     setLoading(true);
     Promise.all([
       api.get(`/salespeople/${salespersonId}/prices`),
       api.get(`/dispatches?date=${date}`),
+      api.get(`/dispatches/stock-received?date=${date}`),
     ])
-      .then(([priceRes, dispatchRes]) => {
+      .then(([priceRes, dispatchRes, stockRes]) => {
         const priceItems    = priceRes.data.data ?? [];
         const todayDispatch = (dispatchRes.data.data ?? [])[0] ?? null;
         setProducts(priceItems);
         setDispatch(todayDispatch);
+        setStockAvailability(stockRes.data.data ?? {});
+
         const qtyMap = {};
         for (const item of todayDispatch?.items ?? []) {
           qtyMap[item.productId] = String(item.quantity);
         }
+        // Merge secondary-brand quantities into the primary product's key so the
+        // salesman sees one combined total in the merged row (EC-1 fix).
+        for (const p of priceItems) {
+          if (p.brandPrimaryId != null && qtyMap[p.productId] !== undefined) {
+            const primary = priceItems.find(x =>
+              x.brandPrimaryId == null &&
+              x.brandId === p.brandPrimaryId &&
+              x.productName === p.productName &&
+              (x.category || '') === (p.category || '')
+            );
+            if (primary) {
+              qtyMap[primary.productId] = String(
+                (parseFloat(qtyMap[primary.productId] || 0)) + parseFloat(qtyMap[p.productId])
+              );
+              delete qtyMap[p.productId];
+            }
+          }
+        }
         setQty(qtyMap);
-        const allBrandIds = [...new Set(priceItems.map(p => p.brandId))];
-        setCollapsedBrands(Object.fromEntries(allBrandIds.map(id => [id, true])));
-        const allCatKeys = [...new Set(priceItems.map(p => `${p.brandId}:${p.category || 'General'}`))];
+
+        // Use effectiveBrandId (primary brand ID for merged brands) for collapse keys (EC-2 fix).
+        const allEffectiveBrandIds = [...new Set(priceItems.map(p => p.brandPrimaryId ?? p.brandId))];
+        setCollapsedBrands(Object.fromEntries(allEffectiveBrandIds.map(id => [id, true])));
+        const allCatKeys = [...new Set(priceItems.map(p => `${p.brandPrimaryId ?? p.brandId}:${p.category || 'General'}`))];
         setCollapsedCats(Object.fromEntries(allCatKeys.map(k => [k, true])));
       })
       .catch(() => notify('Failed to load products', 'error'))
@@ -192,29 +216,49 @@ export default function SalespersonStockEntry() {
       ? products.filter(p =>
           p.productName.toLowerCase().includes(q) ||
           (p.category ?? '').toLowerCase().includes(q) ||
-          p.brandName.toLowerCase().includes(q)
+          (p.brandPrimaryName ?? p.brandName).toLowerCase().includes(q)
         )
       : products;
 
+    // Sort so primary-brand products come first; when a primary and secondary
+    // share the same name, the primary's row wins deduplication.
+    const sorted = [...base].sort((a, b) => (a.brandPrimaryId ? 1 : 0) - (b.brandPrimaryId ? 1 : 0));
+
     const brandMap = {};
-    for (const p of base) {
-      if (!brandMap[p.brandId]) {
-        brandMap[p.brandId] = {
-          brandId: p.brandId,
-          brandName: p.brandName,
-          brandDisplayOrder: p.brandDisplayOrder ?? 0,
+    const seenKeys = {}; // { effectiveBrandId: Set<"category:productName"> }
+
+    for (const p of sorted) {
+      const effectiveBrandId   = p.brandPrimaryId ?? p.brandId;
+      const effectiveBrandName = p.brandPrimaryName ?? p.brandName;
+      const effectiveOrder     = p.brandPrimaryId != null
+        ? (p.brandPrimaryOrder ?? 0)
+        : (p.brandDisplayOrder ?? 0);
+
+      if (!brandMap[effectiveBrandId]) {
+        brandMap[effectiveBrandId] = {
+          brandId: effectiveBrandId,
+          brandName: effectiveBrandName,
+          brandDisplayOrder: effectiveOrder,
           categories: {},
         };
+        seenKeys[effectiveBrandId] = new Set();
       }
-      const catKey = p.category || 'General';
-      if (!brandMap[p.brandId].categories[catKey]) {
-        brandMap[p.brandId].categories[catKey] = {
+
+      const catKey     = p.category || 'General';
+      const productKey = `${catKey}:${p.productName}`;
+
+      // Skip secondary-brand duplicates — primary brand's product already added.
+      if (seenKeys[effectiveBrandId].has(productKey)) continue;
+      seenKeys[effectiveBrandId].add(productKey);
+
+      if (!brandMap[effectiveBrandId].categories[catKey]) {
+        brandMap[effectiveBrandId].categories[catKey] = {
           name: catKey,
           categoryDisplayOrder: p.categoryDisplayOrder ?? 999,
           products: [],
         };
       }
-      brandMap[p.brandId].categories[catKey].products.push(p);
+      brandMap[effectiveBrandId].categories[catKey].products.push(p);
     }
 
     for (const brand of Object.values(brandMap)) {
@@ -236,6 +280,31 @@ export default function SalespersonStockEntry() {
     ),
     [hierarchy]
   );
+
+  // Maps each primary productId to an ordered array of all productIds in its
+  // merge group: [primaryId, secondary1Id, secondary2Id, ...].
+  // Products not in a merge group are absent from this map.
+  const mergedGroupMap = useMemo(() => {
+    const result = {};
+    const primaries   = products.filter(p => p.brandPrimaryId == null);
+    const secondaries = products.filter(p => p.brandPrimaryId != null);
+
+    for (const primary of primaries) {
+      const matches = secondaries
+        .filter(sec =>
+          sec.brandPrimaryId === primary.brandId &&
+          sec.productName === primary.productName &&
+          (sec.category || '') === (primary.category || '')
+        )
+        .sort((a, b) => (a.brandDisplayOrder ?? 0) - (b.brandDisplayOrder ?? 0));
+
+      if (matches.length > 0) {
+        const group = [primary.productId, ...matches.map(s => s.productId)];
+        for (const id of group) result[id] = group;
+      }
+    }
+    return result;
+  }, [products]);
 
   // ─── Per-brand totals ──────────────────────────────────────────────────────
   const brandTotals = useMemo(() => {
@@ -300,9 +369,9 @@ export default function SalespersonStockEntry() {
     setCollapsedCats({});
   };
   const handleCollapseAll = () => {
-    const brandIds = [...new Set(products.map(p => p.brandId))];
+    const brandIds = [...new Set(products.map(p => p.brandPrimaryId ?? p.brandId))];
     setCollapsedBrands(Object.fromEntries(brandIds.map(id => [id, true])));
-    const catKeys = [...new Set(products.map(p => `${p.brandId}:${p.category || 'General'}`))];
+    const catKeys = [...new Set(products.map(p => `${p.brandPrimaryId ?? p.brandId}:${p.category || 'General'}`))];
     setCollapsedCats(Object.fromEntries(catKeys.map(k => [k, true])));
   };
 
@@ -323,11 +392,61 @@ export default function SalespersonStockEntry() {
     });
   }
 
+  // ─── Build dispatch items (handles merged-brand auto-split) ──────────────
+  const buildDispatchItems = () => {
+    const items = [];
+    const processed = new Set();
+
+    for (const p of products) {
+      if (processed.has(p.productId)) continue;
+
+      const group  = mergedGroupMap[p.productId];
+      // For secondary products in a group, qty lives under the primary's key.
+      const primaryId = group ? group[0] : p.productId;
+      const rawQty    = parseFloat(qty[primaryId]) || 0;
+      if (rawQty <= 0) continue;
+
+      // Only process a merge group once — when we reach the primary.
+      if (group && p.productId !== primaryId) continue;
+
+      if (group && group.length > 1) {
+        let remaining = rawQty;
+        for (const productId of group) {
+          if (remaining <= 0) break;
+          const available = stockAvailability[productId] !== undefined
+            ? Number(stockAvailability[productId])
+            : Infinity;
+          const take = Math.min(remaining, available);
+          if (take > 0) {
+            const prod = products.find(x => x.productId === productId);
+            items.push({ productId, quantity: take, unitPrice: prod?.sellingPrice ?? 0 });
+            processed.add(productId);
+            remaining -= take;
+          }
+        }
+        // Remaining qty (exceeds total available stock) goes to the last brand.
+        if (remaining > 0) {
+          const lastId   = group[group.length - 1];
+          const existing = items.find(i => i.productId === lastId);
+          if (existing) {
+            existing.quantity += remaining;
+          } else {
+            const prod = products.find(x => x.productId === lastId);
+            items.push({ productId: lastId, quantity: remaining, unitPrice: prod?.sellingPrice ?? 0 });
+          }
+        }
+      } else {
+        items.push({ productId: p.productId, quantity: rawQty, unitPrice: p.sellingPrice ?? 0 });
+        processed.add(p.productId);
+      }
+    }
+
+    return items;
+  };
+
   // ─── Save / Submit ─────────────────────────────────────────────────────────
   const handleSave = async () => {
-    const items = products
-      .map(p => ({ productId: p.productId, quantity: parseFloat(qty[p.productId]) || 0, unitPrice: p.sellingPrice ?? 0 }))
-      .filter(i => i.quantity > 0);
+    const items = buildDispatchItems();
     // Empty items + no existing draft = nothing to do
     if (!items.length && !dispatch) {
       notify('Enter at least one quantity before saving.', 'warning');
@@ -347,9 +466,7 @@ export default function SalespersonStockEntry() {
   };
 
   const handleSaveAndSubmit = async () => {
-    const items = products
-      .map(p => ({ productId: p.productId, quantity: parseFloat(qty[p.productId]) || 0, unitPrice: p.sellingPrice ?? 0 }))
-      .filter(i => i.quantity > 0);
+    const items = buildDispatchItems();
     if (!items.length) { notify('Enter at least one quantity before submitting.', 'warning'); return; }
     setSubmitting(true);
     try {
