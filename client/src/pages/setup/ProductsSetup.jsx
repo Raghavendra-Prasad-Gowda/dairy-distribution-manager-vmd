@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, X, Package } from 'lucide-react';
+import { Plus, Edit2, Archive, RotateCcw, Search, X, Package } from 'lucide-react';
 import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -35,6 +35,7 @@ export default function ProductsSetup() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [form, setForm]               = useState(EMPTY_FORM);
   const [confirmation, setConfirmation] = useState({ isOpen: false });
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     api.get('/brands')
@@ -55,7 +56,7 @@ export default function ProductsSetup() {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
-        api.get(`/products?brandId=${activeBrandId}`),
+        api.get(`/products?brandId=${activeBrandId}&all=true`),
         api.get(`/categories?brandId=${activeBrandId}`),
       ]);
       setProducts(prodRes.data.data);
@@ -67,12 +68,15 @@ export default function ProductsSetup() {
     }
   }
 
+  const archivedCount = useMemo(() => products.filter(p => !p.isActive).length, [products]);
+
   // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const viewProducts = products.filter(p => showArchived ? !p.isActive : p.isActive);
     const filtered = q
-      ? products.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
-      : products;
+      ? viewProducts.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
+      : viewProducts;
 
     const grouped = filtered.reduce((acc, p) => {
       const key = p.category || 'Uncategorised';
@@ -153,11 +157,11 @@ export default function ProductsSetup() {
     }
   };
 
-  const confirmDelete = (p) => {
+  const confirmArchive = (p) => {
     setConfirmation({
       isOpen: true,
-      title: 'Delete Product',
-      message: `Delete "${p.name}"? It will be removed from daily operations but historical data is kept.`,
+      title: 'Archive Product',
+      message: `Archive "${p.name}"? It will be hidden from daily operations but all historical data is preserved. You can restore it later.`,
       action: () => archiveProduct(p),
       isDanger: true,
     });
@@ -167,10 +171,23 @@ export default function ProductsSetup() {
     setSubmitting(true);
     try {
       await api.put(`/products/${p.id}`, { isActive: false });
-      notify('Product deleted', 'success');
+      notify('Product archived', 'success');
       fetchAll();
     } catch {
-      notify('Failed to delete', 'error');
+      notify('Failed to archive product', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const restoreProduct = async (p) => {
+    setSubmitting(true);
+    try {
+      await api.put(`/products/${p.id}`, { isActive: true });
+      notify('Product restored', 'success');
+      fetchAll();
+    } catch {
+      notify('Failed to restore product', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -213,9 +230,9 @@ export default function ProductsSetup() {
         <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={id => setActive(id)} />
       )}
 
-      {/* Search */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="relative max-w-sm">
+      {/* Search + Archive toggle */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[180px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
@@ -230,6 +247,22 @@ export default function ProductsSetup() {
             </button>
           )}
         </div>
+        <button
+          onClick={() => { setShowArchived(v => !v); setSearch(''); setCurrentPage(1); }}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border transition ${
+            showArchived
+              ? 'bg-amber-50 border-amber-300 text-amber-700'
+              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+          }`}
+        >
+          <Archive size={13} />
+          Archived
+          {archivedCount > 0 && (
+            <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showArchived ? 'bg-amber-200 text-amber-800' : 'bg-slate-100 text-slate-500'}`}>
+              {archivedCount}
+            </span>
+          )}
+        </button>
       </div>
 
       <Pagination
@@ -265,7 +298,7 @@ export default function ProductsSetup() {
               ) : pageGroups.length === 0 ? (
                 <tr>
                   <td colSpan={13} className="px-6 py-14 text-center text-slate-400 text-sm">
-                    {search ? 'No products match your search.' : `No products yet for ${activeBrand?.name}. Click Add Product.`}
+                    {search ? 'No products match your search.' : showArchived ? `No archived products for ${activeBrand?.name}.` : `No products yet for ${activeBrand?.name}. Click Add Product.`}
                   </td>
                 </tr>
               ) : (
@@ -277,8 +310,10 @@ export default function ProductsSetup() {
                       </td>
                     </tr>
                     {items.map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
+                      <tr key={p.id} className={`transition-colors ${p.isActive ? 'hover:bg-slate-50' : 'bg-slate-50 opacity-60'}`}>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-800">
+                          <span className={p.isActive ? '' : 'line-through text-slate-400'}>{p.name}</span>
+                        </td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">{p.category || '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-500 text-center">
                           {p.unitType === 'ml' ? `${p.unitSize ?? '?'} ml` : p.unitType === 'gram' ? `${p.unitSize ?? '?'} g` : 'piece'}
@@ -346,12 +381,20 @@ export default function ProductsSetup() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex items-center justify-center gap-3">
-                            <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => confirmDelete(p)} className="text-red-500 hover:text-red-700 transition-colors" title="Delete">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {p.isActive ? (
+                              <>
+                                <button onClick={() => openEdit(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Edit">
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => confirmArchive(p)} className="text-amber-500 hover:text-amber-700 transition-colors" title="Archive">
+                                  <Archive className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <button onClick={() => restoreProduct(p)} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Restore">
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -574,7 +617,7 @@ export default function ProductsSetup() {
         title={confirmation.title}
         message={confirmation.message}
         isDanger={confirmation.isDanger}
-        confirmText="Delete"
+        confirmText="Archive"
       />
     </div>
     </div>
