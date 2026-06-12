@@ -18,6 +18,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]         = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,6 +65,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formName.trim()) return;
+    setBusyMsg(editingCat ? 'Updating category…' : 'Adding category…');
     setSubmitting(true);
     try {
       if (editingCat) {
@@ -93,6 +95,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
   };
 
   const handleDelete = async (id) => {
+    setBusyMsg('Deleting category…');
     setSubmitting(true);
     try {
       await api.delete(`/categories/${id}`);
@@ -118,7 +121,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     <div className="flex flex-col h-full">
 
       {/* Loading overlay */}
-      <LoadingOverlay open={submitting} message="Processing…" />
+      <LoadingOverlay open={submitting} message={busyMsg} />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (

@@ -11,7 +11,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
   const [products, enabledRows] = await Promise.all([
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true },
+      where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
       include: { brand: { select: { id: true, name: true } } },
       orderBy: [{ brandId: 'asc' }, { salespersonDisplayOrder: 'asc' }, { name: 'asc' }],
     }),

@@ -18,6 +18,8 @@ model Brand {
   depositEnabled    Boolean  @default(false) @map("deposit_enabled")
   depositPerLitre   Decimal  @default(0) @db.Decimal(10, 4) @map("deposit_per_litre")
   depositCalcMethod String   @default("litre") @map("deposit_calc_method")
+  isActive          Boolean  @default(true) @map("is_active")
+  isArchived        Boolean  @default(false) @map("is_archived")
   createdAt         DateTime @default(now()) @map("created_at")
 
   products      Product[]

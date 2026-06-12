@@ -17,6 +17,7 @@ export default function DairyPriceSetup() {
   const [products, setProducts]   = useState([]);
   const [loading, setLoading]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]       = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function DairyPriceSetup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setBusyMsg('Updating price…');
     setSubmitting(true);
     try {
       await api.put(`/products/${editingProduct.id}`, {
@@ -89,6 +91,7 @@ export default function DairyPriceSetup() {
   };
 
   const archiveProduct = async (p) => {
+    setBusyMsg('Deleting product…');
     setSubmitting(true);
     try {
       await api.put(`/products/${p.id}`, { isActive: false });
@@ -148,7 +151,7 @@ export default function DairyPriceSetup() {
   return (
     <div className="p-5 md:p-8 max-w-3xl mx-auto space-y-5">
 
-      <LoadingOverlay open={submitting} message="Processing…" />
+      <LoadingOverlay open={submitting} message={busyMsg} />
 
       {/* Header */}
       <div>

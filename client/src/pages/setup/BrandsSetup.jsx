@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Store, Plus, Pencil, X } from 'lucide-react';
+import { Store, Plus, Pencil, X, EyeOff, Eye, Archive } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { getBrandColors } from '../../utils/constants';
@@ -17,16 +18,19 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [brands, setBrands]       = useState([]);
   const [loading, setLoading]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [busyMsg, setBusyMsg]       = useState('');
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null); // null = add mode
   const [formName, setFormName]         = useState('');
   const [copyFromId, setCopyFromId]     = useState(null);
+  const [confirmToggle, setConfirmToggle] = useState(null); // brand pending enable/disable
+  const [confirmArchive, setConfirmArchive] = useState(null); // brand pending archive
 
   useEffect(() => {
     setLoading(true);
-    api.get('/brands')
+    api.get('/brands?includeInactive=true')
       .then(r => setBrands(r.data.data ?? []))
       .catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
@@ -58,6 +62,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     e.preventDefault();
     const name = formName.trim();
     if (!name) return;
+    setBusyMsg(editingBrand ? 'Renaming brand…' : 'Adding brand…');
     setSubmitting(true);
 
     try {
@@ -100,11 +105,42 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     }
   };
 
+  // ── Enable / Disable brand ────────────────────────────────────────────────
+  const handleToggleActive = async (b) => {
+    const nextActive = !b.isActive;
+    setBusyMsg(nextActive ? 'Enabling brand…' : 'Disabling brand…');
+    setSubmitting(true);
+    try {
+      await api.put(`/brands/${b.id}`, { isActive: nextActive });
+      setBrands(prev => prev.map(x => x.id === b.id ? { ...x, isActive: nextActive } : x));
+      notify(`Brand "${b.name}" ${nextActive ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to update brand', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Archive brand (permanent — no restore from UI) ────────────────────────
+  const handleArchive = async (b) => {
+    setBusyMsg('Archiving brand…');
+    setSubmitting(true);
+    try {
+      await api.put(`/brands/${b.id}`, { isArchived: true });
+      setBrands(prev => prev.filter(x => x.id !== b.id));
+      notify(`Brand "${b.name}" archived`, 'success');
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to archive brand', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
 
       {/* Saving overlay */}
-      <LoadingOverlay open={submitting} message={editingBrand ? 'Renaming brand…' : 'Adding brand…'} />
+      <LoadingOverlay open={submitting} message={busyMsg} />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (
@@ -141,11 +177,19 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
               <ul className="divide-y divide-slate-100">
                 {brands.map((b, index) => {
                   const colors = getBrandColors(b.name, index);
+                  const disabled = b.isActive === false;
                   return (
-                    <li key={b.id} className="flex items-center gap-3 px-5 py-3">
+                    <li key={b.id} className={`flex items-center gap-3 px-5 py-3 ${disabled ? 'opacity-50' : ''}`}>
                       <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.dot}`} />
-                      <span className="flex-1 text-sm font-medium text-slate-700">{b.name}</span>
-                      {isSuperAdmin && (
+                      <span className={`flex-1 text-sm font-medium ${disabled ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                        {b.name}
+                      </span>
+                      {disabled && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+                          Disabled
+                        </span>
+                      )}
+                      {isSuperAdmin && !disabled && (
                         <button
                           type="button"
                           onClick={() => openEdit(b)}
@@ -153,6 +197,30 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                           title="Rename brand"
                         >
                           <Pencil size={13} />
+                        </button>
+                      )}
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmToggle(b)}
+                          className={`p-1.5 rounded-lg transition ${
+                            disabled
+                              ? 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                          }`}
+                          title={disabled ? 'Enable brand' : 'Disable brand'}
+                        >
+                          {disabled ? <Eye size={13} /> : <EyeOff size={13} />}
+                        </button>
+                      )}
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmArchive(b)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition"
+                          title="Archive brand"
+                        >
+                          <Archive size={13} />
                         </button>
                       )}
                     </li>
@@ -228,7 +296,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                     className="ddm-input"
                   >
                     <option value="">None (start empty)</option>
-                    {brands.map(b => (
+                    {brands.filter(b => b.isActive !== false).map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -260,6 +328,33 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
           </div>
         </div>
       )}
+
+      {/* ── Enable / Disable confirmation ─────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={!!confirmToggle}
+        onClose={() => setConfirmToggle(null)}
+        onConfirm={() => handleToggleActive(confirmToggle)}
+        title={confirmToggle?.isActive === false ? 'Enable Brand' : 'Disable Brand'}
+        message={
+          confirmToggle?.isActive === false
+            ? `Enable "${confirmToggle?.name}"? It will reappear across the app — stock entry, reports, and salesman views.`
+            : `Disable "${confirmToggle?.name}"? It will be hidden everywhere in the app, including reports. All its data stays safe and reappears if you enable it again.`
+        }
+        confirmText={confirmToggle?.isActive === false ? 'Enable' : 'Disable'}
+        tone={confirmToggle?.isActive === false ? 'success' : 'warning'}
+      />
+
+      {/* ── Archive confirmation ─────────────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={!!confirmArchive}
+        onClose={() => setConfirmArchive(null)}
+        onConfirm={() => handleArchive(confirmArchive)}
+        title="Archive Brand"
+        message={`Archive "${confirmArchive?.name}"? It will be permanently hidden everywhere in the app and cannot be restored. Historical data is preserved in the database.`}
+        confirmText="Archive"
+        tone="warning"
+        icon={Archive}
+      />
     </div>
   );
 }

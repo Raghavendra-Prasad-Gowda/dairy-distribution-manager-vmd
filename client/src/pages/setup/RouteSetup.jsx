@@ -15,6 +15,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   const [routes, setRoutes]         = useState([]);
   const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [busyMsg, setBusyMsg]       = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
   const [formNumber, setFormNumber]   = useState('');
@@ -55,6 +56,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formNumber.trim()) return;
+    setBusyMsg(editingRoute ? 'Updating route…' : 'Adding route…');
     setSubmitting(true);
     try {
       if (editingRoute) {
@@ -84,6 +86,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   };
 
   const handleDelete = async (id) => {
+    setBusyMsg('Deleting route…');
     setSubmitting(true);
     try {
       await api.delete(`/routes/${id}`);
@@ -102,7 +105,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
     <div className="flex flex-col h-full">
 
       {/* Loading overlay */}
-      <LoadingOverlay open={submitting} message="Processing…" />
+      <LoadingOverlay open={submitting} message={busyMsg} />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (
