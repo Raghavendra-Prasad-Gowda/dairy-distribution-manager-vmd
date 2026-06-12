@@ -71,7 +71,7 @@ const getAll = asyncHandler(async (req, res) => {
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
-  const brands = await prisma.brand.findMany({ orderBy: { name: 'asc' } });
+  const brands = await prisma.brand.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
   const balances = await Promise.all(
     brands.map(async (b) => {
       const bal = await getOrBuildBalance(b.id, date);

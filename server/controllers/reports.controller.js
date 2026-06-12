@@ -263,6 +263,7 @@ const outstanding = asyncHandler(async (req, res) => {
   assertAdmin(req);
   const [dairyBalances, spBalances] = await Promise.all([
     prisma.dairyBalance.findMany({
+      where: { brand: { isActive: true } },
       orderBy: { balanceDate: 'desc' },
       distinct: ['brandId'],
       include: { brand: { select: { id: true, name: true } } },
@@ -434,7 +435,7 @@ const dailyDispatch = asyncHandler(async (req, res) => {
       orderBy: { salesperson: { name: 'asc' } },
     }),
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true, salespersonEnabled: true },
+      where: { isActive: true, showInStockReceipt: true, salespersonEnabled: true, brand: { isActive: true } },
       include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
       orderBy: [
         { brand: { salespersonDisplayOrder: 'asc' } },

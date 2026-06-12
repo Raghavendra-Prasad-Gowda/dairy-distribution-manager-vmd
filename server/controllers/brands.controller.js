@@ -4,7 +4,14 @@ const prisma = require('../lib/prisma');
 const AppError = require('../utils/AppError');
 
 const getAll = asyncHandler(async (req, res) => {
-  const brands = await prisma.brand.findMany({ orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] });
+  // Disabled brands are hidden everywhere; only the Brands setup page
+  // requests includeInactive=true so admins can re-enable them.
+  const includeInactive = req.query.includeInactive === 'true'
+    && (req.user.role === 'admin' || req.user.role === 'superadmin');
+  const brands = await prisma.brand.findMany({
+    where: includeInactive ? {} : { isActive: true },
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+  });
   res.json({ success: true, data: brands });
 });
 
@@ -32,6 +39,9 @@ const update = asyncHandler(async (req, res) => {
   if (!data) return;
   if (data.name !== undefined && req.user.role !== 'superadmin') {
     throw new AppError('Only super admins can rename brands.', 403);
+  }
+  if (data.isActive !== undefined && req.user.role !== 'superadmin') {
+    throw new AppError('Only super admins can enable or disable brands.', 403);
   }
   const brand = await prisma.brand.update({ where: { id }, data });
   res.json({ success: true, data: brand });
