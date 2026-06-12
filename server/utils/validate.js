@@ -41,6 +41,7 @@ const schemas = {
     depositEnabled: z.boolean().optional(),
     depositPerLitre: z.number().min(0).optional(),
     isActive:       z.boolean().optional(),
+    isArchived:     z.boolean().optional(),
   }),
 
   // Categories

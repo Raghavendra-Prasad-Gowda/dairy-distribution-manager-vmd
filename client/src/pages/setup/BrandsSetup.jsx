@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Plus, Pencil, X, EyeOff, Eye } from 'lucide-react';
+import { Store, Plus, Pencil, X, EyeOff, Eye, Archive } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -25,6 +25,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [formName, setFormName]         = useState('');
   const [copyFromId, setCopyFromId]     = useState(null);
   const [confirmToggle, setConfirmToggle] = useState(null); // brand pending enable/disable
+  const [confirmArchive, setConfirmArchive] = useState(null); // brand pending archive
 
   useEffect(() => {
     setLoading(true);
@@ -117,6 +118,20 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     }
   };
 
+  // ── Archive brand (permanent — no restore from UI) ────────────────────────
+  const handleArchive = async (b) => {
+    setSubmitting(true);
+    try {
+      await api.put(`/brands/${b.id}`, { isArchived: true });
+      setBrands(prev => prev.filter(x => x.id !== b.id));
+      notify(`Brand "${b.name}" archived`, 'success');
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to archive brand', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
 
@@ -192,6 +207,16 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                           title={disabled ? 'Enable brand' : 'Disable brand'}
                         >
                           {disabled ? <Eye size={13} /> : <EyeOff size={13} />}
+                        </button>
+                      )}
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmArchive(b)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition"
+                          title="Archive brand"
+                        >
+                          <Archive size={13} />
                         </button>
                       )}
                     </li>
@@ -313,6 +338,18 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
         }
         confirmText={confirmToggle?.isActive === false ? 'Enable' : 'Disable'}
         tone={confirmToggle?.isActive === false ? 'success' : 'warning'}
+      />
+
+      {/* ── Archive confirmation ─────────────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={!!confirmArchive}
+        onClose={() => setConfirmArchive(null)}
+        onConfirm={() => handleArchive(confirmArchive)}
+        title="Archive Brand"
+        message={`Archive "${confirmArchive?.name}"? It will be permanently hidden everywhere in the app and cannot be restored. Historical data is preserved in the database.`}
+        confirmText="Archive"
+        tone="warning"
+        icon={Archive}
       />
     </div>
   );
