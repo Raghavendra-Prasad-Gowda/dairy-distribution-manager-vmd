@@ -29,6 +29,7 @@ export default function ProductsSetup() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]         = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -123,6 +124,7 @@ export default function ProductsSetup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setBusyMsg(editingProduct ? 'Updating product…' : 'Adding product…');
     setSubmitting(true);
     const categoryName = categories.find(c => c.id === Number(form.categoryId))?.name ?? null;
     const payload = {
@@ -164,6 +166,7 @@ export default function ProductsSetup() {
   };
 
   const archiveProduct = async (p) => {
+    setBusyMsg('Archiving product…');
     setSubmitting(true);
     try {
       await api.put(`/products/${p.id}`, { isActive: false });
@@ -191,7 +194,7 @@ export default function ProductsSetup() {
   return (
     <div className="flex flex-col h-full">
 
-      <LoadingOverlay open={submitting} message="Processing…" />
+      <LoadingOverlay open={submitting} message={busyMsg} />
 
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">

@@ -122,7 +122,10 @@ export default function AdminUsersSetup() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      <LoadingOverlay open={submitting || saving || deleting} message="Saving…" />
+      <LoadingOverlay
+        open={submitting || saving || deleting}
+        message={deleting ? 'Deleting user…' : submitting ? 'Creating user…' : 'Updating user…'}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">

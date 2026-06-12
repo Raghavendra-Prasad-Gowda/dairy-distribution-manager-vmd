@@ -18,6 +18,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [brands, setBrands]       = useState([]);
   const [loading, setLoading]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [busyMsg, setBusyMsg]       = useState('');
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     e.preventDefault();
     const name = formName.trim();
     if (!name) return;
+    setBusyMsg(editingBrand ? 'Renaming brand…' : 'Adding brand…');
     setSubmitting(true);
 
     try {
@@ -106,6 +108,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // ── Enable / Disable brand ────────────────────────────────────────────────
   const handleToggleActive = async (b) => {
     const nextActive = !b.isActive;
+    setBusyMsg(nextActive ? 'Enabling brand…' : 'Disabling brand…');
     setSubmitting(true);
     try {
       await api.put(`/brands/${b.id}`, { isActive: nextActive });
@@ -120,6 +123,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
 
   // ── Archive brand (permanent — no restore from UI) ────────────────────────
   const handleArchive = async (b) => {
+    setBusyMsg('Archiving brand…');
     setSubmitting(true);
     try {
       await api.put(`/brands/${b.id}`, { isArchived: true });
@@ -136,7 +140,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     <div className="flex flex-col h-full">
 
       {/* Saving overlay */}
-      <LoadingOverlay open={submitting} message={editingBrand ? 'Renaming brand…' : 'Adding brand…'} />
+      <LoadingOverlay open={submitting} message={busyMsg} />
 
       {/* Header — hidden in shell mode */}
       {!inShell && (

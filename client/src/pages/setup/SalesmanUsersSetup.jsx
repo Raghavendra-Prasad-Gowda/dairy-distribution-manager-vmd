@@ -145,7 +145,7 @@ export default function SalesmanUsersSetup() {
   return (
     <div className="flex flex-col h-full">
 
-      <LoadingOverlay open={submitting} message="Saving…" />
+      <LoadingOverlay open={submitting} message="Adding salesperson…" />
 
       {/* Add salesperson modal */}
       {showAddModal && (
