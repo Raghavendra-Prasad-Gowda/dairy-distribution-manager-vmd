@@ -143,17 +143,12 @@ export default function StockReceipt() {
   const allFiltered = useMemo(
     () => filteredGrouped().flatMap(([, items]) => items),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [products, categories, search, routeQty, date, savedRouteIds]
+    [products, categories, search]
   );
 
   function filteredGrouped() {
-    const q        = search.trim().toLowerCase();
-    // For past dates: show only purchased products — but only when data exists.
-    // If nothing was saved for this date (client forgot / was busy), show all
-    // products so they can still enter the missing data.
-    const isPast       = date < today;
-    const hasAnyData   = savedRouteIds.size > 0;
-    const base         = (isPast && hasAnyData) ? products.filter(p => getEffectiveQty(p.id) > 0) : products;
+    const q    = search.trim().toLowerCase();
+    const base = products;
     const filtered = q
       ? base.filter(p => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
       : base;
@@ -171,7 +166,7 @@ export default function StockReceipt() {
     });
   }
 
-  const groupedData = useMemo(filteredGrouped, [products, categories, search, savedRouteIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groupedData = useMemo(filteredGrouped, [products, categories, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKeyDown = (e, productId) => {
     if (e.key !== 'Enter' && e.key !== 'Tab') return;
