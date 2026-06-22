@@ -759,4 +759,44 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
     expect(body.data.rows).toEqual([]);
     expect(body.data.brands).toHaveLength(2);
   });
+
+  // Stock Balance page: the column set must include every product received that
+  // day, not just salesperson-dispatchable ones, so the "Received" total can't
+  // silently drop non-dispatchable products.
+  test('includeReceipts=1 widens the column query to products with receipts that day', async ({ request }) => {
+    let capturedWhere = null;
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
+      capturedWhere = args.where;
+      return ACTIVE_PRODUCTS;
+    });
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30&includeReceipts=1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(capturedWhere.OR).toEqual([
+      { showInStockReceipt: true, salespersonEnabled: true },
+      { stockReceipts: { some: { receiptDate: new Date('2026-04-30') } } },
+    ]);
+  });
+
+  test('default path keeps the narrow salesperson-only column query', async ({ request }) => {
+    let capturedWhere = null;
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
+      capturedWhere = args.where;
+      return ACTIVE_PRODUCTS;
+    });
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(capturedWhere.OR).toBeUndefined();
+    expect(capturedWhere.showInStockReceipt).toBe(true);
+    expect(capturedWhere.salespersonEnabled).toBe(true);
+  });
 });
