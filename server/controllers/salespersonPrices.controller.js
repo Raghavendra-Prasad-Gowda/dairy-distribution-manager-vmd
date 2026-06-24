@@ -23,12 +23,14 @@ const getPrices = asyncHandler(async (req, res) => {
       where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
       include: {
         brand: {
-          select: { id: true, name: true, salespersonDisplayOrder: true },
+          select: { id: true, name: true, displayOrder: true },
         },
       },
+      // Salesman product layout mirrors the stock-receipt layout, so order by
+      // the same stock-receipt display fields (brand → product).
       orderBy: [
-        { brand: { salespersonDisplayOrder: 'asc' } },
-        { salespersonDisplayOrder: 'asc' },
+        { brand: { displayOrder: 'asc' } },
+        { displayOrder: 'asc' },
         { name: 'asc' },
       ],
     }),
@@ -45,7 +47,7 @@ const getPrices = asyncHandler(async (req, res) => {
       orderBy: { effectiveFrom: 'desc' },
     }),
     prisma.category.findMany({
-      select: { brandId: true, name: true, salespersonDisplayOrder: true },
+      select: { brandId: true, name: true, displayOrder: true },
     }),
   ]);
 
@@ -69,7 +71,7 @@ const getPrices = asyncHandler(async (req, res) => {
   // Build category display-order lookup keyed by "brandId|categoryName"
   const catOrderMap = {};
   for (const cat of categories) {
-    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
+    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
   }
 
   // Salesman: only show products that are globally enabled AND enabled for them.
@@ -83,8 +85,8 @@ const getPrices = asyncHandler(async (req, res) => {
     productName:             p.name,
     brandId:                 p.brandId,
     brandName:               p.brand.name,
-    brandDisplayOrder:       p.brand.salespersonDisplayOrder,
-    displayOrder:            p.salespersonDisplayOrder,
+    brandDisplayOrder:       p.brand.displayOrder,
+    displayOrder:            p.displayOrder,
     category:                p.category,
     categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
     unitType:                p.unitType,
