@@ -26,7 +26,7 @@ const SECTIONS = [
     salespeople: ['K Pandu', 'Hari', 'Seena'],
     prices: {
       'Jersey*': {
-        'HTM 490ml': 22.25, 'HTM 210ml': 10.50, 'STM 500ml': 48,
+        'HTM 490ml': 22.25, 'HTM 210ml': 10.50, 'STM 500ml': 24,
         'HFCM 490ml': 30.50, 'HFCM 1000ml': 61,
         'DTM Curd 1000g': 48, 'DTM Curd 450g': 24, 'DTM Curd 140g': 8,
         'Butter Milk': 5.50,
@@ -48,7 +48,7 @@ const SECTIONS = [
     salespeople: ['Vitala', 'Nagraj', 'Sukhan'],
     prices: {
       'Jersey*': {
-        'HTM 490ml': 22.25, 'HTM 210ml': 10.50, 'STM 500ml': 48,
+        'HTM 490ml': 22.25, 'HTM 210ml': 10.50, 'STM 500ml': 24,
         'HFCM 490ml': 30.50, 'HFCM 1000ml': 61,
         'DTM Curd 1000g': 48, 'DTM Curd 450g': 24, 'DTM Curd 140g': 8,
         'Butter Milk': 5.50,
@@ -70,7 +70,7 @@ const SECTIONS = [
     salespeople: ['Shabari', 'S Manu', 'NAGU'],
     prices: {
       'Jersey*': {
-        'HTM 490ml': 22.25, 'HTM 210ml': 10.50, 'STM 500ml': 48,
+        'HTM 490ml': 22.25, 'HTM 210ml': 10.50, 'STM 500ml': 24,
         'HFCM 490ml': 30.50, 'HFCM 1000ml': 61,
         'DTM Curd 1000g': 48, 'DTM Curd 450g': 24, 'DTM Curd 140g': 8,
         'Butter Milk': 5.50,
