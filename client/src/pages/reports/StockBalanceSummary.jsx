@@ -30,7 +30,7 @@ export default function StockBalanceSummary() {
     setError('');
     Promise.all([
       api.get(`/stock-receipts/availability?date=${date}`),
-      api.get(`/reports/daily-dispatch?date=${date}`),
+      api.get(`/reports/daily-dispatch?date=${date}&includeReceipts=1`),
     ])
       .then(([availRes, dispRes]) => {
         setAvailData(availRes.data.data ?? []);

@@ -423,7 +423,23 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     dispatchWhere.salespersonId = req.user.salespersonId;
   }
 
-  const [dispatches, allProducts] = await Promise.all([
+  // The Stock Balance view (includeReceipts=1) must surface EVERY product that
+  // had stock received that day — not only salesperson-dispatchable ones —
+  // otherwise its "Received" total silently drops products that were received
+  // but aren't salespersonEnabled, disagreeing with the Stock Summary report.
+  const includeReceipts = req.query.includeReceipts === '1' || req.query.includeReceipts === 'true';
+  const productWhere = includeReceipts
+    ? {
+        isActive: true,
+        brand: { isActive: true },
+        OR: [
+          { showInStockReceipt: true, salespersonEnabled: true },
+          { stockReceipts: { some: { receiptDate: dispatchDate } } },
+        ],
+      }
+    : { isActive: true, showInStockReceipt: true, salespersonEnabled: true, brand: { isActive: true } };
+
+  const [dispatches, allProducts, allCategories] = await Promise.all([
     prisma.stockDispatch.findMany({
       where: dispatchWhere,
       include: {
@@ -435,14 +451,34 @@ const dailyDispatch = asyncHandler(async (req, res) => {
       orderBy: { salesperson: { name: 'asc' } },
     }),
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true, salespersonEnabled: true, brand: { isActive: true } },
-      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
-      orderBy: [
-        { brand: { salespersonDisplayOrder: 'asc' } },
-        { salespersonDisplayOrder: 'asc' },
-      ],
+      where: productWhere,
+      include: { brand: { select: { id: true, name: true, displayOrder: true, salespersonDisplayOrder: true } } },
+      orderBy: includeReceipts
+        ? [
+            { brand: { salespersonDisplayOrder: 'asc' } },
+            { salespersonDisplayOrder: 'asc' },
+            { displayOrder: 'asc' },
+          ]
+        : [
+            { brand: { salespersonDisplayOrder: 'asc' } },
+            { salespersonDisplayOrder: 'asc' },
+          ],
     }),
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
+
+  // Stock Balance view mirrors the stock-receipt layout: order columns by
+  // brand → category → product display order (category is a string field, not
+  // a Prisma relation, so the category tier is sorted here in JS).
+  if (includeReceipts) {
+    const catOrder = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+    allProducts.sort((a, b) =>
+      (a.brand.displayOrder - b.brand.displayOrder) ||
+      ((catOrder.get(`${a.brandId}::${a.category}`) ?? 999) - (catOrder.get(`${b.brandId}::${b.category}`) ?? 999)) ||
+      (a.displayOrder - b.displayOrder) ||
+      a.name.localeCompare(b.name)
+    );
+  }
 
   // Build brand → products column map
   const brandMap = new Map();
