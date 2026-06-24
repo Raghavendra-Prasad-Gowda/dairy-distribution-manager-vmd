@@ -766,6 +766,7 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
   test('includeReceipts=1 widens the column query to products with receipts that day', async ({ request }) => {
     let capturedWhere = null;
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
     ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
       capturedWhere = args.where;
       return ACTIVE_PRODUCTS;
