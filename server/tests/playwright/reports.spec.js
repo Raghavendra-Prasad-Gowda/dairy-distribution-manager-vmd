@@ -639,9 +639,9 @@ test.describe('GET /api/v1/reports/deposit-summary', () => {
 
 test.describe('GET /api/v1/reports/daily-dispatch', () => {
   const ACTIVE_PRODUCTS = [
-    { id: 1,  name: 'Toned 500ml', brandId: 1, brand: { id: 1, name: 'Nandini', salespersonDisplayOrder: 1 }, salespersonDisplayOrder: 1, unitsPerContainer: 20, category: 'Milk' },
-    { id: 2,  name: 'Curd 200g',   brandId: 1, brand: { id: 1, name: 'Nandini', salespersonDisplayOrder: 1 }, salespersonDisplayOrder: 2, unitsPerContainer: null, category: 'Curd' },
-    { id: 10, name: 'Ghee 500ml',  brandId: 2, brand: { id: 2, name: 'Jersey',  salespersonDisplayOrder: 2 }, salespersonDisplayOrder: 1, unitsPerContainer: null, category: 'Ghee' },
+    { id: 1,  name: 'Toned 500ml', brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, displayOrder: 1, unitsPerContainer: 20, category: 'Milk' },
+    { id: 2,  name: 'Curd 200g',   brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, displayOrder: 2, unitsPerContainer: null, category: 'Curd' },
+    { id: 10, name: 'Ghee 500ml',  brandId: 2, brand: { id: 2, name: 'Jersey',  displayOrder: 2 }, displayOrder: 1, unitsPerContainer: null, category: 'Ghee' },
   ];
 
   test('returns 403 when no token is provided', async ({ request }) => {

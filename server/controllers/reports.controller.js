@@ -448,20 +448,21 @@ const dailyDispatch = asyncHandler(async (req, res) => {
           include: { product: { select: { id: true, brandId: true } } },
         },
       },
-      orderBy: { salesperson: { name: 'asc' } },
+      orderBy: [{ salesperson: { displayOrder: 'asc' } }, { salesperson: { name: 'asc' } }],
     }),
     prisma.product.findMany({
       where: productWhere,
-      include: { brand: { select: { id: true, name: true, displayOrder: true, salespersonDisplayOrder: true } } },
+      include: { brand: { select: { id: true, name: true, displayOrder: true } } },
       orderBy: includeReceipts
         ? [
-            { brand: { salespersonDisplayOrder: 'asc' } },
-            { salespersonDisplayOrder: 'asc' },
+            { brand: { displayOrder: 'asc' } },
             { displayOrder: 'asc' },
+            { name: 'asc' },
           ]
         : [
-            { brand: { salespersonDisplayOrder: 'asc' } },
-            { salespersonDisplayOrder: 'asc' },
+            { brand: { displayOrder: 'asc' } },
+            { displayOrder: 'asc' },
+            { name: 'asc' },
           ],
     }),
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),

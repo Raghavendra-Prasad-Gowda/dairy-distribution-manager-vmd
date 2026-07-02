@@ -68,8 +68,7 @@ export default function StockBalanceSummary() {
         const brandQty = products.reduce((s, p) => s + (row.items[p.productId]?.qty ?? 0), 0);
         return { salespersonId: row.salespersonId, salespersonName: row.salespersonName, items: row.items, brandQty };
       })
-      .filter(r => r.brandQty > 0)
-      .sort((a, b) => b.brandQty - a.brandQty);
+      .filter(r => r.brandQty > 0);
   }, [dispatchData, products]);
 
   // Per-column totals (dispatched, received, remaining)

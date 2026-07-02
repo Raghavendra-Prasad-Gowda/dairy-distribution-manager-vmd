@@ -14,9 +14,9 @@ const { setupSuite } = require('../helpers/test-setup');
 const { test, ctx, makeAuthToken } = setupSuite();
 
 const PRODUCTS = [
-  { id: 1, name: 'Toned Milk 500ml', brandId: 1, brand: { id: 1, name: 'Nandini' }, category: 'Milk',  salespersonDisplayOrder: 1, unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 20 },
-  { id: 2, name: 'Curd 200g',        brandId: 1, brand: { id: 1, name: 'Nandini' }, category: 'Curd',  salespersonDisplayOrder: 2, unitType: 'gram',  unitSize: 200,  containerType: null,    unitsPerContainer: null },
-  { id: 3, name: 'Ghee 1L',          brandId: 2, brand: { id: 2, name: 'Jersey'  }, category: 'Ghee',  salespersonDisplayOrder: 1, unitType: 'ml',    unitSize: 1000, containerType: null,    unitsPerContainer: null },
+  { id: 1, name: 'Toned Milk 500ml', brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, category: 'Milk',  displayOrder: 1, unitType: 'ml',    unitSize: 500,  containerType: 'crate', unitsPerContainer: 20 },
+  { id: 2, name: 'Curd 200g',        brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, category: 'Curd',  displayOrder: 2, unitType: 'gram',  unitSize: 200,  containerType: null,    unitsPerContainer: null },
+  { id: 3, name: 'Ghee 1L',          brandId: 2, brand: { id: 2, name: 'Jersey',  displayOrder: 2 }, category: 'Ghee',  displayOrder: 1, unitType: 'ml',    unitSize: 1000, containerType: null,    unitsPerContainer: null },
 ];
 
 // ─── GET /api/v1/salespeople/:id/products ─────────────────────────────────────

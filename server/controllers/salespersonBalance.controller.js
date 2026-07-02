@@ -45,7 +45,7 @@ const getAll = asyncHandler(async (req, res) => {
 
   const salespeople = await prisma.salesperson.findMany({
     where: { isActive: true },
-    orderBy: { name: 'asc' },
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
   const balances = await Promise.all(
     salespeople.map(async (sp) => {

@@ -94,18 +94,6 @@ router.patch('/reorder', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: `${items.length} products reordered` } });
 }));
 
-// PATCH /products/salesperson-reorder
-router.patch('/salesperson-reorder', asyncHandler(async (req, res) => {
-  const items = validate(schemas.reorderSalespersonProducts, req, res);
-  if (!items) return;
-  await prisma.$transaction(
-    items.map(({ id, displayOrder }) =>
-      prisma.product.update({ where: { id }, data: { salespersonDisplayOrder: displayOrder } })
-    )
-  );
-  res.json({ success: true, data: { message: `${items.length} products reordered` } });
-}));
-
 // POST /products
 router.post('/', asyncHandler(async (req, res) => {
   const data = validate(schemas.createProduct, req, res);
@@ -153,19 +141,19 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
   const [products, categories] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, showInStockReceipt: true },
-      include: { brand: { select: { id: true, name: true, salespersonDisplayOrder: true } } },
+      include: { brand: { select: { id: true, name: true, displayOrder: true } } },
       orderBy: [
-        { brand: { salespersonDisplayOrder: 'asc' } },
-        { salespersonDisplayOrder: 'asc' },
+        { brand: { displayOrder: 'asc' } },
+        { displayOrder: 'asc' },
         { name: 'asc' },
       ],
     }),
-    prisma.category.findMany({ select: { brandId: true, name: true, salespersonDisplayOrder: true } }),
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
 
   const catOrderMap = {};
   for (const cat of categories) {
-    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.salespersonDisplayOrder;
+    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
   }
 
   res.json({
