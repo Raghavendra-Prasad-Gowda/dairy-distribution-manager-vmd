@@ -21,7 +21,12 @@ function SortableSpRow({ sp }) {
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
       className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 select-none"
     >
-      <button {...attributes} {...listeners} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-0.5">
+      <button
+        {...attributes}
+        {...listeners}
+        style={{ touchAction: 'none' }}
+        className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-0.5"
+      >
         <GripVertical size={16} />
       </button>
       <div className="flex-1 min-w-0">
