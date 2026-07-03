@@ -611,10 +611,10 @@ export default function SalespersonStockEntry() {
                                       {formatCurrency(amount)}
                                     </p>
                                     {litresStr && (
-                                      <p className="text-[11px] font-bold text-blue-600 tabular-nums leading-tight">{litresStr}</p>
+                                      <p className="text-sm font-bold text-blue-600 tabular-nums leading-tight">{litresStr}</p>
                                     )}
                                     {crateStr && (
-                                      <p className="text-[11px] text-amber-600 tabular-nums leading-tight">{crateStr}</p>
+                                      <p className="text-xs font-semibold text-amber-600 tabular-nums leading-tight">{crateStr}</p>
                                     )}
                                   </div>
                                 )}
