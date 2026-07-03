@@ -607,7 +607,7 @@ export default function SalespersonStockEntry() {
                                 </div>
                                 {qtyNum > 0 && (
                                   <div className="text-right flex-shrink-0">
-                                    <p className="text-sm font-bold text-emerald-700 tabular-nums leading-tight">
+                                    <p className="text-sm font-extrabold text-emerald-700 tabular-nums leading-tight">
                                       {formatCurrency(amount)}
                                     </p>
                                     {litresStr && (
