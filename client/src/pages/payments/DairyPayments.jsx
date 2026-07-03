@@ -99,6 +99,7 @@ export default function DairyPayments() {
 
   // Delete confirm state
   const [deleteId, setDeleteId]         = useState(null);
+  const [deleting, setDeleting]         = useState(false);
 
   // Search + filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,7 +185,8 @@ export default function DairyPayments() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || deleting) return;
+    setDeleting(true);
     try {
       await api.delete(`/dairy-payments/${deleteId}`);
       notify('Payment deleted', 'success');
@@ -192,6 +194,8 @@ export default function DairyPayments() {
       fetchAll();
     } catch {
       notify('Failed to delete payment', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -712,7 +716,7 @@ export default function DairyPayments() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleDelete}>Delete</Button>
+            <Button variant="danger" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
           </>
         }
       >

@@ -76,6 +76,7 @@ function SortableProductRow({ product }) {
       <button
         {...attributes}
         {...listeners}
+        style={{ touchAction: 'none' }}
         className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-0.5 flex-shrink-0"
       >
         <GripVertical size={14} />

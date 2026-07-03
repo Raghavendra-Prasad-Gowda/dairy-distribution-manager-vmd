@@ -72,15 +72,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Category deleted' } });
 });
 
-const salespersonReorder = asyncHandler(async (req, res) => {
-  const items = validate(schemas.reorderSalespersonCategories, req, res);
-  if (!items) return;
-  await prisma.$transaction(
-    items.map(({ id, displayOrder }) =>
-      prisma.category.update({ where: { id }, data: { salespersonDisplayOrder: displayOrder } })
-    )
-  );
-  res.json({ success: true, data: { message: `${items.length} categories reordered` } });
-});
-
-module.exports = { getAll, reorder, salespersonReorder, create, update, remove };
+module.exports = { getAll, reorder, create, update, remove };

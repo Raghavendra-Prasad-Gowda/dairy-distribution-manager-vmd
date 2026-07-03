@@ -112,8 +112,7 @@ export default function SalespersonOutstanding() {
   const clearedCount     = balances.filter(b => (b.closingBalance ?? 0) <= 0).length;
   const outstandingCount = balances.length - clearedCount;
 
-  // Highest outstanding first, cleared at bottom
-  const sorted = [...balances].sort((a, b) => (b.closingBalance ?? 0) - (a.closingBalance ?? 0));
+  const sorted = balances;
 
   return (
     <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-6">

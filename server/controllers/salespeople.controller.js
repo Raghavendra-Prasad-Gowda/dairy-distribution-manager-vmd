@@ -6,24 +6,31 @@ const prisma = require('../lib/prisma');
 const { BCRYPT_ROUNDS } = require('../utils/constants');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
+const SP_SELECT = { id: true, name: true, phone: true, route: true, username: true, isActive: true, displayOrder: true, createdAt: true };
+const SP_ORDER  = [{ displayOrder: 'asc' }, { name: 'asc' }];
+
 const getAll = asyncHandler(async (req, res) => {
   const where = req.query.all === 'true' ? {} : { isActive: true };
-  const salespeople = await prisma.salesperson.findMany({
-    where,
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true, phone: true, route: true, username: true, isActive: true, createdAt: true },
-  });
+  const salespeople = await prisma.salesperson.findMany({ where, orderBy: SP_ORDER, select: SP_SELECT });
   res.json({ success: true, data: salespeople });
 });
 
 const getById = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Salesperson ID');
-  const sp = await prisma.salesperson.findUnique({
-    where: { id },
-    select: { id: true, name: true, phone: true, route: true, username: true, isActive: true, createdAt: true },
-  });
+  const sp = await prisma.salesperson.findUnique({ where: { id }, select: SP_SELECT });
   if (!sp) throw new AppError('Salesperson not found', 404);
   res.json({ success: true, data: sp });
+});
+
+const reorder = asyncHandler(async (req, res) => {
+  const items = validate(schemas.reorderSalespeople, req, res);
+  if (!items) return;
+  await prisma.$transaction(
+    items.map(({ id, displayOrder }) =>
+      prisma.salesperson.update({ where: { id }, data: { displayOrder } })
+    )
+  );
+  res.json({ success: true, data: { message: `${items.length} salespeople reordered` } });
 });
 
 const create = asyncHandler(async (req, res) => {
@@ -40,10 +47,7 @@ const create = asyncHandler(async (req, res) => {
     spData.passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   }
 
-  const sp = await prisma.salesperson.create({
-    data: spData,
-    select: { id: true, name: true, phone: true, route: true, username: true, isActive: true, createdAt: true },
-  });
+  const sp = await prisma.salesperson.create({ data: spData, select: SP_SELECT });
   void notifySlack(SLACK_EVENTS.SALESPERSON_CREATED, { name: sp.name, phone: sp.phone, route: sp.route });
   res.status(201).json({ success: true, data: sp });
 });
@@ -64,11 +68,7 @@ const update = asyncHandler(async (req, res) => {
     updateData.passwordHash = null;
   }
 
-  const sp = await prisma.salesperson.update({
-    where: { id },
-    data: updateData,
-    select: { id: true, name: true, phone: true, route: true, username: true, isActive: true, createdAt: true },
-  });
+  const sp = await prisma.salesperson.update({ where: { id }, data: updateData, select: SP_SELECT });
   void notifySlack(SLACK_EVENTS.SALESPERSON_UPDATED, { name: sp.name, phone: sp.phone, route: sp.route, isActive: sp.isActive });
   res.json({ success: true, data: sp });
 });
@@ -90,4 +90,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Salesperson deleted' } });
 });
 
-module.exports = { getAll, getById, create, update, remove };
+module.exports = { getAll, getById, reorder, create, update, remove };

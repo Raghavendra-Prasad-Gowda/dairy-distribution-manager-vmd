@@ -96,20 +96,6 @@ const schemas = {
     displayOrder: z.number().int().nonnegative(),
   })),
 
-  // Layout reordering — salesperson
-  reorderSalespersonBrands: z.array(z.object({
-    id:           z.number().int().positive(),
-    displayOrder: z.number().int().nonnegative(),
-  })),
-  reorderSalespersonProducts: z.array(z.object({
-    id:           z.number().int().positive(),
-    displayOrder: z.number().int().nonnegative(),
-  })),
-  reorderSalespersonCategories: z.array(z.object({
-    id:           z.number().int().positive(),
-    displayOrder: z.number().int().nonnegative(),
-  })),
-
   // Stock Receipts (qty 0 is meaningful — it means "no receipt for this product
   // on this day", and the controller filters those out before insert)
   bulkStockReceipt: z.object({
@@ -154,20 +140,26 @@ const schemas = {
 
   // Salespeople
   createSalesperson: z.object({
-    name:     z.string().min(1, 'Name is required'),
-    phone:    z.string().optional(),
-    route:    z.string().optional(),
-    username: z.string().min(3, 'Username must be at least 3 characters').optional(),
-    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+    name:         z.string().min(1, 'Name is required'),
+    phone:        z.string().optional(),
+    route:        z.string().optional(),
+    username:     z.string().min(3, 'Username must be at least 3 characters').optional(),
+    password:     z.string().min(6, 'Password must be at least 6 characters').optional(),
+    displayOrder: z.number().int().nonnegative().optional(),
   }),
   updateSalesperson: z.object({
-    name:     z.string().min(1).optional(),
-    phone:    z.string().optional(),
-    route:    z.string().optional(),
-    isActive: z.boolean().optional(),
-    username: z.string().min(3, 'Username must be at least 3 characters').optional().nullable(),
-    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+    name:         z.string().min(1).optional(),
+    phone:        z.string().optional(),
+    route:        z.string().optional(),
+    isActive:     z.boolean().optional(),
+    username:     z.string().min(3, 'Username must be at least 3 characters').optional().nullable(),
+    password:     z.string().min(6, 'Password must be at least 6 characters').optional(),
+    displayOrder: z.number().int().nonnegative().optional(),
   }),
+  reorderSalespeople: z.array(z.object({
+    id:           z.number().int().positive(),
+    displayOrder: z.number().int().nonnegative(),
+  })),
 
   // Salesperson Product Visibility
   bulkSalespersonProducts: z.object({

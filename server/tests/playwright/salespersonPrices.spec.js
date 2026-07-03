@@ -293,8 +293,8 @@ test.describe('GET /api/v1/salespeople/:id/prices — UI contract', () => {
     // Locking the shape so a casual controller refactor can't silently drop a
     // field the UI depends on.
     ctx.mockPrisma.product.findMany.mockResolvedValue([{
-      id: 1, name: 'Toned 500ml', brandId: 10, brand: { id: 10, name: 'Nandini', salespersonDisplayOrder: 1 },
-      category: 'Milk', salespersonDisplayOrder: 1,
+      id: 1, name: 'Toned 500ml', brandId: 10, brand: { id: 10, name: 'Nandini', displayOrder: 1 },
+      category: 'Milk', displayOrder: 1,
       unitType: 'ml', unitSize: 500, containerType: 'crate', unitsPerContainer: 20,
       showInStockReceipt: true, salespersonEnabled: true,
       costPrice: 22, sellingPrice: 24,

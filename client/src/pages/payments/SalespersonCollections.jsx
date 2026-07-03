@@ -166,15 +166,17 @@ export default function SalespersonCollections() {
   };
 
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, amount, mode }
+  const [deleting, setDeleting]           = useState(false);
 
   const handleDelete = (id, amount, mode) => {
     setDeleteConfirm({ id, amount, mode });
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || deleting) return;
     const { id } = deleteConfirm;
     setDeleteConfirm(null);
+    setDeleting(true);
     try {
       await api.delete(`/salesperson-payments/${id}`);
       notify('Record deleted', 'success');
@@ -182,6 +184,8 @@ export default function SalespersonCollections() {
       refreshAllBalances();
     } catch {
       notify('Failed to delete', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -647,7 +651,7 @@ export default function SalespersonCollections() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+            <Button variant="danger" onClick={confirmDelete} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
           </>
         }
       >

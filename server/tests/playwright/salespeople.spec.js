@@ -253,3 +253,43 @@ test.describe('DELETE /api/v1/salespeople/:id', () => {
     expect(body.error).toMatch(/Deactivate them instead/i);
   });
 });
+
+// ─── PUT /api/v1/salespeople/reorder ─────────────────────────────────────────
+
+test.describe('PUT /api/v1/salespeople/reorder', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.put('/api/v1/salespeople/reorder', {
+      data: [{ id: 1, displayOrder: 0 }],
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 and reorders salespeople', async ({ request }) => {
+    ctx.mockPrisma.$transaction.mockResolvedValue([]);
+
+    const res = await request.put('/api/v1/salespeople/reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: [{ id: 1, displayOrder: 0 }, { id: 2, displayOrder: 1 }],
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('returns 400 when body is not an array', async ({ request }) => {
+    const res = await request.put('/api/v1/salespeople/reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { id: 1, displayOrder: 0 },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when displayOrder is negative', async ({ request }) => {
+    const res = await request.put('/api/v1/salespeople/reorder', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: [{ id: 1, displayOrder: -1 }],
+    });
+    expect(res.status()).toBe(400);
+  });
+});
