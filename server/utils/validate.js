@@ -196,6 +196,12 @@ const schemas = {
     notes: shortText,
   }),
 
+  // Admin opens a blank past-date entry for a salesperson (no existing dispatch yet)
+  openDispatchForEntry: z.object({
+    salespersonId: z.number().int().positive(),
+    dispatchDate:  dateString(),
+  }),
+
   // Salesperson Payment
   createSalespersonPayment: z.object({
     salespersonId: z.number().int().positive(),
