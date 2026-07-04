@@ -49,16 +49,17 @@ export default function PaymentForm({
   const handleSubmit = (e) => {
     e.preventDefault();
     const amt = parseFloat(form.amount);
-    if (isExcess) return; // guard — button should be disabled anyway
     onSubmit({ ...form, amount: amt });
     setForm(blankForm);
   };
 
   const hasBalance = closingBalance > 0;
   const enteredAmount = parseFloat(form.amount) || 0;
-  // Block any payment that would push the balance below zero. When balance
-  // is already 0 (settled) or negative (credit), ANY positive amount overpays.
-  const isExcess = enteredAmount > Math.max(0, closingBalance);
+  const outstanding   = Math.max(0, closingBalance);
+  // Paying more than what's owed is allowed — it creates/adds to a credit that
+  // carries forward and reduces future bills (see balanceService cascade).
+  const isOverBalance = enteredAmount > outstanding;
+  const paymentState  = !isOverBalance ? 'normal' : outstanding > 0 ? 'overpay' : 'credit';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,23 +77,24 @@ export default function PaymentForm({
             step="0.01"
             min="0.01"
             required
-            className={`w-full pl-8 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 bg-white tabular-nums ${isExcess ? 'border-red-400 focus:ring-red-400 text-red-600' : 'border-slate-200 focus:ring-emerald-400'}`}
+            className={`w-full pl-8 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 bg-white tabular-nums ${paymentState === 'normal' ? 'border-slate-200 focus:ring-emerald-400' : 'border-amber-300 focus:ring-amber-400'}`}
           />
         </div>
 
         {/* Amount in words */}
-        {enteredAmount > 0 && !isExcess && (
+        {enteredAmount > 0 && (
           <p className="mt-1.5 text-[11px] text-slate-800 font-bold italic leading-snug">
             {numberToWords(enteredAmount)}
           </p>
         )}
 
-        {/* Excess payment warning */}
-        {isExcess && (
-          <p className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
-            ⚠ {closingBalance <= 0
-                ? 'No outstanding balance — nothing to pay'
-                : `Exceeds outstanding balance of ${formatCurrency(closingBalance)}`}
+        {/* Excess payment notice — paying more than owed creates a credit */}
+        {paymentState !== 'normal' && (
+          <p className="mt-1.5 text-xs font-semibold text-violet-700 flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5">
+            <CreditCard size={12} className="flex-shrink-0" />
+            {paymentState === 'overpay'
+              ? `This pays ${formatCurrency(enteredAmount - outstanding)} more than the ${formatCurrency(outstanding)} owed — the extra creates a credit that reduces future bills.`
+              : `This creates a credit of ${formatCurrency(enteredAmount)} that will reduce future bills.`}
           </p>
         )}
 
@@ -150,7 +152,7 @@ export default function PaymentForm({
           className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
       </div>
 
-      <button type="submit" disabled={loading || !form.amount || isExcess} className="ddm-btn-primary w-full justify-center">
+      <button type="submit" disabled={loading || !form.amount} className="ddm-btn-primary w-full justify-center">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard size={15} />}
         {loading ? 'Recording…' : submitLabel}
       </button>

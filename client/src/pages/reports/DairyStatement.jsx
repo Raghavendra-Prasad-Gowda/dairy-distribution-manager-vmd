@@ -71,7 +71,8 @@ function ReceiptsDetail({ receipts }) {
 }
 
 function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
-  const isOwing = row.closingBalance > 0;
+  const isOwing  = row.closingBalance > 0;
+  const isCredit = row.closingBalance < 0;
   const visibleReceipts = selectedRouteId
     ? (row.receipts ?? []).filter(r => String(r.routeId) === String(selectedRouteId))
     : row.receipts;
@@ -100,7 +101,7 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
           </td>
         )}
         {!selectedRouteId && (
-          <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+          <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'}`}>
             {formatCurrency(row.closingBalance)}
           </td>
         )}
@@ -270,7 +271,9 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
           </div>
         )}
         {rows.length > 0 && (
-          <div className={`px-3 py-2 rounded-xl font-bold text-sm ${closingBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          <div className={`px-3 py-2 rounded-xl font-bold text-sm ${
+            closingBalance > 0 ? 'bg-red-50 text-red-700' : closingBalance < 0 ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'
+          }`}>
             Balance: {formatCurrency(closingBalance)}
           </div>
         )}
