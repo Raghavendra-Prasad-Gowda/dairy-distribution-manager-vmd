@@ -70,14 +70,14 @@ export default function StockBalanceSummary() {
     });
   }, [products, availData, activeBrandId, dispatchData]);
 
-  // Columns with zero dispatched AND zero received are hidden by default —
+  // Columns with zero dispatched are hidden by default (even if received) —
   // toggled back on via showEmptyProducts.
   const visibleProducts = useMemo(() => {
     if (showEmptyProducts) return products;
-    const nonEmptyIds = new Set(
-      colTotals.filter(c => c.dispatched > 0 || c.received > 0).map(c => c.productId)
+    const dispatchedIds = new Set(
+      colTotals.filter(c => c.dispatched > 0).map(c => c.productId)
     );
-    return products.filter(p => nonEmptyIds.has(p.productId));
+    return products.filter(p => dispatchedIds.has(p.productId));
   }, [products, colTotals, showEmptyProducts]);
 
   const visibleProductIds = useMemo(
