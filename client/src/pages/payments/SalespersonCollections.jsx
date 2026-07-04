@@ -306,36 +306,11 @@ export default function SalespersonCollections() {
         )}
       </div>
 
-      {/* ── Mobile: salesperson dropdown ── */}
-      <div className="lg:hidden px-4 py-3 bg-white border-b border-slate-200">
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-          Salesperson
-        </label>
-        <select
-          value={selectedSpId ?? ''}
-          onChange={e => { setSelectedSp(Number(e.target.value)); }}
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-        >
-          {salespeople.map(sp => {
-            const bal      = allBalances[sp.id];
-            const closing  = bal?.closingBalance ?? 0;
-            const owing    = closing > 0;
-            const isCredit = closing < 0;
-            return (
-              <option key={sp.id} value={sp.id}>
-                {sp.name}{sp.route ? ` — ${sp.route}` : ''}
-                {owing ? ` (${formatCurrency(closing)})` : isCredit ? ` (+${formatCurrency(Math.abs(closing))})` : ' ✓'}
-              </option>
-            );
-          })}
-        </select>
-      </div>
-
       {/* Split panel */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Left panel: desktop only ────────────────────────── */}
-        <div className="hidden lg:flex lg:flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
+        {/* ── Left panel: always visible ──────────────────────── */}
+        <div className="flex flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
           {/* Search + filter */}
           <div className="p-3 border-b border-slate-100 space-y-2">
             <div className="relative">
