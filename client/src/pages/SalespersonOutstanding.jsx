@@ -17,18 +17,21 @@ function SpCard({ sp }) {
   const closing  = sp.closingBalance ?? 0;
   const total    = sp.openingBalance + sp.stockGiven;
   const recovery = total > 0 ? Math.min(100, Math.max(0, (sp.amountPaid / total) * 100)) : 100;
-  const isCleared = closing <= 0;
+  const isCredit  = closing < 0;
+  const isCleared = closing === 0;
   const isHigh    = closing >= 5000;
 
-  const accentBorder = isCleared ? 'border-l-emerald-400' : isHigh ? 'border-l-red-400' : 'border-l-amber-400';
-  const avatarBg     = isCleared ? 'bg-emerald-500' : isHigh ? 'bg-red-500' : 'bg-amber-500';
-  const badgeCls     = isCleared
+  const accentBorder = isCredit ? 'border-l-violet-400' : isCleared ? 'border-l-emerald-400' : isHigh ? 'border-l-red-400' : 'border-l-amber-400';
+  const avatarBg     = isCredit ? 'bg-violet-500'       : isCleared ? 'bg-emerald-500'       : isHigh ? 'bg-red-500'       : 'bg-amber-500';
+  const badgeCls     = isCredit
+    ? 'bg-violet-50 text-violet-700'
+    : isCleared
     ? 'bg-emerald-50 text-emerald-700'
     : isHigh
     ? 'bg-red-50 text-red-700'
     : 'bg-amber-50 text-amber-700';
-  const dueCls       = isCleared ? 'text-emerald-600' : isHigh ? 'text-red-600' : 'text-amber-600';
-  const barCls       = isCleared ? 'bg-emerald-500' : isHigh ? 'bg-red-500' : 'bg-amber-400';
+  const dueCls       = isCredit ? 'text-violet-600' : isCleared ? 'text-emerald-600' : isHigh ? 'text-red-600' : 'text-amber-600';
+  const barCls       = isCredit ? 'bg-violet-500'   : isCleared ? 'bg-emerald-500'   : isHigh ? 'bg-red-500'   : 'bg-amber-400';
 
   return (
     <div className={`ddm-card p-5 border-l-4 ${accentBorder}`}>
@@ -47,7 +50,7 @@ function SpCard({ sp }) {
           </div>
         </div>
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${badgeCls}`}>
-          {isCleared ? 'Cleared' : 'Outstanding'}
+          {isCredit ? 'Credit' : isCleared ? 'Cleared' : 'Outstanding'}
         </span>
       </div>
 
@@ -85,7 +88,7 @@ function SpCard({ sp }) {
       <div className={`flex items-center justify-between pt-3.5 border-t ${isCleared ? 'border-emerald-100' : 'border-slate-100'}`}>
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Balance Due</span>
         <span className={`text-xl font-bold tabular-nums ${dueCls}`}>
-          {isCleared ? 'Nil' : formatCurrency(closing)}
+          {isCredit ? `+${formatCurrency(Math.abs(closing))} Credit` : isCleared ? 'Nil' : formatCurrency(closing)}
         </span>
       </div>
     </div>

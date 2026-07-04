@@ -27,7 +27,9 @@ function getInitials(name) {
 
 /** Premium SP balance card */
 function SpBalanceCard({ sp, balance }) {
-  const isOwing = (balance?.closingBalance ?? 0) > 0;
+  const closing  = balance?.closingBalance ?? 0;
+  const isOwing  = closing > 0;
+  const isCredit = closing < 0;
   return (
     <div className="ddm-card overflow-hidden">
       {/* Header band */}
@@ -41,18 +43,22 @@ function SpBalanceCard({ sp, balance }) {
             {sp.route && <p className="text-emerald-300 text-[11px] leading-tight">{sp.route}</p>}
           </div>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-          {isOwing ? 'Outstanding' : 'Cleared'}
+        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+          isOwing ? 'bg-red-100 text-red-700' : isCredit ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+        }`}>
+          {isOwing ? 'Outstanding' : isCredit ? 'Credit' : 'Cleared'}
         </span>
       </div>
 
       {/* Large balance */}
       <div className="flex flex-col items-center justify-center py-4 px-4">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-          {isOwing ? 'To Collect' : 'Settled'}
+          {isOwing ? 'To Collect' : isCredit ? 'Advance Credit' : 'Settled'}
         </p>
-        <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatCurrency(Math.abs(balance?.closingBalance ?? 0))}
+        <p className={`text-2xl font-bold tabular-nums leading-none ${
+          isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'
+        }`}>
+          {formatCurrency(Math.abs(closing))}
         </p>
       </div>
 
@@ -311,11 +317,14 @@ export default function SalespersonCollections() {
           className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
         >
           {salespeople.map(sp => {
-            const bal   = allBalances[sp.id];
-            const owing = (bal?.closingBalance ?? 0) > 0;
+            const bal      = allBalances[sp.id];
+            const closing  = bal?.closingBalance ?? 0;
+            const owing    = closing > 0;
+            const isCredit = closing < 0;
             return (
               <option key={sp.id} value={sp.id}>
-                {sp.name}{sp.route ? ` — ${sp.route}` : ''}{owing ? ` (${formatCurrency(bal.closingBalance)})` : ' ✓'}
+                {sp.name}{sp.route ? ` — ${sp.route}` : ''}
+                {owing ? ` (${formatCurrency(closing)})` : isCredit ? ` (+${formatCurrency(Math.abs(closing))})` : ' ✓'}
               </option>
             );
           })}
@@ -361,7 +370,9 @@ export default function SalespersonCollections() {
             {filteredSps.map(sp => {
               const isSelected = sp.id === selectedSpId;
               const bal        = allBalances[sp.id];
-              const owing      = (bal?.closingBalance ?? 0) > 0;
+              const closing    = bal?.closingBalance ?? 0;
+              const owing      = closing > 0;
+              const isCredit   = closing < 0;
 
               return (
                 <button
@@ -375,7 +386,7 @@ export default function SalespersonCollections() {
                 >
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                      isSelected ? 'bg-emerald-600 text-white' : owing ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                      isSelected ? 'bg-emerald-600 text-white' : owing ? 'bg-red-100 text-red-600' : isCredit ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                     }`}>
                       {getInitials(sp.name)}
                     </div>
@@ -386,8 +397,8 @@ export default function SalespersonCollections() {
                   <div className="flex items-center justify-between pl-8">
                     {sp.route && <p className="text-xs text-slate-400 truncate">{sp.route}</p>}
                     {bal && (
-                      <span className={`text-xs font-bold tabular-nums flex-shrink-0 ml-auto ${owing ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {owing ? formatCurrency(bal.closingBalance) : '✓'}
+                      <span className={`text-xs font-bold tabular-nums flex-shrink-0 ml-auto ${owing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'}`}>
+                        {owing ? formatCurrency(closing) : isCredit ? `+${formatCurrency(Math.abs(closing))}` : '✓'}
                       </span>
                     )}
                   </div>

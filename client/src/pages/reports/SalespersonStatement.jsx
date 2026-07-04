@@ -16,7 +16,8 @@ function exportCSV(rows, spName) {
 }
 
 function ExpandableRow({ row, open, onToggle }) {
-  const isOwing = row.closingBalance > 0;
+  const isOwing  = row.closingBalance > 0;
+  const isCredit = row.closingBalance < 0;
   return (
     <React.Fragment>
       <tr
@@ -35,7 +36,7 @@ function ExpandableRow({ row, open, onToggle }) {
         <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.amountPaid)}
         </td>
-        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'}`}>
           {formatCurrency(row.closingBalance)}
         </td>
         <td className="px-4 py-2.5 text-right text-slate-400">
@@ -186,7 +187,9 @@ export default function SalespersonStatement() {
         ))}
 
         {rows.length > 0 && (
-          <div className={`px-3 py-2 rounded-xl font-bold text-sm ${closingBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          <div className={`px-3 py-2 rounded-xl font-bold text-sm ${
+            closingBalance > 0 ? 'bg-red-50 text-red-700' : closingBalance < 0 ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'
+          }`}>
             Outstanding: {formatCurrency(closingBalance)}
           </div>
         )}

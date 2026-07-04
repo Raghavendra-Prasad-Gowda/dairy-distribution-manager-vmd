@@ -3,7 +3,6 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
-const { assertSalespersonPaymentWithinBalance, assertSalespersonPaymentUpdateWithinBalance } = require('../services/paymentGuard');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -15,7 +14,6 @@ const create = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const payment = await prisma.$transaction(async (tx) => {
-    await assertSalespersonPaymentWithinBalance(tx, data.salespersonId, data.amount);
     const created = await tx.salespersonPayment.create({
       data: { ...data, paymentDate: new Date(data.paymentDate) },
     });
@@ -72,7 +70,6 @@ const update = asyncHandler(async (req, res) => {
   const oldDate = existing.paymentDate.toISOString().slice(0, 10);
   const newDate = data.paymentDate;
   const updated = await prisma.$transaction(async (tx) => {
-    await assertSalespersonPaymentUpdateWithinBalance(tx, existing.salespersonId, data.amount, Number(existing.amount));
     const u = await tx.salespersonPayment.update({
       where: { id },
       data: { ...data, paymentDate: new Date(data.paymentDate) },
