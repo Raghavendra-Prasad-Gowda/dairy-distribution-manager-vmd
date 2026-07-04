@@ -496,7 +496,7 @@ export default function SalespersonCollections() {
                               {pagedPayments.map((p) => (
                                 <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
-                                    {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                    {new Date(p.paymentDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                   </td>
                                   <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                                     {formatCurrency(p.amount)}
