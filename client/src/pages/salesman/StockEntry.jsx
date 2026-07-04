@@ -597,7 +597,7 @@ export default function SalespersonStockEntry() {
                                   <p className={`text-sm font-semibold leading-snug ${noPrice ? 'text-slate-400' : 'text-slate-900'}`}>
                                     {p.productName}
                                   </p>
-                                  <p className="text-xs text-slate-400 mt-0.5">
+                                  <p className="text-xs text-slate-600 font-medium mt-0.5">
                                     {unitLabel(p)}
                                     {noPrice
                                       ? <span className="ml-2 text-amber-500 font-semibold">No price set</span>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
+import PinModal from '../../components/PinModal';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -90,6 +91,10 @@ export default function SalespersonCollections() {
   const [editPayment, setEditPayment] = useState(null);
   const [editForm,    setEditForm]    = useState({});
   const [editSaving,  setEditSaving]  = useState(false);
+
+  // PIN gate state
+  const [pinOpen, setPinOpen]             = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
 
   // History filter state
   const [showFilter, setShowFilter]   = useState(false);
@@ -197,6 +202,27 @@ export default function SalespersonCollections() {
       paymentMode: p.paymentMode ?? 'Cash',
       reference:   p.reference ?? '',
     });
+  };
+
+  const openEdit = (p) => {
+    setPendingAction({ type: 'edit', payment: p });
+    setPinOpen(true);
+  };
+
+  const openDelete = (p) => {
+    setPendingAction({ type: 'delete', payment: p });
+    setPinOpen(true);
+  };
+
+  const onPinSuccess = () => {
+    if (!pendingAction) return;
+    const { type, payment: p } = pendingAction;
+    if (type === 'edit') {
+      handleEdit(p);
+    } else if (type === 'delete') {
+      handleDelete(p.id, p.amount, p.paymentMode);
+    }
+    setPendingAction(null);
   };
 
   const handleEditSave = async () => {
@@ -496,7 +522,7 @@ export default function SalespersonCollections() {
                               {pagedPayments.map((p) => (
                                 <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
-                                    {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                    {new Date(p.paymentDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                   </td>
                                   <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                                     {formatCurrency(p.amount)}
@@ -511,10 +537,10 @@ export default function SalespersonCollections() {
                                   </td>
                                   <td className="px-4 py-3">
                                     <div className="flex items-center justify-end gap-1">
-                                      <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                      <button onClick={() => openEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
                                         <Pencil size={12} />
                                       </button>
-                                      <button onClick={() => handleDelete(p.id, p.amount, p.paymentMode)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                      <button onClick={() => openDelete(p)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                                         <Trash2 size={12} />
                                       </button>
                                     </div>
@@ -561,6 +587,14 @@ export default function SalespersonCollections() {
           )}
         </div>
       </div>
+
+      {/* ── PIN modal ────────────────────────────────────────── */}
+      <PinModal
+        isOpen={pinOpen}
+        onClose={() => { setPinOpen(false); setPendingAction(null); }}
+        onSuccess={onPinSuccess}
+        title="Enter PIN to Edit Collection"
+      />
 
       {/* ── Edit payment modal ─────────────────────────────── */}
       {editPayment && (
