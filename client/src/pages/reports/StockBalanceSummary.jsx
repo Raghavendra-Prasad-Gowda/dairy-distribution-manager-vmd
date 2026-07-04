@@ -14,6 +14,7 @@ export default function StockBalanceSummary() {
   const [dispatchData, setDispatchData]   = useState(null);
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
+  const [showEmptyProducts, setShowEmptyProducts] = useState(false);
 
   useEffect(() => {
     api.get('/brands')
@@ -46,20 +47,6 @@ export default function StockBalanceSummary() {
     return dispatchData.brands.find(b => b.brandId === activeBrandId)?.products ?? [];
   }, [dispatchData, activeBrandId]);
 
-  // Consecutive category groups for the two-row header
-  const categoryGroups = useMemo(() => {
-    const groups = [];
-    for (const p of products) {
-      const cat = p.category || null;
-      if (groups.length > 0 && groups[groups.length - 1].category === cat) {
-        groups[groups.length - 1].count += 1;
-      } else {
-        groups.push({ category: cat, count: 1 });
-      }
-    }
-    return groups;
-  }, [products]);
-
   // Salesperson rows that have at least 1 unit dispatched for this brand
   const spRows = useMemo(() => {
     if (!dispatchData || products.length === 0) return [];
@@ -82,6 +69,41 @@ export default function StockBalanceSummary() {
       return { productId: p.productId, dispatched, received, remaining: received - dispatched };
     });
   }, [products, availData, activeBrandId, dispatchData]);
+
+  // Columns with zero dispatched AND zero received are hidden by default —
+  // toggled back on via showEmptyProducts.
+  const visibleProducts = useMemo(() => {
+    if (showEmptyProducts) return products;
+    const nonEmptyIds = new Set(
+      colTotals.filter(c => c.dispatched > 0 || c.received > 0).map(c => c.productId)
+    );
+    return products.filter(p => nonEmptyIds.has(p.productId));
+  }, [products, colTotals, showEmptyProducts]);
+
+  const visibleProductIds = useMemo(
+    () => new Set(visibleProducts.map(p => p.productId)),
+    [visibleProducts],
+  );
+
+  const visibleColTotals = useMemo(
+    () => colTotals.filter(c => visibleProductIds.has(c.productId)),
+    [colTotals, visibleProductIds],
+  );
+
+  // Consecutive category groups for the two-row header — built over the
+  // visible column list so colSpan counts match the rendered <th>s.
+  const categoryGroups = useMemo(() => {
+    const groups = [];
+    for (const p of visibleProducts) {
+      const cat = p.category || null;
+      if (groups.length > 0 && groups[groups.length - 1].category === cat) {
+        groups[groups.length - 1].count += 1;
+      } else {
+        groups.push({ category: cat, count: 1 });
+      }
+    }
+    return groups;
+  }, [visibleProducts]);
 
   const grandTotals = useMemo(() => ({
     dispatched: colTotals.reduce((s, c) => s + c.dispatched, 0),
@@ -146,16 +168,37 @@ export default function StockBalanceSummary() {
               <span className={`text-[10px] font-bold uppercase tracking-wide ${grandTotals.remaining >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>Remaining</span>
               <span className={`text-sm font-extrabold tabular-nums ${grandTotals.remaining >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{grandTotals.remaining}</span>
             </div>
+            {(showEmptyProducts || visibleProducts.length < products.length) && (
+              <button
+                type="button"
+                onClick={() => setShowEmptyProducts(v => !v)}
+                className={`ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg border transition whitespace-nowrap ${
+                  showEmptyProducts
+                    ? 'bg-slate-100 text-slate-600 border-slate-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}
+              >
+                {showEmptyProducts ? 'All products' : 'Entered only'}
+              </button>
+            )}
           </div>
 
-          {/* Matrix table — freeze-pane: header sticky top, name column sticky left */}
+          {visibleProducts.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-400">
+              <AlertCircle size={22} className="text-slate-300" />
+              <p className="text-sm">No products with activity for this date</p>
+              <button type="button" onClick={() => setShowEmptyProducts(true)} className="text-xs text-emerald-600 underline">
+                Show all products
+              </button>
+            </div>
+          ) : (
           <div className="flex-1 min-h-0 px-4 pb-4">
             <div className="h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               {/* Single overflow:auto container so sticky top + sticky left both work */}
               <div className="h-full overflow-auto">
                 <table
                   className="text-sm border-separate border-spacing-0"
-                  style={{ minWidth: `${160 + products.length * 68 + 64}px` }}
+                  style={{ minWidth: `${160 + visibleProducts.length * 68 + 64}px` }}
                 >
                   {/* Two-row header: category row + product name row */}
                   <thead>
@@ -187,7 +230,7 @@ export default function StockBalanceSummary() {
                     </tr>
                     {/* Row 2 — product names */}
                     <tr>
-                      {products.map(p => (
+                      {visibleProducts.map(p => (
                         <th
                           key={p.productId}
                           className="bg-emerald-700 px-2 py-2 text-center text-[10px] font-bold text-white leading-tight border-r border-emerald-600"
@@ -209,7 +252,7 @@ export default function StockBalanceSummary() {
                         >
                           {row.salespersonName}
                         </td>
-                        {products.map(p => {
+                        {visibleProducts.map(p => {
                           const qty = row.items[p.productId]?.qty ?? 0;
                           return (
                             <td
@@ -240,7 +283,7 @@ export default function StockBalanceSummary() {
                       <td className="sticky left-0 z-20 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-t-2 border-slate-500 border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
                         Dispatched
                       </td>
-                      {colTotals.map(c => (
+                      {visibleColTotals.map(c => (
                         <td key={c.productId} className="bg-slate-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-t-2 border-r border-slate-500">
                           {c.dispatched > 0 ? c.dispatched : <span className="text-slate-400">—</span>}
                         </td>
@@ -255,7 +298,7 @@ export default function StockBalanceSummary() {
                       <td className="sticky left-0 z-20 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
                         Received
                       </td>
-                      {colTotals.map(c => (
+                      {visibleColTotals.map(c => (
                         <td key={c.productId} className="bg-blue-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-blue-600">
                           {c.received > 0 ? c.received : <span className="text-blue-400">—</span>}
                         </td>
@@ -270,7 +313,7 @@ export default function StockBalanceSummary() {
                       <td className="sticky left-0 z-20 bg-emerald-800 px-3 py-2.5 text-xs font-bold text-emerald-200 border-r border-emerald-700 uppercase tracking-wider whitespace-nowrap">
                         Remaining
                       </td>
-                      {colTotals.map(c => (
+                      {visibleColTotals.map(c => (
                         <td key={c.productId} className={`px-2 py-2.5 text-center text-sm tabular-nums font-bold border-r border-emerald-700 ${remBg(c.remaining)} ${remColor(c.remaining)}`}>
                           {c.remaining !== 0 ? c.remaining : <span className="text-slate-500">0</span>}
                         </td>
@@ -284,6 +327,7 @@ export default function StockBalanceSummary() {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
     </div>
