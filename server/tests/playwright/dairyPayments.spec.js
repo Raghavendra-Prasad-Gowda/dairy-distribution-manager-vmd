@@ -73,6 +73,7 @@ test.describe('POST /api/v1/dairy-payments', () => {
 
   test('allows payment when brand has no outstanding balance, creating a credit', async ({ request }) => {
     const upsertCalls = [];
+    ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
     mockDairyCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 5000 } }) });
     ctx.mockPrisma.dairyBalance.upsert.mockImplementation(async (args) => {
       upsertCalls.push(args);
@@ -90,6 +91,7 @@ test.describe('POST /api/v1/dairy-payments', () => {
 
   test('allows payment that exceeds outstanding balance, creating a credit', async ({ request }) => {
     const upsertCalls = [];
+    ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
     mockDairyCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 5000 } }) });
     // Simulate a prior day's closing balance of ₹1000 owed.
     ctx.mockPrisma.dairyBalance.findFirst.mockImplementation(async ({ where }) =>
