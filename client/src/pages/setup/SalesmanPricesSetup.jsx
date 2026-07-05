@@ -315,8 +315,13 @@ export default function SalesmanPricesSetup() {
                 value={spSearch}
                 onChange={e => setSpSearch(e.target.value)}
                 placeholder="Search name or route…"
-                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
+                className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
               />
+              {spSearch && (
+                <button onClick={() => setSpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
