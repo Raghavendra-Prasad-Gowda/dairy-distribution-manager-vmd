@@ -55,6 +55,7 @@ export default function SalesmanPricesSetup() {
   const [saving, setSaving]                 = useState(false);
   const [search, setSearch]                 = useState('');
   const [currentPage, setCurrentPage]       = useState(1);
+  const [spSearch, setSpSearch]             = useState('');
 
   const isGlobal = selectedSpId === GLOBAL_ID;
 
@@ -281,6 +282,11 @@ export default function SalesmanPricesSetup() {
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
+  const filteredSps = salespeople.filter(sp =>
+    sp.name.toLowerCase().includes(spSearch.toLowerCase()) ||
+    (sp.route ?? '').toLowerCase().includes(spSearch.toLowerCase())
+  );
+
   const colSpan = isGlobal ? 4 : 9;
 
   return (
@@ -297,27 +303,70 @@ export default function SalesmanPricesSetup() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-5">
+      <div className="flex flex-1 overflow-hidden">
 
-          {/* Controls bar */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salesperson</label>
-              <select
-                value={selectedSpId}
-                onChange={e => { setSelectedSpId(e.target.value); setDirtyToggles({}); setDirtyGlobal({}); }}
-                className="w-full ddm-input"
-              >
-                <option value={GLOBAL_ID}>— Global Settings (All Salespeople) —</option>
-                {salespeople.map(sp => (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.name}{sp.route ? ` — ${sp.route}` : ''}
-                  </option>
-                ))}
-              </select>
+        {/* ── Left panel: always visible ─────────────────────────────── */}
+        <div className="flex flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
+          <div className="p-3 border-b border-slate-100">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={spSearch}
+                onChange={e => setSpSearch(e.target.value)}
+                placeholder="Search name or route…"
+                className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
+              />
+              {spSearch && (
+                <button onClick={() => setSpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
+          <div className="flex-1 overflow-y-auto">
+            <button
+              onClick={() => { setSelectedSpId(GLOBAL_ID); setDirtyToggles({}); setDirtyGlobal({}); }}
+              className={`w-full text-left px-4 py-3 border-b border-slate-200 transition-colors flex items-center gap-2 ${
+                isGlobal
+                  ? 'bg-amber-50 border-l-4 border-l-amber-500'
+                  : 'border-l-4 border-l-transparent hover:bg-slate-50'
+              }`}
+            >
+              <Globe size={13} className={isGlobal ? 'text-amber-600' : 'text-slate-400'} />
+              <span className={`text-sm font-semibold truncate ${isGlobal ? 'text-amber-800' : 'text-slate-700'}`}>
+                Global Settings
+              </span>
+            </button>
+            {filteredSps.length === 0 ? (
+              <p className="px-3 py-6 text-center text-slate-400 text-xs">No results</p>
+            ) : (
+              filteredSps.map(sp => {
+                const isSelected = !isGlobal && String(sp.id) === String(selectedSpId);
+                return (
+                  <button
+                    key={sp.id}
+                    onClick={() => { setSelectedSpId(String(sp.id)); setDirtyToggles({}); setDirtyGlobal({}); }}
+                    className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
+                      isSelected
+                        ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                        : 'border-l-4 border-l-transparent hover:bg-slate-50'
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+                      {sp.name}
+                    </p>
+                    {sp.route && <p className="text-xs text-slate-400 truncate mt-0.5">{sp.route}</p>}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* ── Right panel ─────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+        <div className="p-5 md:p-8 space-y-5">
 
           {/* Global mode banner */}
           {isGlobal && (
@@ -562,6 +611,7 @@ export default function SalesmanPricesSetup() {
               </div>
             </>
           )}
+        </div>
         </div>
       </div>
 
