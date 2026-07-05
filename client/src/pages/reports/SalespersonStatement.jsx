@@ -1,19 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, AlertCircle, User, Search, X } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
-
-function exportCSV(rows, spName) {
-  const lines = [['Date', 'Opening (₹)', 'Stock Given (₹)', 'Collected (₹)', 'Outstanding (₹)'].join(',')];
-  rows.forEach((r) => lines.push([
-    new Date(r.date).toLocaleDateString('en-IN'),
-    r.openingBalance, r.stockGiven, r.amountPaid, r.closingBalance,
-  ].join(',')));
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `sp-statement-${spName}.csv`; a.click();
-}
 
 function ExpandableRow({ row, open, onToggle }) {
   const isOwing  = row.closingBalance > 0;
@@ -129,7 +118,6 @@ export default function SalespersonStatement() {
     }
   }
 
-  const activeSp = salespeople.find((s) => String(s.id) === String(selectedSp));
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 
   const filteredSps = salespeople.filter(sp =>
@@ -150,8 +138,11 @@ export default function SalespersonStatement() {
           </div>
         </div>
         {rows.length > 0 && (
-          <button onClick={() => exportCSV(rows, activeSp?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition">
-            <Download size={13} /> Export CSV
+          <button
+            onClick={() => window.open(`/print/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}`, '_blank')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition"
+          >
+            <Printer size={13} /> Print
           </button>
         )}
       </div>
