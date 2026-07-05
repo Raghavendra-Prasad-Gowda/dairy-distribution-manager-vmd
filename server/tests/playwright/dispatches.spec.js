@@ -158,6 +158,33 @@ test.describe('POST /api/v1/dispatches', () => {
     expect(body.data.message).toMatch(/cleared/i);
   });
 
+  test('empty items + admin-unlocked dispatch → clears in place, does not delete or re-lock', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isAdminUnlocked: true });
+    let deleteCalled = false;
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.delete.mockImplementation(async () => {
+      deleteCalled = true;
+      return DISPATCH;
+    });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, totalAmount: 0, isAdminUnlocked: true };
+    });
+    ctx.mockPrisma.stockDispatchItem.deleteMany.mockResolvedValue({ count: 0 });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/cleared/i);
+    expect(deleteCalled).toBe(false);
+    expect(updateArgs.data).toMatchObject({ totalAmount: 0 });
+  });
+
   test('returns 400 when salespersonId is missing', async ({ request }) => {
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
