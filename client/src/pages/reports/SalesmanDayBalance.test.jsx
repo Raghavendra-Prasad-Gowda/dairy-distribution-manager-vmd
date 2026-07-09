@@ -97,6 +97,20 @@ describe('SalesmanDayBalance', () => {
     expect(await screen.findByText(/All settled — no outstanding or payments/i)).toBeInTheDocument();
   });
 
+  it('preserves the API display order instead of sorting alphabetically', async () => {
+    // The endpoint orders by the admin-defined displayOrder; the page must not re-sort.
+    mockApi([
+      { salespersonId: 3, salespersonName: 'Zahir',  route: null, openingBalance: 100, stockGiven: 0, amountPaid: 0, closingBalance: 100 },
+      { salespersonId: 1, salespersonName: 'Ramesh', route: null, openingBalance: 200, stockGiven: 0, amountPaid: 0, closingBalance: 200 },
+      { salespersonId: 2, salespersonName: 'Anil',   route: null, openingBalance: 300, stockGiven: 0, amountPaid: 0, closingBalance: 300 },
+    ]);
+    const { container } = render(<SalesmanDayBalance />);
+    await screen.findByText('Zahir');
+    const names = [...container.querySelectorAll('tbody tr td:first-child p:first-child')]
+      .map(p => p.textContent);
+    expect(names).toEqual(['Zahir', 'Ramesh', 'Anil']);
+  });
+
   it('shows an error banner when the API fails', async () => {
     vi.mocked(api.get).mockRejectedValue({ response: { data: { error: 'Server exploded' } } });
     render(<SalesmanDayBalance />);

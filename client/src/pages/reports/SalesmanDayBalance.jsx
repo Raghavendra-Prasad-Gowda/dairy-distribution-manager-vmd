@@ -18,10 +18,10 @@ export default function SalesmanDayBalance() {
     api.get(`/salesperson-balance?date=${date}`)
       .then(r => {
         const all = r.data.data ?? [];
+        // API already returns salespeople in the defined display order
         const active = all.filter(b =>
           Number(b.openingBalance) !== 0 || Number(b.amountPaid) !== 0 || Number(b.closingBalance) !== 0
         );
-        active.sort((a, b) => a.salespersonName.localeCompare(b.salespersonName));
         setRows(active);
       })
       .catch(e => setError(e.response?.data?.error ?? 'Failed to load balances'))
