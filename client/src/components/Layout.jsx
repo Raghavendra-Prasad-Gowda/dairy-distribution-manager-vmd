@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet
 } from 'lucide-react';
 import { getBrandColors } from '../utils/constants';
 import api from '../api/axios';
@@ -57,6 +57,7 @@ const ADMIN_NAV_STATIC = [
         items: [
           { to: '/reports/stock-balance',   icon: Warehouse,   label: 'Stock Balance' },
           { to: '/salesman/dispatch-sheet',  icon: LayoutGrid,  label: 'Dispatch Sheet' },
+          { to: '/salesman/day-balance',     icon: Wallet,      label: 'Day Balance' },
           { to: '/salesman/payments',        icon: CreditCard,  label: 'Collections' },
         ],
       },
