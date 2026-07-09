@@ -70,6 +70,12 @@ function ExpandableRow({ row, open, onToggle }) {
   );
 }
 
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function SalespersonStatement() {
   const [salespeople, setSalespeople] = useState([]);
   const [search, setSearch]          = useState('');
@@ -118,7 +124,10 @@ export default function SalespersonStatement() {
     }
   }
 
-  const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
+  const closingBalance  = rows.length ? rows[rows.length - 1].closingBalance : 0;
+  const totalGiven      = rows.reduce((s, r) => s + r.stockGiven,  0);
+  const totalCollected  = rows.reduce((s, r) => s + r.amountPaid,  0);
+  const selectedSpObj   = salespeople.find(sp => String(sp.id) === String(selectedSp));
 
   const filteredSps = salespeople.filter(sp =>
     sp.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -203,6 +212,18 @@ export default function SalespersonStatement() {
             Select a salesperson
           </div>
         ) : (
+          <>
+          {selectedSpObj && (
+            <div className="flex items-center gap-2.5 px-5 py-3 bg-emerald-700">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {getInitials(selectedSpObj.name)}
+              </div>
+              <div>
+                <p className="font-bold text-sm text-white leading-tight">{selectedSpObj.name}</p>
+                {selectedSpObj.route && <p className="text-emerald-300 text-[11px] leading-tight">{selectedSpObj.route}</p>}
+              </div>
+            </div>
+          )}
           <div className="p-5 md:p-8 space-y-6">
 
             {/* ── Filters ──────────────────────────────────────────── */}
@@ -280,10 +301,25 @@ export default function SalespersonStatement() {
                       rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
                     )}
                   </tbody>
+                  {rows.length > 0 && (
+                    <tfoot className="sticky bottom-0 z-10">
+                      <tr>
+                        <td className="px-4 py-3 bg-slate-700 text-xs font-bold text-white uppercase tracking-wider">Totals</td>
+                        <td className="px-4 py-3 bg-slate-700 text-right text-xs text-slate-400">—</td>
+                        <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-blue-300 tabular-nums">{formatCurrency(totalGiven)}</td>
+                        <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-emerald-300 tabular-nums">{formatCurrency(totalCollected)}</td>
+                        <td className={`px-4 py-3 bg-slate-700 text-right text-xs font-bold tabular-nums ${closingBalance > 0 ? 'text-red-300' : closingBalance < 0 ? 'text-violet-300' : 'text-emerald-300'}`}>
+                          {formatCurrency(closingBalance)}
+                        </td>
+                        <td className="px-4 py-3 bg-slate-700" />
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>
