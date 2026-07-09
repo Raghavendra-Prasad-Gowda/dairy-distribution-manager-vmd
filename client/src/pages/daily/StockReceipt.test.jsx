@@ -120,4 +120,40 @@ describe('StockReceipt', () => {
     const productName = await screen.findByText('Milk 500ml');
     expect(productName).toBeInTheDocument();
   });
+
+  it('shows "No active products" notice when routes exist but every product is archived or hidden', async () => {
+    // Regression: archiving/hiding all of a brand's products left the page
+    // completely blank below the balance card with no explanation.
+    const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+    makeApiResponses({
+      brands:   [BRAND],
+      routes:   [route],
+      products: [],   // nothing active / visible in stock receipt
+      receipts: [],
+    });
+
+    render(<StockReceipt />);
+
+    const notice = await screen.findByText(/No active products for Nandini/i);
+    expect(notice).toBeInTheDocument();
+    expect(screen.getByText(/restore a product/i)).toBeInTheDocument();
+  });
+
+  it('filters out products with showInStockReceipt=false', async () => {
+    const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+    const visible = {
+      id: 1, name: 'Milk 500ml', brandId: 1, costPrice: '22', sellingPrice: '25',
+      category: 'Milk', unitType: 'ml', unitSize: 500, isActive: true,
+      showInStockReceipt: true, displayOrder: 0, depositEnabled: false,
+      containerType: 'crate', unitsPerContainer: 20,
+      brand: { id: 1, name: 'Nandini' }, costPrices: [], sellingPrices: [],
+    };
+    const hidden = { ...visible, id: 2, name: 'Curd 200g', showInStockReceipt: false };
+
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [visible, hidden], receipts: [] });
+    render(<StockReceipt />);
+
+    expect(await screen.findByText('Milk 500ml')).toBeInTheDocument();
+    expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
+  });
 });
