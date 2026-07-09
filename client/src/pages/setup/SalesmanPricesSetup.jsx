@@ -11,6 +11,12 @@ import api from '../../api/axios';
 const ITEMS_PER_PAGE = 10;
 const GLOBAL_ID = 'global';
 
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function TogglePill({ enabled, onChange }) {
   return (
     <button
@@ -366,6 +372,17 @@ export default function SalesmanPricesSetup() {
 
         {/* ── Right panel ─────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
+          {selectedSp && !isGlobal && (
+            <div className="flex items-center gap-2.5 px-5 py-3 bg-emerald-700">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {getInitials(selectedSp.name)}
+              </div>
+              <div>
+                <p className="font-bold text-sm text-white leading-tight">{selectedSp.name}</p>
+                {selectedSp.route && <p className="text-emerald-300 text-[11px] leading-tight">{selectedSp.route}</p>}
+              </div>
+            </div>
+          )}
         <div className="p-5 md:p-8 space-y-5">
 
           {/* Global mode banner */}
@@ -397,7 +414,7 @@ export default function SalesmanPricesSetup() {
                     placeholder="Search by product name or category…"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full pl-9 pr-9 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                   {search && (
                     <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
