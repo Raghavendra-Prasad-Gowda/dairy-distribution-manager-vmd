@@ -155,7 +155,7 @@ export default function StockBalanceSummary() {
           {/* Summary chips */}
           <div className="flex gap-2 px-4 pt-3 pb-2 flex-wrap flex-shrink-0">
             <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
-              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Received</span>
+              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Supply</span>
               <span className="text-sm font-extrabold text-blue-700 tabular-nums">{grandTotals.received || '—'}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
@@ -165,7 +165,7 @@ export default function StockBalanceSummary() {
             <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border ${
               grandTotals.remaining >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
             }`}>
-              <span className={`text-[10px] font-bold uppercase tracking-wide ${grandTotals.remaining >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>Remaining</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wide ${grandTotals.remaining >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>Shortage</span>
               <span className={`text-sm font-extrabold tabular-nums ${grandTotals.remaining >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{grandTotals.remaining}</span>
             </div>
             {(showEmptyProducts || visibleProducts.length < products.length) && (
@@ -276,42 +276,42 @@ export default function StockBalanceSummary() {
                     ))}
                   </tbody>
 
-                  {/* Summary footer rows — mirror the paper: Dispatched → Received → Remaining */}
+                  {/* Summary footer rows: Supply → Dispatched → Shortage */}
                   <tfoot className="sticky bottom-0 z-10">
-                    {/* DISPATCHED */}
+                    {/* SUPPLY */}
                     <tr>
-                      <td className="sticky left-0 z-20 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-t-2 border-slate-500 border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
-                        Dispatched
+                      <td className="sticky left-0 z-20 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-t-2 border-blue-600 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
+                        Supply
                       </td>
                       {visibleColTotals.map(c => (
-                        <td key={c.productId} className="bg-slate-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-t-2 border-r border-slate-500">
-                          {c.dispatched > 0 ? c.dispatched : <span className="text-slate-400">—</span>}
-                        </td>
-                      ))}
-                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
-                        {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
-                      </td>
-                    </tr>
-
-                    {/* RECEIVED */}
-                    <tr>
-                      <td className="sticky left-0 z-20 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
-                        Received
-                      </td>
-                      {visibleColTotals.map(c => (
-                        <td key={c.productId} className="bg-blue-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-blue-600">
+                        <td key={c.productId} className="bg-blue-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-t-2 border-r border-blue-600">
                           {c.received > 0 ? c.received : <span className="text-blue-400">—</span>}
                         </td>
                       ))}
-                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white">
+                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
                         {grandTotals.received > 0 ? grandTotals.received : '—'}
                       </td>
                     </tr>
 
-                    {/* REMAINING */}
+                    {/* DISPATCHED */}
+                    <tr>
+                      <td className="sticky left-0 z-20 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
+                        Dispatched
+                      </td>
+                      {visibleColTotals.map(c => (
+                        <td key={c.productId} className="bg-slate-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-slate-500">
+                          {c.dispatched > 0 ? c.dispatched : <span className="text-slate-400">—</span>}
+                        </td>
+                      ))}
+                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white">
+                        {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
+                      </td>
+                    </tr>
+
+                    {/* SHORTAGE */}
                     <tr>
                       <td className="sticky left-0 z-20 bg-emerald-800 px-3 py-2.5 text-xs font-bold text-emerald-200 border-r border-emerald-700 uppercase tracking-wider whitespace-nowrap">
-                        Remaining
+                        Shortage
                       </td>
                       {visibleColTotals.map(c => (
                         <td key={c.productId} className={`px-2 py-2.5 text-center text-sm tabular-nums font-bold border-r border-emerald-700 ${remBg(c.remaining)} ${remColor(c.remaining)}`}>
