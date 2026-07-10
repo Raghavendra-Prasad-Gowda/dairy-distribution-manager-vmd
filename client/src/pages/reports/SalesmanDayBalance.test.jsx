@@ -52,6 +52,7 @@ describe('SalesmanDayBalance', () => {
     render(<SalesmanDayBalance />);
     expect(await screen.findByText('Day Balance')).toBeInTheDocument();
     expect(screen.getByText('Outstanding Balance')).toBeInTheDocument();
+    expect(screen.getByText("Today's Bill")).toBeInTheDocument();
     expect(screen.getByText('Amount Paid Today')).toBeInTheDocument();
     expect(screen.getByText('Amount Remaining')).toBeInTheDocument();
   });
@@ -63,11 +64,12 @@ describe('SalesmanDayBalance', () => {
     expect(screen.queryByText('Suresh')).not.toBeInTheDocument(); // all zero → hidden
   });
 
-  it('shows each salesman with outstanding, paid and remaining amounts', async () => {
+  it('shows each salesman with outstanding, bill, paid and remaining amounts', async () => {
     render(<SalesmanDayBalance />);
     const rameshCell = await screen.findByText('Ramesh');
     const row = rameshCell.closest('tr');
     expect(row.textContent).toContain('₹1000.00'); // outstanding (opening)
+    expect(row.textContent).toContain('₹500.00');  // today's bill (stock given)
     expect(row.textContent).toContain('₹400.00');  // paid today
     expect(row.textContent).toContain('₹1100.00'); // remaining (closing)
   });
@@ -77,6 +79,7 @@ describe('SalesmanDayBalance', () => {
     await screen.findByText('Ramesh');
     const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
     expect(totalsRow.textContent).toContain('₹1200.00'); // outstanding: 1000 + 200
+    expect(totalsRow.textContent).toContain('₹500.00');  // bill: 500 + 0
     expect(totalsRow.textContent).toContain('₹600.00');  // paid: 400 + 200
     expect(totalsRow.textContent).toContain('₹1100.00'); // remaining: 1100 + 0
   });

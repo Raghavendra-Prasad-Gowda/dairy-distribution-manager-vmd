@@ -39,6 +39,7 @@ export default function SalesmanDayBalance() {
 
   const totals = useMemo(() => ({
     outstanding: filteredRows.reduce((s, r) => s + Number(r.openingBalance), 0),
+    bill:        filteredRows.reduce((s, r) => s + Number(r.stockGiven),     0),
     paid:        filteredRows.reduce((s, r) => s + Number(r.amountPaid),     0),
     remaining:   filteredRows.reduce((s, r) => s + Number(r.closingBalance), 0),
   }), [filteredRows]);
@@ -101,6 +102,7 @@ export default function SalesmanDayBalance() {
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Salesman</th>
                     <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Today's Bill</th>
                     <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Amount Paid Today</th>
                     <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Amount Remaining</th>
                   </tr>
@@ -108,7 +110,7 @@ export default function SalesmanDayBalance() {
                 <tbody>
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
+                      <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
                     </tr>
                   ) : (
                     filteredRows.map((r, idx) => (
@@ -119,6 +121,9 @@ export default function SalesmanDayBalance() {
                         </td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
                           {formatCurrency(r.openingBalance)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
+                          {Number(r.stockGiven) > 0 ? formatCurrency(r.stockGiven) : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
                           {Number(r.amountPaid) > 0 ? formatCurrency(r.amountPaid) : <span className="text-slate-300">—</span>}
@@ -138,6 +143,9 @@ export default function SalesmanDayBalance() {
                       </td>
                       <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-white tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.outstanding)}
+                      </td>
+                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
+                        {formatCurrency(totals.bill)}
                       </td>
                       <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.paid)}
