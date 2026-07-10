@@ -2,7 +2,7 @@
  * StockBalanceSummary tests.
  *
  * Covers the label renames (Received → Supply, Remaining → Shortage) and the
- * footer row order (Supply → Dispatched → Shortage).
+ * footer row order (Dispatched → Shortage → Supply).
  */
 
 import React from 'react';
@@ -78,7 +78,7 @@ describe('StockBalanceSummary', () => {
     expect(screen.queryByText('Remaining')).not.toBeInTheDocument();
   });
 
-  it('renders footer rows in Supply → Dispatched → Shortage order', async () => {
+  it('renders footer rows in Dispatched → Shortage → Supply order', async () => {
     mockApi({
       availability: [{ brandId: 1, productId: 10, received: 50 }],
       dispatch: DISPATCH_DATA,
@@ -88,7 +88,7 @@ describe('StockBalanceSummary', () => {
     await screen.findByText('Ramesh');
     const footerLabels = [...container.querySelectorAll('tfoot tr td:first-child')]
       .map(td => td.textContent.trim());
-    expect(footerLabels).toEqual(['Supply', 'Dispatched', 'Shortage']);
+    expect(footerLabels).toEqual(['Dispatched', 'Shortage', 'Supply']);
   });
 
   it('computes shortage as supply minus dispatched', async () => {
