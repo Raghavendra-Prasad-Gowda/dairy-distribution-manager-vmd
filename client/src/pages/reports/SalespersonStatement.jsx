@@ -105,7 +105,11 @@ export default function SalespersonStatement() {
 
   useEffect(() => {
     api.get('/salespeople')
-      .then((r) => setSalespeople(r.data.data))
+      .then((r) => {
+        const sp = r.data.data;
+        setSalespeople(sp);
+        if (sp.length) setSelectedSp(String(sp[0].id));
+      })
       .catch(() => setError('Failed to load salespeople'));
   }, []);
 
