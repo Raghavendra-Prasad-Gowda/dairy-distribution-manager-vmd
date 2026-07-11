@@ -22,7 +22,12 @@ vi.mock('../../utils/dateUtils', () => ({
 }));
 
 vi.mock('../../components/DateSelector', () => ({
-  default: ({ date }) => <span data-testid="date-selector">{date}</span>,
+  default: ({ date, onChange }) => (
+    <div>
+      <span data-testid="date-selector">{date}</span>
+      <button onClick={() => onChange('2026-07-05')}>change-date</button>
+    </div>
+  ),
 }));
 
 vi.mock('../../components/ui/BrandedLoader', () => ({
@@ -48,13 +53,23 @@ describe('SalesmanDayBalance', () => {
     mockApi();
   });
 
-  it('renders the page header and column headings', async () => {
+  it('renders the page header and column headings for today', async () => {
     render(<SalesmanDayBalance />);
     expect(await screen.findByText('Day Balance')).toBeInTheDocument();
-    expect(screen.getByText('Outstanding Balance')).toBeInTheDocument();
+    expect(screen.getByText('Total Outstanding Balance Amount')).toBeInTheDocument();
     expect(screen.getByText("Today's Bill")).toBeInTheDocument();
-    expect(screen.getByText('Amount Paid Today')).toBeInTheDocument();
-    expect(screen.getByText('Amount Remaining')).toBeInTheDocument();
+    expect(screen.getByText('Amount Received Today')).toBeInTheDocument();
+    expect(screen.getByText('Total Amount Remaining')).toBeInTheDocument();
+  });
+
+  it('swaps "Today" headers for the actual date when viewing a different day', async () => {
+    render(<SalesmanDayBalance />);
+    await screen.findByText('Ramesh');
+    fireEvent.click(screen.getByText('change-date'));
+    expect(await screen.findByText("05 Jul's Bill")).toBeInTheDocument();
+    expect(screen.getByText('Amount Received (05 Jul)')).toBeInTheDocument();
+    expect(screen.queryByText("Today's Bill")).not.toBeInTheDocument();
+    expect(screen.queryByText('Amount Received Today')).not.toBeInTheDocument();
   });
 
   it('hides fully-settled salespeople (all three amounts zero)', async () => {

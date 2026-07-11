@@ -46,6 +46,15 @@ export default function SalesmanDayBalance() {
 
   const remColor = (v) => v > 0 ? 'text-red-600' : v < 0 ? 'text-violet-600' : 'text-emerald-600';
 
+  // Column headers read "Today" when viewing today's date, and fall back to
+  // the actual date (e.g. "04 Jul") when browsing a different day.
+  const isToday  = date === getIndiaDate();
+  const dayLabel = isToday
+    ? 'Today'
+    : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const billHeader     = `${dayLabel}'s Bill`;
+  const receivedHeader = isToday ? 'Amount Received Today' : `Amount Received (${dayLabel})`;
+
   return (
     <div className="flex flex-col h-full bg-slate-100">
 
@@ -101,10 +110,10 @@ export default function SalesmanDayBalance() {
                 <thead className="sticky top-0 z-10">
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Salesman</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Today's Bill</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Amount Paid Today</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Amount Remaining</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Total Outstanding Balance Amount</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{receivedHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Amount Remaining</th>
                   </tr>
                 </thead>
                 <tbody>
