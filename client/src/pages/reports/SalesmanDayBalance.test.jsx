@@ -56,7 +56,7 @@ describe('SalesmanDayBalance', () => {
   it('renders the page header and column headings for today', async () => {
     render(<SalesmanDayBalance />);
     expect(await screen.findByText('Day Balance')).toBeInTheDocument();
-    expect(screen.getByText('Total Outstanding Balance Amount')).toBeInTheDocument();
+    expect(screen.getByText('Total Outstanding Balance')).toBeInTheDocument();
     expect(screen.getByText("Today's Bill")).toBeInTheDocument();
     expect(screen.getByText('Amount Received Today')).toBeInTheDocument();
     expect(screen.getByText('Total Amount Remaining')).toBeInTheDocument();

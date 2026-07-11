@@ -110,10 +110,10 @@ export default function SalesmanDayBalance() {
                 <thead className="sticky top-0 z-10">
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Salesman</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Total Outstanding Balance Amount</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{receivedHeader}</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Amount Remaining</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Total Outstanding Balance</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{receivedHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Amount Remaining</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -128,16 +128,16 @@ export default function SalesmanDayBalance() {
                           <p className="text-sm font-semibold text-slate-800 leading-tight">{r.salespersonName}</p>
                           {r.route && <p className="text-xs text-slate-400 leading-tight mt-0.5">{r.route}</p>}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
                           {formatCurrency(r.openingBalance)}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
                           {Number(r.stockGiven) > 0 ? formatCurrency(r.stockGiven) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
                           {Number(r.amountPaid) > 0 ? formatCurrency(r.amountPaid) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className={`px-4 py-2.5 text-right text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(Number(r.closingBalance))}`}>
+                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(Number(r.closingBalance))}`}>
                           {formatCurrency(r.closingBalance)}
                         </td>
                       </tr>
@@ -150,16 +150,16 @@ export default function SalesmanDayBalance() {
                       <td className="bg-slate-700 px-4 py-3 text-xs font-bold text-white uppercase tracking-wider border-r border-slate-600">
                         Totals · {filteredRows.length} salesm{filteredRows.length === 1 ? 'an' : 'en'}
                       </td>
-                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-white tabular-nums border-r border-slate-600">
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-white tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.outstanding)}
                       </td>
-                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.bill)}
                       </td>
-                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.paid)}
                       </td>
-                      <td className={`bg-slate-700 px-4 py-3 text-right text-sm font-bold tabular-nums ${
+                      <td className={`bg-slate-700 px-4 py-3 text-center text-sm font-bold tabular-nums ${
                         totals.remaining > 0 ? 'text-red-300' : totals.remaining < 0 ? 'text-violet-300' : 'text-emerald-300'
                       }`}>
                         {formatCurrency(totals.remaining)}
