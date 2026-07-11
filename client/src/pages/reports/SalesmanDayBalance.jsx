@@ -39,11 +39,21 @@ export default function SalesmanDayBalance() {
 
   const totals = useMemo(() => ({
     outstanding: filteredRows.reduce((s, r) => s + Number(r.openingBalance), 0),
+    bill:        filteredRows.reduce((s, r) => s + Number(r.stockGiven),     0),
     paid:        filteredRows.reduce((s, r) => s + Number(r.amountPaid),     0),
     remaining:   filteredRows.reduce((s, r) => s + Number(r.closingBalance), 0),
   }), [filteredRows]);
 
   const remColor = (v) => v > 0 ? 'text-red-600' : v < 0 ? 'text-violet-600' : 'text-emerald-600';
+
+  // Column headers read "Today" when viewing today's date, and fall back to
+  // the actual date (e.g. "04 Jul") when browsing a different day.
+  const isToday  = date === getIndiaDate();
+  const dayLabel = isToday
+    ? 'Today'
+    : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const billHeader     = `${dayLabel}'s Bill`;
+  const receivedHeader = isToday ? 'Amount Received Today' : `Amount Received (${dayLabel})`;
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -100,15 +110,16 @@ export default function SalesmanDayBalance() {
                 <thead className="sticky top-0 z-10">
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Salesman</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Amount Paid Today</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Amount Remaining</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Total Outstanding Balance Amount</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{receivedHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Amount Remaining</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
+                      <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
                     </tr>
                   ) : (
                     filteredRows.map((r, idx) => (
@@ -119,6 +130,9 @@ export default function SalesmanDayBalance() {
                         </td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
                           {formatCurrency(r.openingBalance)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
+                          {Number(r.stockGiven) > 0 ? formatCurrency(r.stockGiven) : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
                           {Number(r.amountPaid) > 0 ? formatCurrency(r.amountPaid) : <span className="text-slate-300">—</span>}
@@ -138,6 +152,9 @@ export default function SalesmanDayBalance() {
                       </td>
                       <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-white tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.outstanding)}
+                      </td>
+                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
+                        {formatCurrency(totals.bill)}
                       </td>
                       <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.paid)}

@@ -35,17 +35,19 @@ const ROWS = [
   { date: '2026-07-09', openingBalance: 1200, stockGiven: 400, amountPaid: 600, closingBalance: 1000, items: [], payments: [] },
 ];
 
-function mockApi({ rows = ROWS } = {}) {
+function mockApi({ rows = ROWS, salespeople = SALESPEOPLE } = {}) {
   vi.mocked(api.get).mockImplementation((url) => {
     if (url.includes('/reports/salesperson-statement')) return Promise.resolve({ data: { data: rows } });
-    if (url.includes('/salespeople'))                   return Promise.resolve({ data: { data: SALESPEOPLE } });
+    if (url.includes('/salespeople'))                   return Promise.resolve({ data: { data: salespeople } });
     return Promise.resolve({ data: { data: [] } });
   });
 }
 
 async function selectRamesh() {
   render(<SalespersonStatement />);
-  const spButton = await screen.findByText('Ramesh Kumar');
+  // Ramesh is auto-selected by default, so "Ramesh Kumar" may already appear
+  // in both the sidebar and the header band — click the sidebar entry.
+  const [spButton] = await screen.findAllByText('Ramesh Kumar');
   fireEvent.click(spButton);
 }
 
@@ -55,9 +57,23 @@ describe('SalespersonStatement', () => {
     mockApi();
   });
 
-  it('prompts to select a salesperson initially', async () => {
+  it('shows the "select a salesperson" placeholder when there are none', async () => {
+    mockApi({ salespeople: [] });
     render(<SalespersonStatement />);
     expect(await screen.findByText('Select a salesperson')).toBeInTheDocument();
+  });
+
+  it('auto-selects the first salesperson by default', async () => {
+    mockApi({
+      salespeople: [
+        { id: 1, name: 'Ramesh Kumar', route: 'Route 3' },
+        { id: 2, name: 'Suresh Babu', route: 'Route 5' },
+      ],
+    });
+    render(<SalespersonStatement />);
+    // Header band renders for Ramesh (first in the list) without any click.
+    expect(await screen.findByText('RK')).toBeInTheDocument();
+    expect(screen.getAllByText('Ramesh Kumar').length).toBeGreaterThanOrEqual(2);
   });
 
   it('shows the header band with initials, name and route after selecting', async () => {

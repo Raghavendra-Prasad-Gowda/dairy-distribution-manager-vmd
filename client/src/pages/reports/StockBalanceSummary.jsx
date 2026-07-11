@@ -276,34 +276,19 @@ export default function StockBalanceSummary() {
                     ))}
                   </tbody>
 
-                  {/* Summary footer rows: Supply → Dispatched → Shortage */}
+                  {/* Summary footer rows: Dispatched → Shortage → Supply */}
                   <tfoot className="sticky bottom-0 z-10">
-                    {/* SUPPLY */}
-                    <tr>
-                      <td className="sticky left-0 z-20 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-t-2 border-blue-600 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
-                        Supply
-                      </td>
-                      {visibleColTotals.map(c => (
-                        <td key={c.productId} className="bg-blue-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-t-2 border-r border-blue-600">
-                          {c.received > 0 ? c.received : <span className="text-blue-400">—</span>}
-                        </td>
-                      ))}
-                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
-                        {grandTotals.received > 0 ? grandTotals.received : '—'}
-                      </td>
-                    </tr>
-
                     {/* DISPATCHED */}
                     <tr>
-                      <td className="sticky left-0 z-20 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <td className="sticky left-0 z-20 bg-slate-600 px-3 py-2.5 text-xs font-bold text-white border-t-2 border-slate-500 border-r border-slate-500 uppercase tracking-wider whitespace-nowrap">
                         Dispatched
                       </td>
                       {visibleColTotals.map(c => (
-                        <td key={c.productId} className="bg-slate-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-slate-500">
+                        <td key={c.productId} className="bg-slate-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-t-2 border-r border-slate-500">
                           {c.dispatched > 0 ? c.dispatched : <span className="text-slate-400">—</span>}
                         </td>
                       ))}
-                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white">
+                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
                         {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
                       </td>
                     </tr>
@@ -320,6 +305,21 @@ export default function StockBalanceSummary() {
                       ))}
                       <td className={`px-2 py-2.5 text-center text-sm font-bold ${remBg(grandTotals.remaining)} ${remColor(grandTotals.remaining)}`}>
                         {grandTotals.remaining !== 0 ? grandTotals.remaining : '0'}
+                      </td>
+                    </tr>
+
+                    {/* SUPPLY */}
+                    <tr>
+                      <td className="sticky left-0 z-20 bg-blue-700 px-3 py-2.5 text-xs font-bold text-blue-100 border-r border-blue-600 uppercase tracking-wider whitespace-nowrap">
+                        Supply
+                      </td>
+                      {visibleColTotals.map(c => (
+                        <td key={c.productId} className="bg-blue-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-blue-600">
+                          {c.received > 0 ? c.received : <span className="text-blue-400">—</span>}
+                        </td>
+                      ))}
+                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white">
+                        {grandTotals.received > 0 ? grandTotals.received : '—'}
                       </td>
                     </tr>
                   </tfoot>
