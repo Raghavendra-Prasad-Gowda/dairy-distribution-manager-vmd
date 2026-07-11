@@ -40,9 +40,20 @@ function formatLitres(L) {
   return `${parseFloat(L.toFixed(2))} L`;
 }
 
+function calcKg(units, unitType, unitSize) {
+  if (unitType !== 'gram' || !unitSize || !units) return null;
+  const kg = (parseFloat(units) * unitSize) / 1000;
+  return kg > 0 ? kg : null;
+}
+
+function formatKg(kg) {
+  if (!kg) return null;
+  return `${parseFloat(kg.toFixed(2))} kg`;
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, totalUnits, totalLitres, onClick }) {
+function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, totalUnits, totalLitres, totalKg, onClick }) {
   return (
     <button
       type="button"
@@ -65,6 +76,11 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
         {collapsed && totalLitres > 0 && (
           <p className="text-[11px] font-bold text-blue-300 tabular-nums leading-tight">
             {formatLitres(totalLitres)}
+          </p>
+        )}
+        {collapsed && totalKg > 0 && (
+          <p className="text-[11px] font-bold text-blue-300 tabular-nums leading-tight">
+            {formatKg(totalKg)}
           </p>
         )}
         {(totalCrates > 0 || totalUnits > 0) && (
@@ -244,7 +260,7 @@ export default function SalespersonStockEntry() {
   // ─── Per-brand totals ──────────────────────────────────────────────────────
   const brandTotals = useMemo(() => {
     return hierarchy.map(br => {
-      let value = 0, crates = 0, crateLabel = null, litres = 0;
+      let value = 0, crates = 0, crateLabel = null, litres = 0, kg = 0;
       for (const cat of Object.values(br.categories)) {
         for (const p of cat.products) {
           const q = parseFloat(qty[p.productId]) || 0;
@@ -256,9 +272,12 @@ export default function SalespersonStockEntry() {
           if (p.unitType === 'ml' && p.unitSize && q > 0) {
             litres += (q * p.unitSize) / 1000;
           }
+          if (p.unitType === 'gram' && p.unitSize && q > 0) {
+            kg += (q * p.unitSize) / 1000;
+          }
         }
       }
-      return { brandId: br.brandId, brandName: br.brandName, value, crates, crateLabel, litres };
+      return { brandId: br.brandId, brandName: br.brandName, value, crates, crateLabel, litres, kg };
     });
   }, [hierarchy, qty]);
 
@@ -266,6 +285,7 @@ export default function SalespersonStockEntry() {
     value:  brandTotals.reduce((s, b) => s + b.value, 0),
     crates: brandTotals.reduce((s, b) => s + b.crates, 0),
     litres: brandTotals.reduce((s, b) => s + b.litres, 0),
+    kg:     brandTotals.reduce((s, b) => s + b.kg, 0),
   }), [brandTotals]);
 
   const totalUnits   = products.reduce((s, p) => s + (parseFloat(qty[p.productId]) || 0), 0);
@@ -546,6 +566,7 @@ export default function SalespersonStockEntry() {
                     crateLabel={bt?.crateLabel ?? 'Crate'}
                     totalUnits={brandUnits}
                     totalLitres={bt?.litres ?? 0}
+                    totalKg={bt?.kg ?? 0}
                     onClick={() => setCollapsedBrands(prev => ({ ...prev, [brand.brandId]: !prev[brand.brandId] }))}
                   />
 
@@ -584,6 +605,7 @@ export default function SalespersonStockEntry() {
                           const noPrice = p.sellingPrice === null;
                           const crateStr = calcContainerDisplay(qtyNum, p.containerType, p.unitsPerContainer);
                           const litresStr = formatLitres(calcLitres(qtyNum, p.unitType, p.unitSize));
+                          const kgStr     = formatKg(calcKg(qtyNum, p.unitType, p.unitSize));
                           const isLast  = pIdx === cat.products.length - 1;
 
                           return (
@@ -612,6 +634,9 @@ export default function SalespersonStockEntry() {
                                     </p>
                                     {litresStr && (
                                       <p className="text-sm font-bold text-blue-600 tabular-nums leading-tight">{litresStr}</p>
+                                    )}
+                                    {kgStr && (
+                                      <p className="text-sm font-bold text-blue-600 tabular-nums leading-tight">{kgStr}</p>
                                     )}
                                     {crateStr && (
                                       <p className="text-xs font-semibold text-amber-600 tabular-nums leading-tight">{crateStr}</p>
@@ -685,6 +710,9 @@ export default function SalespersonStockEntry() {
                     )}
                     {grandTotal.litres > 0 && (
                       <span className="font-bold text-blue-300"> · {formatLitres(grandTotal.litres)}</span>
+                    )}
+                    {grandTotal.kg > 0 && (
+                      <span className="font-bold text-blue-300"> · {formatKg(grandTotal.kg)}</span>
                     )}
                   </p>
                 </div>
