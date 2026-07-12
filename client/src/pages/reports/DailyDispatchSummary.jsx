@@ -451,11 +451,15 @@ export default function DailyDispatchSummary() {
                             <td className="bg-slate-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider border-t-2 border-slate-600">
                               Total
                             </td>
-                            <td className="bg-slate-700 px-3 py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums border-t-2 border-slate-600 whitespace-nowrap">
-                              {tableTotals.qty > 0 ? tableTotals.qty : '—'}
+                            <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.qty > 0
+                                ? <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.qty} units</span>
+                                : <span className="text-sm font-bold text-emerald-300">—</span>}
                             </td>
-                            <td className="bg-slate-700 px-3 py-2.5 text-right text-sm font-bold text-amber-300 tabular-nums border-t-2 border-slate-600 whitespace-nowrap">
-                              {tableTotals.crates > 0 ? tableTotals.crates : '—'}
+                            <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.crates > 0
+                                ? <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.crates} crates</span>
+                                : <span className="text-sm font-bold text-amber-300">—</span>}
                             </td>
                             <td className="bg-slate-700 px-3 py-2.5 border-t-2 border-slate-600" />
                             <td className="bg-slate-700 px-3 py-2.5 text-right text-sm font-bold text-white tabular-nums border-t-2 border-slate-600 whitespace-nowrap">
