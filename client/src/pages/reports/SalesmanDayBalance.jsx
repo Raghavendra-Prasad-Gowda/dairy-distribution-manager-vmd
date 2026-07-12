@@ -38,10 +38,11 @@ export default function SalesmanDayBalance() {
   }, [rows, search]);
 
   const totals = useMemo(() => ({
-    outstanding: filteredRows.reduce((s, r) => s + Number(r.openingBalance), 0),
-    bill:        filteredRows.reduce((s, r) => s + Number(r.stockGiven),     0),
-    paid:        filteredRows.reduce((s, r) => s + Number(r.amountPaid),     0),
-    remaining:   filteredRows.reduce((s, r) => s + Number(r.closingBalance), 0),
+    bill:            filteredRows.reduce((s, r) => s + Number(r.stockGiven),     0),
+    balance:         filteredRows.reduce((s, r) => s + Number(r.openingBalance), 0),
+    billPlusBalance: filteredRows.reduce((s, r) => s + Number(r.stockGiven) + Number(r.openingBalance), 0),
+    paid:            filteredRows.reduce((s, r) => s + Number(r.amountPaid),     0),
+    remaining:       filteredRows.reduce((s, r) => s + Number(r.closingBalance), 0),
   }), [filteredRows]);
 
   const remColor = (v) => v > 0 ? 'text-red-600' : v < 0 ? 'text-violet-600' : 'text-emerald-600';
@@ -52,8 +53,9 @@ export default function SalesmanDayBalance() {
   const dayLabel = isToday
     ? 'Today'
     : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-  const billHeader     = `${dayLabel}'s Bill`;
-  const receivedHeader = isToday ? 'Amount Received Today' : `Amount Received (${dayLabel})`;
+  const billHeader        = `${dayLabel}'s Bill`;
+  const billBalanceHeader = `${dayLabel} Bill + Balance`;
+  const paidHeader        = `${dayLabel} Paid`;
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -110,16 +112,17 @@ export default function SalesmanDayBalance() {
                 <thead className="sticky top-0 z-10">
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Salesman</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Total Outstanding Balance Amount</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{receivedHeader}</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Amount Remaining</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Balance</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billBalanceHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{paidHeader}</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Balance</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
+                      <td colSpan={6} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
                     </tr>
                   ) : (
                     filteredRows.map((r, idx) => (
@@ -128,16 +131,19 @@ export default function SalesmanDayBalance() {
                           <p className="text-sm font-semibold text-slate-800 leading-tight">{r.salespersonName}</p>
                           {r.route && <p className="text-xs text-slate-400 leading-tight mt-0.5">{r.route}</p>}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
-                          {formatCurrency(r.openingBalance)}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
                           {Number(r.stockGiven) > 0 ? formatCurrency(r.stockGiven) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
+                          {formatCurrency(r.openingBalance)}
+                        </td>
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-slate-800 border-b border-r border-slate-100">
+                          {formatCurrency(Number(r.stockGiven) + Number(r.openingBalance))}
+                        </td>
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
                           {Number(r.amountPaid) > 0 ? formatCurrency(r.amountPaid) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className={`px-4 py-2.5 text-right text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(Number(r.closingBalance))}`}>
+                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(Number(r.closingBalance))}`}>
                           {formatCurrency(r.closingBalance)}
                         </td>
                       </tr>
@@ -150,16 +156,19 @@ export default function SalesmanDayBalance() {
                       <td className="bg-slate-700 px-4 py-3 text-xs font-bold text-white uppercase tracking-wider border-r border-slate-600">
                         Totals · {filteredRows.length} salesm{filteredRows.length === 1 ? 'an' : 'en'}
                       </td>
-                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-white tabular-nums border-r border-slate-600">
-                        {formatCurrency(totals.outstanding)}
-                      </td>
-                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.bill)}
                       </td>
-                      <td className="bg-slate-700 px-4 py-3 text-right text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-white tabular-nums border-r border-slate-600">
+                        {formatCurrency(totals.balance)}
+                      </td>
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-white tabular-nums border-r border-slate-600">
+                        {formatCurrency(totals.billPlusBalance)}
+                      </td>
+                      <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.paid)}
                       </td>
-                      <td className={`bg-slate-700 px-4 py-3 text-right text-sm font-bold tabular-nums ${
+                      <td className={`bg-slate-700 px-4 py-3 text-center text-sm font-bold tabular-nums ${
                         totals.remaining > 0 ? 'text-red-300' : totals.remaining < 0 ? 'text-violet-300' : 'text-emerald-300'
                       }`}>
                         {formatCurrency(totals.remaining)}

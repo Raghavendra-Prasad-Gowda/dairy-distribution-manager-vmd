@@ -121,6 +121,12 @@ export default function DailyDispatchSummary() {
       .filter(b => b.products.length > 0);
   }, [data, selectedRow, showZeroQty]);
 
+  const tableTotals = useMemo(() => ({
+    qty:    tableData.reduce((s, b) => s + b.brandQtyTotal,    0),
+    crates: tableData.reduce((s, b) => s + b.brandCratesTotal, 0),
+    amount: tableData.reduce((s, b) => s + b.brandAmountTotal, 0),
+  }), [tableData]);
+
   const activeCount = useMemo(
     () => (data?.rows ?? []).filter(r => r.totalAmount > 0).length,
     [data],
@@ -440,6 +446,27 @@ export default function DailyDispatchSummary() {
                             );
                           })}
                         </tbody>
+                        <tfoot className="sticky bottom-0 z-10">
+                          <tr>
+                            <td className="bg-slate-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider border-t-2 border-slate-600">
+                              Total
+                            </td>
+                            <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.qty > 0
+                                ? <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.qty} units</span>
+                                : <span className="text-sm font-bold text-emerald-300">—</span>}
+                            </td>
+                            <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.crates > 0
+                                ? <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.crates} crates</span>
+                                : <span className="text-sm font-bold text-amber-300">—</span>}
+                            </td>
+                            <td className="bg-slate-700 px-3 py-2.5 border-t-2 border-slate-600" />
+                            <td className="bg-slate-700 px-3 py-2.5 text-right text-sm font-bold text-white tabular-nums border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.amount > 0 ? formatCurrency(tableTotals.amount) : '—'}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
@@ -450,7 +477,11 @@ export default function DailyDispatchSummary() {
               <div className="flex-shrink-0 bg-white border-t-2 border-emerald-200 px-4 py-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Grand Total</p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{selectedRow.salespersonName}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    {selectedRow.salespersonName}
+                    {tableTotals.qty > 0 && <span className="font-semibold text-emerald-600"> · {tableTotals.qty} units</span>}
+                    {tableTotals.crates > 0 && <span className="font-semibold text-amber-600"> · {tableTotals.crates} crates</span>}
+                  </p>
                 </div>
                 <p className="text-lg font-extrabold text-emerald-700 tabular-nums flex-shrink-0">
                   {formatCurrency(selectedRow.totalAmount)}
