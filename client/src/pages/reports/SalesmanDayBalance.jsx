@@ -55,7 +55,7 @@ export default function SalesmanDayBalance() {
     ? 'Today'
     : new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   const billHeader        = `${dayLabel}'s Bill`;
-  const billBalanceHeader = `${dayLabel} Bill + Balance`;
+  const billBalanceHeader = `${dayLabel} Bill + Outstanding Balance`;
   const paidHeader        = `${dayLabel} Paid`;
 
   return (
