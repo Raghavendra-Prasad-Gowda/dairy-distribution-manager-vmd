@@ -210,4 +210,41 @@ const copyFromSalesman = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: `${sourcePrices.length} prices copied` } });
 });
 
-module.exports = { getPrices, bulkSave, copyFromSalesman };
+// Admin only — bulk update same price for multiple salesmen
+const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const data = validate(schemas.bulkUpdateSalespersonPrices, req, res);
+  if (!data) return;
+
+  const { salespersonIds, productId, sellingPrice, effectiveFrom } = data;
+  const effectiveFromDate = new Date(effectiveFrom);
+  const todayIST = new Date(getIndiaDateStr());
+
+  // For each salesman, update or delete future prices and upsert the new one
+  const ops = salespersonIds.flatMap((spId) => {
+    const isFuture = effectiveFromDate > todayIST;
+    const before = isFuture
+      ? [prisma.salespersonPrice.deleteMany({
+          where: {
+            salespersonId: spId,
+            productId,
+            effectiveFrom: { gt: todayIST, not: effectiveFromDate },
+          },
+        })]
+      : [];
+    return [
+      ...before,
+      prisma.salespersonPrice.upsert({
+        where: { salespersonId_productId_effectiveFrom: { salespersonId: spId, productId, effectiveFrom: effectiveFromDate } },
+        update: { sellingPrice },
+        create: { salespersonId: spId, productId, sellingPrice, effectiveFrom: effectiveFromDate },
+      }),
+    ];
+  });
+
+  await prisma.$transaction(ops);
+  res.json({ success: true, data: { message: `Price updated for ${salespersonIds.length} salesmen` } });
+});
+
+module.exports = { getPrices, bulkSave, copyFromSalesman, bulkUpdateMultipleSalesmen };

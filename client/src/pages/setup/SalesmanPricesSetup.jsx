@@ -47,6 +47,15 @@ export default function SalesmanPricesSetup() {
   const [copyFromSpId, setCopyFromSpId]     = useState('');
   const [showCopyModal, setShowCopyModal]   = useState(false);
   const [copyingPrices, setCopyingPrices]   = useState(false);
+  // Bulk update prices modal
+  const [showBulkUpdateModal, setShowBulkUpdateModal] = useState(false);
+  const [bulkUpdateForm, setBulkUpdateForm] = useState({
+    selectedSalesmen: new Set(),
+    productId: '',
+    sellingPrice: '',
+    effectiveFrom: getIndiaDate(),
+  });
+  const [updatingBulkPrices, setUpdatingBulkPrices] = useState(false);
 
   // Global state
   const [globalProducts, setGlobalProducts] = useState([]);
@@ -205,6 +214,54 @@ export default function SalesmanPricesSetup() {
       p.productId === productId ? { ...p, salespersonDefaultPrice: price } : p
     ));
   };
+
+  const handleBulkSalesmenToggle = (spId) => {
+    setBulkUpdateForm(prev => {
+      const newSet = new Set(prev.selectedSalesmen);
+      if (newSet.has(spId)) {
+        newSet.delete(spId);
+      } else {
+        newSet.add(spId);
+      }
+      return { ...prev, selectedSalesmen: newSet };
+    });
+  };
+
+  async function handleBulkUpdate() {
+    if (bulkUpdateForm.selectedSalesmen.size === 0) {
+      notify('Select at least one salesman', 'warning');
+      return;
+    }
+    if (!bulkUpdateForm.productId) {
+      notify('Select a product', 'warning');
+      return;
+    }
+    const price = parseFloat(bulkUpdateForm.sellingPrice);
+    if (!(price >= 0)) {
+      notify('Enter a valid price', 'warning');
+      return;
+    }
+    setUpdatingBulkPrices(true);
+    try {
+      await api.post('/salespeople/bulk-update', {
+        salespersonIds: Array.from(bulkUpdateForm.selectedSalesmen),
+        productId: parseInt(bulkUpdateForm.productId, 10),
+        sellingPrice: price,
+        effectiveFrom: bulkUpdateForm.effectiveFrom,
+      });
+      notify(`Price updated for ${bulkUpdateForm.selectedSalesmen.size} salesmen`, 'success');
+      setShowBulkUpdateModal(false);
+      setBulkUpdateForm({
+        selectedSalesmen: new Set(),
+        productId: '',
+        sellingPrice: '',
+        effectiveFrom: getIndiaDate(),
+      });
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to update prices', 'error');
+      setUpdatingBulkPrices(false);
+    }
+  }
 
   const handleSave = async () => {
     if (isGlobal) {
@@ -435,6 +492,12 @@ export default function SalesmanPricesSetup() {
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
                     >
                       Disable All
+                    </button>
+                    <button
+                      onClick={() => setShowBulkUpdateModal(true)}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 transition whitespace-nowrap"
+                    >
+                      Bulk Update Prices
                     </button>
                   </div>
                 )}
@@ -831,6 +894,125 @@ export default function SalesmanPricesSetup() {
                 >
                   {copyingPrices ? <Loader2 className="animate-spin" size={14} /> : <Copy size={14} />}
                   {copyingPrices ? 'Copying…' : 'Copy Prices'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Update Prices Modal */}
+      {showBulkUpdateModal && (
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowBulkUpdateModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-purple-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white leading-tight">Bulk Update Prices</h3>
+                <p className="text-[11px] text-purple-200 mt-0.5">Apply the same price to multiple salespeople</p>
+              </div>
+              <button onClick={() => setShowBulkUpdateModal(false)} className="p-1.5 text-purple-200 hover:text-white hover:bg-purple-600 rounded-lg transition">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-5">
+              {/* Product Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Product</label>
+                <select
+                  value={bulkUpdateForm.productId}
+                  onChange={e => setBulkUpdateForm(f => ({ ...f, productId: e.target.value }))}
+                  className="w-full ddm-input"
+                >
+                  <option value="">— Select a product —</option>
+                  {globalProducts
+                    .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
+                    .map(p => (
+                      <option key={p.productId} value={p.productId}>
+                        {p.productName} {p.category ? `(${p.category})` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Price Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  New Selling Price (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    value={bulkUpdateForm.sellingPrice}
+                    onChange={e => setBulkUpdateForm(f => ({ ...f, sellingPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2.5 text-sm text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Effective From */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Prices From
+                </label>
+                <input
+                  type="date"
+                  value={bulkUpdateForm.effectiveFrom}
+                  onChange={e => setBulkUpdateForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                  min={getIndiaDate()}
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Pick today to make it the current price, or a future date to schedule the change.
+                </p>
+              </div>
+
+              {/* Salesmen Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  Apply to Salespeople ({bulkUpdateForm.selectedSalesmen.size} selected)
+                </label>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                  {salespeople.length === 0 ? (
+                    <p className="text-xs text-slate-400">No salespeople found</p>
+                  ) : (
+                    salespeople.map(sp => (
+                      <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={bulkUpdateForm.selectedSalesmen.has(sp.id)}
+                          onChange={() => handleBulkSalesmenToggle(sp.id)}
+                          className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500"
+                        />
+                        <span className="text-sm text-slate-700">
+                          {sp.name}{sp.route ? ` — ${sp.route}` : ''}
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkUpdateModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkUpdate}
+                  disabled={updatingBulkPrices || bulkUpdateForm.selectedSalesmen.size === 0}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-purple-700 hover:bg-purple-800 disabled:bg-purple-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {updatingBulkPrices ? <Loader2 className="animate-spin" size={14} /> : <IndianRupee size={14} />}
+                  {updatingBulkPrices ? 'Updating…' : `Update Prices (${bulkUpdateForm.selectedSalesmen.size})`}
                 </button>
               </div>
             </div>
