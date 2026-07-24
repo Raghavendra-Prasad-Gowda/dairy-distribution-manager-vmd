@@ -178,7 +178,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
       category:                p.category,
       categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
       salespersonEnabled:      p.salespersonEnabled,
-      salespersonDefaultPrice: p.salespersonDefaultPrice ? Number(p.salespersonDefaultPrice) : null,
+      salespersonDefaultPrice: Number(p.salespersonDefaultPrice),
       dairyCostPrice:          Number(p.costPrice),
       dairySellingPrice:       Number(p.sellingPrice),
     })),
@@ -191,6 +191,16 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
 
   const { products } = req.body;
   if (!Array.isArray(products) || !products.length) throw new AppError('products array is required', 400);
+
+  // Validate: if enabling (isEnabled=true), defaultPrice must be set and > 0
+  for (const p of products) {
+    if (p.isEnabled === true) {
+      const defaultPrice = p.defaultPrice !== undefined ? p.defaultPrice : null;
+      if (defaultPrice === null || defaultPrice === undefined || defaultPrice <= 0) {
+        throw new AppError('Default price must be set and greater than 0 to enable a product for salespeople', 400);
+      }
+    }
+  }
 
   const enablingIds = products.filter(p => p.isEnabled).map(p => p.productId);
 

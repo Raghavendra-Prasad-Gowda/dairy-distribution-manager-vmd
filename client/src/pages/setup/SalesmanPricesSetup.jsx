@@ -202,6 +202,19 @@ export default function SalesmanPricesSetup() {
   }
 
   const handleGlobalToggle = (productId, currentEnabled) => {
+    // Prevent enabling without a default price set
+    if (!currentEnabled) {  // Trying to enable
+      const product = globalProducts.find(p => p.productId === productId);
+      const priceValue = dirtyGlobalPrices[productId] !== undefined
+        ? dirtyGlobalPrices[productId]
+        : product.salespersonDefaultPrice;
+
+      if (!priceValue || priceValue <= 0) {
+        notify('Set a default price before enabling this product', 'warning');
+        return;
+      }
+    }
+
     const newValue = !currentEnabled;
     setDirtyGlobal(prev => ({ ...prev, [productId]: newValue }));
     setGlobalProducts(prev => prev.map(p => p.productId === productId ? { ...p, salespersonEnabled: newValue } : p));
@@ -269,16 +282,34 @@ export default function SalesmanPricesSetup() {
       const changedPrices = Object.keys(dirtyGlobalPrices);
       const allChanged = new Set([...changedToggles, ...changedPrices]);
       if (!allChanged.size) { notify('No changes to save', 'warning'); return; }
+
+      // Validate: enabled products must have valid default prices
+      const productsToSave = Array.from(allChanged).map(id => {
+        const productId = parseInt(id, 10);
+        const obj = { productId };
+        if (changedToggles.includes(id)) obj.isEnabled = dirtyGlobal[id];
+        if (changedPrices.includes(id)) obj.defaultPrice = dirtyGlobalPrices[id];
+        return obj;
+      });
+
+      // Check each product being enabled
+      for (const prod of productsToSave) {
+        if (prod.isEnabled === true) {
+          const priceValue = prod.defaultPrice !== undefined
+            ? prod.defaultPrice
+            : globalProducts.find(p => p.productId === prod.productId)?.salespersonDefaultPrice;
+
+          if (!priceValue || priceValue <= 0) {
+            notify(`Set a valid default price for product before enabling`, 'error');
+            return;
+          }
+        }
+      }
+
       setSaving(true);
       try {
         await api.patch('/products/salesperson-global', {
-          products: Array.from(allChanged).map(id => {
-            const productId = parseInt(id, 10);
-            const obj = { productId };
-            if (changedToggles.includes(id)) obj.isEnabled = dirtyGlobal[id];
-            if (changedPrices.includes(id)) obj.defaultPrice = dirtyGlobalPrices[id];
-            return obj;
-          }),
+          products: productsToSave
         });
         notify('Global settings saved', 'success');
         fetchGlobal();
@@ -564,19 +595,29 @@ export default function SalesmanPricesSetup() {
                               if (isGlobal) {
                                 const isDirty = dirtyGlobal[p.productId] !== undefined || dirtyGlobalPrices[p.productId] !== undefined;
                                 const priceValue = dirtyGlobalPrices[p.productId] !== undefined ? dirtyGlobalPrices[p.productId] : p.salespersonDefaultPrice;
+                                const isEnabled = p.salespersonEnabled;
+                                const priceInvalid = isEnabled && (!priceValue || priceValue <= 0);
+
                                 return (
                                   <tr
                                     key={p.productId}
                                     className={`transition-colors ${
-                                      !p.salespersonEnabled ? 'bg-slate-50/60 opacity-70' : isDirty ? 'bg-emerald-50/40' : 'hover:bg-slate-50'
+                                      priceInvalid
+                                        ? 'bg-red-50/40 border-l-4 border-red-500'
+                                        : !isEnabled
+                                        ? 'bg-slate-50/60 opacity-70'
+                                        : isDirty
+                                        ? 'bg-emerald-50/40'
+                                        : 'hover:bg-slate-50'
                                     }`}
                                   >
                                     <td className="px-6 py-3.5 align-middle">
                                       <div className="flex items-center gap-2">
-                                        <span className={`text-sm font-semibold ${p.salespersonEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                                        <span className={`text-sm font-semibold ${isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
                                           {p.productName}
                                         </span>
-                                        {isDirty && <span className="text-[10px] text-amber-600 font-bold">unsaved</span>}
+                                        {priceInvalid && <span className="text-[10px] bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-semibold">No price</span>}
+                                        {isDirty && !priceInvalid && <span className="text-[10px] text-amber-600 font-bold">unsaved</span>}
                                       </div>
                                     </td>
                                     <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
@@ -585,7 +626,7 @@ export default function SalesmanPricesSetup() {
                                     <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                       <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
                                     </td>
-                                    <td className="px-4 py-3.5 text-right align-middle">
+                                    <td className={`px-4 py-3.5 text-right align-middle ${priceInvalid ? 'bg-red-100/50' : ''}`}>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
                                         <input
@@ -594,16 +635,23 @@ export default function SalesmanPricesSetup() {
                                           min="0"
                                           value={priceValue ?? ''}
                                           onChange={e => handleGlobalPriceChange(p.productId, e.target.value)}
-                                          placeholder="—"
-                                          className="w-full pl-5 pr-2 py-2 text-xs text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                                          placeholder="Required"
+                                          className={`w-full pl-5 pr-2 py-2 text-xs text-right font-semibold tabular-nums border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
+                                            priceInvalid
+                                              ? 'border-red-400 bg-red-50 focus:ring-red-400 text-red-700'
+                                              : 'border-slate-200 focus:ring-emerald-400'
+                                          }`}
+                                          required
                                         />
                                       </div>
                                     </td>
                                     <td className="px-6 py-3.5 text-center align-middle">
-                                      <TogglePill
-                                        enabled={p.salespersonEnabled}
-                                        onChange={() => handleGlobalToggle(p.productId, p.salespersonEnabled)}
-                                      />
+                                      <div title={priceInvalid ? 'Set default price before enabling' : ''}>
+                                        <TogglePill
+                                          enabled={isEnabled}
+                                          onChange={() => handleGlobalToggle(p.productId, isEnabled)}
+                                        />
+                                      </div>
                                     </td>
                                   </tr>
                                 );
