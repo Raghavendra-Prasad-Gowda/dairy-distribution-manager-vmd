@@ -51,6 +51,7 @@ export default function SalesmanPricesSetup() {
   // Global state
   const [globalProducts, setGlobalProducts] = useState([]);
   const [dirtyGlobal, setDirtyGlobal]       = useState({});
+  const [dirtyGlobalPrices, setDirtyGlobalPrices] = useState({});
 
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
@@ -158,6 +159,7 @@ export default function SalesmanPricesSetup() {
       const r = await api.get('/products/salesperson-global');
       setGlobalProducts(r.data.data);
       setDirtyGlobal({});
+      setDirtyGlobalPrices({});
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to load global products', 'error');
     } finally {
@@ -196,14 +198,30 @@ export default function SalesmanPricesSetup() {
     setGlobalProducts(prev => prev.map(p => p.productId === productId ? { ...p, salespersonEnabled: newValue } : p));
   };
 
+  const handleGlobalPriceChange = (productId, value) => {
+    const price = value === '' ? null : parseFloat(value);
+    setDirtyGlobalPrices(prev => ({ ...prev, [productId]: price }));
+    setGlobalProducts(prev => prev.map(p =>
+      p.productId === productId ? { ...p, salespersonDefaultPrice: price } : p
+    ));
+  };
+
   const handleSave = async () => {
     if (isGlobal) {
-      const changed = Object.keys(dirtyGlobal);
-      if (!changed.length) { notify('No changes to save', 'warning'); return; }
+      const changedToggles = Object.keys(dirtyGlobal);
+      const changedPrices = Object.keys(dirtyGlobalPrices);
+      const allChanged = new Set([...changedToggles, ...changedPrices]);
+      if (!allChanged.size) { notify('No changes to save', 'warning'); return; }
       setSaving(true);
       try {
         await api.patch('/products/salesperson-global', {
-          products: changed.map(id => ({ productId: parseInt(id, 10), isEnabled: dirtyGlobal[id] })),
+          products: Array.from(allChanged).map(id => {
+            const productId = parseInt(id, 10);
+            const obj = { productId };
+            if (changedToggles.includes(id)) obj.isEnabled = dirtyGlobal[id];
+            if (changedPrices.includes(id)) obj.defaultPrice = dirtyGlobalPrices[id];
+            return obj;
+          }),
         });
         notify('Global settings saved', 'success');
         fetchGlobal();
@@ -298,13 +316,13 @@ export default function SalesmanPricesSetup() {
   const allBrandDisabled  = brandGlobalItems.length > 0 && brandGlobalItems.every(p => !p.salespersonEnabled);
 
   const hasDirty = isGlobal
-    ? Object.keys(dirtyGlobal).length > 0
+    ? Object.keys(dirtyGlobal).length > 0 || Object.keys(dirtyGlobalPrices).length > 0
     : Object.keys(dirtyToggles).length > 0;
 
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
-  const colSpan = isGlobal ? 4 : 10;
+  const colSpan = isGlobal ? 5 : 10;
 
   return (
     <div className="flex flex-col h-full">
@@ -329,7 +347,7 @@ export default function SalesmanPricesSetup() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salesperson</label>
               <select
                 value={selectedSpId}
-                onChange={e => { setSelectedSpId(e.target.value); setDirtyToggles({}); setDirtyGlobal({}); }}
+                onChange={e => { setSelectedSpId(e.target.value); setDirtyToggles({}); setDirtyGlobal({}); setDirtyGlobalPrices({}); }}
                 className="w-full ddm-input"
               >
                 <option value={GLOBAL_ID}>— Global Settings (All Salespeople) —</option>
@@ -444,6 +462,9 @@ export default function SalesmanPricesSetup() {
                         <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Cost</th>
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
+                        {isGlobal && (
+                          <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Default Price</th>
+                        )}
                         {!isGlobal && (
                           <>
                             <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
@@ -478,7 +499,8 @@ export default function SalesmanPricesSetup() {
                             </tr>
                             {items.map(p => {
                               if (isGlobal) {
-                                const isDirty = dirtyGlobal[p.productId] !== undefined;
+                                const isDirty = dirtyGlobal[p.productId] !== undefined || dirtyGlobalPrices[p.productId] !== undefined;
+                                const priceValue = dirtyGlobalPrices[p.productId] !== undefined ? dirtyGlobalPrices[p.productId] : p.salespersonDefaultPrice;
                                 return (
                                   <tr
                                     key={p.productId}
@@ -499,6 +521,20 @@ export default function SalesmanPricesSetup() {
                                     </td>
                                     <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                       <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
+                                    </td>
+                                    <td className="px-4 py-3.5 text-right align-middle">
+                                      <div className="relative">
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={priceValue ?? ''}
+                                          onChange={e => handleGlobalPriceChange(p.productId, e.target.value)}
+                                          placeholder="—"
+                                          className="w-full pl-5 pr-2 py-2 text-xs text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                                        />
+                                      </div>
                                     </td>
                                     <td className="px-6 py-3.5 text-center align-middle">
                                       <TogglePill

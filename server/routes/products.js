@@ -171,20 +171,21 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: products.map(p => ({
-      productId:            p.id,
-      productName:          p.name,
-      brandId:              p.brandId,
-      brandName:            p.brand.name,
-      category:             p.category,
-      categoryDisplayOrder: catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
-      salespersonEnabled:   p.salespersonEnabled,
-      dairyCostPrice:       Number(p.costPrice),
-      dairySellingPrice:    Number(p.sellingPrice),
+      productId:               p.id,
+      productName:             p.name,
+      brandId:                 p.brandId,
+      brandName:               p.brand.name,
+      category:                p.category,
+      categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+      salespersonEnabled:      p.salespersonEnabled,
+      salespersonDefaultPrice: p.salespersonDefaultPrice ? Number(p.salespersonDefaultPrice) : null,
+      dairyCostPrice:          Number(p.costPrice),
+      dairySellingPrice:       Number(p.sellingPrice),
     })),
   });
 }));
 
-// PATCH /products/salesperson-global — bulk update salespersonEnabled flag
+// PATCH /products/salesperson-global — bulk update salespersonEnabled flag and/or default price
 router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
@@ -194,9 +195,12 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   const enablingIds = products.filter(p => p.isEnabled).map(p => p.productId);
 
   await prisma.$transaction([
-    ...products.map(({ productId, isEnabled }) =>
-      prisma.product.update({ where: { id: productId }, data: { salespersonEnabled: isEnabled } })
-    ),
+    ...products.map(({ productId, isEnabled, defaultPrice }) => {
+      const updateData = {};
+      if (isEnabled !== undefined) updateData.salespersonEnabled = isEnabled;
+      if (defaultPrice !== undefined) updateData.salespersonDefaultPrice = defaultPrice;
+      return prisma.product.update({ where: { id: productId }, data: updateData });
+    }),
     // Clear per-person disabled overrides so the product shows for all salespeople by default
     ...(enablingIds.length ? [
       prisma.salespersonProduct.deleteMany({

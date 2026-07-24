@@ -98,7 +98,7 @@ const getPrices = asyncHandler(async (req, res) => {
     isEnabled:               p.salespersonEnabled && (enabledMap[p.id] ?? true),
     dairyCostPrice:          Number(p.costPrice),
     dairySellingPrice:       Number(p.sellingPrice),
-    sellingPrice:            priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : null,
+    sellingPrice:            priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : (p.salespersonDefaultPrice ? Number(p.salespersonDefaultPrice) : null),
     effectiveFrom:           priceMap[p.id]?.effectiveFrom ?? null,
     upcomingSellingPrice:    upcomingMap[p.id] ? Number(upcomingMap[p.id].sellingPrice) : null,
     upcomingEffectiveFrom:   upcomingMap[p.id]?.effectiveFrom ?? null,

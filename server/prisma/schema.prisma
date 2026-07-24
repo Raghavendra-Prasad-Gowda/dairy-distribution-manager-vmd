@@ -49,6 +49,7 @@ model Product {
   isActive            Boolean  @default(true) @map("is_active")
   showInStockReceipt  Boolean  @default(true) @map("show_in_stock_receipt")
   salespersonEnabled        Boolean  @default(false) @map("salesperson_enabled")
+  salespersonDefaultPrice   Decimal? @db.Decimal(10, 4) @map("salesperson_default_price")
   depositEnabled            Boolean  @default(false) @map("deposit_enabled")
   displayOrder              Int      @default(0) @map("display_order")
   salespersonDisplayOrder   Int      @default(0) @map("salesperson_display_order")
