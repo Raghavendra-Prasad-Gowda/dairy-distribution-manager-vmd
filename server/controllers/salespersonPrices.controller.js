@@ -149,4 +149,65 @@ const bulkSave = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: `${data.prices.length} prices saved` } });
 });
 
-module.exports = { getPrices, bulkSave };
+// Admin only — copy prices from one salesman to another for a specific brand
+const copyFromSalesman = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const targetSpId = parseId(req.params.id, 'Target Salesperson ID');
+  const sourceSpId = parseId(req.params.sourceId, 'Source Salesperson ID');
+  const brandId = parseId(req.query.brandId, 'Brand ID');
+
+  if (targetSpId === sourceSpId) {
+    throw new AppError('Source and target salesperson must be different', 400);
+  }
+
+  // Fetch all products for this brand
+  const brandProducts = await prisma.product.findMany({
+    where: { brandId, isActive: true, showInStockReceipt: true },
+    select: { id: true },
+  });
+
+  if (!brandProducts.length) {
+    return res.json({ success: true, data: { message: 'No products to copy for this brand' } });
+  }
+
+  const productIds = brandProducts.map(p => p.id);
+
+  // Fetch all prices from source salesman for these products
+  const sourcePrices = await prisma.salespersonPrice.findMany({
+    where: {
+      salespersonId: sourceSpId,
+      productId: { in: productIds },
+    },
+  });
+
+  if (!sourcePrices.length) {
+    return res.json({ success: true, data: { message: 'No prices to copy from source salesman' } });
+  }
+
+  // Batch upsert to target — for each source price, create or update the same price row
+  // for the target salesman (keyed by productId + effectiveFrom)
+  const upsertOps = sourcePrices.map(sp =>
+    prisma.salespersonPrice.upsert({
+      where: {
+        salespersonId_productId_effectiveFrom: {
+          salespersonId: targetSpId,
+          productId: sp.productId,
+          effectiveFrom: sp.effectiveFrom,
+        },
+      },
+      update: { sellingPrice: sp.sellingPrice },
+      create: {
+        salespersonId: targetSpId,
+        productId: sp.productId,
+        sellingPrice: sp.sellingPrice,
+        effectiveFrom: sp.effectiveFrom,
+      },
+    })
+  );
+
+  await prisma.$transaction(upsertOps);
+  res.json({ success: true, data: { message: `${sourcePrices.length} prices copied` } });
+});
+
+module.exports = { getPrices, bulkSave, copyFromSalesman };

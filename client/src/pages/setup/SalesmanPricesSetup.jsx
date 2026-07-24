@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2 } from 'lucide-react';
+import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2, Copy } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -43,6 +43,10 @@ export default function SalesmanPricesSetup() {
   const [editingPrice, setEditingPrice]     = useState(null); // { productId, productName, currentPrice }
   const [priceForm, setPriceForm]           = useState({ sellingPrice: '', effectiveFrom: getIndiaDate() });
   const [savingPrice, setSavingPrice]       = useState(false);
+  // Copy prices modal
+  const [copyFromSpId, setCopyFromSpId]     = useState('');
+  const [showCopyModal, setShowCopyModal]   = useState(false);
+  const [copyingPrices, setCopyingPrices]   = useState(false);
 
   // Global state
   const [globalProducts, setGlobalProducts] = useState([]);
@@ -161,11 +165,30 @@ export default function SalesmanPricesSetup() {
     }
   }
 
-  const handleToggle = (productId, currentEnabled) => {
+  const handleToggle = (productId, currentEnabled, isGloballyDisabled) => {
+    if (isGloballyDisabled && !currentEnabled) {
+      notify('This product is disabled globally. Enable it in Global Settings first.', 'warning');
+      return;
+    }
     const newValue = !currentEnabled;
     setDirtyToggles(prev => ({ ...prev, [productId]: newValue }));
     setPrices(prev => prev.map(p => p.productId === productId ? { ...p, isEnabled: newValue } : p));
   };
+
+  async function handleCopyPrices() {
+    if (!copyFromSpId) { notify('Select a salesman to copy from', 'warning'); return; }
+    setCopyingPrices(true);
+    try {
+      await api.post(`/salespeople/${selectedSpId}/prices/copy-from/${copyFromSpId}?brandId=${activeBrandId}`);
+      notify('Prices copied successfully', 'success');
+      setShowCopyModal(false);
+      setCopyFromSpId('');
+      fetchPrices();
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to copy prices', 'error');
+      setCopyingPrices(false);
+    }
+  }
 
   const handleGlobalToggle = (productId, currentEnabled) => {
     const newValue = !currentEnabled;
@@ -281,7 +304,7 @@ export default function SalesmanPricesSetup() {
   const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
-  const colSpan = isGlobal ? 4 : 9;
+  const colSpan = isGlobal ? 4 : 10;
 
   return (
     <div className="flex flex-col h-full">
@@ -357,19 +380,27 @@ export default function SalesmanPricesSetup() {
                   )}
                 </div>
                 {!isGlobal && (
-                  <button
-                    onClick={() => setShowEnabledOnly(v => {
-                      localStorage.setItem('sp_showEnabledOnly', String(!v));
-                      return !v;
-                    })}
-                    className={`text-xs font-semibold px-3 py-2 rounded-xl border transition whitespace-nowrap flex-shrink-0 ${
-                      showEnabledOnly
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600'
-                    }`}
-                  >
-                    {showEnabledOnly ? 'Enabled only' : 'Show all'}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowEnabledOnly(v => {
+                        localStorage.setItem('sp_showEnabledOnly', String(!v));
+                        return !v;
+                      })}
+                      className={`text-xs font-semibold px-3 py-2 rounded-xl border transition whitespace-nowrap flex-shrink-0 ${
+                        showEnabledOnly
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600'
+                      }`}
+                    >
+                      {showEnabledOnly ? 'Enabled only' : 'Show all'}
+                    </button>
+                    <button
+                      onClick={() => setShowCopyModal(true)}
+                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition whitespace-nowrap"
+                    >
+                      <Copy size={12} /> Copy Prices
+                    </button>
+                  </>
                 )}
                 {isGlobal && (
                   <div className="flex items-center gap-2 ml-auto">
@@ -417,6 +448,7 @@ export default function SalesmanPricesSetup() {
                           <>
                             <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Prices From</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Effective Price</th>
                             <th className="px-4 py-3 text-right text-xs font-bold text-amber-200 uppercase tracking-wider w-28">Upcoming</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-amber-200 uppercase tracking-wider w-32">From</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-20">Edit</th>
@@ -526,6 +558,13 @@ export default function SalesmanPricesSetup() {
                                       : <span className="text-xs text-slate-300">—</span>}
                                   </td>
                                   <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
+                                    {p.sellingPrice != null ? (
+                                      <span className="text-sm font-bold text-emerald-700">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-semibold">from global</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
                                     {p.upcomingSellingPrice != null
                                       ? <span className="text-sm font-semibold text-amber-700">₹{Number(p.upcomingSellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
                                       : <span className="text-xs text-slate-300">—</span>}
@@ -545,10 +584,12 @@ export default function SalesmanPricesSetup() {
                                     </button>
                                   </td>
                                   <td className="px-6 py-3.5 text-center align-middle">
-                                    <TogglePill
-                                      enabled={p.isEnabled}
-                                      onChange={() => handleToggle(p.productId, p.isEnabled)}
-                                    />
+                                    <div title={!p.salespersonEnabled ? 'This product is disabled globally' : ''}>
+                                      <TogglePill
+                                        enabled={p.isEnabled && p.salespersonEnabled}
+                                        onChange={() => handleToggle(p.productId, p.isEnabled, !p.salespersonEnabled)}
+                                      />
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -702,6 +743,64 @@ export default function SalesmanPricesSetup() {
           </div>
         );
       })()}
+
+      {/* Copy Prices Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCopyModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white leading-tight">Copy Prices</h3>
+                <p className="text-[11px] text-emerald-200 mt-0.5">Copy prices from another salesman for this brand</p>
+              </div>
+              <button onClick={() => setShowCopyModal(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Copy from</label>
+                <select
+                  value={copyFromSpId}
+                  onChange={e => setCopyFromSpId(e.target.value)}
+                  className="w-full ddm-input"
+                >
+                  <option value="">— Select a salesman —</option>
+                  {salespeople
+                    .filter(sp => String(sp.id) !== String(selectedSpId))
+                    .map(sp => (
+                      <option key={sp.id} value={sp.id}>
+                        {sp.name}{sp.route ? ` — ${sp.route}` : ''}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  All prices for {brands.find(b => b.id === activeBrandId)?.name || 'this brand'} will be copied.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCopyModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCopyPrices}
+                  disabled={copyingPrices || !copyFromSpId}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {copyingPrices ? <Loader2 className="animate-spin" size={14} /> : <Copy size={14} />}
+                  {copyingPrices ? 'Copying…' : 'Copy Prices'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
