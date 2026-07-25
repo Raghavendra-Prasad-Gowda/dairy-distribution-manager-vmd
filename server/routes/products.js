@@ -209,6 +209,30 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: `${products.length} products updated` } });
 }));
 
+// DELETE /products/:id/salesperson-prices — clear all custom prices for a product (admin-only)
+router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const productId = parseId(req.params.id, 'Product ID');
+
+  // Verify product exists
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) throw new AppError('Product not found', 404);
+
+  // Delete all custom SalespersonPrice records for this product
+  const result = await prisma.salespersonPrice.deleteMany({
+    where: { productId },
+  });
+
+  res.json({
+    success: true,
+    data: {
+      message: `Cleared custom prices for ${result.count} salespeople. All will now use the global default of ₹${Number(product.salespersonDefaultPrice)}.`,
+      clearedCount: result.count,
+    },
+  });
+}));
+
 // PUT /products/:id
 router.put('/:id', asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Product ID');
