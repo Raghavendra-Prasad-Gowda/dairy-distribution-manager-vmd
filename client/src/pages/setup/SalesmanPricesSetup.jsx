@@ -60,6 +60,8 @@ export default function SalesmanPricesSetup() {
     effectiveFrom: getIndiaDate(),
   });
   const [updatingBulkPrices, setUpdatingBulkPrices] = useState(false);
+  const [bulkUpdateProductSearch, setBulkUpdateProductSearch] = useState('');
+  const [bulkUpdateSalesmenSearch, setBulkUpdateSalesmenSearch] = useState('');
 
   // Global state
   const [globalProducts, setGlobalProducts] = useState([]);
@@ -1433,14 +1435,22 @@ export default function SalesmanPricesSetup() {
 
       {/* Bulk Update Prices Modal */}
       {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowBulkUpdateModal(false)}>
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => {
+          setShowBulkUpdateModal(false);
+          setBulkUpdateProductSearch('');
+          setBulkUpdateSalesmenSearch('');
+        }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-purple-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-white leading-tight">Bulk Update Prices</h3>
                 <p className="text-[11px] text-purple-200 mt-0.5">Apply the same price to multiple salespeople</p>
               </div>
-              <button onClick={() => setShowBulkUpdateModal(false)} className="p-1.5 text-purple-200 hover:text-white hover:bg-purple-600 rounded-lg transition">
+              <button onClick={() => {
+                setShowBulkUpdateModal(false);
+                setBulkUpdateProductSearch('');
+                setBulkUpdateSalesmenSearch('');
+              }} className="p-1.5 text-purple-200 hover:text-white hover:bg-purple-600 rounded-lg transition">
                 <X size={16} />
               </button>
             </div>
@@ -1449,20 +1459,47 @@ export default function SalesmanPricesSetup() {
               {/* Product Selection */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Product</label>
-                <select
-                  value={bulkUpdateForm.productId}
-                  onChange={e => setBulkUpdateForm(f => ({ ...f, productId: e.target.value }))}
-                  className="w-full ddm-input"
-                >
-                  <option value="">— Select a product —</option>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search products…"
+                    value={bulkUpdateProductSearch}
+                    onChange={e => setBulkUpdateProductSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-2"
+                  />
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
                   {globalProducts
                     .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
+                    .filter(p => {
+                      const q = bulkUpdateProductSearch.toLowerCase();
+                      return !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q));
+                    })
                     .map(p => (
-                      <option key={p.productId} value={p.productId}>
-                        {p.productName} {p.category ? `(${p.category})` : ''}
-                      </option>
+                      <button
+                        key={p.productId}
+                        type="button"
+                        onClick={() => setBulkUpdateForm(f => ({ ...f, productId: String(p.productId) }))}
+                        className={`w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-purple-50 transition ${
+                          bulkUpdateForm.productId === String(p.productId)
+                            ? 'bg-purple-100 border-l-4 border-l-purple-600'
+                            : ''
+                        }`}
+                      >
+                        <div className="font-medium text-slate-900">{p.productName}</div>
+                        {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
+                      </button>
                     ))}
-                </select>
+                  {globalProducts.filter(p => p.brandId === activeBrandId && p.salespersonEnabled).filter(p => {
+                    const q = bulkUpdateProductSearch.toLowerCase();
+                    return !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q));
+                  }).length === 0 && (
+                    <div className="px-3 py-4 text-center text-xs text-slate-400">
+                      {bulkUpdateProductSearch ? 'No products found' : 'No enabled products for this brand'}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Price Input */}
@@ -1506,25 +1543,55 @@ export default function SalesmanPricesSetup() {
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                   Apply to Salespeople ({bulkUpdateForm.selectedSalesmen.size} selected)
                 </label>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                  {salespeople.length === 0 ? (
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search salespeople…"
+                    value={bulkUpdateSalesmenSearch}
+                    onChange={e => setBulkUpdateSalesmenSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  />
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
+                  {salespeople
+                    .filter(sp => {
+                      const q = bulkUpdateSalesmenSearch.toLowerCase();
+                      return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
+                    })
+                    .length === 0 ? (
                     <p className="text-xs text-slate-400">No salespeople found</p>
                   ) : (
-                    salespeople.map(sp => (
-                      <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={bulkUpdateForm.selectedSalesmen.has(sp.id)}
-                          onChange={() => handleBulkSalesmenToggle(sp.id)}
-                          className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500"
-                        />
-                        <span className="text-sm text-slate-700">
-                          {sp.name}{sp.route ? ` — ${sp.route}` : ''}
-                        </span>
-                      </label>
-                    ))
+                    salespeople
+                      .filter(sp => {
+                        const q = bulkUpdateSalesmenSearch.toLowerCase();
+                        return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
+                      })
+                      .map(sp => (
+                        <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
+                          <input
+                            type="checkbox"
+                            checked={bulkUpdateForm.selectedSalesmen.has(sp.id)}
+                            onChange={() => handleBulkSalesmenToggle(sp.id)}
+                            className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-slate-700 truncate">{sp.name}</div>
+                            {sp.route && <div className="text-xs text-slate-500 truncate">{sp.route}</div>}
+                          </div>
+                        </label>
+                      ))
                   )}
                 </div>
+                {bulkUpdateForm.selectedSalesmen.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setBulkUpdateForm(f => ({ ...f, selectedSalesmen: new Set() }))}
+                    className="text-xs text-slate-500 hover:text-slate-700 mt-2 transition"
+                  >
+                    Clear all selections
+                  </button>
+                )}
               </div>
 
               {/* Action Buttons */}
