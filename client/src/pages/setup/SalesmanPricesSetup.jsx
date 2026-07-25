@@ -445,7 +445,7 @@ export default function SalesmanPricesSetup() {
     try {
       const response = await api.delete(`/products/${productId}/salesperson-prices`);
       notify(response.data.data.message, 'success');
-      fetchPrices();
+      fetchGlobal();
     } catch (e) {
       notify(e.response?.data?.data?.message || e.response?.data?.error || 'Failed to clear prices', 'error');
     } finally {
