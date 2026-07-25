@@ -63,6 +63,9 @@ export default function SalesmanPricesSetup() {
   const [globalProducts, setGlobalProducts] = useState([]);
   const [dirtyGlobal, setDirtyGlobal]       = useState({});
   const [dirtyGlobalPrices, setDirtyGlobalPrices] = useState({});
+  // Import template modal
+  const [showImportTemplateModal, setShowImportTemplateModal] = useState(false);
+  const [templateSalesmanId, setTemplateSalesmanId] = useState('');
 
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
@@ -275,6 +278,38 @@ export default function SalesmanPricesSetup() {
       p.productId === productId ? { ...p, salespersonDefaultPrice: price } : p
     ));
   };
+
+  async function handleImportTemplate() {
+    if (!templateSalesmanId) {
+      notify('Select a salesman to use as template', 'warning');
+      return;
+    }
+
+    try {
+      const res = await api.get(`/salespeople/${templateSalesmanId}/prices`);
+      const templatePrices = res.data.data;
+
+      const updates = {};
+      templatePrices.forEach(p => {
+        if (p.sellingPrice !== null && p.sellingPrice > 0) {
+          updates[p.productId] = p.sellingPrice;
+        }
+      });
+
+      setDirtyGlobalPrices(prev => ({ ...prev, ...updates }));
+      setGlobalProducts(prev => prev.map(p =>
+        updates[p.productId] !== undefined
+          ? { ...p, salespersonDefaultPrice: updates[p.productId] }
+          : p
+      ));
+
+      notify(`Imported ${Object.keys(updates).length} prices from ${salespeople.find(s => String(s.id) === templateSalesmanId)?.name}`, 'success');
+      setShowImportTemplateModal(false);
+      setTemplateSalesmanId('');
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to import prices', 'error');
+    }
+  }
 
   const handleBulkSalesmenToggle = (spId) => {
     setBulkUpdateForm(prev => {
@@ -659,7 +694,13 @@ export default function SalesmanPricesSetup() {
                   </>
                 )}
                 {isGlobal && (
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-2 ml-auto flex-wrap">
+                    <button
+                      onClick={() => setShowImportTemplateModal(true)}
+                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition whitespace-nowrap"
+                    >
+                      <Globe size={12} /> Use Template
+                    </button>
                     <button
                       onClick={() => handleToggleAllGlobal(true)}
                       disabled={allBrandEnabled}
@@ -1249,6 +1290,62 @@ export default function SalesmanPricesSetup() {
                 >
                   {copyingPrices ? <Loader2 className="animate-spin" size={14} /> : <Copy size={14} />}
                   {copyingPrices ? 'Copying…' : 'Copy Prices'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Template Modal */}
+      {showImportTemplateModal && (
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowImportTemplateModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="bg-indigo-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white leading-tight">Import Template Prices</h3>
+                <p className="text-[11px] text-indigo-200 mt-0.5">Use a salesman's prices as global defaults</p>
+              </div>
+              <button onClick={() => setShowImportTemplateModal(false)} className="p-1.5 text-indigo-200 hover:text-white hover:bg-indigo-600 rounded-lg transition">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Template Salesman</label>
+                <select
+                  value={templateSalesmanId}
+                  onChange={e => setTemplateSalesmanId(e.target.value)}
+                  className="w-full ddm-input"
+                >
+                  <option value="">— Select a salesman —</option>
+                  {salespeople.map(sp => (
+                    <option key={sp.id} value={sp.id}>
+                      {sp.name}{sp.route ? ` — ${sp.route}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  All prices from the selected salesman will be copied to the global defaults for {brands.find(b => b.id === activeBrandId)?.name || 'this brand'}.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowImportTemplateModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportTemplate}
+                  disabled={!templateSalesmanId}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-indigo-700 hover:bg-indigo-800 disabled:bg-indigo-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Globe size={14} />
+                  {templateSalesmanId ? 'Import Prices' : 'Select Salesman'}
                 </button>
               </div>
             </div>
