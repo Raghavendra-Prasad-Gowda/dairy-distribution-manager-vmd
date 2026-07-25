@@ -158,6 +158,33 @@ test.describe('POST /api/v1/dispatches', () => {
     expect(body.data.message).toMatch(/cleared/i);
   });
 
+  test('empty items + admin-unlocked dispatch → clears in place, does not delete or re-lock', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isAdminUnlocked: true });
+    let deleteCalled = false;
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.delete.mockImplementation(async () => {
+      deleteCalled = true;
+      return DISPATCH;
+    });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, totalAmount: 0, isAdminUnlocked: true };
+    });
+    ctx.mockPrisma.stockDispatchItem.deleteMany.mockResolvedValue({ count: 0 });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/cleared/i);
+    expect(deleteCalled).toBe(false);
+    expect(updateArgs.data).toMatchObject({ totalAmount: 0 });
+  });
+
   test('returns 400 when salespersonId is missing', async ({ request }) => {
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -426,6 +453,66 @@ test.describe('PATCH /api/v1/dispatches/:id/unlock', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(200);
+  });
+});
+
+// ─── POST /api/v1/dispatches/open-for-entry ──────────────────────────────────
+
+test.describe('POST /api/v1/dispatches/open-for-entry', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches/open-for-entry', {
+      data: { salespersonId: 1, dispatchDate: '2026-04-28' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when salespersonId is missing', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches/open-for-entry', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { dispatchDate: '2026-04-28' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('creates a new blank, unlocked dispatch when none exists for that date', async ({ request }) => {
+    let createArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { ...DISPATCH, id: 2, totalAmount: 0, isSubmitted: false, isAdminUnlocked: true };
+    });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches/open-for-entry', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-28' },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(createArgs.data).toMatchObject({
+      salespersonId:   1,
+      totalAmount:     0,
+      isSubmitted:     false,
+      isAdminUnlocked: true,
+    });
+  });
+
+  test('unlocks the existing dispatch when one already exists for that date', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isSubmitted: true, isAdminUnlocked: false });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: false, isAdminUnlocked: true };
+    });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches/open-for-entry', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30' },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: false, isAdminUnlocked: true });
   });
 });
 

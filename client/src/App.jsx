@@ -24,7 +24,7 @@ const SalesmanUsersSetup     = lazy(() => import('./pages/setup/SalesmanUsersSet
 const SalesmanPricesSetup       = lazy(() => import('./pages/setup/SalesmanPricesSetup'));
 const DailyDispatchSummary      = lazy(() => import('./pages/reports/DailyDispatchSummary'));
 const StockBalanceSummary       = lazy(() => import('./pages/reports/StockBalanceSummary'));
-const SalesmanLayoutSettings = lazy(() => import('./pages/setup/SalesmanLayoutSettings'));
+const SalesmanDayBalance        = lazy(() => import('./pages/reports/SalesmanDayBalance'));
 const LayoutSettings         = lazy(() => import('./pages/setup/LayoutSettings'));
 const RouteSetup             = lazy(() => import('./pages/setup/RouteSetup'));
 const BrandsSetup            = lazy(() => import('./pages/setup/BrandsSetup'));
@@ -33,6 +33,7 @@ const DairyReports           = lazy(() => import('./pages/reports/DairyReports')
 const StockSummaryPrint      = lazy(() => import('./pages/reports/StockSummaryPrint'));
 const DepositPrint           = lazy(() => import('./pages/reports/DepositPrint'));
 const DairyStatementPrint    = lazy(() => import('./pages/reports/DairyStatementPrint'));
+const SalespersonStatementPrint = lazy(() => import('./pages/reports/SalespersonStatementPrint'));
 
 const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
 
@@ -69,6 +70,9 @@ function AppRoutes() {
       } />
       <Route path="/print/dairy-statement" element={
         <ProtectedRoute>{S(DairyStatementPrint)}</ProtectedRoute>
+      } />
+      <Route path="/print/salesperson-statement" element={
+        <ProtectedRoute>{S(SalespersonStatementPrint)}</ProtectedRoute>
       } />
 
       <Route
@@ -108,7 +112,6 @@ function AppRoutes() {
             <Route path="salesman/setup/users"     element={S(SalesmanUsersSetup)} />
             <Route path="salesman/setup/products"  element={<Navigate to="/salesman/setup/prices" replace />} />
             <Route path="salesman/setup/prices"    element={S(SalesmanPricesSetup)} />
-            <Route path="salesman/setup/layout"    element={S(SalesmanLayoutSettings)} />
             <Route path="salesman/setup"           element={<Navigate to="/salesman/setup/users" replace />} />
 
             {/* REPORTS */}
@@ -116,6 +119,7 @@ function AppRoutes() {
             <Route path="reports/dairy"           element={S(DairyStatement)} />
             <Route path="reports/salespeople"       element={S(SalespersonStatement)} />
             <Route path="salesman/dispatch-sheet"   element={S(DailyDispatchSummary)} />
+            <Route path="salesman/day-balance"      element={S(SalesmanDayBalance)} />
             <Route path="reports/stock"           element={S(StockSummary)} />
             <Route path="reports/stock-balance"   element={S(StockBalanceSummary)} />
             <Route path="reports/deposit"         element={S(DepositReport)} />

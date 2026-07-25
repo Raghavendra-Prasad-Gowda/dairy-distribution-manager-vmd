@@ -1,10 +1,42 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../api/axios';
+
+function SortableSpRow({ sp }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sp.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 select-none"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        style={{ touchAction: 'none' }}
+        className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing p-0.5"
+      >
+        <GripVertical size={16} />
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-800 truncate">{sp.name}</p>
+        {sp.route && <p className="text-xs text-slate-400 truncate">{sp.route}</p>}
+      </div>
+      {!sp.isActive && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex-shrink-0">Inactive</span>}
+    </div>
+  );
+}
 
 const ITEMS_PER_PAGE = 10;
 
@@ -27,6 +59,11 @@ export default function SalesmanUsersSetup() {
   const [deleting, setDeleting]             = useState(false);
   const [search, setSearch]                 = useState('');
   const [currentPage, setCurrentPage]       = useState(1);
+  const [reorderMode, setReorderMode]       = useState(false);
+  const [reorderList, setReorderList]       = useState([]);
+  const [savingOrder, setSavingOrder]       = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => { loadSalespeople(); }, []);
   useEffect(() => { setCurrentPage(1); }, [search]);
@@ -42,6 +79,34 @@ export default function SalesmanUsersSetup() {
       setLoading(false);
     }
   }
+
+  const enterReorderMode = () => {
+    setReorderList([...salespeople]);
+    setReorderMode(true);
+  };
+
+  const handleDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    setReorderList(prev => {
+      const from = prev.findIndex(s => s.id === active.id);
+      const to   = prev.findIndex(s => s.id === over.id);
+      return arrayMove(prev, from, to);
+    });
+  };
+
+  const handleSaveOrder = async () => {
+    setSavingOrder(true);
+    try {
+      await api.put('/salespeople/reorder', reorderList.map((sp, i) => ({ id: sp.id, displayOrder: i })));
+      notify('Display order saved', 'success');
+      setReorderMode(false);
+      loadSalespeople();
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to save order', 'error');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -344,19 +409,65 @@ export default function SalesmanUsersSetup() {
           <Users size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Salesman Users</h1>
-            <p className="text-emerald-300 text-xs">Manage salesman accounts, login credentials, and active status</p>
+            <p className="text-emerald-300 text-xs">
+              {reorderMode ? 'Drag to set the display order for all views' : 'Manage salesman accounts, login credentials, and active status'}
+            </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition flex-shrink-0"
-        >
-          <Plus size={14} /> Add Salesperson
-        </button>
+        {reorderMode ? (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setReorderMode(false)}
+              className="flex items-center gap-1.5 text-xs font-bold text-white border border-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition"
+            >
+              <X size={14} /> Cancel
+            </button>
+            <button
+              onClick={handleSaveOrder}
+              disabled={savingOrder}
+              className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 disabled:opacity-60 px-3 py-1.5 rounded-lg transition"
+            >
+              {savingOrder ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Save Order
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={enterReorderMode}
+              className="flex items-center gap-1.5 text-xs font-bold text-white border border-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition"
+            >
+              <ArrowUpDown size={14} /> Reorder
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition"
+            >
+              <Plus size={14} /> Add Salesperson
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-5 md:p-8 max-w-4xl mx-auto space-y-5">
+
+          {/* Reorder mode */}
+          {reorderMode && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 mb-3">Drag rows to set the order. This affects all tables, dropdowns, and reports.</p>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={reorderList.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1.5">
+                    {reorderList.map(sp => <SortableSpRow key={sp.id} sp={sp} />)}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+          )}
+
+          {/* Normal view — hidden while reordering */}
+          {!reorderMode && <>
 
           {/* Search */}
           <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -367,7 +478,7 @@ export default function SalesmanUsersSetup() {
                 placeholder="Search by name, route, phone or username…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full pl-9 pr-9 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -455,6 +566,8 @@ export default function SalesmanUsersSetup() {
               </table>
             </div>
           </div>
+
+          </>}
 
         </div>
       </div>

@@ -471,6 +471,19 @@ export default function StockReceipt() {
         </div>
       )}
 
+      {/* ── No active products ── */}
+      {!loading && activeBrand && hasRoutes && products.length === 0 && (
+        <div className="mx-4 mt-4 bg-white rounded-2xl border border-amber-200 px-5 py-6 flex items-start gap-3">
+          <AlertCircle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-slate-800">No active products for {activeBrand.name}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              All products appear to be archived. Go to <span className="font-semibold text-emerald-700">Setup → Products</span> and restore a product to start entering stock receipts.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Table ── */}
       {hasRoutes && products.length > 0 && (
         <div className="mx-4 mb-4 mt-3 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

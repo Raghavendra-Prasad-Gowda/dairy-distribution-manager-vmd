@@ -69,32 +69,47 @@ test.describe('POST /api/v1/dairy-payments', () => {
     expect(res.status()).toBe(400);
   });
 
-  // ─── Over-payment guard ─────────────────────────────────────────────────────
+  // ─── Excess payments create a carried-forward credit ───────────────────────
 
-  test('rejects payment when brand has no outstanding balance', async ({ request }) => {
-    mockDairyCascade(ctx.mockPrisma, { outstanding: 0 });
+  test('allows payment when brand has no outstanding balance, creating a credit', async ({ request }) => {
+    const upsertCalls = [];
+    ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
+    mockDairyCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 5000 } }) });
+    ctx.mockPrisma.dairyBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
 
     const res = await request.post('/api/v1/dairy-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { brandId: 1, paymentDate: '2026-04-30', amount: 5000 },
     });
 
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/No outstanding balance/i);
+    expect(res.status()).toBe(201);
+    expect(upsertCalls[0].create.closingBalance).toBe(-5000);
   });
 
-  test('rejects payment that exceeds outstanding balance', async ({ request }) => {
-    mockDairyCascade(ctx.mockPrisma, { outstanding: 1000 });
+  test('allows payment that exceeds outstanding balance, creating a credit', async ({ request }) => {
+    const upsertCalls = [];
+    ctx.mockPrisma.dairyPayment.create.mockResolvedValue(PAYMENT);
+    mockDairyCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 5000 } }) });
+    // Simulate a prior day's closing balance of ₹1000 owed.
+    ctx.mockPrisma.dairyBalance.findFirst.mockImplementation(async ({ where }) =>
+      where?.balanceDate ? { closingBalance: 1000 } : null
+    );
+    ctx.mockPrisma.dairyBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
 
     const res = await request.post('/api/v1/dairy-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { brandId: 1, paymentDate: '2026-04-30', amount: 5000 },
     });
 
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/exceeds outstanding balance of ₹1000/i);
+    expect(res.status()).toBe(201);
+    // openingBalance 1000 + stockValue 0 - amountPaid 5000 = -4000 (credit)
+    expect(upsertCalls[0].create.closingBalance).toBe(-4000);
   });
 });
 
@@ -251,22 +266,27 @@ test.describe('PUT /api/v1/dairy-payments/:id', () => {
     expect(res.status()).toBe(400);
   });
 
-  // ─── Update-side over-payment guard ────────────────────────────────────────
+  // ─── Excess payments create a carried-forward credit ───────────────────────
 
-  test('PUT rejects when bumping amount past remaining outstanding (delta > outstanding)', async ({ request }) => {
+  test('PUT allows bumping amount past remaining outstanding, creating a credit', async ({ request }) => {
     // PAYMENT.amount = 5000, remaining outstanding ₹1000, edit to ₹7000
-    // → delta 2000 > 1000 → reject.
+    // → delta 2000 > 1000, but excess payments are allowed and become credit.
+    const upsertCalls = [];
     ctx.mockPrisma.dairyPayment.findUnique.mockResolvedValue(PAYMENT);
-    mockDairyCascade(ctx.mockPrisma, { outstanding: 1000 });
+    ctx.mockPrisma.dairyPayment.update.mockResolvedValue({ ...PAYMENT, amount: 7000 });
+    mockDairyCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 7000 } }) });
+    ctx.mockPrisma.dairyBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
 
     const res = await request.put('/api/v1/dairy-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { amount: 7000, paymentDate: '2026-04-30' },
     });
 
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/Increase of ₹2000 would exceed remaining outstanding balance of ₹1000/i);
+    expect(res.status()).toBe(200);
+    expect(upsertCalls[0].create.closingBalance).toBe(-7000);
   });
 
   test('PUT allows decreasing the amount even when outstanding is 0', async ({ request }) => {

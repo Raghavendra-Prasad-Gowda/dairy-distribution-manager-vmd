@@ -94,11 +94,29 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     throw new AppError('This stock entry is locked. Contact your admin to unlock it.', 403);
   }
 
-  // Empty items → clear the existing dispatch (delete + cascade). No-op if nothing exists.
+  // Empty items → clear the existing dispatch. No-op if nothing exists.
   if (data.items.length === 0) {
     if (!existing) {
       return res.json({ success: true, data: { message: 'Nothing to save' } });
     }
+
+    // An admin-unlocked entry must stay unlocked even when cleared to zero —
+    // deleting the row would lose isAdminUnlocked along with it, and a past
+    // date with no dispatch row at all defaults back to locked, silently
+    // undoing the admin's unlock. Zero it out in place instead.
+    if (existing.isAdminUnlocked) {
+      await prisma.$transaction(async (tx) => {
+        await tx.stockDispatchItem.deleteMany({ where: { dispatchId: existing.id } });
+        await tx.stockDispatch.update({
+          where: { id: existing.id },
+          data: { totalAmount: 0, notes: data.notes ?? null },
+        });
+        await recalculateSalespersonBalance(salespersonId, data.dispatchDate, tx);
+      }, { isolationLevel: 'Serializable' });
+      logger.info('Stock entry cleared (kept unlocked)', { id: existing.id, salespersonId, date: data.dispatchDate });
+      return res.json({ success: true, data: { message: 'Stock entry cleared' } });
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.stockDispatch.delete({ where: { id: existing.id } });
       await recalculateSalespersonBalance(salespersonId, data.dispatchDate, tx);
@@ -229,6 +247,45 @@ const unlock = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry unlocked' } });
 });
 
+// Admin opens a specific salesperson + date for entry even when no dispatch
+// exists yet — the normal unlock action needs an existing dispatch id, but a
+// date the salesperson never touched has none, so there's nothing to unlock.
+const openForEntry = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const data = validate(schemas.openDispatchForEntry, req, res);
+  if (!data) return;
+
+  const dispatchDate = new Date(data.dispatchDate);
+
+  const dispatch = await prisma.$transaction(async (tx) => {
+    const existing = await tx.stockDispatch.findUnique({
+      where: { salespersonId_dispatchDate: { salespersonId: data.salespersonId, dispatchDate } },
+    });
+
+    const saved = existing
+      ? await tx.stockDispatch.update({
+          where: { id: existing.id },
+          data: { isSubmitted: false, isAdminUnlocked: true },
+        })
+      : await tx.stockDispatch.create({
+          data: {
+            salespersonId: data.salespersonId,
+            dispatchDate,
+            totalAmount:   0,
+            isSubmitted:   false,
+            isAdminUnlocked: true,
+          },
+        });
+
+    await recalculateSalespersonBalance(data.salespersonId, data.dispatchDate, tx);
+    return saved;
+  }, { isolationLevel: 'Serializable' });
+
+  logger.info('Stock entry opened for entry by admin', { id: dispatch.id, salespersonId: data.salespersonId, date: data.dispatchDate });
+  res.json({ success: true, data: { message: 'Entry opened', dispatchId: dispatch.id } });
+});
+
 const remove = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
@@ -257,4 +314,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
-module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, remove };
+module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, openForEntry, remove };

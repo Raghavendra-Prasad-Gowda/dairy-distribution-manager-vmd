@@ -1,22 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ChevronDown, ChevronRight, AlertCircle, User } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
-function exportCSV(rows, spName) {
-  const lines = [['Date', 'Opening (₹)', 'Stock Given (₹)', 'Collected (₹)', 'Outstanding (₹)'].join(',')];
-  rows.forEach((r) => lines.push([
-    new Date(r.date).toLocaleDateString('en-IN'),
-    r.openingBalance, r.stockGiven, r.amountPaid, r.closingBalance,
-  ].join(',')));
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `sp-statement-${spName}.csv`; a.click();
-}
-
 function ExpandableRow({ row, open, onToggle }) {
-  const isOwing = row.closingBalance > 0;
+  const isOwing  = row.closingBalance > 0;
+  const isCredit = row.closingBalance < 0;
   return (
     <React.Fragment>
       <tr
@@ -35,7 +25,7 @@ function ExpandableRow({ row, open, onToggle }) {
         <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.amountPaid)}
         </td>
-        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        <td className={`px-4 py-2.5 text-right text-xs font-bold tabular-nums whitespace-nowrap ${isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'}`}>
           {formatCurrency(row.closingBalance)}
         </td>
         <td className="px-4 py-2.5 text-right text-slate-400">
@@ -80,8 +70,15 @@ function ExpandableRow({ row, open, onToggle }) {
   );
 }
 
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function SalespersonStatement() {
   const [salespeople, setSalespeople] = useState([]);
+  const [search, setSearch]          = useState('');
   const [selectedSp, setSelectedSp]  = useState('');
   const [from, setFrom]              = useState(getFirstDayOfMonth());
   const [to, setTo]                  = useState(getIndiaDate());
@@ -108,7 +105,11 @@ export default function SalespersonStatement() {
 
   useEffect(() => {
     api.get('/salespeople')
-      .then((r) => setSalespeople(r.data.data))
+      .then((r) => {
+        const sp = r.data.data;
+        setSalespeople(sp);
+        if (sp.length) setSelectedSp(String(sp[0].id));
+      })
       .catch(() => setError('Failed to load salespeople'));
   }, []);
 
@@ -127,8 +128,15 @@ export default function SalespersonStatement() {
     }
   }
 
-  const activeSp = salespeople.find((s) => String(s.id) === String(selectedSp));
-  const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
+  const closingBalance  = rows.length ? rows[rows.length - 1].closingBalance : 0;
+  const totalGiven      = rows.reduce((s, r) => s + r.stockGiven,  0);
+  const totalCollected  = rows.reduce((s, r) => s + r.amountPaid,  0);
+  const selectedSpObj   = salespeople.find(sp => String(sp.id) === String(selectedSp));
+
+  const filteredSps = salespeople.filter(sp =>
+    sp.name.toLowerCase().includes(search.toLowerCase()) ||
+    (sp.route ?? '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -143,112 +151,181 @@ export default function SalespersonStatement() {
           </div>
         </div>
         {rows.length > 0 && (
-          <button onClick={() => exportCSV(rows, activeSp?.name)} className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition">
-            <Download size={13} /> Export CSV
+          <button
+            onClick={() => window.open(`/print/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}`, '_blank')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition"
+          >
+            <Printer size={13} /> Print
           </button>
         )}
       </div>
 
-    <div className="flex-1 overflow-y-auto">
-    <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-6">
+    {/* ── Split panel ──────────────────────────────────────────────── */}
+    <div className="flex flex-1 overflow-hidden">
 
-      {/* ── Filters ──────────────────────────────────────────────────── */}
-      <div className="ddm-card p-4 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-            Salesperson
-          </label>
-          <select
-            value={selectedSp}
-            onChange={(e) => setSelectedSp(e.target.value)}
-            className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-          >
-            <option value="">Select…</option>
-            {salespeople.map((sp) => (
-              <option key={sp.id} value={sp.id}>{sp.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {[['from', 'From', from, setFrom], ['to', 'To', to, setTo]].map(([id, label, val, setter]) => (
-          <div key={id}>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-              {label}
-            </label>
+      {/* ── Left panel: always visible ─────────────────────────────── */}
+      <div className="flex flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
+        <div className="p-3 border-b border-slate-100">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              type="date"
-              value={val}
-              onChange={(e) => setter(e.target.value)}
-              max={getIndiaDate()}
-              className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search name or route…"
+              className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
             />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={12} />
+              </button>
+            )}
           </div>
-        ))}
-
-        {rows.length > 0 && (
-          <div className={`px-3 py-2 rounded-xl font-bold text-sm ${closingBalance > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
-            Outstanding: {formatCurrency(closingBalance)}
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          <AlertCircle size={15} className="flex-shrink-0" /> {error}
         </div>
-      )}
-
-      {/* ── Statement table ───────────────────────────────────────────── */}
-      <div className="ddm-card overflow-hidden">
-        <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold text-white">Account Statement</h2>
-            <p className="text-xs text-slate-400">
-              {rows.length} day{rows.length !== 1 ? 's' : ''} · tap a row to see dispatch &amp; collection details
-            </p>
-          </div>
-          {expandableIndices.length > 0 && !loading && (
-            <button
-              onClick={allExpanded ? collapseAll : expandAll}
-              className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
-            >
-              {allExpanded
-                ? <><ChevronRight size={13} /> Collapse All</>
-                : <><ChevronDown  size={13} /> Expand All</>}
-            </button>
+        <div className="flex-1 overflow-y-auto">
+          {filteredSps.length === 0 ? (
+            <p className="px-3 py-6 text-center text-slate-400 text-xs">No results</p>
+          ) : (
+            filteredSps.map(sp => {
+              const isSelected = String(sp.id) === String(selectedSp);
+              return (
+                <button
+                  key={sp.id}
+                  onClick={() => setSelectedSp(String(sp.id))}
+                  className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
+                    isSelected
+                      ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                      : 'border-l-4 border-l-transparent hover:bg-slate-50'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+                    {sp.name}
+                  </p>
+                  {sp.route && <p className="text-xs text-slate-400 truncate mt-0.5">{sp.route}</p>}
+                </button>
+              );
+            })
           )}
         </div>
-        <div className="overflow-auto max-h-[60vh]">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-emerald-700 sticky top-0 z-10">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Given</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Collected</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Due</th>
-                <th className="px-4 py-3 w-8" />
-              </tr>
-            </thead>
-            <tbody className="bg-white">
-              {loading ? (
-                <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
-              ) : !selectedSp ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">Select a salesperson to view their statement</td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
-                </tr>
-              ) : (
-                rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
-    </div>
+
+      {/* ── Right panel ─────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto bg-slate-50">
+        {!selectedSp ? (
+          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+            Select a salesperson
+          </div>
+        ) : (
+          <>
+          {selectedSpObj && (
+            <div className="flex items-center gap-2.5 px-5 py-3 bg-emerald-700">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {getInitials(selectedSpObj.name)}
+              </div>
+              <div>
+                <p className="font-bold text-sm text-white leading-tight">{selectedSpObj.name}</p>
+                {selectedSpObj.route && <p className="text-emerald-300 text-[11px] leading-tight">{selectedSpObj.route}</p>}
+              </div>
+            </div>
+          )}
+          <div className="p-5 md:p-8 space-y-6">
+
+            {/* ── Filters ──────────────────────────────────────────── */}
+            <div className="ddm-card p-4 flex flex-wrap gap-3 items-end">
+              {[['from', 'From', from, setFrom], ['to', 'To', to, setTo]].map(([id, label, val, setter]) => (
+                <div key={id}>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    {label}
+                  </label>
+                  <input
+                    type="date"
+                    value={val}
+                    onChange={(e) => setter(e.target.value)}
+                    max={getIndiaDate()}
+                    className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                  />
+                </div>
+              ))}
+
+              {rows.length > 0 && (
+                <div className={`px-3 py-2 rounded-xl font-bold text-sm ${
+                  closingBalance > 0 ? 'bg-red-50 text-red-700' : closingBalance < 0 ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'
+                }`}>
+                  Outstanding: {formatCurrency(closingBalance)}
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                <AlertCircle size={15} className="flex-shrink-0" /> {error}
+              </div>
+            )}
+
+            {/* ── Statement table ────────────────────────────────────── */}
+            <div className="ddm-card overflow-hidden">
+              <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-white">Account Statement</h2>
+                  <p className="text-xs text-slate-400">
+                    {rows.length} day{rows.length !== 1 ? 's' : ''} · tap a row to see dispatch &amp; collection details
+                  </p>
+                </div>
+                {expandableIndices.length > 0 && !loading && (
+                  <button
+                    onClick={allExpanded ? collapseAll : expandAll}
+                    className="flex items-center gap-1 text-xs font-semibold text-slate-300 hover:text-white transition whitespace-nowrap flex-shrink-0"
+                  >
+                    {allExpanded
+                      ? <><ChevronRight size={13} /> Collapse All</>
+                      : <><ChevronDown  size={13} /> Expand All</>}
+                  </button>
+                )}
+              </div>
+              <div className="overflow-auto max-h-[60vh]">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-emerald-700 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Given</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Collected</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Due</th>
+                      <th className="px-4 py-3 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white">
+                    {loading ? (
+                      <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+                    ) : rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
+                      </tr>
+                    ) : (
+                      rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
+                    )}
+                  </tbody>
+                  {rows.length > 0 && (
+                    <tfoot className="sticky bottom-0 z-10">
+                      <tr>
+                        <td className="px-4 py-3 bg-slate-700 text-xs font-bold text-white uppercase tracking-wider">Totals</td>
+                        <td className="px-4 py-3 bg-slate-700 text-right text-xs text-slate-400">—</td>
+                        <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-blue-300 tabular-nums">{formatCurrency(totalGiven)}</td>
+                        <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-emerald-300 tabular-nums">{formatCurrency(totalCollected)}</td>
+                        <td className={`px-4 py-3 bg-slate-700 text-right text-xs font-bold tabular-nums ${closingBalance > 0 ? 'text-red-300' : closingBalance < 0 ? 'text-violet-300' : 'text-emerald-300'}`}>
+                          {formatCurrency(closingBalance)}
+                        </td>
+                        <td className="px-4 py-3 bg-slate-700" />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          </div>
+          </>
+        )}
+      </div>
     </div>
     </div>
   );

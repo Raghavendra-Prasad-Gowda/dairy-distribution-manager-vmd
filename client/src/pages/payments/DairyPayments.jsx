@@ -33,8 +33,9 @@ const MODE_COLORS = {
 
 /** Premium brand balance card — matches Dashboard DairyPayableCard style */
 function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, closing }) {
-  const colors  = getBrandColors(brandName);
-  const isOwing = closing > 0;
+  const colors   = getBrandColors(brandName);
+  const isOwing  = closing > 0;
+  const isCredit = closing < 0;
 
   const tiles = [
     { label: 'Opening', value: opening,                  cls: 'text-slate-600'  },
@@ -50,17 +51,21 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
           <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
           <span className={`font-bold text-sm ${colors.text}`}>{brandName}</span>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-          {isOwing ? 'Outstanding' : 'Cleared'}
+        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+          isOwing ? 'bg-red-100 text-red-700' : isCredit ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+        }`}>
+          {isOwing ? 'Outstanding' : isCredit ? 'Credit' : 'Cleared'}
         </span>
       </div>
 
       {/* Large balance */}
       <div className="flex flex-col items-center justify-center py-4 px-4">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-          {isOwing ? 'You Owe' : 'Settled'}
+          {isOwing ? 'You Owe' : isCredit ? "You're in Credit" : 'Settled'}
         </p>
-        <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+        <p className={`text-2xl font-bold tabular-nums leading-none ${
+          isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'
+        }`}>
           {formatCurrency(Math.abs(closing))}
         </p>
       </div>
@@ -99,6 +104,7 @@ export default function DairyPayments() {
 
   // Delete confirm state
   const [deleteId, setDeleteId]         = useState(null);
+  const [deleting, setDeleting]         = useState(false);
 
   // Search + filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,7 +190,8 @@ export default function DairyPayments() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || deleting) return;
+    setDeleting(true);
     try {
       await api.delete(`/dairy-payments/${deleteId}`);
       notify('Payment deleted', 'success');
@@ -192,6 +199,8 @@ export default function DairyPayments() {
       fetchAll();
     } catch {
       notify('Failed to delete payment', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -712,7 +721,7 @@ export default function DairyPayments() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleDelete}>Delete</Button>
+            <Button variant="danger" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
           </>
         }
       >

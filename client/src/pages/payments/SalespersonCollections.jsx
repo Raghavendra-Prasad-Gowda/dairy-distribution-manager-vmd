@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
+import PinModal from '../../components/PinModal';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -26,7 +27,9 @@ function getInitials(name) {
 
 /** Premium SP balance card */
 function SpBalanceCard({ sp, balance }) {
-  const isOwing = (balance?.closingBalance ?? 0) > 0;
+  const closing  = balance?.closingBalance ?? 0;
+  const isOwing  = closing > 0;
+  const isCredit = closing < 0;
   return (
     <div className="ddm-card overflow-hidden">
       {/* Header band */}
@@ -40,18 +43,22 @@ function SpBalanceCard({ sp, balance }) {
             {sp.route && <p className="text-emerald-300 text-[11px] leading-tight">{sp.route}</p>}
           </div>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${isOwing ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-          {isOwing ? 'Outstanding' : 'Cleared'}
+        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+          isOwing ? 'bg-red-100 text-red-700' : isCredit ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+        }`}>
+          {isOwing ? 'Outstanding' : isCredit ? 'Credit' : 'Cleared'}
         </span>
       </div>
 
       {/* Large balance */}
       <div className="flex flex-col items-center justify-center py-4 px-4">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-          {isOwing ? 'To Collect' : 'Settled'}
+          {isOwing ? 'To Collect' : isCredit ? 'Advance Credit' : 'Settled'}
         </p>
-        <p className={`text-2xl font-bold tabular-nums leading-none ${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-          {formatCurrency(Math.abs(balance?.closingBalance ?? 0))}
+        <p className={`text-2xl font-bold tabular-nums leading-none ${
+          isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'
+        }`}>
+          {formatCurrency(Math.abs(closing))}
         </p>
       </div>
 
@@ -90,6 +97,10 @@ export default function SalespersonCollections() {
   const [editPayment, setEditPayment] = useState(null);
   const [editForm,    setEditForm]    = useState({});
   const [editSaving,  setEditSaving]  = useState(false);
+
+  // PIN gate state
+  const [pinOpen, setPinOpen]             = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
 
   // History filter state
   const [showFilter, setShowFilter]   = useState(false);
@@ -166,15 +177,17 @@ export default function SalespersonCollections() {
   };
 
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, amount, mode }
+  const [deleting, setDeleting]           = useState(false);
 
   const handleDelete = (id, amount, mode) => {
     setDeleteConfirm({ id, amount, mode });
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || deleting) return;
     const { id } = deleteConfirm;
     setDeleteConfirm(null);
+    setDeleting(true);
     try {
       await api.delete(`/salesperson-payments/${id}`);
       notify('Record deleted', 'success');
@@ -182,6 +195,8 @@ export default function SalespersonCollections() {
       refreshAllBalances();
     } catch {
       notify('Failed to delete', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -193,6 +208,27 @@ export default function SalespersonCollections() {
       paymentMode: p.paymentMode ?? 'Cash',
       reference:   p.reference ?? '',
     });
+  };
+
+  const openEdit = (p) => {
+    setPendingAction({ type: 'edit', payment: p });
+    setPinOpen(true);
+  };
+
+  const openDelete = (p) => {
+    setPendingAction({ type: 'delete', payment: p });
+    setPinOpen(true);
+  };
+
+  const onPinSuccess = () => {
+    if (!pendingAction) return;
+    const { type, payment: p } = pendingAction;
+    if (type === 'edit') {
+      handleEdit(p);
+    } else if (type === 'delete') {
+      handleDelete(p.id, p.amount, p.paymentMode);
+    }
+    setPendingAction(null);
   };
 
   const handleEditSave = async () => {
@@ -270,33 +306,11 @@ export default function SalespersonCollections() {
         )}
       </div>
 
-      {/* ── Mobile: salesperson dropdown ── */}
-      <div className="lg:hidden px-4 py-3 bg-white border-b border-slate-200">
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-          Salesperson
-        </label>
-        <select
-          value={selectedSpId ?? ''}
-          onChange={e => { setSelectedSp(Number(e.target.value)); }}
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-        >
-          {salespeople.map(sp => {
-            const bal   = allBalances[sp.id];
-            const owing = (bal?.closingBalance ?? 0) > 0;
-            return (
-              <option key={sp.id} value={sp.id}>
-                {sp.name}{sp.route ? ` — ${sp.route}` : ''}{owing ? ` (${formatCurrency(bal.closingBalance)})` : ' ✓'}
-              </option>
-            );
-          })}
-        </select>
-      </div>
-
       {/* Split panel */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Left panel: desktop only ────────────────────────── */}
-        <div className="hidden lg:flex lg:flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
+        {/* ── Left panel: always visible ──────────────────────── */}
+        <div className="flex flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
           {/* Search + filter */}
           <div className="p-3 border-b border-slate-100 space-y-2">
             <div className="relative">
@@ -306,8 +320,13 @@ export default function SalespersonCollections() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search name or route…"
-                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
+                className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
               />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={12} />
+                </button>
+              )}
             </div>
             <div className="flex gap-1">
               {[['all', 'All'], ['pending', 'Pending'], ['cleared', 'Cleared']].map(([val, label]) => (
@@ -331,7 +350,9 @@ export default function SalespersonCollections() {
             {filteredSps.map(sp => {
               const isSelected = sp.id === selectedSpId;
               const bal        = allBalances[sp.id];
-              const owing      = (bal?.closingBalance ?? 0) > 0;
+              const closing    = bal?.closingBalance ?? 0;
+              const owing      = closing > 0;
+              const isCredit   = closing < 0;
 
               return (
                 <button
@@ -345,7 +366,7 @@ export default function SalespersonCollections() {
                 >
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                      isSelected ? 'bg-emerald-600 text-white' : owing ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
+                      isSelected ? 'bg-emerald-600 text-white' : owing ? 'bg-red-100 text-red-600' : isCredit ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                     }`}>
                       {getInitials(sp.name)}
                     </div>
@@ -356,8 +377,8 @@ export default function SalespersonCollections() {
                   <div className="flex items-center justify-between pl-8">
                     {sp.route && <p className="text-xs text-slate-400 truncate">{sp.route}</p>}
                     {bal && (
-                      <span className={`text-xs font-bold tabular-nums flex-shrink-0 ml-auto ${owing ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {owing ? formatCurrency(bal.closingBalance) : '✓'}
+                      <span className={`text-xs font-bold tabular-nums flex-shrink-0 ml-auto ${owing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'}`}>
+                        {owing ? formatCurrency(closing) : isCredit ? `+${formatCurrency(Math.abs(closing))}` : '✓'}
                       </span>
                     )}
                   </div>
@@ -492,7 +513,7 @@ export default function SalespersonCollections() {
                               {pagedPayments.map((p) => (
                                 <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
-                                    {new Date(p.paymentDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                    {new Date(p.paymentDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                                   </td>
                                   <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                                     {formatCurrency(p.amount)}
@@ -507,10 +528,10 @@ export default function SalespersonCollections() {
                                   </td>
                                   <td className="px-4 py-3">
                                     <div className="flex items-center justify-end gap-1">
-                                      <button onClick={() => handleEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                      <button onClick={() => openEdit(p)} className="p-1.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition" title="Edit">
                                         <Pencil size={12} />
                                       </button>
-                                      <button onClick={() => handleDelete(p.id, p.amount, p.paymentMode)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                      <button onClick={() => openDelete(p)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
                                         <Trash2 size={12} />
                                       </button>
                                     </div>
@@ -557,6 +578,14 @@ export default function SalespersonCollections() {
           )}
         </div>
       </div>
+
+      {/* ── PIN modal ────────────────────────────────────────── */}
+      <PinModal
+        isOpen={pinOpen}
+        onClose={() => { setPinOpen(false); setPendingAction(null); }}
+        onSuccess={onPinSuccess}
+        title="Enter PIN to Edit Collection"
+      />
 
       {/* ── Edit payment modal ─────────────────────────────── */}
       {editPayment && (
@@ -647,7 +676,7 @@ export default function SalespersonCollections() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDelete}>Delete</Button>
+            <Button variant="danger" onClick={confirmDelete} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
           </>
         }
       >

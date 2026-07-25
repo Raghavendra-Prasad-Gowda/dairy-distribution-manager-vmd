@@ -58,17 +58,6 @@ const update = asyncHandler(async (req, res) => {
   res.json({ success: true, data: brand });
 });
 
-const salespersonReorder = asyncHandler(async (req, res) => {
-  const items = validate(schemas.reorderSalespersonBrands, req, res);
-  if (!items) return;
-  await prisma.$transaction(
-    items.map(({ id, displayOrder }) =>
-      prisma.brand.update({ where: { id }, data: { salespersonDisplayOrder: displayOrder } })
-    )
-  );
-  res.json({ success: true, data: { message: `${items.length} brands reordered` } });
-});
-
 const copyProducts = asyncHandler(async (req, res) => {
   const targetBrandId = parseId(req.params.id, 'Brand ID');
   const data = validate(schemas.copyBrandProducts, req, res);
@@ -109,7 +98,6 @@ const copyProducts = asyncHandler(async (req, res) => {
         brandId: targetBrandId,
         name: cat.name,
         displayOrder: cat.displayOrder,
-        salespersonDisplayOrder: cat.salespersonDisplayOrder,
         depositEnabled: cat.depositEnabled,
       },
     })));
@@ -131,7 +119,6 @@ const copyProducts = asyncHandler(async (req, res) => {
         salespersonEnabled: prod.salespersonEnabled,
         depositEnabled: prod.depositEnabled,
         displayOrder: prod.displayOrder,
-        salespersonDisplayOrder: prod.salespersonDisplayOrder,
       },
     })));
 
@@ -173,4 +160,4 @@ const copyProducts = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { getAll, reorder, salespersonReorder, create, update, copyProducts };
+module.exports = { getAll, reorder, create, update, copyProducts };

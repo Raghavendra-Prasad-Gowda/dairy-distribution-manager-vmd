@@ -19,6 +19,10 @@ export default function DailyDispatchSummary() {
   const [collapsedBrands, setCollapsedBrands] = useState({});
   const [lockLoading, setLockLoading]         = useState(false);
   const [lockConfirm, setLockConfirm]         = useState(null); // { dispatchId, isLocked, name }
+  const [openLoading, setOpenLoading]         = useState(false);
+  const [openConfirm, setOpenConfirm]         = useState(null); // { salespersonId, name }
+
+  const isPastDate = date < getIndiaDate();
 
   useEffect(() => { fetchData(); }, [date]);
 
@@ -28,16 +32,52 @@ export default function DailyDispatchSummary() {
     setLoading(true); setError('');
     setSelectedSpId(null);
     try {
-      const r = await api.get(`/reports/daily-dispatch?date=${date}`);
-      const d = r.data.data;
-      setData(d);
-      const autoId = d.rows.find(row => row.totalAmount > 0)?.salespersonId
-                     ?? d.rows[0]?.salespersonId ?? null;
+      const [dispatchRes, spRes] = await Promise.all([
+        api.get(`/reports/daily-dispatch?date=${date}`),
+        api.get('/salespeople'),
+      ]);
+      const d = dispatchRes.data.data;
+      // Salespeople with no dispatch row for this date don't appear in d.rows
+      // at all — surface them as blank rows so an admin can still select them
+      // and open the date for entry.
+      const existingIds = new Set(d.rows.map(r => r.salespersonId));
+      const blankRows = (spRes.data.data ?? [])
+        .filter(sp => !existingIds.has(sp.id))
+        .map(sp => ({
+          salespersonId:   sp.id,
+          salespersonName: sp.name,
+          items:           {},
+          totalAmount:     0,
+          dispatchId:      null,
+          isSubmitted:     false,
+          isAdminUnlocked: false,
+          isLocked:        date < getIndiaDate(),
+        }));
+      const merged = { ...d, rows: [...d.rows, ...blankRows] };
+      setData(merged);
+      const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
+                     ?? merged.rows[0]?.salespersonId ?? null;
       setSelectedSpId(autoId);
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load dispatch summary');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function confirmOpenForEntry() {
+    if (!openConfirm) return;
+    const { salespersonId } = openConfirm;
+    setOpenConfirm(null);
+    setOpenLoading(true);
+    try {
+      await api.post('/dispatches/open-for-entry', { salespersonId, dispatchDate: date });
+      await fetchData();
+      setSelectedSpId(salespersonId);
+    } catch (e) {
+      // fetchData will reset state
+    } finally {
+      setOpenLoading(false);
     }
   }
 
@@ -80,6 +120,12 @@ export default function DailyDispatchSummary() {
       })
       .filter(b => b.products.length > 0);
   }, [data, selectedRow, showZeroQty]);
+
+  const tableTotals = useMemo(() => ({
+    qty:    tableData.reduce((s, b) => s + b.brandQtyTotal,    0),
+    crates: tableData.reduce((s, b) => s + b.brandCratesTotal, 0),
+    amount: tableData.reduce((s, b) => s + b.brandAmountTotal, 0),
+  }), [tableData]);
 
   const activeCount = useMemo(
     () => (data?.rows ?? []).filter(r => r.totalAmount > 0).length,
@@ -229,7 +275,7 @@ export default function DailyDispatchSummary() {
               <div className="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="text-sm font-bold text-slate-700 truncate">{selectedRow.salespersonName}</p>
-                  {selectedRow.dispatchId && (
+                  {selectedRow.dispatchId ? (
                     selectedRow.isLocked
                       ? <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                           <Lock size={9} /> Locked
@@ -241,6 +287,10 @@ export default function DailyDispatchSummary() {
                       : <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                           Draft
                         </span>
+                  ) : isPastDate && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                      <Lock size={9} /> No entry — locked
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -273,7 +323,7 @@ export default function DailyDispatchSummary() {
                   >
                     {showZeroQty ? 'All products' : 'Entered only'}
                   </button>
-                  {selectedRow.dispatchId && (
+                  {selectedRow.dispatchId ? (
                     <Button
                       size="sm"
                       variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
@@ -282,6 +332,16 @@ export default function DailyDispatchSummary() {
                       onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
                     >
                       {selectedRow.isLocked ? 'Unlock' : 'Lock'}
+                    </Button>
+                  ) : isPastDate && (
+                    <Button
+                      size="sm"
+                      variant="soft-warning"
+                      icon={LockOpen}
+                      loading={openLoading}
+                      onClick={() => setOpenConfirm({ salespersonId: selectedRow.salespersonId, name: selectedRow.salespersonName })}
+                    >
+                      Open for Entry
                     </Button>
                   )}
                 </div>
@@ -375,7 +435,9 @@ export default function DailyDispatchSummary() {
                                     <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                       {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
                                     </td>
-                                    <td className="px-3 py-2.5" />
+                                    <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
+                                      {brand.brandCratesTotal > 0 ? brand.brandCratesTotal : '—'}
+                                    </td>
                                     <td className="px-3 py-2.5" />
                                     <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                       {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}
@@ -386,6 +448,27 @@ export default function DailyDispatchSummary() {
                             );
                           })}
                         </tbody>
+                        <tfoot className="sticky bottom-0 z-10">
+                          <tr>
+                            <td className="bg-slate-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider border-t-2 border-slate-600">
+                              Total
+                            </td>
+                            <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.qty > 0
+                                ? <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.qty} units</span>
+                                : <span className="text-sm font-bold text-emerald-300">—</span>}
+                            </td>
+                            <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.crates > 0
+                                ? <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.crates} crates</span>
+                                : <span className="text-sm font-bold text-amber-300">—</span>}
+                            </td>
+                            <td className="bg-slate-700 px-3 py-2.5 border-t-2 border-slate-600" />
+                            <td className="bg-slate-700 px-3 py-2.5 text-right text-sm font-bold text-white tabular-nums border-t-2 border-slate-600 whitespace-nowrap">
+                              {tableTotals.amount > 0 ? formatCurrency(tableTotals.amount) : '—'}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
@@ -396,7 +479,11 @@ export default function DailyDispatchSummary() {
               <div className="flex-shrink-0 bg-white border-t-2 border-emerald-200 px-4 py-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Grand Total</p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{selectedRow.salespersonName}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    {selectedRow.salespersonName}
+                    {tableTotals.qty > 0 && <span className="font-semibold text-emerald-600"> · {tableTotals.qty} units</span>}
+                    {tableTotals.crates > 0 && <span className="font-semibold text-amber-600"> · {tableTotals.crates} crates</span>}
+                  </p>
                 </div>
                 <p className="text-lg font-extrabold text-emerald-700 tabular-nums flex-shrink-0">
                   {formatCurrency(selectedRow.totalAmount)}
@@ -425,6 +512,23 @@ export default function DailyDispatchSummary() {
         cancelText="Cancel"
         tone={lockConfirm?.isLocked ? 'warning' : 'danger'}
         icon={lockConfirm?.isLocked ? LockOpen : Lock}
+      />
+
+      {/* Open-for-entry confirmation modal */}
+      <ConfirmationModal
+        isOpen={!!openConfirm}
+        onClose={() => setOpenConfirm(null)}
+        onConfirm={confirmOpenForEntry}
+        title="Open this date for entry?"
+        message={
+          openConfirm
+            ? `${openConfirm.name} never entered anything for this date. Opening it lets them fill it in from their Stock Entry page.`
+            : ''
+        }
+        confirmText="Yes, Open"
+        cancelText="Cancel"
+        tone="warning"
+        icon={LockOpen}
       />
 
     </div>

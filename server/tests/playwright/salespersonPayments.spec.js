@@ -78,34 +78,49 @@ test.describe('POST /api/v1/salesperson-payments', () => {
     expect(res.status()).toBe(400);
   });
 
-  // ─── Over-payment guard (the reported bug) ──────────────────────────────────
+  // ─── Excess payments create a carried-forward credit ───────────────────────
 
-  test('rejects payment when salesperson has no outstanding balance', async ({ request }) => {
-    // No balance row exists OR closingBalance is 0 → guard treats as settled.
-    // This is the bug the user reported: collecting from a settled salesperson.
-    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 0 });
+  test('allows payment when salesperson has no outstanding balance, creating a credit', async ({ request }) => {
+    // A salesperson can hand in an advance even when fully settled — it
+    // carries forward as a credit that reduces future collections.
+    const upsertCalls = [];
+    ctx.mockPrisma.salespersonPayment.create.mockResolvedValue({ id: 1, salespersonId: 1, amount: 500, paymentDate: new Date('2026-04-30') });
+    mockSalespersonCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 500 } }) });
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
 
     const res = await request.post('/api/v1/salesperson-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { salespersonId: 1, paymentDate: '2026-04-30', amount: 500 },
     });
 
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/No outstanding balance/i);
+    expect(res.status()).toBe(201);
+    expect(upsertCalls[0].create.closingBalance).toBe(-500);
   });
 
-  test('rejects payment that exceeds outstanding balance', async ({ request }) => {
-    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 200 });
+  test('allows payment that exceeds outstanding balance, creating a credit', async ({ request }) => {
+    const upsertCalls = [];
+    ctx.mockPrisma.salespersonPayment.create.mockResolvedValue({ id: 1, salespersonId: 1, amount: 500, paymentDate: new Date('2026-04-30') });
+    mockSalespersonCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 500 } }) });
+    // Simulate a prior day's closing balance of ₹200 owed.
+    ctx.mockPrisma.salespersonBalance.findFirst.mockImplementation(async ({ where }) =>
+      where?.balanceDate ? { closingBalance: 200 } : null
+    );
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
 
     const res = await request.post('/api/v1/salesperson-payments', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { salespersonId: 1, paymentDate: '2026-04-30', amount: 500 },
     });
 
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/exceeds outstanding balance of ₹200/i);
+    expect(res.status()).toBe(201);
+    // openingBalance 200 + stockGiven 0 - amountPaid 500 = -300 (credit)
+    expect(upsertCalls[0].create.closingBalance).toBe(-300);
   });
 
   test('accepts payment exactly equal to outstanding balance', async ({ request }) => {
@@ -226,22 +241,27 @@ test.describe('PUT /api/v1/salesperson-payments/:id', () => {
     expect(res.status()).toBe(400);
   });
 
-  // ─── Update-side over-payment guard ────────────────────────────────────────
+  // ─── Excess payments create a carried-forward credit ───────────────────────
 
-  test('PUT rejects when bumping amount past remaining outstanding (delta > outstanding)', async ({ request }) => {
-    // Existing payment ₹1500; remaining outstanding is ₹500;
-    // edit to ₹2500 → delta 1000 > 500 → reject.
+  test('PUT allows bumping amount past remaining outstanding, creating a credit', async ({ request }) => {
+    // Existing payment ₹1500; remaining outstanding is ₹500; edit to ₹2500
+    // → delta 1000 > 500, but excess payments are allowed and become credit.
+    const upsertCalls = [];
     ctx.mockPrisma.salespersonPayment.findUnique.mockResolvedValue(PAYMENT);
-    mockSalespersonCascade(ctx.mockPrisma, { outstanding: 500 });
+    ctx.mockPrisma.salespersonPayment.update.mockResolvedValue({ ...PAYMENT, amount: 2500 });
+    mockSalespersonCascade(ctx.mockPrisma, { onPaymentAggregate: async () => ({ _sum: { amount: 2500 } }) });
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
 
     const res = await request.put('/api/v1/salesperson-payments/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { amount: 2500, paymentDate: '2026-04-30' },
     });
 
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/Increase of ₹1000 would exceed remaining outstanding balance of ₹500/i);
+    expect(res.status()).toBe(200);
+    expect(upsertCalls[0].create.closingBalance).toBe(-2500);
   });
 
   test('PUT allows decreasing the amount even when outstanding is 0', async ({ request }) => {
