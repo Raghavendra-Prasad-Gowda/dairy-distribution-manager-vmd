@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2, Copy } from 'lucide-react';
+import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -67,7 +67,8 @@ export default function SalesmanPricesSetup() {
   );
   const [loading, setLoading]               = useState(false);
   const [saving, setSaving]                 = useState(false);
-  const [search, setSearch]                 = useState('');
+  const [spSearch, setSpSearch]             = useState('');  // Salesperson search
+  const [search, setSearch]                 = useState('');  // Product search
   const [currentPage, setCurrentPage]       = useState(1);
 
   const isGlobal = selectedSpId === GLOBAL_ID;
@@ -412,6 +413,42 @@ export default function SalesmanPricesSetup() {
 
   const colSpan = isGlobal ? 5 : 10;
 
+  // Filter salespeople for sidebar
+  const filteredSalespeople = useMemo(() => {
+    const q = spSearch.trim().toLowerCase();
+    if (!q) return salespeople;
+    return salespeople.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      (s.route ?? '').toLowerCase().includes(q)
+    );
+  }, [salespeople, spSearch]);
+
+  // Render salesperson row in sidebar
+  function SpRow({ sp }) {
+    const isSelected = String(sp.id) === String(selectedSpId);
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedSpId(String(sp.id));
+          setDirtyToggles({});
+          setDirtyGlobal({});
+          setDirtyGlobalPrices({});
+        }}
+        className={`w-full text-left px-3 py-2.5 border-l-4 transition-colors ${
+          isSelected
+            ? 'bg-emerald-50 border-emerald-600'
+            : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
+        }`}
+      >
+        <p className={`text-sm font-semibold leading-tight truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+          {sp.name}
+        </p>
+        {sp.route && <p className="text-xs text-slate-400 leading-tight mt-0.5">{sp.route}</p>}
+      </button>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
 
@@ -426,40 +463,84 @@ export default function SalesmanPricesSetup() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-5 md:p-8 max-w-5xl mx-auto space-y-5">
+      {/* Two-panel layout */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
-          {/* Controls bar */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Salesperson</label>
-              <select
-                value={selectedSpId}
-                onChange={e => { setSelectedSpId(e.target.value); setDirtyToggles({}); setDirtyGlobal({}); setDirtyGlobalPrices({}); }}
-                className="w-full ddm-input"
-              >
-                <option value={GLOBAL_ID}>— Global Settings (All Salespeople) —</option>
-                {salespeople.map(sp => (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.name}{sp.route ? ` — ${sp.route}` : ''}
-                  </option>
-                ))}
-              </select>
+        {/* LEFT PANEL — Salesperson list */}
+        <aside className="flex flex-col w-[220px] flex-shrink-0 border-r border-slate-200 bg-white">
+
+          {/* Search */}
+          <div className="p-3 border-b border-slate-100 flex-shrink-0">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={spSearch}
+                onChange={e => setSpSearch(e.target.value)}
+                placeholder="Search salesperson…"
+                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              {spSearch && (
+                <button onClick={() => setSpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Global mode banner */}
-          {isGlobal && (
-            <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-              <Globe size={15} className="text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-800">
-                Changes here apply to <span className="font-bold">all salespeople</span>. Disabled products won't appear for any salesperson regardless of their individual settings.
-              </p>
-            </div>
-          )}
+          {/* Salesperson list */}
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+            {/* Global Settings option */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSpId(GLOBAL_ID);
+                setDirtyToggles({});
+                setDirtyGlobal({});
+                setDirtyGlobalPrices({});
+              }}
+              className={`w-full text-left px-3 py-2.5 border-l-4 transition-colors flex items-center gap-2 ${
+                selectedSpId === GLOBAL_ID
+                  ? 'bg-emerald-50 border-emerald-600'
+                  : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
+              }`}
+            >
+              <Globe size={14} className={selectedSpId === GLOBAL_ID ? 'text-emerald-700' : 'text-slate-500'} />
+              <span className={`text-sm font-semibold leading-tight ${selectedSpId === GLOBAL_ID ? 'text-emerald-800' : 'text-slate-800'}`}>
+                Global
+              </span>
+            </button>
 
-          {(selectedSp || isGlobal) && (
-            <>
+            {/* Salesperson list */}
+            {filteredSalespeople.length === 0 ? (
+              <li className="px-3 py-6 text-center text-slate-400 text-xs">
+                {search ? 'No results' : 'No salespeople'}
+              </li>
+            ) : (
+              filteredSalespeople.map(sp => <SpRow key={sp.id} sp={sp} />)
+            )}
+          </div>
+        </aside>
+
+        {/* RIGHT PANEL — Content area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-50">
+          {!selectedSpId ? (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+              Select a salesperson or global settings
+            </div>
+          ) : (
+            <div className="p-5 md:p-8 max-w-5xl space-y-5">
+
+              {/* Global mode banner */}
+              {isGlobal && (
+                <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  <Globe size={15} className="text-amber-600 flex-shrink-0" />
+                  <p className="text-sm text-amber-800">
+                    Changes here apply to <span className="font-bold">all salespeople</span>. Disabled products won't appear for any salesperson regardless of their individual settings.
+                  </p>
+                </div>
+              )}
+
               {brands.length > 0 && (
                 <BrandTabs
                   brands={brands}
@@ -748,7 +829,7 @@ export default function SalesmanPricesSetup() {
                   </table>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
