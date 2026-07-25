@@ -62,6 +62,8 @@ export default function SalesmanPricesSetup() {
   const [updatingBulkPrices, setUpdatingBulkPrices] = useState(false);
   const [bulkUpdateProductSearch, setBulkUpdateProductSearch] = useState('');
   const [bulkUpdateSalesmenSearch, setBulkUpdateSalesmenSearch] = useState('');
+  // Clear custom prices
+  const [clearingProductId, setClearingProductId] = useState(null);
 
   // Global state
   const [globalProducts, setGlobalProducts] = useState([]);
@@ -427,6 +429,27 @@ export default function SalesmanPricesSetup() {
       notify(e.response?.data?.error ?? 'Failed to save', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleClearCustomPrices = async (productId) => {
+    const product = globalProducts.find(p => p.productId === productId);
+    if (!product) return;
+
+    const confirmed = window.confirm(
+      `Clear all custom prices for "${product.productName}"?\n\nAll salesmen will use the global default of ₹${Number(product.salespersonDefaultPrice).toFixed(2)}.`
+    );
+    if (!confirmed) return;
+
+    setClearingProductId(productId);
+    try {
+      const response = await api.delete(`/products/${productId}/salesperson-prices`);
+      notify(response.data.data.message, 'success');
+      fetchPrices();
+    } catch (e) {
+      notify(e.response?.data?.data?.message || e.response?.data?.error || 'Failed to clear prices', 'error');
+    } finally {
+      setClearingProductId(null);
     }
   };
 
@@ -1009,14 +1032,15 @@ export default function SalesmanPricesSetup() {
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
                         <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Default Price</th>
                         <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Global</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Clear Prices</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
                       {loading ? (
-                        <tr><td colSpan={5}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+                        <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
                       ) : pageGroups.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-slate-400 text-sm">
+                          <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
                             {search ? 'No products match your search.' : 'No products for this brand'}
                           </td>
                         </tr>
@@ -1024,7 +1048,7 @@ export default function SalesmanPricesSetup() {
                         pageGroups.map(([category, items]) => (
                           <React.Fragment key={category}>
                             <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                              <td colSpan={5} className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest">
+                              <td colSpan={6} className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest">
                                 {category}
                               </td>
                             </tr>
@@ -1088,6 +1112,16 @@ export default function SalesmanPricesSetup() {
                                         onChange={() => handleGlobalToggle(p.productId, isEnabled)}
                                       />
                                     </div>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-center align-middle">
+                                    <button
+                                      onClick={() => handleClearCustomPrices(p.productId)}
+                                      disabled={clearingProductId === p.productId}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
+                                      title="Clear all custom prices for this product — all salesmen will use this global default"
+                                    >
+                                      {clearingProductId === p.productId ? 'Clearing…' : 'Clear'}
+                                    </button>
                                   </td>
                                 </tr>
                               );
