@@ -218,34 +218,37 @@ const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
   const data = validate(schemas.bulkUpdateSalespersonPrices, req, res);
   if (!data) return;
 
-  const { salespersonIds, productId, sellingPrice, effectiveFrom } = data;
+  const { salespersonIds, productPrices, effectiveFrom } = data;
   const effectiveFromDate = new Date(effectiveFrom);
   const todayIST = new Date(getIndiaDateStr());
 
-  // For each salesman, update or delete future prices and upsert the new one
+  // For each salesman and each product, update or delete future prices and upsert the new one
   const ops = salespersonIds.flatMap((spId) => {
     const isFuture = effectiveFromDate > todayIST;
-    const before = isFuture
-      ? [prisma.salespersonPrice.deleteMany({
-          where: {
-            salespersonId: spId,
-            productId,
-            effectiveFrom: { gt: todayIST, not: effectiveFromDate },
-          },
-        })]
-      : [];
-    return [
-      ...before,
-      prisma.salespersonPrice.upsert({
-        where: { salespersonId_productId_effectiveFrom: { salespersonId: spId, productId, effectiveFrom: effectiveFromDate } },
-        update: { sellingPrice },
-        create: { salespersonId: spId, productId, sellingPrice, effectiveFrom: effectiveFromDate },
-      }),
-    ];
+    return productPrices.flatMap((pp) => {
+      const before = isFuture
+        ? [prisma.salespersonPrice.deleteMany({
+            where: {
+              salespersonId: spId,
+              productId: pp.productId,
+              effectiveFrom: { gt: todayIST, not: effectiveFromDate },
+            },
+          })]
+        : [];
+      return [
+        ...before,
+        prisma.salespersonPrice.upsert({
+          where: { salespersonId_productId_effectiveFrom: { salespersonId: spId, productId: pp.productId, effectiveFrom: effectiveFromDate } },
+          update: { sellingPrice: pp.sellingPrice },
+          create: { salespersonId: spId, productId: pp.productId, sellingPrice: pp.sellingPrice, effectiveFrom: effectiveFromDate },
+        }),
+      ];
+    });
   });
 
   await prisma.$transaction(ops);
-  res.json({ success: true, data: { message: `Price updated for ${salespersonIds.length} salesmen` } });
+  const totalUpdates = salespersonIds.length * productPrices.length;
+  res.json({ success: true, data: { message: `Price updated for ${salespersonIds.length} salesmen and ${productPrices.length} products (${totalUpdates} records)` } });
 });
 
 module.exports = { getPrices, bulkSave, copyFromSalesman, bulkUpdateMultipleSalesmen };

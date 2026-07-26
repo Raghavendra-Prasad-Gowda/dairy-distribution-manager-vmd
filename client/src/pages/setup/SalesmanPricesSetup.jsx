@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2 } from 'lucide-react';
+import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2 } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -56,13 +56,13 @@ export default function SalesmanPricesSetup() {
   const [showBulkUpdateModal, setShowBulkUpdateModal] = useState(false);
   const [bulkUpdateForm, setBulkUpdateForm] = useState({
     selectedSalesmen: new Set(),
-    productId: '',
-    sellingPrice: '',
+    productPrices: [], // Array of { productId, productName, sellingPrice }
     effectiveFrom: getIndiaDate(),
   });
   const [updatingBulkPrices, setUpdatingBulkPrices] = useState(false);
   const [bulkUpdateProductSearch, setBulkUpdateProductSearch] = useState('');
   const [bulkUpdateSalesmenSearch, setBulkUpdateSalesmenSearch] = useState('');
+  const [pendingProductSelection, setPendingProductSelection] = useState(''); // Temp for selecting product to add
   // Clear custom prices
   const [clearingProductId, setClearingProductId] = useState(null);
 
@@ -334,34 +334,77 @@ export default function SalesmanPricesSetup() {
     });
   };
 
+  const addProductToUpdate = (productId) => {
+    const product = globalProducts.find(p => String(p.productId) === String(productId));
+    if (!product) return;
+
+    const exists = bulkUpdateForm.productPrices.some(p => String(p.productId) === String(productId));
+    if (exists) {
+      notify('Product already added', 'warning');
+      return;
+    }
+
+    setBulkUpdateForm(prev => ({
+      ...prev,
+      productPrices: [...prev.productPrices, {
+        productId: product.productId,
+        productName: product.productName,
+        category: product.category,
+        sellingPrice: '',
+      }],
+    }));
+    setBulkUpdateProductSearch('');
+    setPendingProductSelection('');
+  };
+
+  const removeProductFromUpdate = (index) => {
+    setBulkUpdateForm(prev => ({
+      ...prev,
+      productPrices: prev.productPrices.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateProductPrice = (index, price) => {
+    setBulkUpdateForm(prev => {
+      const updated = [...prev.productPrices];
+      updated[index].sellingPrice = price;
+      return { ...prev, productPrices: updated };
+    });
+  };
+
   async function handleBulkUpdate() {
     if (bulkUpdateForm.selectedSalesmen.size === 0) {
       notify('Select at least one salesman', 'warning');
       return;
     }
-    if (!bulkUpdateForm.productId) {
-      notify('Select a product', 'warning');
+    if (bulkUpdateForm.productPrices.length === 0) {
+      notify('Add at least one product', 'warning');
       return;
     }
-    const price = parseFloat(bulkUpdateForm.sellingPrice);
-    if (!(price >= 0)) {
-      notify('Enter a valid price', 'warning');
-      return;
+
+    for (const p of bulkUpdateForm.productPrices) {
+      const price = parseFloat(p.sellingPrice);
+      if (!(price >= 0)) {
+        notify(`Invalid price for ${p.productName}`, 'warning');
+        return;
+      }
     }
+
     setUpdatingBulkPrices(true);
     try {
       await api.post('/salespeople/bulk-update', {
         salespersonIds: Array.from(bulkUpdateForm.selectedSalesmen),
-        productId: parseInt(bulkUpdateForm.productId, 10),
-        sellingPrice: price,
+        productPrices: bulkUpdateForm.productPrices.map(p => ({
+          productId: parseInt(p.productId, 10),
+          sellingPrice: parseFloat(p.sellingPrice),
+        })),
         effectiveFrom: bulkUpdateForm.effectiveFrom,
       });
-      notify(`Price updated for ${bulkUpdateForm.selectedSalesmen.size} salesmen`, 'success');
+      notify(`Prices updated for ${bulkUpdateForm.selectedSalesmen.size} salesmen and ${bulkUpdateForm.productPrices.length} products`, 'success');
       setShowBulkUpdateModal(false);
       setBulkUpdateForm({
         selectedSalesmen: new Set(),
-        productId: '',
-        sellingPrice: '',
+        productPrices: [],
         effectiveFrom: getIndiaDate(),
       });
     } catch (err) {
@@ -1511,90 +1554,119 @@ export default function SalesmanPricesSetup() {
             </div>
 
             <div className="px-5 py-5 space-y-5">
-              {/* Product Selection */}
+              {/* Product Selection and Addition */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Product</label>
-                <div className="relative">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Add Products</label>
+                <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search products…"
+                    placeholder="Search products to add…"
                     value={bulkUpdateProductSearch}
                     onChange={e => setBulkUpdateProductSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent mb-2"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                   />
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
                   {globalProducts
                     .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
                     .filter(p => {
+                      const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
                       const q = bulkUpdateProductSearch.toLowerCase();
-                      return !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q));
+                      return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
                     })
                     .map(p => (
                       <button
                         key={p.productId}
                         type="button"
-                        onClick={() => setBulkUpdateForm(f => ({ ...f, productId: String(p.productId) }))}
-                        className={`w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition ${
-                          bulkUpdateForm.productId === String(p.productId)
-                            ? 'bg-emerald-100 border-l-4 border-l-emerald-600'
-                            : ''
-                        }`}
+                        onClick={() => addProductToUpdate(String(p.productId))}
+                        className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition"
                       >
                         <div className="font-medium text-slate-900">{p.productName}</div>
                         {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
                       </button>
                     ))}
-                  {globalProducts.filter(p => p.brandId === activeBrandId && p.salespersonEnabled).filter(p => {
-                    const q = bulkUpdateProductSearch.toLowerCase();
-                    return !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q));
-                  }).length === 0 && (
+                  {globalProducts
+                    .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
+                    .filter(p => {
+                      const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
+                      const q = bulkUpdateProductSearch.toLowerCase();
+                      return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
+                    }).length === 0 && (
                     <div className="px-3 py-4 text-center text-xs text-slate-400">
-                      {bulkUpdateProductSearch ? 'No products found' : 'No enabled products for this brand'}
+                      {bulkUpdateProductSearch ? 'No products found' : 'No enabled products or all added'}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Product Info — Dairy Costs */}
-              {bulkUpdateForm.productId && (() => {
-                const selectedProduct = globalProducts.find(p => String(p.productId) === String(bulkUpdateForm.productId));
-                return selectedProduct ? (
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
-                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Dairy Prices</p>
-                    <div className="grid grid-cols-2 gap-3 text-[11px]">
-                      <div>
-                        <p className="text-slate-400 font-semibold mb-0.5">Cost Price</p>
-                        <p className="text-slate-700 font-bold tabular-nums">₹{Number(selectedProduct.dairyCostPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400 font-semibold mb-0.5">Selling Price</p>
-                        <p className="text-slate-700 font-bold tabular-nums">₹{Number(selectedProduct.dairySellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                      </div>
-                    </div>
+              {/* Products Table */}
+              {bulkUpdateForm.productPrices.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Selected Products ({bulkUpdateForm.productPrices.length})
+                  </label>
+                  <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-100 border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Product</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Dairy Cost</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Selling Price (₹)</th>
+                          <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-10">Remove</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {bulkUpdateForm.productPrices.map((p, idx) => {
+                          const product = globalProducts.find(prod => String(prod.productId) === String(p.productId));
+                          const priceVal = parseFloat(p.sellingPrice);
+                          const invalid = !(priceVal >= 0);
+                          return (
+                            <tr key={idx} className={invalid ? 'bg-red-50/50' : ''}>
+                              <td className="px-3 py-2.5">
+                                <div className="font-medium text-slate-700">{p.productName}</div>
+                                {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-slate-600 tabular-nums text-xs">
+                                ₹{product ? Number(product.dairyCostPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                  <input
+                                    type="number"
+                                    step="0.0001"
+                                    min="0"
+                                    value={p.sellingPrice}
+                                    onChange={e => updateProductPrice(idx, e.target.value)}
+                                    placeholder="0.00"
+                                    className={`w-full pl-6 pr-2 py-1.5 text-xs text-right font-semibold tabular-nums border rounded focus:outline-none focus:ring-2 focus:border-transparent ${
+                                      invalid
+                                        ? 'border-red-300 bg-red-50 focus:ring-red-400'
+                                        : 'border-slate-200 focus:ring-emerald-400'
+                                    }`}
+                                    required
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeProductFromUpdate(idx)}
+                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                                  title="Remove"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                ) : null;
-              })()}
-
-              {/* Price Input */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  New Selling Price (₹)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    value={bulkUpdateForm.sellingPrice}
-                    onChange={e => setBulkUpdateForm(f => ({ ...f, sellingPrice: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full pl-7 pr-3 py-2.5 text-sm text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                  />
                 </div>
-              </div>
+              )}
 
               {/* Effective From */}
               <div>
@@ -1680,11 +1752,11 @@ export default function SalesmanPricesSetup() {
                 </button>
                 <button
                   onClick={handleBulkUpdate}
-                  disabled={updatingBulkPrices || bulkUpdateForm.selectedSalesmen.size === 0}
+                  disabled={updatingBulkPrices || bulkUpdateForm.selectedSalesmen.size === 0 || bulkUpdateForm.productPrices.length === 0}
                   className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {updatingBulkPrices ? <Loader2 className="animate-spin" size={14} /> : <IndianRupee size={14} />}
-                  {updatingBulkPrices ? 'Updating…' : `Update Prices (${bulkUpdateForm.selectedSalesmen.size})`}
+                  {updatingBulkPrices ? 'Updating…' : `Update (${bulkUpdateForm.selectedSalesmen.size} salesmen, ${bulkUpdateForm.productPrices.length} products)`}
                 </button>
               </div>
             </div>

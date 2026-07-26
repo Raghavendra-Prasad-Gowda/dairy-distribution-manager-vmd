@@ -182,11 +182,13 @@ const schemas = {
     })),
   }),
 
-  // Bulk update same price across multiple salesmen
+  // Bulk update multiple products across multiple salesmen
   bulkUpdateSalespersonPrices: z.object({
     salespersonIds: z.array(z.number().int().positive()).min(1, 'At least one salesman is required'),
-    productId:      z.number().int().positive('Product ID is required'),
-    sellingPrice:   z.number().min(0, 'Selling price must be non-negative'),
+    productPrices:  z.array(z.object({
+      productId:    z.number().int().positive('Product ID is required'),
+      sellingPrice: z.number().min(0, 'Selling price must be non-negative'),
+    })).min(1, 'At least one product is required'),
     effectiveFrom:  todayOrLaterDateString(),
   }),
 
