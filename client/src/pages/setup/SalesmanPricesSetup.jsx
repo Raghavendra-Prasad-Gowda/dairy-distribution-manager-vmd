@@ -1562,7 +1562,26 @@ export default function SalesmanPricesSetup() {
             <div className="px-5 py-5 space-y-5">
               {/* Product Selection and Addition */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Add Products</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Add Products</label>
+                  {(() => {
+                    const availableProducts = globalProducts.filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
+                      .filter(p => !bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId)));
+                    return availableProducts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          for (const p of availableProducts) {
+                            addProductToUpdate(String(p.productId));
+                          }
+                        }}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
+                      >
+                        Select All
+                      </button>
+                    );
+                  })()}
+                </div>
                 <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
@@ -1699,9 +1718,32 @@ export default function SalesmanPricesSetup() {
 
               {/* Salesmen Selection */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Apply to Salespeople ({bulkUpdateForm.selectedSalesmen.size} selected)
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Apply to Salespeople ({bulkUpdateForm.selectedSalesmen.size} selected)
+                  </label>
+                  {salespeople.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      {bulkUpdateForm.selectedSalesmen.size === salespeople.length ? (
+                        <button
+                          type="button"
+                          onClick={() => setBulkUpdateForm(f => ({ ...f, selectedSalesmen: new Set() }))}
+                          className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition"
+                        >
+                          Deselect All
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setBulkUpdateForm(f => ({ ...f, selectedSalesmen: new Set(salespeople.map(sp => sp.id)) }))}
+                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
+                        >
+                          Select All
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
@@ -1742,15 +1784,6 @@ export default function SalesmanPricesSetup() {
                       ))
                   )}
                 </div>
-                {bulkUpdateForm.selectedSalesmen.size > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setBulkUpdateForm(f => ({ ...f, selectedSalesmen: new Set() }))}
-                    className="text-xs text-slate-500 hover:text-slate-700 mt-2 transition"
-                  >
-                    Clear all selections
-                  </button>
-                )}
               </div>
 
               {/* Action Buttons */}
