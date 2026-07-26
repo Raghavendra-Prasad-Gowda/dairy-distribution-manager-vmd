@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertCircle, Loader2, Calendar } from 'lucide-react';
+import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -15,19 +15,31 @@ export default function SalespersonBalance() {
   const [date, setDate] = useState(getIndiaDate());
   const [balance, setBalance] = useState(null);
   const [history, setHistory] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 20 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Date range filters
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    return d.toISOString().slice(0, 10);
+  });
+  const [toDate, setToDate] = useState(getIndiaDate());
+
   const salespersonId = user?.salespersonId;
 
-  // Fetch balance for specific date and history
+  // Fetch today's balance and history with pagination/filtering
   useEffect(() => {
     if (!salespersonId) return;
     setLoading(true);
     setError('');
+
+    const historyUrl = `/salesperson-balance/${salespersonId}/history?page=${pagination.page}&limit=${pagination.limit}&from=${fromDate}&to=${toDate}`;
+
     Promise.all([
       api.get(`/salesperson-balance/${salespersonId}?date=${date}`),
-      api.get(`/salesperson-balance/${salespersonId}/history`),
+      api.get(historyUrl),
     ])
       .then(([balRes, histRes]) => {
         const bal = balRes.data.data;
@@ -37,13 +49,14 @@ export default function SalespersonBalance() {
           amountPaid: 0,
           closingBalance: 0,
         });
-        setHistory(histRes.data.data ?? []);
+        setHistory(histRes.data.data.items ?? []);
+        setPagination(histRes.data.data.pagination);
       })
       .catch((e) => {
         setError(e.response?.data?.error ?? 'Failed to load balance information');
       })
       .finally(() => setLoading(false));
-  }, [salespersonId, date]);
+  }, [salespersonId, date, pagination.page, fromDate, toDate]);
 
   if (!salespersonId) {
     return <div className="p-4 text-center text-slate-500">Unable to load balance</div>;
@@ -131,6 +144,47 @@ export default function SalespersonBalance() {
                 </div>
               </div>
 
+              {/* ── Date Range Filter ────────────────────────────────────── */}
+              <div className="bg-white rounded-2xl shadow-sm p-4 border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar size={14} className="text-slate-600" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
+                    Filter by Date Range
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-slate-500 font-semibold block mb-1">From</label>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => {
+                        setFromDate(e.target.value);
+                        setPagination(p => ({ ...p, page: 1 }));
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 font-semibold block mb-1">To</label>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => {
+                        setToDate(e.target.value);
+                        setPagination(p => ({ ...p, page: 1 }));
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+                {pagination.total > 0 && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    Showing {history.length} of {pagination.total} records
+                  </p>
+                )}
+              </div>
+
               {/* ── Balance History ────────────────────────────────────── */}
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
@@ -141,44 +195,71 @@ export default function SalespersonBalance() {
                 </div>
 
                 {history && history.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
-                    {history.map((entry, idx) => {
-                      const isLastOwing = entry.closingBalance > 0;
-                      return (
-                        <div key={idx} className="px-4 py-3 hover:bg-slate-50 transition">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-semibold text-slate-700">
-                              {formatDateShort(entry.balanceDate)}
-                            </p>
-                            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                              isLastOwing ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                            }`}>
-                              {formatCurrency(Math.abs(entry.closingBalance))}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-3 text-xs">
-                            <div>
-                              <p className="text-slate-400 mb-0.5">Bill</p>
-                              <p className="font-semibold text-slate-700">{formatCurrency(entry.stockGiven)}</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-400 mb-0.5">Paid</p>
-                              <p className="font-semibold text-emerald-600">{formatCurrency(entry.amountPaid)}</p>
-                            </div>
-                            <div>
-                              <p className="text-slate-400 mb-0.5">Status</p>
-                              <p className={`font-semibold ${isLastOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-                                {isLastOwing ? 'Owing' : 'Paid'}
+                  <>
+                    <div className="divide-y divide-slate-100">
+                      {history.map((entry, idx) => {
+                        const isLastOwing = entry.closingBalance > 0;
+                        return (
+                          <div key={idx} className="px-4 py-3 hover:bg-slate-50 transition">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-semibold text-slate-700">
+                                {formatDateShort(entry.balanceDate)}
                               </p>
+                              <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                isLastOwing ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                              }`}>
+                                {formatCurrency(Math.abs(entry.closingBalance))}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3 text-xs">
+                              <div>
+                                <p className="text-slate-400 mb-0.5">Bill</p>
+                                <p className="font-semibold text-slate-700">{formatCurrency(entry.stockGiven)}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 mb-0.5">Paid</p>
+                                <p className="font-semibold text-emerald-600">{formatCurrency(entry.amountPaid)}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-400 mb-0.5">Status</p>
+                                <p className={`font-semibold ${isLastOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+                                  {isLastOwing ? 'Owing' : 'Paid'}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {pagination.pages > 1 && (
+                      <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                        <button
+                          onClick={() => setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                          disabled={pagination.page === 1}
+                          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          <ChevronLeft size={16} />
+                          Previous
+                        </button>
+                        <span className="text-xs font-semibold text-slate-600">
+                          Page {pagination.page} of {pagination.pages}
+                        </span>
+                        <button
+                          onClick={() => setPagination(p => ({ ...p, page: Math.min(p.pages, p.page + 1) }))}
+                          disabled={pagination.page === pagination.pages}
+                          className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        >
+                          Next
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="px-4 py-8 text-center text-slate-400 text-sm">
-                    No payment history available
+                    No payment history available for the selected date range
                   </div>
                 )}
               </div>
