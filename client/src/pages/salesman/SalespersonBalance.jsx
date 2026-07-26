@@ -20,14 +20,14 @@ export default function SalespersonBalance() {
 
   const salespersonId = user?.salespersonId;
 
-  // Fetch balance for specific date
+  // Fetch balance for specific date and history
   useEffect(() => {
     if (!salespersonId) return;
     setLoading(true);
     setError('');
     Promise.all([
       api.get(`/salesperson-balance/${salespersonId}?date=${date}`),
-      api.get(`/salesperson-balance/${salespersonId}/history`), // Fetch all history
+      api.get(`/salesperson-balance/${salespersonId}/history`),
     ])
       .then(([balRes, histRes]) => {
         const bal = balRes.data.data;
@@ -43,7 +43,7 @@ export default function SalespersonBalance() {
         setError(e.response?.data?.error ?? 'Failed to load balance information');
       })
       .finally(() => setLoading(false));
-  }, [salespersonId]);
+  }, [salespersonId, date]);
 
   if (!salespersonId) {
     return <div className="p-4 text-center text-slate-500">Unable to load balance</div>;
