@@ -74,10 +74,11 @@ const getPrices = asyncHandler(async (req, res) => {
     catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
   }
 
-  // Salesman: only show products that are globally enabled AND enabled for them.
+  // Salesman: only show products that are globally enabled AND not explicitly disabled for them.
   // salespersonEnabled=false acts as a kill switch regardless of per-salesman rows.
+  // Products default to enabled unless there's an explicit disabling override.
   const visibleProducts = isSalesman
-    ? products.filter(p => p.salespersonEnabled && (enabledMap[p.id] ?? false))
+    ? products.filter(p => p.salespersonEnabled && (enabledMap[p.id] ?? true))
     : products;
 
   const result = visibleProducts.map((p) => ({
