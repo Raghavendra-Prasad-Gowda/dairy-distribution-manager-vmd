@@ -1246,12 +1246,12 @@ export default function SalesmanPricesSetup() {
       {showPriceHistory && editingPrice && (
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowPriceHistory(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-blue-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-white leading-tight">Price Schedule</h3>
-                <p className="text-[11px] text-blue-200 mt-0.5">{editingPrice.productName}</p>
+                <p className="text-[11px] text-emerald-200 mt-0.5">{editingPrice.productName}</p>
               </div>
-              <button onClick={() => setShowPriceHistory(false)} className="p-1.5 text-blue-200 hover:text-white hover:bg-blue-600 rounded-lg transition">
+              <button onClick={() => setShowPriceHistory(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
               </button>
             </div>
