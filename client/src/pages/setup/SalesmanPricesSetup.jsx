@@ -1536,6 +1536,26 @@ export default function SalesmanPricesSetup() {
                 </div>
               </div>
 
+              {/* Product Info — Dairy Costs */}
+              {bulkUpdateForm.productId && (() => {
+                const selectedProduct = globalProducts.find(p => String(p.productId) === String(bulkUpdateForm.productId));
+                return selectedProduct ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Dairy Prices</p>
+                    <div className="grid grid-cols-2 gap-3 text-[11px]">
+                      <div>
+                        <p className="text-slate-400 font-semibold mb-0.5">Cost Price</p>
+                        <p className="text-slate-700 font-bold tabular-nums">₹{Number(selectedProduct.dairyCostPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 font-semibold mb-0.5">Selling Price</p>
+                        <p className="text-slate-700 font-bold tabular-nums">₹{Number(selectedProduct.dairySellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
               {/* Price Input */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
