@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle } from 'lucide-react';
+import { Save, Loader2, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2 } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -1116,9 +1116,12 @@ export default function SalesmanPricesSetup() {
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               {/* Emerald header bar — matches the app's page-header chrome */}
               <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-                <div className="min-w-0">
-                  <h3 className="text-base font-bold text-white leading-tight">Edit Price</h3>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">Update salesperson selling price</p>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Edit2 size={18} className="text-emerald-200 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-base font-bold text-white leading-tight">Edit Price</h3>
+                    <p className="text-[11px] text-emerald-200 mt-0.5">Update salesperson selling price</p>
+                  </div>
                 </div>
                 <button onClick={closePriceEdit} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                   <X size={16} />
@@ -1247,9 +1250,12 @@ export default function SalesmanPricesSetup() {
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowPriceHistory(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-white leading-tight">Price Schedule</h3>
-                <p className="text-[11px] text-emerald-200 mt-0.5">{editingPrice.productName}</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Clock size={18} className="text-emerald-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Price Schedule</h3>
+                  <p className="text-[11px] text-emerald-200 mt-0.5">{editingPrice.productName}</p>
+                </div>
               </div>
               <button onClick={() => setShowPriceHistory(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
@@ -1324,9 +1330,12 @@ export default function SalesmanPricesSetup() {
         }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-white leading-tight">Copy Prices</h3>
-                <p className="text-[11px] text-emerald-200 mt-0.5">Copy prices from another salesman for this brand</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Copy size={18} className="text-emerald-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Copy Prices</h3>
+                  <p className="text-[11px] text-emerald-200 mt-0.5">Copy prices from another salesman for this brand</p>
+                </div>
               </div>
               <button onClick={() => {
                 setShowCopyModal(false);
@@ -1422,9 +1431,12 @@ export default function SalesmanPricesSetup() {
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowImportTemplateModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-white leading-tight">Import Template Prices</h3>
-                <p className="text-[11px] text-emerald-200 mt-0.5">Use a salesman's prices as global defaults</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Globe size={18} className="text-emerald-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Import Template Prices</h3>
+                  <p className="text-[11px] text-emerald-200 mt-0.5">Use a salesman's prices as global defaults</p>
+                </div>
               </div>
               <button onClick={() => setShowImportTemplateModal(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
@@ -1482,9 +1494,12 @@ export default function SalesmanPricesSetup() {
         }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-white leading-tight">Bulk Update Prices</h3>
-                <p className="text-[11px] text-emerald-200 mt-0.5">Apply the same price to multiple salespeople</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <IndianRupee size={18} className="text-emerald-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Bulk Update Prices</h3>
+                  <p className="text-[11px] text-emerald-200 mt-0.5">Apply the same price to multiple salespeople</p>
+                </div>
               </div>
               <button onClick={() => {
                 setShowBulkUpdateModal(false);
@@ -1682,9 +1697,12 @@ export default function SalesmanPricesSetup() {
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllSalesmenPrices(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-white leading-tight">Salesperson Price List</h3>
-                <p className="text-[11px] text-emerald-200 mt-0.5">View all salespeople's prices for each product</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Eye size={18} className="text-emerald-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Salesperson Price List</h3>
+                  <p className="text-[11px] text-emerald-200 mt-0.5">View all salespeople's prices for each product</p>
+                </div>
               </div>
               <button onClick={() => setShowAllSalesmenPrices(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
@@ -1762,9 +1780,12 @@ export default function SalesmanPricesSetup() {
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowClearAllConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="bg-red-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <div className="min-w-0">
-                <h3 className="text-base font-bold text-white leading-tight">Clear All Salesman Prices?</h3>
-                <p className="text-[11px] text-red-200 mt-0.5">This action cannot be undone</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <Trash2 size={18} className="text-red-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Clear All Salesman Prices?</h3>
+                  <p className="text-[11px] text-red-200 mt-0.5">This action cannot be undone</p>
+                </div>
               </div>
               <button onClick={() => setShowClearAllConfirm(false)} className="p-1.5 text-red-200 hover:text-white hover:bg-red-600 rounded-lg transition">
                 <X size={16} />
