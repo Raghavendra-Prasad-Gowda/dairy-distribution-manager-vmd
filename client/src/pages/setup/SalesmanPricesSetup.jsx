@@ -351,7 +351,7 @@ export default function SalesmanPricesSetup() {
         productName: product.productName,
         category: product.category,
         dairyCostPrice: product.dairyCostPrice,
-        dairySellingPrice: '',
+        dairySellingPrice: product.dairySellingPrice,
         salespersonSellingPrice: '',
       }],
     }));
@@ -385,28 +385,14 @@ export default function SalesmanPricesSetup() {
     }
 
     for (const p of bulkUpdateForm.productPrices) {
-      const hasDairyPrice = p.dairySellingPrice !== '';
-      const hasSalespersonPrice = p.salespersonSellingPrice !== '';
-
-      if (!hasDairyPrice && !hasSalespersonPrice) {
-        notify(`Enter at least one price for ${p.productName}`, 'warning');
+      if (p.salespersonSellingPrice === '') {
+        notify(`Enter salesman price for ${p.productName}`, 'warning');
         return;
       }
-
-      if (hasDairyPrice) {
-        const dairyPrice = parseFloat(p.dairySellingPrice);
-        if (!(dairyPrice >= 0)) {
-          notify(`Invalid dairy price for ${p.productName}`, 'warning');
-          return;
-        }
-      }
-
-      if (hasSalespersonPrice) {
-        const salespersonPrice = parseFloat(p.salespersonSellingPrice);
-        if (!(salespersonPrice >= 0)) {
-          notify(`Invalid salesman price for ${p.productName}`, 'warning');
-          return;
-        }
+      const price = parseFloat(p.salespersonSellingPrice);
+      if (!(price >= 0)) {
+        notify(`Invalid price for ${p.productName}`, 'warning');
+        return;
       }
     }
 
@@ -416,8 +402,7 @@ export default function SalesmanPricesSetup() {
         salespersonIds: Array.from(bulkUpdateForm.selectedSalesmen),
         productPrices: bulkUpdateForm.productPrices.map(p => ({
           productId: parseInt(p.productId, 10),
-          dairySellingPrice: p.dairySellingPrice !== '' ? parseFloat(p.dairySellingPrice) : null,
-          salespersonSellingPrice: p.salespersonSellingPrice !== '' ? parseFloat(p.salespersonSellingPrice) : null,
+          sellingPrice: parseFloat(p.salespersonSellingPrice),
         })),
         effectiveFrom: bulkUpdateForm.effectiveFrom,
       });
@@ -1632,20 +1617,18 @@ export default function SalesmanPricesSetup() {
                       <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Product</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 whitespace-nowrap">Dairy Cost</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-blue-600 whitespace-nowrap">Dairy Selling (₹)</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">Dairy Cost</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">Dairy Selling</th>
                           <th className="px-3 py-2 text-right text-xs font-semibold text-emerald-600 whitespace-nowrap">Salesman Price (₹)</th>
                           <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-10 whitespace-nowrap">Remove</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {bulkUpdateForm.productPrices.map((p, idx) => {
-                          const dairyVal = parseFloat(p.dairySellingPrice);
                           const salespersonVal = parseFloat(p.salespersonSellingPrice);
-                          const dairyInvalid = p.dairySellingPrice !== '' && !(dairyVal >= 0);
                           const salespersonInvalid = p.salespersonSellingPrice !== '' && !(salespersonVal >= 0);
                           return (
-                            <tr key={idx} className={dairyInvalid || salespersonInvalid ? 'bg-red-50/50' : ''}>
+                            <tr key={idx} className={salespersonInvalid ? 'bg-red-50/50' : ''}>
                               <td className="px-3 py-2.5 min-w-max">
                                 <div className="font-medium text-slate-700">{p.productName}</div>
                                 {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
@@ -1653,27 +1636,8 @@ export default function SalesmanPricesSetup() {
                               <td className="px-3 py-2.5 text-right text-slate-600 tabular-nums text-xs whitespace-nowrap">
                                 ₹{Number(p.dairyCostPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
-                              <td className="px-3 py-2.5 min-w-fit">
-                                <div className="relative">
-                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                  <input
-                                    type="number"
-                                    step="0.0001"
-                                    min="0"
-                                    value={p.dairySellingPrice}
-                                    onChange={e => {
-                                      const updated = [...bulkUpdateForm.productPrices];
-                                      updated[idx].dairySellingPrice = e.target.value;
-                                      setBulkUpdateForm(prev => ({ ...prev, productPrices: updated }));
-                                    }}
-                                    placeholder="0.00"
-                                    className={`w-28 pl-6 pr-2 py-1.5 text-xs text-right font-semibold tabular-nums border rounded focus:outline-none focus:ring-2 focus:border-transparent ${
-                                      dairyInvalid
-                                        ? 'border-red-300 bg-red-50 focus:ring-red-400'
-                                        : 'border-slate-200 focus:ring-blue-400'
-                                    }`}
-                                  />
-                                </div>
+                              <td className="px-3 py-2.5 text-right text-slate-600 tabular-nums text-xs whitespace-nowrap">
+                                ₹{Number(p.dairySellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="px-3 py-2.5 min-w-fit">
                                 <div className="relative">

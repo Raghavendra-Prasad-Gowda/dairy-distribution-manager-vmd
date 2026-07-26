@@ -222,49 +222,33 @@ const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
   const effectiveFromDate = new Date(effectiveFrom);
   const todayIST = new Date(getIndiaDateStr());
 
-  const ops = [];
-
-  // First, update product-level dairy selling prices
-  for (const pp of productPrices) {
-    if (pp.dairySellingPrice !== null && pp.dairySellingPrice !== undefined) {
-      ops.push(
-        prisma.product.update({
-          where: { id: pp.productId },
-          data: { dairySellingPrice: pp.dairySellingPrice },
-        })
-      );
-    }
-  }
-
-  // Then, for each salesman and each product, update salesman-specific prices
-  for (const spId of salespersonIds) {
+  // For each salesman and each product, update or delete future prices and upsert the new one
+  const ops = salespersonIds.flatMap((spId) => {
     const isFuture = effectiveFromDate > todayIST;
-    for (const pp of productPrices) {
-      if (pp.salespersonSellingPrice !== null && pp.salespersonSellingPrice !== undefined) {
-        if (isFuture) {
-          ops.push(
-            prisma.salespersonPrice.deleteMany({
-              where: {
-                salespersonId: spId,
-                productId: pp.productId,
-                effectiveFrom: { gt: todayIST, not: effectiveFromDate },
-              },
-            })
-          );
-        }
-        ops.push(
-          prisma.salespersonPrice.upsert({
-            where: { salespersonId_productId_effectiveFrom: { salespersonId: spId, productId: pp.productId, effectiveFrom: effectiveFromDate } },
-            update: { sellingPrice: pp.salespersonSellingPrice },
-            create: { salespersonId: spId, productId: pp.productId, sellingPrice: pp.salespersonSellingPrice, effectiveFrom: effectiveFromDate },
-          })
-        );
-      }
-    }
-  }
+    return productPrices.flatMap((pp) => {
+      const before = isFuture
+        ? [prisma.salespersonPrice.deleteMany({
+            where: {
+              salespersonId: spId,
+              productId: pp.productId,
+              effectiveFrom: { gt: todayIST, not: effectiveFromDate },
+            },
+          })]
+        : [];
+      return [
+        ...before,
+        prisma.salespersonPrice.upsert({
+          where: { salespersonId_productId_effectiveFrom: { salespersonId: spId, productId: pp.productId, effectiveFrom: effectiveFromDate } },
+          update: { sellingPrice: pp.sellingPrice },
+          create: { salespersonId: spId, productId: pp.productId, sellingPrice: pp.sellingPrice, effectiveFrom: effectiveFromDate },
+        }),
+      ];
+    });
+  });
 
   await prisma.$transaction(ops);
-  res.json({ success: true, data: { message: `Prices updated for ${salespersonIds.length} salesmen and ${productPrices.length} products` } });
+  const totalUpdates = salespersonIds.length * productPrices.length;
+  res.json({ success: true, data: { message: `Price updated for ${salespersonIds.length} salesmen and ${productPrices.length} products (${totalUpdates} records)` } });
 });
 
 module.exports = { getPrices, bulkSave, copyFromSalesman, bulkUpdateMultipleSalesmen };

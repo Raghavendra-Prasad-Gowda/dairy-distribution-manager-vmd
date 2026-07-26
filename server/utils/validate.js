@@ -186,9 +186,8 @@ const schemas = {
   bulkUpdateSalespersonPrices: z.object({
     salespersonIds: z.array(z.number().int().positive()).min(1, 'At least one salesman is required'),
     productPrices:  z.array(z.object({
-      productId:              z.number().int().positive('Product ID is required'),
-      dairySellingPrice:      z.number().min(0, 'Dairy selling price must be non-negative').nullable().optional(),
-      salespersonSellingPrice: z.number().min(0, 'Salesman selling price must be non-negative').nullable().optional(),
+      productId:   z.number().int().positive('Product ID is required'),
+      sellingPrice: z.number().min(0, 'Selling price must be non-negative'),
     })).min(1, 'At least one product is required'),
     effectiveFrom:  todayOrLaterDateString(),
   }),
