@@ -74,6 +74,9 @@ export default function SalesmanPricesSetup() {
   const [templateSalesmanId, setTemplateSalesmanId] = useState('');
   // View all salesmen prices modal
   const [showAllSalesmenPrices, setShowAllSalesmenPrices] = useState(false);
+  // Clear all salesman prices
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
+  const [clearingAllPrices, setClearingAllPrices] = useState(false);
 
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
@@ -454,6 +457,32 @@ export default function SalesmanPricesSetup() {
     }
   };
 
+  const handleClearAllSalesmanPrices = async () => {
+    setClearingAllPrices(true);
+    try {
+      const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
+      let totalCleared = 0;
+
+      for (const product of brandProducts) {
+        try {
+          const response = await api.delete(`/products/${product.productId}/salesperson-prices`);
+          totalCleared += response.data.data.clearedCount || 0;
+        } catch (err) {
+          console.error(`Failed to clear prices for product ${product.productId}:`, err);
+        }
+      }
+
+      notify(`Cleared all custom prices for ${totalCleared} salesmen across ${brandProducts.length} products`, 'success');
+      setShowClearAllConfirm(false);
+      fetchGlobal();
+      fetchProductView();
+    } catch (e) {
+      notify('Failed to clear all prices', 'error');
+    } finally {
+      setClearingAllPrices(false);
+    }
+  };
+
   // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {
     const source = isGlobal ? globalProducts : prices;
@@ -732,6 +761,12 @@ export default function SalesmanPricesSetup() {
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-cyan-300 text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition whitespace-nowrap"
                     >
                       View Price List
+                    </button>
+                    <button
+                      onClick={() => setShowClearAllConfirm(true)}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition whitespace-nowrap"
+                    >
+                      Clear All Salesman Prices
                     </button>
                   </div>
                 )}
@@ -1672,6 +1707,57 @@ export default function SalesmanPricesSetup() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Salesman Prices Confirmation Modal */}
+      {showClearAllConfirm && (
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowClearAllConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="bg-red-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white leading-tight">Clear All Salesman Prices?</h3>
+                <p className="text-[11px] text-red-200 mt-0.5">This action cannot be undone</p>
+              </div>
+              <button onClick={() => setShowClearAllConfirm(false)} className="p-1.5 text-red-200 hover:text-white hover:bg-red-600 rounded-lg transition">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-900 font-semibold mb-2">Warning</p>
+                <p className="text-sm text-red-700 leading-relaxed">
+                  This will delete all custom salesman prices for all products in <span className="font-semibold">{brands.find(b => b.id === activeBrandId)?.name || 'this brand'}</span>. All salesmen will use the global default prices instead.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <p className="text-xs text-slate-600 font-semibold mb-1">Products affected:</p>
+                <p className="text-sm text-slate-900 font-bold">
+                  {globalProducts.filter(p => p.brandId === activeBrandId).length} products
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowClearAllConfirm(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearAllSalesmanPrices}
+                  disabled={clearingAllPrices}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-700 hover:bg-red-800 disabled:bg-red-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {clearingAllPrices ? <Loader2 className="animate-spin" size={14} /> : <AlertCircle size={14} />}
+                  {clearingAllPrices ? 'Clearing…' : 'Clear All Prices'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
