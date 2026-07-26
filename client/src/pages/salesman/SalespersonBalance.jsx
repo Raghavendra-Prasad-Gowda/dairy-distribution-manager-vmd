@@ -19,10 +19,10 @@ export default function SalespersonBalance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Date range filters
+  // Date range filters — default to current month
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 90);
+    d.setDate(1);
     return d.toISOString().slice(0, 10);
   });
   const [toDate, setToDate] = useState(getIndiaDate());
@@ -196,40 +196,48 @@ export default function SalespersonBalance() {
 
                 {history && history.length > 0 ? (
                   <>
-                    <div className="divide-y divide-slate-100">
-                      {history.map((entry, idx) => {
-                        const isLastOwing = entry.closingBalance > 0;
-                        return (
-                          <div key={idx} className="px-4 py-3 hover:bg-slate-50 transition">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-semibold text-slate-700">
-                                {formatDateShort(entry.balanceDate)}
-                              </p>
-                              <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                                isLastOwing ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                              }`}>
-                                {formatCurrency(Math.abs(entry.closingBalance))}
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3 text-xs">
-                              <div>
-                                <p className="text-slate-400 mb-0.5">Bill</p>
-                                <p className="font-semibold text-slate-700">{formatCurrency(entry.stockGiven)}</p>
-                              </div>
-                              <div>
-                                <p className="text-slate-400 mb-0.5">Paid</p>
-                                <p className="font-semibold text-emerald-600">{formatCurrency(entry.amountPaid)}</p>
-                              </div>
-                              <div>
-                                <p className="text-slate-400 mb-0.5">Status</p>
-                                <p className={`font-semibold ${isLastOwing ? 'text-red-600' : 'text-emerald-600'}`}>
-                                  {isLastOwing ? 'Owing' : 'Paid'}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100 border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Date</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase tracking-wider">Bill</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase tracking-wider">Paid</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase tracking-wider">Balance</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {history.map((entry, idx) => {
+                            const isOwing = entry.closingBalance > 0;
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50 transition">
+                                <td className="px-4 py-3 text-sm font-semibold text-slate-700 whitespace-nowrap">
+                                  {formatDateShort(entry.balanceDate)}
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm text-slate-700 tabular-nums">
+                                  {formatCurrency(entry.stockGiven)}
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm font-semibold text-emerald-600 tabular-nums">
+                                  {formatCurrency(entry.amountPaid)}
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm font-bold tabular-nums">
+                                  <span className={`${isOwing ? 'text-red-600' : 'text-emerald-600'}`}>
+                                    {formatCurrency(Math.abs(entry.closingBalance))}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    isOwing ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                                  }`}>
+                                    {isOwing ? 'Owing' : 'Paid'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
 
                     {/* Pagination Controls */}
