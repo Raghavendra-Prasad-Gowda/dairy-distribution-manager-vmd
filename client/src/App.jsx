@@ -39,6 +39,7 @@ const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'
 
 // Salesman pages
 const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
+const SalespersonBalance     = lazy(() => import('./pages/salesman/SalespersonBalance'));
 
 function PageLoader() {
   return <BrandedLoader label="Loading…" />;
@@ -88,6 +89,7 @@ function AppRoutes() {
           <>
             <Route index element={S(SalespersonStockEntry)} />
             <Route path="salesman/stock-entry" element={S(SalespersonStockEntry)} />
+            <Route path="salesman/balance" element={S(SalespersonBalance)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         )}

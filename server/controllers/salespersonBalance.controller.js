@@ -73,4 +73,38 @@ const getById = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { salespersonId: sp.id, salespersonName: sp.name, ...bal } });
 });
 
-module.exports = { getAll, getById };
+// Get balance history for a specific salesperson (last 30 days)
+const getHistory = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Salesperson ID');
+
+  if (req.user.role === 'salesman' && req.user.salespersonId !== id) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const sp = await prisma.salesperson.findUnique({ where: { id } });
+  if (!sp) throw new AppError('Salesperson not found', 404);
+
+  // Fetch last 30 days of balance history
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const balances = await prisma.salespersonBalance.findMany({
+    where: {
+      salespersonId: id,
+      balanceDate: { gte: thirtyDaysAgo },
+    },
+    orderBy: { balanceDate: 'desc' },
+  });
+
+  const formatted = balances.map(b => ({
+    balanceDate: b.balanceDate,
+    openingBalance: Number(b.openingBalance),
+    stockGiven: Number(b.stockGiven),
+    amountPaid: Number(b.amountPaid),
+    closingBalance: Number(b.closingBalance),
+  }));
+
+  res.json({ success: true, data: formatted });
+});
+
+module.exports = { getAll, getById, getHistory };

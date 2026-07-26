@@ -90,6 +90,12 @@ const SALESMAN_NAV = [
           { to: '/', icon: ShoppingCart, label: 'Stock Entry' },
         ],
       },
+      {
+        label: 'PAYMENTS',
+        items: [
+          { to: '/salesman/balance', icon: Wallet, label: 'My Balance' },
+        ],
+      },
     ],
   },
 ];
