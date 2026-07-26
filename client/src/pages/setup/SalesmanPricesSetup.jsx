@@ -753,13 +753,13 @@ export default function SalesmanPricesSetup() {
                     </button>
                     <button
                       onClick={() => setShowBulkUpdateModal(true)}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 transition whitespace-nowrap"
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
                     >
                       Bulk Update Prices
                     </button>
                     <button
                       onClick={() => setShowAllSalesmenPrices(true)}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-cyan-300 text-cyan-700 bg-cyan-50 hover:bg-cyan-100 transition whitespace-nowrap"
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
                     >
                       View Price List
                     </button>
@@ -1421,12 +1421,12 @@ export default function SalesmanPricesSetup() {
       {showImportTemplateModal && (
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowImportTemplateModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="bg-indigo-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-white leading-tight">Import Template Prices</h3>
-                <p className="text-[11px] text-indigo-200 mt-0.5">Use a salesman's prices as global defaults</p>
+                <p className="text-[11px] text-emerald-200 mt-0.5">Use a salesman's prices as global defaults</p>
               </div>
-              <button onClick={() => setShowImportTemplateModal(false)} className="p-1.5 text-indigo-200 hover:text-white hover:bg-indigo-600 rounded-lg transition">
+              <button onClick={() => setShowImportTemplateModal(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
               </button>
             </div>
@@ -1462,7 +1462,7 @@ export default function SalesmanPricesSetup() {
                 <button
                   onClick={handleImportTemplate}
                   disabled={!templateSalesmanId}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-indigo-700 hover:bg-indigo-800 disabled:bg-indigo-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   <Globe size={14} />
                   {templateSalesmanId ? 'Import Prices' : 'Select Salesman'}
@@ -1481,16 +1481,16 @@ export default function SalesmanPricesSetup() {
           setBulkUpdateSalesmenSearch('');
         }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-purple-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-white leading-tight">Bulk Update Prices</h3>
-                <p className="text-[11px] text-purple-200 mt-0.5">Apply the same price to multiple salespeople</p>
+                <p className="text-[11px] text-emerald-200 mt-0.5">Apply the same price to multiple salespeople</p>
               </div>
               <button onClick={() => {
                 setShowBulkUpdateModal(false);
                 setBulkUpdateProductSearch('');
                 setBulkUpdateSalesmenSearch('');
-              }} className="p-1.5 text-purple-200 hover:text-white hover:bg-purple-600 rounded-lg transition">
+              }} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
               </button>
             </div>
@@ -1506,7 +1506,7 @@ export default function SalesmanPricesSetup() {
                     placeholder="Search products…"
                     value={bulkUpdateProductSearch}
                     onChange={e => setBulkUpdateProductSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent mb-2"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent mb-2"
                   />
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
@@ -1521,9 +1521,9 @@ export default function SalesmanPricesSetup() {
                         key={p.productId}
                         type="button"
                         onClick={() => setBulkUpdateForm(f => ({ ...f, productId: String(p.productId) }))}
-                        className={`w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-purple-50 transition ${
+                        className={`w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition ${
                           bulkUpdateForm.productId === String(p.productId)
-                            ? 'bg-purple-100 border-l-4 border-l-purple-600'
+                            ? 'bg-emerald-100 border-l-4 border-l-emerald-600'
                             : ''
                         }`}
                       >
@@ -1576,7 +1576,7 @@ export default function SalesmanPricesSetup() {
                     value={bulkUpdateForm.sellingPrice}
                     onChange={e => setBulkUpdateForm(f => ({ ...f, sellingPrice: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full pl-7 pr-3 py-2.5 text-sm text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                    className="w-full pl-7 pr-3 py-2.5 text-sm text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -1591,7 +1591,7 @@ export default function SalesmanPricesSetup() {
                   value={bulkUpdateForm.effectiveFrom}
                   onChange={e => setBulkUpdateForm(f => ({ ...f, effectiveFrom: e.target.value }))}
                   min={getIndiaDate()}
-                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
                   Pick today to make it the current price, or a future date to schedule the change.
@@ -1610,7 +1610,7 @@ export default function SalesmanPricesSetup() {
                     placeholder="Search salespeople…"
                     value={bulkUpdateSalesmenSearch}
                     onChange={e => setBulkUpdateSalesmenSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                   />
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
@@ -1633,7 +1633,7 @@ export default function SalesmanPricesSetup() {
                             type="checkbox"
                             checked={bulkUpdateForm.selectedSalesmen.has(sp.id)}
                             onChange={() => handleBulkSalesmenToggle(sp.id)}
-                            className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 flex-shrink-0"
+                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 flex-shrink-0"
                           />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-slate-700 truncate">{sp.name}</div>
@@ -1666,7 +1666,7 @@ export default function SalesmanPricesSetup() {
                 <button
                   onClick={handleBulkUpdate}
                   disabled={updatingBulkPrices || bulkUpdateForm.selectedSalesmen.size === 0}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-purple-700 hover:bg-purple-800 disabled:bg-purple-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                 >
                   {updatingBulkPrices ? <Loader2 className="animate-spin" size={14} /> : <IndianRupee size={14} />}
                   {updatingBulkPrices ? 'Updating…' : `Update Prices (${bulkUpdateForm.selectedSalesmen.size})`}
@@ -1681,12 +1681,12 @@ export default function SalesmanPricesSetup() {
       {showAllSalesmenPrices && (
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllSalesmenPrices(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-cyan-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-white leading-tight">Salesperson Price List</h3>
-                <p className="text-[11px] text-cyan-200 mt-0.5">View all salespeople's prices for each product</p>
+                <p className="text-[11px] text-emerald-200 mt-0.5">View all salespeople's prices for each product</p>
               </div>
-              <button onClick={() => setShowAllSalesmenPrices(false)} className="p-1.5 text-cyan-200 hover:text-white hover:bg-cyan-600 rounded-lg transition">
+              <button onClick={() => setShowAllSalesmenPrices(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
                 <X size={16} />
               </button>
             </div>
@@ -1699,7 +1699,7 @@ export default function SalesmanPricesSetup() {
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider min-w-max">Product</th>
                         {salespeople.filter(s => s.isActive).map(sp => (
-                          <th key={sp.id} className="px-3 py-3 text-center text-xs font-bold text-cyan-200 uppercase tracking-wider whitespace-nowrap">
+                          <th key={sp.id} className="px-3 py-3 text-center text-xs font-bold text-emerald-200 uppercase tracking-wider whitespace-nowrap">
                             {sp.name}
                           </th>
                         ))}
