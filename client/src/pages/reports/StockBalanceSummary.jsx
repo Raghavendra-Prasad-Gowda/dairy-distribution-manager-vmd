@@ -105,11 +105,23 @@ export default function StockBalanceSummary() {
     return groups;
   }, [visibleProducts]);
 
+  const crateTotals = useMemo(() => {
+    return visibleColTotals.map(c => {
+      const product = visibleProducts.find(p => p.productId === c.productId);
+      const unitsPerContainer = product?.unitsPerContainer ?? 1;
+      return {
+        productId: c.productId,
+        crates: Math.floor(c.dispatched / unitsPerContainer),
+      };
+    });
+  }, [visibleColTotals, visibleProducts]);
+
   const grandTotals = useMemo(() => ({
     dispatched: colTotals.reduce((s, c) => s + c.dispatched, 0),
     received:   colTotals.reduce((s, c) => s + c.received,   0),
     remaining:  colTotals.reduce((s, c) => s + c.remaining,  0),
-  }), [colTotals]);
+    crates:     crateTotals.reduce((s, c) => s + c.crates, 0),
+  }), [colTotals, crateTotals]);
 
   const remColor = (v) => v > 0 ? 'text-emerald-300' : v < 0 ? 'text-red-300' : 'text-slate-400';
   const remBg    = (v) => v > 0 ? 'bg-emerald-800'   : v < 0 ? 'bg-red-900'   : 'bg-slate-700';
@@ -290,6 +302,21 @@ export default function StockBalanceSummary() {
                       ))}
                       <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
                         {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
+                      </td>
+                    </tr>
+
+                    {/* CRATES */}
+                    <tr>
+                      <td className="sticky left-0 z-20 bg-violet-700 px-3 py-2.5 text-xs font-bold text-violet-100 border-r border-violet-600 uppercase tracking-wider whitespace-nowrap">
+                        Crates
+                      </td>
+                      {crateTotals.map(c => (
+                        <td key={c.productId} className="bg-violet-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-600">
+                          {c.crates > 0 ? c.crates : <span className="text-violet-400">—</span>}
+                        </td>
+                      ))}
+                      <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white">
+                        {grandTotals.crates > 0 ? grandTotals.crates : '—'}
                       </td>
                     </tr>
 
