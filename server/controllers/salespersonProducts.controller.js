@@ -60,4 +60,34 @@ const bulkUpdate = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: `${data.products.length} products updated` } });
 });
 
-module.exports = { getProducts, bulkUpdate };
+// Admin only — bulk enable/disable products for multiple salespeople
+const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const data = validate(schemas.bulkUpdateMultipleSalespersonProducts, req, res);
+  if (!data) return;
+
+  // Create upsert for all (salespersonId × productId) combinations
+  const upserts = [];
+  for (const salespersonId of data.salespersonIds) {
+    for (const product of data.products) {
+      upserts.push(
+        prisma.salespersonProduct.upsert({
+          where: { salespersonId_productId: { salespersonId, productId: product.productId } },
+          update: { isEnabled: product.isEnabled },
+          create: { salespersonId, productId: product.productId, isEnabled: product.isEnabled },
+        })
+      );
+    }
+  }
+
+  await prisma.$transaction(upserts);
+  res.json({
+    success: true,
+    data: {
+      message: `${data.products.length} products updated for ${data.salespersonIds.length} salesman(men)`,
+    },
+  });
+});
+
+module.exports = { getProducts, bulkUpdate, bulkUpdateMultipleSalesmen };
