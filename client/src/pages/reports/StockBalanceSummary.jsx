@@ -290,7 +290,7 @@ export default function StockBalanceSummary() {
                     ))}
                   </tbody>
 
-                  {/* Summary footer rows: Dispatched → Shortage → Supply */}
+                  {/* Summary footer rows: Dispatched → Shortage → Supply → Crates */}
                   <tfoot className="sticky bottom-0 z-10">
                     {/* DISPATCHED */}
                     <tr>
@@ -304,36 +304,6 @@ export default function StockBalanceSummary() {
                       ))}
                       <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
                         {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
-                      </td>
-                    </tr>
-
-                    {/* CRATES RECEIVED */}
-                    <tr>
-                      <td className="sticky left-0 z-20 bg-violet-700 px-3 py-2.5 text-xs font-bold text-violet-100 border-r border-violet-600 uppercase tracking-wider whitespace-nowrap">
-                        Crates Received
-                      </td>
-                      {crateData.map(c => (
-                        <td key={c.productId} className="bg-violet-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-600">
-                          {c.cratesReceived > 0 ? c.cratesReceived : <span className="text-violet-400">—</span>}
-                        </td>
-                      ))}
-                      <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white">
-                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
-                      </td>
-                    </tr>
-
-                    {/* CRATES DISPATCHED */}
-                    <tr>
-                      <td className="sticky left-0 z-20 bg-violet-600 px-3 py-2.5 text-xs font-bold text-violet-100 border-r border-violet-500 uppercase tracking-wider whitespace-nowrap">
-                        Crates Dispatched
-                      </td>
-                      {crateData.map(c => (
-                        <td key={c.productId} className="bg-violet-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-500">
-                          {c.cratesDispatched > 0 ? c.cratesDispatched : <span className="text-violet-300">—</span>}
-                        </td>
-                      ))}
-                      <td className="bg-violet-600 px-2 py-2.5 text-center text-sm font-bold text-white">
-                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
                       </td>
                     </tr>
 
@@ -364,6 +334,36 @@ export default function StockBalanceSummary() {
                       ))}
                       <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white">
                         {grandTotals.received > 0 ? grandTotals.received : '—'}
+                      </td>
+                    </tr>
+
+                    {/* CRATES RECEIVED */}
+                    <tr>
+                      <td className="sticky left-0 z-20 bg-violet-700 px-3 py-2.5 text-xs font-bold text-violet-100 border-r border-violet-600 uppercase tracking-wider whitespace-nowrap">
+                        Crates Received
+                      </td>
+                      {crateData.map(c => (
+                        <td key={c.productId} className="bg-violet-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-600">
+                          {c.cratesReceived > 0 ? c.cratesReceived : <span className="text-violet-400">—</span>}
+                        </td>
+                      ))}
+                      <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white">
+                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
+                      </td>
+                    </tr>
+
+                    {/* CRATES DISPATCHED */}
+                    <tr>
+                      <td className="sticky left-0 z-20 bg-violet-600 px-3 py-2.5 text-xs font-bold text-violet-100 border-r border-violet-500 uppercase tracking-wider whitespace-nowrap">
+                        Crates Dispatched
+                      </td>
+                      {crateData.map(c => (
+                        <td key={c.productId} className="bg-violet-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-500">
+                          {c.cratesDispatched > 0 ? c.cratesDispatched : <span className="text-violet-300">—</span>}
+                        </td>
+                      ))}
+                      <td className="bg-violet-600 px-2 py-2.5 text-center text-sm font-bold text-white">
+                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
                       </td>
                     </tr>
                   </tfoot>
