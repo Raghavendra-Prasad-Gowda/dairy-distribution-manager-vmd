@@ -174,6 +174,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
 }));
 
 // PATCH /products/salesperson-global — bulk update salespersonEnabled flag and/or default price
+// Also cascades enable/disable to all salesmen automatically
 router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
@@ -190,22 +191,53 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
     }
   }
 
-  const enablingIds = products.filter(p => p.isEnabled).map(p => p.productId);
+  // Separate enabling and disabling products
+  const enablingIds = products.filter(p => p.isEnabled === true).map(p => p.productId);
+  const disablingIds = products.filter(p => p.isEnabled === false).map(p => p.productId);
 
-  await prisma.$transaction([
+  // Fetch all active salespeople
+  const allSalespeople = await prisma.salesperson.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  const salesmanIds = allSalespeople.map(sp => sp.id);
+
+  // Build transaction ops
+  const txOps = [
+    // Update global product settings
     ...products.map(({ productId, isEnabled, defaultPrice }) => {
       const updateData = {};
       if (isEnabled !== undefined) updateData.salespersonEnabled = isEnabled;
       if (defaultPrice !== undefined) updateData.salespersonDefaultPrice = defaultPrice;
       return prisma.product.update({ where: { id: productId }, data: updateData });
     }),
-    // Clear per-person disabled overrides so the product shows for all salespeople by default
-    ...(enablingIds.length ? [
+  ];
+
+  // When enabling: delete any disabled overrides (defaults to enabled)
+  if (enablingIds.length) {
+    txOps.push(
       prisma.salespersonProduct.deleteMany({
-        where: { productId: { in: enablingIds }, isEnabled: false },
-      }),
-    ] : []),
-  ]);
+        where: { productId: { in: enablingIds } },
+      })
+    );
+  }
+
+  // When disabling: upsert to disable for ALL salesmen
+  if (disablingIds.length) {
+    for (const productId of disablingIds) {
+      for (const salespersonId of salesmanIds) {
+        txOps.push(
+          prisma.salespersonProduct.upsert({
+            where: { salespersonId_productId: { salespersonId, productId } },
+            update: { isEnabled: false },
+            create: { salespersonId, productId, isEnabled: false },
+          })
+        );
+      }
+    }
+  }
+
+  await prisma.$transaction(txOps);
   res.json({ success: true, data: { message: `${products.length} products updated` } });
 }));
 
