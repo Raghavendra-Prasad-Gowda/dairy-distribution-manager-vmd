@@ -140,7 +140,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
 
   const [products, categories] = await Promise.all([
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true },
+      where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
       include: { brand: { select: { id: true, name: true, displayOrder: true } } },
       orderBy: [
         { brand: { displayOrder: 'asc' } },
