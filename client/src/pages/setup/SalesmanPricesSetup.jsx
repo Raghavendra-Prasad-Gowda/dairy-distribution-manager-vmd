@@ -2124,53 +2124,34 @@ export default function SalesmanPricesSetup() {
                   ) : (
                     (() => {
                       const q = bulkProductSearch.toLowerCase();
-                      const filtered = q ? globalProducts.filter(p => p.productName.toLowerCase().includes(q)) : globalProducts;
-                      const grouped = {};
-                      filtered.forEach(p => {
-                        const brand = p.brandName || 'Other';
-                        if (!grouped[brand]) grouped[brand] = [];
-                        grouped[brand].push(p);
-                      });
+                      // Filter to only show products from the selected brand
+                      const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
+                      const filtered = q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts;
 
-                      return Object.entries(grouped).length === 0 ? (
+                      return filtered.length === 0 ? (
                         <p className="text-sm text-slate-400">No products found</p>
                       ) : (
-                        Object.entries(grouped).map(([brand, prods]) => (
-                          <div key={brand}>
-                            <button
-                              onClick={() => setExpandedBrand(expandedBrand === brand ? null : brand)}
-                              className="w-full px-3 py-1.5 text-left text-xs font-semibold text-slate-600 hover:bg-white rounded transition"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span>{brand}</span>
-                                {expandedBrand === brand ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                              </div>
-                            </button>
-                            {expandedBrand === brand && (
-                              <div className="space-y-0.5 pl-2">
-                                {prods.map(prod => (
-                                  <label key={prod.productId} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1.5 rounded">
-                                    <input
-                                      type="checkbox"
-                                      checked={bulkProductForm.selectedProducts.has(prod.productId)}
-                                      onChange={() => {
-                                        const updated = new Set(bulkProductForm.selectedProducts);
-                                        if (updated.has(prod.productId)) {
-                                          updated.delete(prod.productId);
-                                        } else {
-                                          updated.add(prod.productId);
-                                        }
-                                        setBulkProductForm(f => ({ ...f, selectedProducts: updated }));
-                                      }}
-                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600"
-                                    />
-                                    <span className="text-sm text-slate-700">{prod.productName}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))
+                        <div className="space-y-0.5">
+                          {filtered.map(prod => (
+                            <label key={prod.productId} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={bulkProductForm.selectedProducts.has(prod.productId)}
+                                onChange={() => {
+                                  const updated = new Set(bulkProductForm.selectedProducts);
+                                  if (updated.has(prod.productId)) {
+                                    updated.delete(prod.productId);
+                                  } else {
+                                    updated.add(prod.productId);
+                                  }
+                                  setBulkProductForm(f => ({ ...f, selectedProducts: updated }));
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                              />
+                              <span className="text-sm text-slate-700">{prod.productName}</span>
+                            </label>
+                          ))}
+                        </div>
                       );
                     })()
                   )}

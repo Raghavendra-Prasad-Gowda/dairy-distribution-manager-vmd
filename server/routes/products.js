@@ -213,7 +213,7 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
     }),
   ];
 
-  // When enabling: delete any disabled overrides (defaults to enabled)
+  // When enabling: delete any records (defaults to enabled)
   if (enablingIds.length) {
     txOps.push(
       prisma.salespersonProduct.deleteMany({
@@ -222,18 +222,30 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
     );
   }
 
-  // When disabling: upsert to disable for ALL salesmen
+  // When disabling: delete existing records and recreate with isEnabled=false for ALL salesmen
   if (disablingIds.length) {
+    txOps.push(
+      // First delete all existing records
+      prisma.salespersonProduct.deleteMany({
+        where: { productId: { in: disablingIds } },
+      })
+    );
+
+    // Then create new records with isEnabled=false for all salesmen
+    const disableRecords = [];
     for (const productId of disablingIds) {
       for (const salespersonId of salesmanIds) {
-        txOps.push(
-          prisma.salespersonProduct.upsert({
-            where: { salespersonId_productId: { salespersonId, productId } },
-            update: { isEnabled: false },
-            create: { salespersonId, productId, isEnabled: false },
-          })
-        );
+        disableRecords.push({ salespersonId, productId, isEnabled: false });
       }
+    }
+
+    if (disableRecords.length) {
+      txOps.push(
+        prisma.salespersonProduct.createMany({
+          data: disableRecords,
+          skipDuplicates: true,
+        })
+      );
     }
   }
 
