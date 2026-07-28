@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2 } from 'lucide-react';
+import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -78,6 +78,17 @@ export default function SalesmanPricesSetup() {
   // Clear all salesman prices
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const [clearingAllPrices, setClearingAllPrices] = useState(false);
+
+  // Bulk enable/disable products
+  const [showBulkProductModal, setShowBulkProductModal] = useState(false);
+  const [bulkProductForm, setBulkProductForm] = useState({
+    selectedSalesmen: new Set(),
+    selectedProducts: new Set(),
+    action: 'enable',
+  });
+  const [updatingBulkProducts, setUpdatingBulkProducts] = useState(false);
+  const [bulkProductSearch, setBulkProductSearch] = useState('');
+  const [expandedBrand, setExpandedBrand] = useState(null);
 
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
@@ -418,6 +429,48 @@ export default function SalesmanPricesSetup() {
       setUpdatingBulkPrices(false);
     }
   }
+
+  const handleBulkProductUpdate = async () => {
+    if (bulkProductForm.selectedSalesmen.size === 0) {
+      notify('Select at least one salesman', 'warning');
+      return;
+    }
+    if (bulkProductForm.selectedProducts.size === 0) {
+      notify('Select at least one product', 'warning');
+      return;
+    }
+
+    setUpdatingBulkProducts(true);
+    try {
+      await api.post('/salesperson-products/bulk-update', {
+        salespersonIds: Array.from(bulkProductForm.selectedSalesmen),
+        products: Array.from(bulkProductForm.selectedProducts).map(prodId => ({
+          productId: prodId,
+          isEnabled: bulkProductForm.action === 'enable',
+        })),
+      });
+
+      notify(`Products ${bulkProductForm.action}d for ${bulkProductForm.selectedSalesmen.size} salesman(men)`, 'success');
+      setShowBulkProductModal(false);
+      setBulkProductForm({
+        selectedSalesmen: new Set(),
+        selectedProducts: new Set(),
+        action: 'enable',
+      });
+      setBulkProductSearch('');
+      setExpandedBrand(null);
+      // Refresh the product view
+      if (selectedSpId && selectedSpId !== GLOBAL_ID) {
+        fetchPrices(selectedSpId);
+      } else if (isGlobal) {
+        fetchGlobal();
+      }
+    } catch (err) {
+      notify(err.response?.data?.error ?? `Failed to ${bulkProductForm.action} products`, 'error');
+    } finally {
+      setUpdatingBulkProducts(false);
+    }
+  };
 
   const handleSave = async () => {
     if (isGlobal) {
@@ -807,6 +860,13 @@ export default function SalesmanPricesSetup() {
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
                     >
                       Bulk Update Prices
+                    </button>
+                    <button
+                      onClick={() => setShowBulkProductModal(true)}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap flex items-center gap-1.5"
+                    >
+                      <Package size={14} />
+                      Bulk Product Access
                     </button>
                     <button
                       onClick={() => setShowAllSalesmenPrices(true)}
@@ -1943,6 +2003,185 @@ export default function SalesmanPricesSetup() {
                   {clearingAllPrices ? 'Clearing…' : 'Clear All Prices'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Enable/Disable Products Modal */}
+      {showBulkProductModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Package size={20} className="text-emerald-600" />
+              Bulk Enable/Disable Products
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Salesmen Selection */}
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
+                    Select Salesmen ({bulkProductForm.selectedSalesmen.size})
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (bulkProductForm.selectedSalesmen.size === salespeople.length) {
+                        setBulkProductForm(f => ({ ...f, selectedSalesmen: new Set() }));
+                      } else {
+                        setBulkProductForm(f => ({ ...f, selectedSalesmen: new Set(salespeople.map(sp => sp.id)) }));
+                      }
+                    }}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                  >
+                    {bulkProductForm.selectedSalesmen.size === salespeople.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-60 overflow-y-auto">
+                  {salespeople.length === 0 ? (
+                    <p className="text-sm text-slate-400">No salesmen available</p>
+                  ) : (
+                    salespeople.map(sp => (
+                      <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={bulkProductForm.selectedSalesmen.has(sp.id)}
+                          onChange={() => {
+                            const updated = new Set(bulkProductForm.selectedSalesmen);
+                            if (updated.has(sp.id)) {
+                              updated.delete(sp.id);
+                            } else {
+                              updated.add(sp.id);
+                            }
+                            setBulkProductForm(f => ({ ...f, selectedSalesmen: updated }));
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                        />
+                        <span className="text-sm font-medium text-slate-700">{sp.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Products Selection */}
+              <div className="bg-slate-50 rounded-lg p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
+                    Select Products ({bulkProductForm.selectedProducts.size})
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (bulkProductForm.selectedProducts.size === globalProducts.length) {
+                        setBulkProductForm(f => ({ ...f, selectedProducts: new Set() }));
+                      } else {
+                        setBulkProductForm(f => ({ ...f, selectedProducts: new Set(globalProducts.map(p => p.productId)) }));
+                      }
+                    }}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                  >
+                    {bulkProductForm.selectedProducts.size === globalProducts.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={bulkProductSearch}
+                  onChange={e => setBulkProductSearch(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                  {globalProducts.length === 0 ? (
+                    <p className="text-sm text-slate-400">No products available</p>
+                  ) : (
+                    (() => {
+                      const q = bulkProductSearch.toLowerCase();
+                      const filtered = q ? globalProducts.filter(p => p.productName.toLowerCase().includes(q)) : globalProducts;
+                      const grouped = {};
+                      filtered.forEach(p => {
+                        const brand = p.brandName || 'Other';
+                        if (!grouped[brand]) grouped[brand] = [];
+                        grouped[brand].push(p);
+                      });
+
+                      return Object.entries(grouped).length === 0 ? (
+                        <p className="text-sm text-slate-400">No products found</p>
+                      ) : (
+                        Object.entries(grouped).map(([brand, prods]) => (
+                          <div key={brand}>
+                            <button
+                              onClick={() => setExpandedBrand(expandedBrand === brand ? null : brand)}
+                              className="w-full px-3 py-1.5 text-left text-xs font-semibold text-slate-600 hover:bg-white rounded transition"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>{brand}</span>
+                                {expandedBrand === brand ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </div>
+                            </button>
+                            {expandedBrand === brand && (
+                              <div className="space-y-0.5 pl-2">
+                                {prods.map(prod => (
+                                  <label key={prod.productId} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1.5 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={bulkProductForm.selectedProducts.has(prod.productId)}
+                                      onChange={() => {
+                                        const updated = new Set(bulkProductForm.selectedProducts);
+                                        if (updated.has(prod.productId)) {
+                                          updated.delete(prod.productId);
+                                        } else {
+                                          updated.add(prod.productId);
+                                        }
+                                        setBulkProductForm(f => ({ ...f, selectedProducts: updated }));
+                                      }}
+                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                                    />
+                                    <span className="text-sm text-slate-700">{prod.productName}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Selection */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-600 mb-2">
+                Action
+              </label>
+              <select
+                value={bulkProductForm.action}
+                onChange={e => setBulkProductForm(f => ({ ...f, action: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="enable">Enable for selected salesmen</option>
+                <option value="disable">Disable for selected salesmen</option>
+              </select>
+            </div>
+
+            {/* Buttons */}
+            <div className="border-t border-slate-200 pt-4 flex gap-3">
+              <button
+                onClick={() => setShowBulkProductModal(false)}
+                disabled={updatingBulkProducts}
+                className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkProductUpdate}
+                disabled={updatingBulkProducts || bulkProductForm.selectedSalesmen.size === 0 || bulkProductForm.selectedProducts.size === 0}
+                className="flex-1 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {updatingBulkProducts && <Loader2 size={16} className="animate-spin" />}
+                {updatingBulkProducts ? 'Updating...' : 'Confirm'}
+              </button>
             </div>
           </div>
         </div>
