@@ -78,9 +78,9 @@ describe('StockBalanceSummary', () => {
     expect(screen.queryByText('Remaining')).not.toBeInTheDocument();
   });
 
-  it('renders footer rows in Dispatched → Shortage → Supply order', async () => {
+  it('renders footer rows in Dispatched → Shortage → Supply → Crates order', async () => {
     mockApi({
-      availability: [{ brandId: 1, productId: 10, received: 50 }],
+      availability: [{ brandId: 1, productId: 10, received: 50, unitsPerContainer: 20 }],
       dispatch: DISPATCH_DATA,
     });
     const { container } = render(<StockBalanceSummary />);
@@ -88,7 +88,7 @@ describe('StockBalanceSummary', () => {
     await screen.findByText('Ramesh');
     const footerLabels = [...container.querySelectorAll('tfoot tr td:first-child')]
       .map(td => td.textContent.trim());
-    expect(footerLabels).toEqual(['Dispatched', 'Shortage', 'Supply']);
+    expect(footerLabels).toEqual(['Dispatched', 'Shortage', 'Supply', 'Crates Received', 'Crates Dispatched']);
   });
 
   it('computes shortage as supply minus dispatched', async () => {

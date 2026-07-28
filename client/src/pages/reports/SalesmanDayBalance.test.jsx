@@ -58,7 +58,7 @@ describe('SalesmanDayBalance', () => {
     expect(await screen.findByText('Day Balance')).toBeInTheDocument();
     expect(screen.getByText("Today's Bill")).toBeInTheDocument();
     expect(screen.getByText('Outstanding Balance')).toBeInTheDocument();
-    expect(screen.getByText('Today Bill + Balance')).toBeInTheDocument();
+    expect(screen.getByText('Today Bill + Outstanding Balance')).toBeInTheDocument();
     expect(screen.getByText('Today Paid')).toBeInTheDocument();
     expect(screen.getByText('Today Balance')).toBeInTheDocument();
     expect(screen.getByText('Total Balance')).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe('SalesmanDayBalance', () => {
     await screen.findByText('Ramesh');
     fireEvent.click(screen.getByText('change-date'));
     expect(await screen.findByText("05 Jul's Bill")).toBeInTheDocument();
-    expect(screen.getByText('05 Jul Bill + Balance')).toBeInTheDocument();
+    expect(screen.getByText('05 Jul Bill + Outstanding Balance')).toBeInTheDocument();
     expect(screen.getByText('05 Jul Paid')).toBeInTheDocument();
     expect(screen.getByText('05 Jul Balance')).toBeInTheDocument();
     expect(screen.queryByText("Today's Bill")).not.toBeInTheDocument();
