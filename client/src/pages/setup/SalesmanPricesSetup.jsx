@@ -511,18 +511,20 @@ export default function SalesmanPricesSetup() {
     setClearingAllPrices(true);
     try {
       const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
-      let totalCleared = 0;
+      const allClearedSalespersonIds = new Set();
 
       for (const product of brandProducts) {
         try {
           const response = await api.delete(`/products/${product.productId}/salesperson-prices`);
-          totalCleared += response.data.data.clearedCount || 0;
+          const ids = response.data.data.clearedSalespersonIds || [];
+          ids.forEach(id => allClearedSalespersonIds.add(id));
         } catch (err) {
           console.error(`Failed to clear prices for product ${product.productId}:`, err);
         }
       }
 
-      notify(`Cleared all custom prices for ${totalCleared} salesmen across ${brandProducts.length} products`, 'success');
+      const uniqueSalesmenCount = allClearedSalespersonIds.size;
+      notify(`Cleared all custom prices for ${uniqueSalesmenCount} unique salesmen across ${brandProducts.length} products`, 'success');
       setShowClearAllConfirm(false);
       fetchGlobal();
       fetchProductView();
