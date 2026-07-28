@@ -30,7 +30,7 @@ const getAvailability = asyncHandler(async (req, res) => {
   const receiptDate = new Date(date);
 
   const products = await prisma.product.findMany({
-    where: { isActive: true, brand: { isActive: true } },
+    where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
     include: { brand: { select: { id: true, name: true } } },
     orderBy: [{ brandId: 'asc' }, { name: 'asc' }],
   });
