@@ -65,7 +65,6 @@ const ADMIN_NAV_STATIC = [
         label: 'SETUP',
         items: [
           { to: '/salesman/setup/users',    icon: Users,        label: 'Users' },
-          { to: '/salesman/setup/products', icon: Package,      label: 'Product Access' },
           { to: '/salesman/setup/prices',   icon: IndianRupee,  label: 'Pricing' },
         ],
       },

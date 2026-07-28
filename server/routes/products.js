@@ -219,6 +219,14 @@ router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) throw new AppError('Product not found', 404);
 
+  // Query salesperson IDs that will be deleted
+  const salespersonPrices = await prisma.salespersonPrice.findMany({
+    where: { productId },
+    select: { salespersonId: true },
+  });
+
+  const clearedSalespersonIds = salespersonPrices.map(sp => sp.salespersonId);
+
   // Delete all custom SalespersonPrice records for this product
   const result = await prisma.salespersonPrice.deleteMany({
     where: { productId },
@@ -229,6 +237,7 @@ router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
     data: {
       message: `Cleared custom prices for ${result.count} salespeople. All will now use the global default of ₹${Number(product.salespersonDefaultPrice)}.`,
       clearedCount: result.count,
+      clearedSalespersonIds: clearedSalespersonIds,
     },
   });
 }));
