@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -326,5 +326,164 @@ test.describe('GET /api/v1/salespeople/:id/prices — UI contract', () => {
     });
     expect(row.effectiveFrom).toBeTruthy();
     expect(String(row.effectiveFrom).slice(0, 10)).toBe('2026-05-01');
+  });
+});
+
+// ─── Global Default Price Fallback Tests ─────────────────────────────────────
+
+test.describe('Global default price fallback behavior', () => {
+  test('returns global salespersonDefaultPrice when no custom price exists', async ({ request }) => {
+    const PRODUCT_WITH_GLOBAL_DEFAULT = {
+      id: 1, brandId: 1, name: 'Nandini Milk', isActive: true,
+      showInStockReceipt: true,
+      salespersonEnabled: true,
+      salespersonDefaultPrice: '50.00',
+      costPrice: '30.00',
+      sellingPrice: '45.00',
+      brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    };
+
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_WITH_GLOBAL_DEFAULT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0].sellingPrice).toBe(50); // Falls back to global default
+  });
+
+  test('custom price takes precedence over global default', async ({ request }) => {
+    const PRODUCT_WITH_GLOBAL_DEFAULT = {
+      id: 1, brandId: 1, name: 'Nandini Milk', isActive: true,
+      showInStockReceipt: true,
+      salespersonEnabled: true,
+      salespersonDefaultPrice: '50.00',
+      costPrice: '30.00',
+      sellingPrice: '45.00',
+      brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    };
+
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_WITH_GLOBAL_DEFAULT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { productId: 1, salespersonId: 1, sellingPrice: '48.00', effectiveFrom: new Date(today) },
+    ]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0].sellingPrice).toBe(48); // Custom price, not global default
+  });
+
+  test('returns zero when no custom price and global default is zero', async ({ request }) => {
+    const PRODUCT_NO_DEFAULT = {
+      id: 1, brandId: 1, name: 'Nandini Milk', isActive: true,
+      showInStockReceipt: true,
+      salespersonEnabled: true,
+      salespersonDefaultPrice: '0.00',
+      costPrice: '30.00',
+      sellingPrice: '45.00',
+      brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    };
+
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_NO_DEFAULT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0].sellingPrice).toBe(0); // No fallback if global default is 0
+  });
+
+  test('globally disabled product is excluded regardless of per-salesman enablement', async ({ request }) => {
+    const ENABLED_PRODUCT = {
+      id: 1, brandId: 1, name: 'Nandini Milk', isActive: true,
+      showInStockReceipt: true,
+      salespersonEnabled: true,
+      salespersonDefaultPrice: '50.00',
+      costPrice: '30.00',
+      sellingPrice: '45.00',
+      displayOrder: 1,
+      unitType: 'piece',
+      unitSize: 500,
+      containerType: 'bottle',
+      unitsPerContainer: 12,
+      brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    };
+
+    const DISABLED_PRODUCT = {
+      id: 2, brandId: 1, name: 'Jersey Milk', isActive: true,
+      showInStockReceipt: true,
+      salespersonEnabled: false, // Globally disabled
+      salespersonDefaultPrice: '0.00',
+      costPrice: '35.00',
+      sellingPrice: '48.00',
+      displayOrder: 2,
+      unitType: 'piece',
+      unitSize: 1000,
+      containerType: 'pouch',
+      unitsPerContainer: 10,
+      brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    };
+
+    ctx.mockPrisma.product.findMany.mockResolvedValue([ENABLED_PRODUCT, DISABLED_PRODUCT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([
+      { productId: 1, isEnabled: true },
+      { productId: 2, isEnabled: true }, // Enabled per-salesman but doesn't matter
+    ]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].productId).toBe(1);
+  });
+
+  test('globally enabled product shows with isEnabled flag', async ({ request }) => {
+    const GLOBAL_ENABLED_PRODUCT = {
+      id: 1, brandId: 1, name: 'Nandini Milk', isActive: true,
+      showInStockReceipt: true,
+      salespersonEnabled: true, // Globally enabled
+      salespersonDefaultPrice: '50.00',
+      costPrice: '30.00',
+      sellingPrice: '45.00',
+      brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    };
+
+    ctx.mockPrisma.product.findMany.mockResolvedValue([GLOBAL_ENABLED_PRODUCT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([
+      { productId: 1, isEnabled: true },
+    ]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0].salespersonEnabled).toBe(true);
+    expect(body.data[0].isEnabled).toBe(true);
   });
 });

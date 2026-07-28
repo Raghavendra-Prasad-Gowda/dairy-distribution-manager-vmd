@@ -159,32 +159,46 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: products.map(p => ({
-      productId:            p.id,
-      productName:          p.name,
-      brandId:              p.brandId,
-      brandName:            p.brand.name,
-      category:             p.category,
-      categoryDisplayOrder: catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
-      salespersonEnabled:   p.salespersonEnabled,
-      dairyCostPrice:       Number(p.costPrice),
-      dairySellingPrice:    Number(p.sellingPrice),
+      productId:               p.id,
+      productName:             p.name,
+      brandId:                 p.brandId,
+      brandName:               p.brand.name,
+      category:                p.category,
+      categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+      salespersonEnabled:      p.salespersonEnabled,
+      salespersonDefaultPrice: Number(p.salespersonDefaultPrice),
+      dairyCostPrice:          Number(p.costPrice),
+      dairySellingPrice:       Number(p.sellingPrice),
     })),
   });
 }));
 
-// PATCH /products/salesperson-global — bulk update salespersonEnabled flag
+// PATCH /products/salesperson-global — bulk update salespersonEnabled flag and/or default price
 router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const { products } = req.body;
   if (!Array.isArray(products) || !products.length) throw new AppError('products array is required', 400);
 
+  // Validate: if enabling (isEnabled=true), defaultPrice must be set and > 0
+  for (const p of products) {
+    if (p.isEnabled === true) {
+      const defaultPrice = p.defaultPrice !== undefined ? p.defaultPrice : null;
+      if (defaultPrice === null || defaultPrice === undefined || defaultPrice <= 0) {
+        throw new AppError('Default price must be set and greater than 0 to enable a product for salespeople', 400);
+      }
+    }
+  }
+
   const enablingIds = products.filter(p => p.isEnabled).map(p => p.productId);
 
   await prisma.$transaction([
-    ...products.map(({ productId, isEnabled }) =>
-      prisma.product.update({ where: { id: productId }, data: { salespersonEnabled: isEnabled } })
-    ),
+    ...products.map(({ productId, isEnabled, defaultPrice }) => {
+      const updateData = {};
+      if (isEnabled !== undefined) updateData.salespersonEnabled = isEnabled;
+      if (defaultPrice !== undefined) updateData.salespersonDefaultPrice = defaultPrice;
+      return prisma.product.update({ where: { id: productId }, data: updateData });
+    }),
     // Clear per-person disabled overrides so the product shows for all salespeople by default
     ...(enablingIds.length ? [
       prisma.salespersonProduct.deleteMany({
@@ -193,6 +207,30 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
     ] : []),
   ]);
   res.json({ success: true, data: { message: `${products.length} products updated` } });
+}));
+
+// DELETE /products/:id/salesperson-prices — clear all custom prices for a product (admin-only)
+router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const productId = parseId(req.params.id, 'Product ID');
+
+  // Verify product exists
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) throw new AppError('Product not found', 404);
+
+  // Delete all custom SalespersonPrice records for this product
+  const result = await prisma.salespersonPrice.deleteMany({
+    where: { productId },
+  });
+
+  res.json({
+    success: true,
+    data: {
+      message: `Cleared custom prices for ${result.count} salespeople. All will now use the global default of ₹${Number(product.salespersonDefaultPrice)}.`,
+      clearedCount: result.count,
+    },
+  });
 }));
 
 // PUT /products/:id

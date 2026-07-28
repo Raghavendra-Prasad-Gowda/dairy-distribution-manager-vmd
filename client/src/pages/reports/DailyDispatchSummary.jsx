@@ -435,7 +435,9 @@ export default function DailyDispatchSummary() {
                                     <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                       {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
                                     </td>
-                                    <td className="px-3 py-2.5" />
+                                    <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
+                                      {brand.brandCratesTotal > 0 ? brand.brandCratesTotal : '—'}
+                                    </td>
                                     <td className="px-3 py-2.5" />
                                     <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
                                       {brand.brandAmountTotal > 0 ? formatCurrency(brand.brandAmountTotal) : '—'}

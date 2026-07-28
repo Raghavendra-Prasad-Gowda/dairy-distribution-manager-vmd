@@ -100,21 +100,35 @@ const changePassword = asyncHandler(async (req, res) => {
   const data = validate(schemas.changePassword, req, res);
   if (!data) return;
 
-  const { role, adminUserId } = req.user;
-  if (role !== 'admin' && role !== 'superadmin') {
-    throw new AppError('Only admin can change password via this endpoint', 403);
+  const { role, adminUserId, salespersonId } = req.user;
+
+  if (role === 'admin' || role === 'superadmin') {
+    // Admin changing their own password
+    const adminUser = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
+    if (!adminUser) throw new AppError('Admin user not found', 404);
+
+    const valid = await bcrypt.compare(data.currentPassword, adminUser.passwordHash);
+    if (!valid) throw new AppError('Current password is incorrect', 401);
+
+    const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
+    await prisma.adminUser.update({ where: { id: adminUserId }, data: { passwordHash } });
+
+    res.json({ success: true, data: { message: 'Password changed successfully' } });
+  } else if (role === 'salesman') {
+    // Salesman changing their own password
+    const salesperson = await prisma.salesperson.findUnique({ where: { id: salespersonId } });
+    if (!salesperson) throw new AppError('Salesman not found', 404);
+
+    const valid = await bcrypt.compare(data.currentPassword, salesperson.passwordHash);
+    if (!valid) throw new AppError('Current password is incorrect', 401);
+
+    const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
+    await prisma.salesperson.update({ where: { id: salespersonId }, data: { passwordHash } });
+
+    res.json({ success: true, data: { message: 'Password changed successfully' } });
+  } else {
+    throw new AppError('Unauthorized', 403);
   }
-
-  const adminUser = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
-  if (!adminUser) throw new AppError('Admin user not found', 404);
-
-  const valid = await bcrypt.compare(data.currentPassword, adminUser.passwordHash);
-  if (!valid) throw new AppError('Current password is incorrect', 401);
-
-  const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
-  await prisma.adminUser.update({ where: { id: adminUserId }, data: { passwordHash } });
-
-  res.json({ success: true, data: { message: 'Password changed successfully' } });
 });
 
 const logout = asyncHandler(async (req, res) => {

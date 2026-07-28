@@ -169,6 +169,14 @@ const schemas = {
     })).min(1, 'At least one product is required'),
   }),
 
+  bulkUpdateMultipleSalespersonProducts: z.object({
+    salespersonIds: z.array(z.number().int().positive()).min(1, 'At least one salesman is required'),
+    products: z.array(z.object({
+      productId: z.number().int().positive(),
+      isEnabled: z.boolean(),
+    })).min(1, 'At least one product is required'),
+  }),
+
   // Salesperson Prices — effective dates must be today (IST) or later.
   // Past dates are rejected: they'd be invisible (GET filters lte today)
   // and changing the past would either sit silently or re-bill old
@@ -180,6 +188,16 @@ const schemas = {
       sellingPrice:  z.number().min(0),
       effectiveFrom: todayOrLaterDateString().optional(),
     })),
+  }),
+
+  // Bulk update multiple products across multiple salesmen
+  bulkUpdateSalespersonPrices: z.object({
+    salespersonIds: z.array(z.number().int().positive()).min(1, 'At least one salesman is required'),
+    productPrices:  z.array(z.object({
+      productId:   z.number().int().positive('Product ID is required'),
+      sellingPrice: z.number().min(0, 'Selling price must be non-negative'),
+    })).min(1, 'At least one product is required'),
+    effectiveFrom:  todayOrLaterDateString(),
   }),
 
   // Dispatch (salespersonId optional — server injects it for salesman role)

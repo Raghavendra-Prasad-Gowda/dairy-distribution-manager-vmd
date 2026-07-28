@@ -57,9 +57,10 @@ describe('SalesmanDayBalance', () => {
     render(<SalesmanDayBalance />);
     expect(await screen.findByText('Day Balance')).toBeInTheDocument();
     expect(screen.getByText("Today's Bill")).toBeInTheDocument();
-    expect(screen.getByText('Balance')).toBeInTheDocument();
+    expect(screen.getByText('Outstanding Balance')).toBeInTheDocument();
     expect(screen.getByText('Today Bill + Balance')).toBeInTheDocument();
     expect(screen.getByText('Today Paid')).toBeInTheDocument();
+    expect(screen.getByText('Today Balance')).toBeInTheDocument();
     expect(screen.getByText('Total Balance')).toBeInTheDocument();
   });
 
@@ -70,8 +71,10 @@ describe('SalesmanDayBalance', () => {
     expect(await screen.findByText("05 Jul's Bill")).toBeInTheDocument();
     expect(screen.getByText('05 Jul Bill + Balance')).toBeInTheDocument();
     expect(screen.getByText('05 Jul Paid')).toBeInTheDocument();
+    expect(screen.getByText('05 Jul Balance')).toBeInTheDocument();
     expect(screen.queryByText("Today's Bill")).not.toBeInTheDocument();
     expect(screen.queryByText('Today Paid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Today Balance')).not.toBeInTheDocument();
   });
 
   it('hides fully-settled salespeople (all three amounts zero)', async () => {
@@ -81,14 +84,15 @@ describe('SalesmanDayBalance', () => {
     expect(screen.queryByText('Suresh')).not.toBeInTheDocument(); // all zero → hidden
   });
 
-  it('shows each salesman with bill, balance, bill+balance, paid and total balance', async () => {
+  it('shows each salesman with bill, outstanding balance, bill+balance, paid, today balance and total balance', async () => {
     render(<SalesmanDayBalance />);
     const rameshCell = await screen.findByText('Ramesh');
     const row = rameshCell.closest('tr');
     expect(row.textContent).toContain('₹500.00');  // today's bill (stock given)
-    expect(row.textContent).toContain('₹1000.00'); // balance (opening)
+    expect(row.textContent).toContain('₹1000.00'); // outstanding balance (opening)
     expect(row.textContent).toContain('₹1500.00'); // bill + balance
     expect(row.textContent).toContain('₹400.00');  // paid today
+    expect(row.textContent).toContain('₹100.00');  // today balance (500 - 400)
     expect(row.textContent).toContain('₹1100.00'); // total balance (closing)
   });
 
@@ -100,6 +104,7 @@ describe('SalesmanDayBalance', () => {
     expect(totalsRow.textContent).toContain('₹1200.00'); // balance: 1000 + 200
     expect(totalsRow.textContent).toContain('₹1700.00'); // bill+balance: 1500 + 200
     expect(totalsRow.textContent).toContain('₹600.00');  // paid: 400 + 200
+    expect(totalsRow.textContent).toContain('₹-100.00'); // today balance: (500 - 400) + (0 - 200) = -100
     expect(totalsRow.textContent).toContain('₹1100.00'); // total balance: 1100 + 0
   });
 

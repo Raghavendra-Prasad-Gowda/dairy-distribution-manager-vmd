@@ -73,4 +73,67 @@ const getById = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { salespersonId: sp.id, salespersonName: sp.name, ...bal } });
 });
 
-module.exports = { getAll, getById };
+// Get balance history for a specific salesperson with pagination and date range filtering
+const getHistory = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Salesperson ID');
+  const { page = '1', limit = '20', from, to } = req.query;
+
+  if (req.user.role === 'salesman' && req.user.salespersonId !== id) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const sp = await prisma.salesperson.findUnique({ where: { id } });
+  if (!sp) throw new AppError('Salesperson not found', 404);
+
+  const pageNum = Math.max(1, parseInt(page));
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+  const skip = (pageNum - 1) * limitNum;
+
+  // Build date filter
+  const where = { salespersonId: id };
+  if (from || to) {
+    where.balanceDate = {};
+    if (from) where.balanceDate.gte = new Date(from);
+    if (to) where.balanceDate.lte = new Date(to);
+  } else {
+    // Default: last 90 days if no range specified
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    where.balanceDate = { gte: ninetyDaysAgo };
+  }
+
+  // Fetch paginated results and total count
+  const [balances, total] = await Promise.all([
+    prisma.salespersonBalance.findMany({
+      where,
+      orderBy: { balanceDate: 'desc' },
+      skip,
+      take: limitNum,
+    }),
+    prisma.salespersonBalance.count({ where }),
+  ]);
+
+  const formatted = balances.map(b => ({
+    balanceDate: b.balanceDate,
+    openingBalance: Number(b.openingBalance),
+    stockGiven: Number(b.stockGiven),
+    amountPaid: Number(b.amountPaid),
+    closingBalance: Number(b.closingBalance),
+  }));
+
+  res.json({
+    success: true,
+    data: {
+      items: formatted,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        hasMore: pageNum < Math.ceil(total / limitNum),
+      },
+    },
+  });
+});
+
+module.exports = { getAll, getById, getHistory };

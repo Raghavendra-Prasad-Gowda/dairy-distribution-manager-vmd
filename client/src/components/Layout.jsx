@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock
 } from 'lucide-react';
 import { getBrandColors } from '../utils/constants';
 import api from '../api/axios';
@@ -65,7 +65,8 @@ const ADMIN_NAV_STATIC = [
         label: 'SETUP',
         items: [
           { to: '/salesman/setup/users',    icon: Users,        label: 'Users' },
-          { to: '/salesman/setup/prices',   icon: IndianRupee,  label: 'Products' },
+          { to: '/salesman/setup/products', icon: Package,      label: 'Product Access' },
+          { to: '/salesman/setup/prices',   icon: IndianRupee,  label: 'Pricing' },
         ],
       },
       {
@@ -88,6 +89,18 @@ const SALESMAN_NAV = [
         label: 'STOCK',
         items: [
           { to: '/', icon: ShoppingCart, label: 'Stock Entry' },
+        ],
+      },
+      {
+        label: 'PAYMENTS',
+        items: [
+          { to: '/salesman/balance', icon: Wallet, label: 'My Balance' },
+        ],
+      },
+      {
+        label: 'SECURITY',
+        items: [
+          { to: '/salesman/change-password', icon: Lock, label: 'Change Password' },
         ],
       },
     ],
