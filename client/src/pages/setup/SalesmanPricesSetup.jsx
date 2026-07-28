@@ -70,11 +70,6 @@ export default function SalesmanPricesSetup() {
   const [globalProducts, setGlobalProducts] = useState([]);
   const [dirtyGlobal, setDirtyGlobal]       = useState({});
   const [dirtyGlobalPrices, setDirtyGlobalPrices] = useState({});
-  // Import template modal
-  const [showImportTemplateModal, setShowImportTemplateModal] = useState(false);
-  const [templateSalesmanId, setTemplateSalesmanId] = useState('');
-  const [templateSearch, setTemplateSearch] = useState('');
-  const [importingTemplate, setImportingTemplate] = useState(false);
   // View all salesmen prices modal
   const [showAllSalesmenPrices, setShowAllSalesmenPrices] = useState(false);
   // Clear all salesman prices
@@ -302,42 +297,6 @@ export default function SalesmanPricesSetup() {
       p.productId === productId ? { ...p, salespersonDefaultPrice: price } : p
     ));
   };
-
-  async function handleImportTemplate() {
-    if (!templateSalesmanId) {
-      notify('Select a salesman to use as template', 'warning');
-      return;
-    }
-
-    setImportingTemplate(true);
-    try {
-      const res = await api.get(`/salespeople/${templateSalesmanId}/prices`);
-      const templatePrices = res.data.data;
-
-      const updates = {};
-      templatePrices.forEach(p => {
-        if (p.sellingPrice !== null && p.sellingPrice > 0) {
-          updates[p.productId] = p.sellingPrice;
-        }
-      });
-
-      setDirtyGlobalPrices(prev => ({ ...prev, ...updates }));
-      setGlobalProducts(prev => prev.map(p =>
-        updates[p.productId] !== undefined
-          ? { ...p, salespersonDefaultPrice: updates[p.productId] }
-          : p
-      ));
-
-      notify(`Imported ${Object.keys(updates).length} prices from ${salespeople.find(s => String(s.id) === templateSalesmanId)?.name}`, 'success');
-      setShowImportTemplateModal(false);
-      setTemplateSalesmanId('');
-      setTemplateSearch('');
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to import prices', 'error');
-    } finally {
-      setImportingTemplate(false);
-    }
-  }
 
   const handleBulkSalesmenToggle = (spId) => {
     setBulkUpdateForm(prev => {
@@ -841,12 +800,6 @@ export default function SalesmanPricesSetup() {
                 )}
                 {isGlobal && (
                   <div className="flex items-center gap-2 ml-auto flex-wrap">
-                    <button
-                      onClick={() => setShowImportTemplateModal(true)}
-                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition whitespace-nowrap"
-                    >
-                      <Globe size={12} /> Use Template
-                    </button>
                     <button
                       onClick={() => handleToggleAllGlobal(true)}
                       disabled={allBrandEnabled}
@@ -1538,87 +1491,6 @@ export default function SalesmanPricesSetup() {
                   {copyingPrices ? 'Copying…' : 'Copy Prices'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import Template Modal */}
-      {showImportTemplateModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Globe size={20} className="text-emerald-600" />
-              Import Template Prices
-            </h2>
-
-            <p className="text-sm text-slate-600">
-              Select a salesman to copy their prices as global defaults for {brands.find(b => b.id === activeBrandId)?.name || 'this brand'}.
-            </p>
-
-            <input
-              type="text"
-              placeholder="Search salesmen..."
-              value={templateSearch}
-              onChange={e => setTemplateSearch(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-64 overflow-y-auto space-y-1">
-              {salespeople.length === 0 ? (
-                <p className="text-sm text-slate-400">No salesmen available</p>
-              ) : (
-                salespeople
-                  .filter(sp => {
-                    const q = templateSearch.toLowerCase();
-                    return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
-                  })
-                  .map(sp => (
-                    <label
-                      key={sp.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition ${
-                        templateSalesmanId === String(sp.id)
-                          ? 'bg-emerald-50 border border-emerald-200'
-                          : 'hover:bg-slate-100'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="template-salesman"
-                        value={sp.id}
-                        checked={templateSalesmanId === String(sp.id)}
-                        onChange={() => setTemplateSalesmanId(String(sp.id))}
-                        className="w-4 h-4 text-emerald-600 border-slate-300 focus:ring-emerald-500"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-700">{sp.name}</div>
-                        {sp.route && <div className="text-xs text-slate-500">{sp.route}</div>}
-                      </div>
-                    </label>
-                  ))
-              )}
-            </div>
-
-            <div className="border-t border-slate-200 pt-4 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowImportTemplateModal(false);
-                  setTemplateSalesmanId('');
-                  setTemplateSearch('');
-                }}
-                disabled={importingTemplate}
-                className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleImportTemplate}
-                disabled={importingTemplate || !templateSalesmanId}
-                className="flex-1 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {importingTemplate && <Loader2 size={16} className="animate-spin" />}
-                {importingTemplate ? 'Importing...' : 'Import Prices'}
-              </button>
             </div>
           </div>
         </div>
