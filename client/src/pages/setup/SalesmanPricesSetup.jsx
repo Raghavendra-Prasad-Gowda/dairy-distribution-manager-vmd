@@ -832,7 +832,7 @@ export default function SalesmanPricesSetup() {
                       Bulk Product Access
                     </button>
                     <button
-                      onClick={() => setShowAllSalesmenPrices(true)}
+                      onClick={() => { fetchProductView(); setShowAllSalesmenPrices(true); }}
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
                     >
                       View Price List
