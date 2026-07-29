@@ -173,6 +173,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
   });
 
   test('returns 200 when admin updates salespersonEnabled flag', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
     ctx.mockPrisma.$transaction.mockResolvedValue([
       { id: 1, salespersonEnabled: true, salespersonDefaultPrice: '50.00' },
     ]);
@@ -191,6 +192,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
   });
 
   test('returns 200 when admin updates default price only', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
     ctx.mockPrisma.$transaction.mockResolvedValue([
       { id: 1, salespersonDefaultPrice: '55.00' },
     ]);
@@ -208,6 +210,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
   });
 
   test('returns 200 when admin disables product (does not require price)', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
     ctx.mockPrisma.$transaction.mockResolvedValue([
       { id: 2, salespersonEnabled: false },
     ]);
@@ -225,6 +228,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
   });
 
   test('returns 200 when admin updates multiple products', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
     ctx.mockPrisma.$transaction.mockResolvedValue([
       { id: 1, salespersonEnabled: true, salespersonDefaultPrice: '50.00' },
       { id: 2, salespersonEnabled: false },
@@ -247,6 +251,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
   });
 
   test('can update both isEnabled and defaultPrice together', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
     let updateCalls = [];
     ctx.mockPrisma.product.update.mockImplementation(async (args) => {
       updateCalls.push(args.data);
@@ -269,6 +274,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
   });
 
   test('response message shows count of updated products', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
     ctx.mockPrisma.$transaction.mockResolvedValue([
       { id: 1 },
       { id: 2 },

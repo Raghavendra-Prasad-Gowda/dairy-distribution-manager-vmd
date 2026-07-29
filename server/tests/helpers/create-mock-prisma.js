@@ -146,6 +146,7 @@ function createMockPrisma() {
       upsert:     mockFn(),
       delete:     mockFn(),
       deleteMany: mockFn(),
+      createMany: mockFn(),
       updateMany: mockFn(),
     },
     $transaction: mockFn(),
