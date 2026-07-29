@@ -224,6 +224,8 @@ export default function SalesmanPricesSetup() {
               productName: p.productName,
               brandId: p.brandId,
               category: p.category,
+              categoryDisplayOrder: p.categoryDisplayOrder ?? 999,
+              displayOrder: p.displayOrder ?? 999,
               dairyCostPrice: p.dairyCostPrice,
               dairySellingPrice: p.dairySellingPrice,
               salespersonPrices: {},
@@ -238,7 +240,11 @@ export default function SalesmanPricesSetup() {
         });
       });
 
-      setProductView(Object.values(productMap).sort((a, b) => a.productName.localeCompare(b.productName)));
+      setProductView(Object.values(productMap).sort((a, b) =>
+        a.categoryDisplayOrder - b.categoryDisplayOrder ||
+        a.displayOrder - b.displayOrder ||
+        a.productName.localeCompare(b.productName)
+      ));
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to load product view', 'error');
     } finally {
@@ -832,7 +838,7 @@ export default function SalesmanPricesSetup() {
                       Bulk Product Access
                     </button>
                     <button
-                      onClick={() => setShowAllSalesmenPrices(true)}
+                      onClick={() => { fetchProductView(); setShowAllSalesmenPrices(true); }}
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
                     >
                       View Price List
