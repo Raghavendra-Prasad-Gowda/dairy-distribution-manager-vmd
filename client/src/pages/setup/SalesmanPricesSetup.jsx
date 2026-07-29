@@ -453,7 +453,7 @@ export default function SalesmanPricesSetup() {
         return obj;
       });
 
-      // Check each product being enabled
+      // Check each product being enabled and include its default price
       for (const prod of productsToSave) {
         if (prod.isEnabled === true) {
           const priceValue = prod.defaultPrice !== undefined
@@ -463,6 +463,10 @@ export default function SalesmanPricesSetup() {
           if (!priceValue || priceValue <= 0) {
             notify(`Set a valid default price for product before enabling`, 'error');
             return;
+          }
+          // Include the price in the payload even if it wasn't changed
+          if (prod.defaultPrice === undefined) {
+            prod.defaultPrice = priceValue;
           }
         }
       }
