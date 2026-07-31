@@ -788,7 +788,7 @@ describe('Global Settings — handleBulkProductUpdate() (Bulk Product Access)', 
     fireEvent.click(screen.getByRole('button', { name: /Confirm/i }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/salesperson-products/bulk-update', {
+      expect(api.post).toHaveBeenCalledWith('/salespeople/products/bulk-update', {
         salespersonIds: [1],
         products: [{ productId: 1, isEnabled: true }],
       });
@@ -809,7 +809,7 @@ describe('Global Settings — handleBulkProductUpdate() (Bulk Product Access)', 
     fireEvent.click(screen.getByRole('button', { name: /Confirm/i }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/salesperson-products/bulk-update', {
+      expect(api.post).toHaveBeenCalledWith('/salespeople/products/bulk-update', {
         salespersonIds: [1],
         products: [{ productId: 1, isEnabled: false }],
       });

@@ -14,6 +14,8 @@ function createMockPrisma() {
       findMany:   mockFn(),
       create:     mockFn(),
       update:     mockFn(),
+      delete:     mockFn(),
+      count:      mockFn(),
     },
     brand: {
       findMany:   mockFn(),

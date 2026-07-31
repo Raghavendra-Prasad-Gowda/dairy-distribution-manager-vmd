@@ -363,3 +363,99 @@ test.describe('Future-scheduled prices', () => {
     expect(row.upcomingSellingPriceFrom).toBeNull();
   });
 });
+
+// ─── DELETE /api/v1/products/:id/salesperson-prices ─────────────────────────
+
+test.describe('DELETE /api/v1/products/:id/salesperson-prices', () => {
+  const PRODUCT_WITH_PRICE = {
+    id: 1, name: 'Nandini Milk', salespersonDefaultPrice: '50.00',
+  };
+
+  test('returns 403 when no token provided (unauthenticated)', async ({ request }) => {
+    const res = await request.delete('/api/v1/products/1/salesperson-prices');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 when JWT is expired', async ({ request }) => {
+    const { makeExpiredToken } = require('../helpers/test-setup');
+    const res = await request.delete('/api/v1/products/1/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 403 when salesman token provided', async ({ request }) => {
+    const { makeSalesmanToken } = require('../helpers/test-setup');
+    const res = await request.delete('/api/v1/products/1/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 for non-numeric product ID', async ({ request }) => {
+    const res = await request.delete('/api/v1/products/abc/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 404 when product does not exist', async ({ request }) => {
+    ctx.mockPrisma.product.findUnique.mockResolvedValue(null);
+
+    const res = await request.delete('/api/v1/products/999/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(404);
+    const body = await res.json();
+    expect(body.error).toMatch(/not found/i);
+  });
+
+  test('returns 200 and clears all custom prices for the product', async ({ request }) => {
+    ctx.mockPrisma.product.findUnique.mockResolvedValue(PRODUCT_WITH_PRICE);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { salespersonId: 1 },
+      { salespersonId: 2 },
+    ]);
+    ctx.mockPrisma.salespersonPrice.deleteMany.mockResolvedValue({ count: 2 });
+
+    const res = await request.delete('/api/v1/products/1/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.clearedCount).toBe(2);
+    expect(body.data.clearedSalespersonIds).toEqual([1, 2]);
+    expect(body.data.message).toMatch(/global default/i);
+  });
+
+  test('returns 200 with count=0 when no custom prices existed', async ({ request }) => {
+    ctx.mockPrisma.product.findUnique.mockResolvedValue(PRODUCT_WITH_PRICE);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.deleteMany.mockResolvedValue({ count: 0 });
+
+    const res = await request.delete('/api/v1/products/1/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.clearedCount).toBe(0);
+    expect(body.data.clearedSalespersonIds).toHaveLength(0);
+  });
+
+  test('response message includes the global default price', async ({ request }) => {
+    ctx.mockPrisma.product.findUnique.mockResolvedValue(PRODUCT_WITH_PRICE);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([{ salespersonId: 3 }]);
+    ctx.mockPrisma.salespersonPrice.deleteMany.mockResolvedValue({ count: 1 });
+
+    const res = await request.delete('/api/v1/products/1/salesperson-prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    const body = await res.json();
+    expect(body.data.message).toMatch(/₹50/);
+  });
+});

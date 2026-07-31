@@ -71,6 +71,48 @@ test.describe('POST /api/v1/auth/login', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('returns 401 when admin account is inactive', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({ ...ADMIN_USER, isActive: false });
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'admin', password: 'anypass' },
+    });
+
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 200 with salesman token when salesperson credentials are valid', async ({ request }) => {
+    const SALESPERSON = {
+      id: 5, username: 'raju', name: 'Raju', passwordHash: 'hashed', isActive: true,
+    };
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(SALESPERSON);
+    ctx.mockBcrypt.compare = async () => true;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'raju', password: 'correctpass' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.role).toBe('salesman');
+    expect(body.data.salespersonId).toBe(5);
+    expect(body.data).toHaveProperty('accessToken');
+  });
+
+  test('returns 401 when salesperson password is wrong', async ({ request }) => {
+    const SALESPERSON = { id: 5, username: 'raju', name: 'Raju', passwordHash: 'hashed', isActive: true };
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(SALESPERSON);
+    ctx.mockBcrypt.compare = async () => false;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'raju', password: 'wrongpass' },
+    });
+
+    expect(res.status()).toBe(401);
+  });
 });
 
 // ─── POST /api/v1/auth/change-password ───────────────────────────────────────

@@ -414,7 +414,7 @@ export default function SalesmanPricesSetup() {
 
     setUpdatingBulkProducts(true);
     try {
-      await api.post('/salesperson-products/bulk-update', {
+      await api.post('/salespeople/products/bulk-update', {
         salespersonIds: Array.from(bulkProductForm.selectedSalesmen),
         products: Array.from(bulkProductForm.selectedProducts).map(prodId => ({
           productId: prodId,

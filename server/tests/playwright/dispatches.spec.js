@@ -61,6 +61,11 @@ test.describe('GET /api/v1/dispatches', () => {
 // ─── GET /api/v1/dispatches/summary ──────────────────────────────────────────
 
 test.describe('GET /api/v1/dispatches/summary', () => {
+  test('returns 403 when no token provided (unauthenticated)', async ({ request }) => {
+    const res = await request.get('/api/v1/dispatches/summary?date=2026-04-30');
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 400 when date is missing', async ({ request }) => {
     const res = await request.get('/api/v1/dispatches/summary', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -386,6 +391,13 @@ test.describe('PATCH /api/v1/dispatches/:id/lock', () => {
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.patch('/api/v1/dispatches/1/lock');
     expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 for non-numeric dispatch ID', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/abc/lock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
   });
 
   test('returns 404 when dispatch does not exist', async ({ request }) => {
