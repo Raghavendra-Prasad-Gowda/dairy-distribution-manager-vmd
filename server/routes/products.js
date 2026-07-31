@@ -140,7 +140,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
 
   const [products, categories] = await Promise.all([
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true },
+      where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
       include: { brand: { select: { id: true, name: true, displayOrder: true } } },
       orderBy: [
         { brand: { displayOrder: 'asc' } },
@@ -174,6 +174,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
 }));
 
 // PATCH /products/salesperson-global — bulk update salespersonEnabled flag and/or default price
+// Also cascades enable/disable to all salesmen automatically
 router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
@@ -190,22 +191,65 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
     }
   }
 
-  const enablingIds = products.filter(p => p.isEnabled).map(p => p.productId);
+  // Separate enabling and disabling products
+  const enablingIds = products.filter(p => p.isEnabled === true).map(p => p.productId);
+  const disablingIds = products.filter(p => p.isEnabled === false).map(p => p.productId);
 
-  await prisma.$transaction([
+  // Fetch all active salespeople
+  const allSalespeople = await prisma.salesperson.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  const salesmanIds = allSalespeople.map(sp => sp.id);
+
+  // Build transaction ops
+  const txOps = [
+    // Update global product settings
     ...products.map(({ productId, isEnabled, defaultPrice }) => {
       const updateData = {};
       if (isEnabled !== undefined) updateData.salespersonEnabled = isEnabled;
       if (defaultPrice !== undefined) updateData.salespersonDefaultPrice = defaultPrice;
       return prisma.product.update({ where: { id: productId }, data: updateData });
     }),
-    // Clear per-person disabled overrides so the product shows for all salespeople by default
-    ...(enablingIds.length ? [
+  ];
+
+  // When enabling: delete any records (defaults to enabled)
+  if (enablingIds.length) {
+    txOps.push(
       prisma.salespersonProduct.deleteMany({
-        where: { productId: { in: enablingIds }, isEnabled: false },
-      }),
-    ] : []),
-  ]);
+        where: { productId: { in: enablingIds } },
+      })
+    );
+  }
+
+  // When disabling: delete existing records and recreate with isEnabled=false for ALL salesmen
+  if (disablingIds.length) {
+    txOps.push(
+      // First delete all existing records
+      prisma.salespersonProduct.deleteMany({
+        where: { productId: { in: disablingIds } },
+      })
+    );
+
+    // Then create new records with isEnabled=false for all salesmen
+    const disableRecords = [];
+    for (const productId of disablingIds) {
+      for (const salespersonId of salesmanIds) {
+        disableRecords.push({ salespersonId, productId, isEnabled: false });
+      }
+    }
+
+    if (disableRecords.length) {
+      txOps.push(
+        prisma.salespersonProduct.createMany({
+          data: disableRecords,
+          skipDuplicates: true,
+        })
+      );
+    }
+  }
+
+  await prisma.$transaction(txOps);
   res.json({ success: true, data: { message: `${products.length} products updated` } });
 }));
 
@@ -219,6 +263,14 @@ router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) throw new AppError('Product not found', 404);
 
+  // Query salesperson IDs that will be deleted
+  const salespersonPrices = await prisma.salespersonPrice.findMany({
+    where: { productId },
+    select: { salespersonId: true },
+  });
+
+  const clearedSalespersonIds = salespersonPrices.map(sp => sp.salespersonId);
+
   // Delete all custom SalespersonPrice records for this product
   const result = await prisma.salespersonPrice.deleteMany({
     where: { productId },
@@ -229,6 +281,7 @@ router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
     data: {
       message: `Cleared custom prices for ${result.count} salespeople. All will now use the global default of ₹${Number(product.salespersonDefaultPrice)}.`,
       clearedCount: result.count,
+      clearedSalespersonIds: clearedSalespersonIds,
     },
   });
 }));

@@ -22,7 +22,6 @@ const ProductsSetup          = lazy(() => import('./pages/setup/ProductsSetup'))
 const CategorySetup          = lazy(() => import('./pages/setup/CategorySetup'));
 const SalesmanUsersSetup     = lazy(() => import('./pages/setup/SalesmanUsersSetup'));
 const SalesmanPricesSetup     = lazy(() => import('./pages/setup/SalesmanPricesSetup'));
-const SalesmanProductsSetup   = lazy(() => import('./pages/setup/SalesmanProductsSetup'));
 const DailyDispatchSummary      = lazy(() => import('./pages/reports/DailyDispatchSummary'));
 const StockBalanceSummary       = lazy(() => import('./pages/reports/StockBalanceSummary'));
 const SalesmanDayBalance        = lazy(() => import('./pages/reports/SalesmanDayBalance'));
@@ -115,7 +114,6 @@ function AppRoutes() {
             {/* SALESMAN MANAGEMENT (admin) */}
             <Route path="salesman/payments"        element={S(SalespersonCollections)} />
             <Route path="salesman/setup/users"     element={S(SalesmanUsersSetup)} />
-            <Route path="salesman/setup/products"  element={S(SalesmanProductsSetup)} />
             <Route path="salesman/setup/prices"    element={S(SalesmanPricesSetup)} />
             <Route path="salesman/setup"           element={<Navigate to="/salesman/setup/users" replace />} />
 

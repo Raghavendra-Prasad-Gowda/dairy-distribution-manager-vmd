@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2 } from 'lucide-react';
+import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -70,14 +70,22 @@ export default function SalesmanPricesSetup() {
   const [globalProducts, setGlobalProducts] = useState([]);
   const [dirtyGlobal, setDirtyGlobal]       = useState({});
   const [dirtyGlobalPrices, setDirtyGlobalPrices] = useState({});
-  // Import template modal
-  const [showImportTemplateModal, setShowImportTemplateModal] = useState(false);
-  const [templateSalesmanId, setTemplateSalesmanId] = useState('');
   // View all salesmen prices modal
   const [showAllSalesmenPrices, setShowAllSalesmenPrices] = useState(false);
   // Clear all salesman prices
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const [clearingAllPrices, setClearingAllPrices] = useState(false);
+
+  // Bulk enable/disable products
+  const [showBulkProductModal, setShowBulkProductModal] = useState(false);
+  const [bulkProductForm, setBulkProductForm] = useState({
+    selectedSalesmen: new Set(),
+    selectedProducts: new Set(),
+    action: 'enable',
+  });
+  const [updatingBulkProducts, setUpdatingBulkProducts] = useState(false);
+  const [bulkProductSearch, setBulkProductSearch] = useState('');
+  const [expandedBrand, setExpandedBrand] = useState(null);
 
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
@@ -216,6 +224,8 @@ export default function SalesmanPricesSetup() {
               productName: p.productName,
               brandId: p.brandId,
               category: p.category,
+              categoryDisplayOrder: p.categoryDisplayOrder ?? 999,
+              displayOrder: p.displayOrder ?? 999,
               dairyCostPrice: p.dairyCostPrice,
               dairySellingPrice: p.dairySellingPrice,
               salespersonPrices: {},
@@ -230,7 +240,11 @@ export default function SalesmanPricesSetup() {
         });
       });
 
-      setProductView(Object.values(productMap).sort((a, b) => a.productName.localeCompare(b.productName)));
+      setProductView(Object.values(productMap).sort((a, b) =>
+        a.categoryDisplayOrder - b.categoryDisplayOrder ||
+        a.displayOrder - b.displayOrder ||
+        a.productName.localeCompare(b.productName)
+      ));
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to load product view', 'error');
     } finally {
@@ -290,38 +304,6 @@ export default function SalesmanPricesSetup() {
     ));
   };
 
-  async function handleImportTemplate() {
-    if (!templateSalesmanId) {
-      notify('Select a salesman to use as template', 'warning');
-      return;
-    }
-
-    try {
-      const res = await api.get(`/salespeople/${templateSalesmanId}/prices`);
-      const templatePrices = res.data.data;
-
-      const updates = {};
-      templatePrices.forEach(p => {
-        if (p.sellingPrice !== null && p.sellingPrice > 0) {
-          updates[p.productId] = p.sellingPrice;
-        }
-      });
-
-      setDirtyGlobalPrices(prev => ({ ...prev, ...updates }));
-      setGlobalProducts(prev => prev.map(p =>
-        updates[p.productId] !== undefined
-          ? { ...p, salespersonDefaultPrice: updates[p.productId] }
-          : p
-      ));
-
-      notify(`Imported ${Object.keys(updates).length} prices from ${salespeople.find(s => String(s.id) === templateSalesmanId)?.name}`, 'success');
-      setShowImportTemplateModal(false);
-      setTemplateSalesmanId('');
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to import prices', 'error');
-    }
-  }
-
   const handleBulkSalesmenToggle = (spId) => {
     setBulkUpdateForm(prev => {
       const newSet = new Set(prev.selectedSalesmen);
@@ -369,7 +351,7 @@ export default function SalesmanPricesSetup() {
   const updateProductPrice = (index, price) => {
     setBulkUpdateForm(prev => {
       const updated = [...prev.productPrices];
-      updated[index].sellingPrice = price;
+      updated[index].salespersonSellingPrice = price;
       return { ...prev, productPrices: updated };
     });
   };
@@ -413,11 +395,54 @@ export default function SalesmanPricesSetup() {
         productPrices: [],
         effectiveFrom: getIndiaDate(),
       });
+      setUpdatingBulkPrices(false);
     } catch (err) {
       notify(err.response?.data?.error ?? 'Failed to update prices', 'error');
       setUpdatingBulkPrices(false);
     }
   }
+
+  const handleBulkProductUpdate = async () => {
+    if (bulkProductForm.selectedSalesmen.size === 0) {
+      notify('Select at least one salesman', 'warning');
+      return;
+    }
+    if (bulkProductForm.selectedProducts.size === 0) {
+      notify('Select at least one product', 'warning');
+      return;
+    }
+
+    setUpdatingBulkProducts(true);
+    try {
+      await api.post('/salesperson-products/bulk-update', {
+        salespersonIds: Array.from(bulkProductForm.selectedSalesmen),
+        products: Array.from(bulkProductForm.selectedProducts).map(prodId => ({
+          productId: prodId,
+          isEnabled: bulkProductForm.action === 'enable',
+        })),
+      });
+
+      notify(`Products ${bulkProductForm.action}d for ${bulkProductForm.selectedSalesmen.size} salesman(men)`, 'success');
+      setShowBulkProductModal(false);
+      setBulkProductForm({
+        selectedSalesmen: new Set(),
+        selectedProducts: new Set(),
+        action: 'enable',
+      });
+      setBulkProductSearch('');
+      setExpandedBrand(null);
+      // Refresh the product view
+      if (selectedSpId && selectedSpId !== GLOBAL_ID) {
+        fetchPrices(selectedSpId);
+      } else if (isGlobal) {
+        fetchGlobal();
+      }
+    } catch (err) {
+      notify(err.response?.data?.error ?? `Failed to ${bulkProductForm.action} products`, 'error');
+    } finally {
+      setUpdatingBulkProducts(false);
+    }
+  };
 
   const handleSave = async () => {
     if (isGlobal) {
@@ -435,7 +460,7 @@ export default function SalesmanPricesSetup() {
         return obj;
       });
 
-      // Check each product being enabled
+      // Check each product being enabled and include its default price
       for (const prod of productsToSave) {
         if (prod.isEnabled === true) {
           const priceValue = prod.defaultPrice !== undefined
@@ -445,6 +470,10 @@ export default function SalesmanPricesSetup() {
           if (!priceValue || priceValue <= 0) {
             notify(`Set a valid default price for product before enabling`, 'error');
             return;
+          }
+          // Include the price in the payload even if it wasn't changed
+          if (prod.defaultPrice === undefined) {
+            prod.defaultPrice = priceValue;
           }
         }
       }
@@ -511,18 +540,20 @@ export default function SalesmanPricesSetup() {
     setClearingAllPrices(true);
     try {
       const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
-      let totalCleared = 0;
+      const allClearedSalespersonIds = new Set();
 
       for (const product of brandProducts) {
         try {
           const response = await api.delete(`/products/${product.productId}/salesperson-prices`);
-          totalCleared += response.data.data.clearedCount || 0;
+          const ids = response.data.data.clearedSalespersonIds || [];
+          ids.forEach(id => allClearedSalespersonIds.add(id));
         } catch (err) {
           console.error(`Failed to clear prices for product ${product.productId}:`, err);
         }
       }
 
-      notify(`Cleared all custom prices for ${totalCleared} salesmen across ${brandProducts.length} products`, 'success');
+      const uniqueSalesmenCount = allClearedSalespersonIds.size;
+      notify(`Cleared all custom prices for ${uniqueSalesmenCount} unique salesmen across ${brandProducts.length} products`, 'success');
       setShowClearAllConfirm(false);
       fetchGlobal();
       fetchProductView();
@@ -781,12 +812,6 @@ export default function SalesmanPricesSetup() {
                 {isGlobal && (
                   <div className="flex items-center gap-2 ml-auto flex-wrap">
                     <button
-                      onClick={() => setShowImportTemplateModal(true)}
-                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition whitespace-nowrap"
-                    >
-                      <Globe size={12} /> Use Template
-                    </button>
-                    <button
                       onClick={() => handleToggleAllGlobal(true)}
                       disabled={allBrandEnabled}
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
@@ -807,7 +832,14 @@ export default function SalesmanPricesSetup() {
                       Bulk Update Prices
                     </button>
                     <button
-                      onClick={() => setShowAllSalesmenPrices(true)}
+                      onClick={() => setShowBulkProductModal(true)}
+                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap flex items-center gap-1.5"
+                    >
+                      <Package size={14} />
+                      Bulk Product Access
+                    </button>
+                    <button
+                      onClick={() => { fetchProductView(); setShowAllSalesmenPrices(true); }}
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
                     >
                       View Price List
@@ -1475,65 +1507,6 @@ export default function SalesmanPricesSetup() {
         </div>
       )}
 
-      {/* Import Template Modal */}
-      {showImportTemplateModal && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowImportTemplateModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <div className="flex items-center gap-3 min-w-0">
-                <Globe size={18} className="text-emerald-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Import Template Prices</h3>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">Use a salesman's prices as global defaults</p>
-                </div>
-              </div>
-              <button onClick={() => setShowImportTemplateModal(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-5 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Template Salesman</label>
-                <select
-                  value={templateSalesmanId}
-                  onChange={e => setTemplateSalesmanId(e.target.value)}
-                  className="w-full ddm-input"
-                >
-                  <option value="">— Select a salesman —</option>
-                  {salespeople.map(sp => (
-                    <option key={sp.id} value={sp.id}>
-                      {sp.name}{sp.route ? ` — ${sp.route}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  All prices from the selected salesman will be copied to the global defaults for {brands.find(b => b.id === activeBrandId)?.name || 'this brand'}.
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowImportTemplateModal(false)}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleImportTemplate}
-                  disabled={!templateSalesmanId}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <Globe size={14} />
-                  {templateSalesmanId ? 'Import Prices' : 'Select Salesman'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Bulk Update Prices Modal */}
       {showBulkUpdateModal && (
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => {
@@ -1941,6 +1914,166 @@ export default function SalesmanPricesSetup() {
                   {clearingAllPrices ? 'Clearing…' : 'Clear All Prices'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Enable/Disable Products Modal */}
+      {showBulkProductModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Package size={20} className="text-emerald-600" />
+              Bulk Enable/Disable Products
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Salesmen Selection */}
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
+                    Select Salesmen ({bulkProductForm.selectedSalesmen.size})
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (bulkProductForm.selectedSalesmen.size === salespeople.length) {
+                        setBulkProductForm(f => ({ ...f, selectedSalesmen: new Set() }));
+                      } else {
+                        setBulkProductForm(f => ({ ...f, selectedSalesmen: new Set(salespeople.map(sp => sp.id)) }));
+                      }
+                    }}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                  >
+                    {bulkProductForm.selectedSalesmen.size === salespeople.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-60 overflow-y-auto">
+                  {salespeople.length === 0 ? (
+                    <p className="text-sm text-slate-400">No salesmen available</p>
+                  ) : (
+                    salespeople.map(sp => (
+                      <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={bulkProductForm.selectedSalesmen.has(sp.id)}
+                          onChange={() => {
+                            const updated = new Set(bulkProductForm.selectedSalesmen);
+                            if (updated.has(sp.id)) {
+                              updated.delete(sp.id);
+                            } else {
+                              updated.add(sp.id);
+                            }
+                            setBulkProductForm(f => ({ ...f, selectedSalesmen: updated }));
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                        />
+                        <span className="text-sm font-medium text-slate-700">{sp.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Products Selection */}
+              <div className="bg-slate-50 rounded-lg p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
+                    Select Products ({bulkProductForm.selectedProducts.size})
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (bulkProductForm.selectedProducts.size === globalProducts.length) {
+                        setBulkProductForm(f => ({ ...f, selectedProducts: new Set() }));
+                      } else {
+                        setBulkProductForm(f => ({ ...f, selectedProducts: new Set(globalProducts.map(p => p.productId)) }));
+                      }
+                    }}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                  >
+                    {bulkProductForm.selectedProducts.size === globalProducts.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={bulkProductSearch}
+                  onChange={e => setBulkProductSearch(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                  {globalProducts.length === 0 ? (
+                    <p className="text-sm text-slate-400">No products available</p>
+                  ) : (
+                    (() => {
+                      const q = bulkProductSearch.toLowerCase();
+                      // Filter to only show products from the selected brand
+                      const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
+                      const filtered = q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts;
+
+                      return filtered.length === 0 ? (
+                        <p className="text-sm text-slate-400">No products found</p>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {filtered.map(prod => (
+                            <label key={prod.productId} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={bulkProductForm.selectedProducts.has(prod.productId)}
+                                onChange={() => {
+                                  const updated = new Set(bulkProductForm.selectedProducts);
+                                  if (updated.has(prod.productId)) {
+                                    updated.delete(prod.productId);
+                                  } else {
+                                    updated.add(prod.productId);
+                                  }
+                                  setBulkProductForm(f => ({ ...f, selectedProducts: updated }));
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-emerald-600"
+                              />
+                              <span className="text-sm text-slate-700">{prod.productName}</span>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Selection */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-600 mb-2">
+                Action
+              </label>
+              <select
+                value={bulkProductForm.action}
+                onChange={e => setBulkProductForm(f => ({ ...f, action: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="enable">Enable for selected salesmen</option>
+                <option value="disable">Disable for selected salesmen</option>
+              </select>
+            </div>
+
+            {/* Buttons */}
+            <div className="border-t border-slate-200 pt-4 flex gap-3">
+              <button
+                onClick={() => setShowBulkProductModal(false)}
+                disabled={updatingBulkProducts}
+                className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkProductUpdate}
+                disabled={updatingBulkProducts || bulkProductForm.selectedSalesmen.size === 0 || bulkProductForm.selectedProducts.size === 0}
+                className="flex-1 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {updatingBulkProducts && <Loader2 size={16} className="animate-spin" />}
+                {updatingBulkProducts ? 'Updating...' : 'Confirm'}
+              </button>
             </div>
           </div>
         </div>
