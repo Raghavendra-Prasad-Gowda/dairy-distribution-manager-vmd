@@ -351,7 +351,7 @@ export default function SalesmanPricesSetup() {
   const updateProductPrice = (index, price) => {
     setBulkUpdateForm(prev => {
       const updated = [...prev.productPrices];
-      updated[index].sellingPrice = price;
+      updated[index].salespersonSellingPrice = price;
       return { ...prev, productPrices: updated };
     });
   };
@@ -395,6 +395,7 @@ export default function SalesmanPricesSetup() {
         productPrices: [],
         effectiveFrom: getIndiaDate(),
       });
+      setUpdatingBulkPrices(false);
     } catch (err) {
       notify(err.response?.data?.error ?? 'Failed to update prices', 'error');
       setUpdatingBulkPrices(false);
