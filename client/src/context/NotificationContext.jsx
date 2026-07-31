@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
 
 const Ctx = createContext(null);
@@ -34,13 +34,6 @@ const MODAL_VARIANTS = {
 function NotificationModal({ type, message, onClose }) {
   const v = MODAL_VARIANTS[type] ?? MODAL_VARIANTS.info;
   const { Icon, iconBg, title, btnCls } = v;
-
-  // Auto-dismiss success after 3 s
-  useEffect(() => {
-    if (type !== 'success') return;
-    const t = setTimeout(onClose, 3000);
-    return () => clearTimeout(t);
-  }, [type, onClose]);
 
   return (
     <div

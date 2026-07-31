@@ -63,6 +63,7 @@ export default function ChangePassword() {
     }
 
     setLoading(true);
+    notify('Updating password…', 'loading');
     try {
       await api.post('/auth/change-password', {
         currentPassword: form.currentPassword,

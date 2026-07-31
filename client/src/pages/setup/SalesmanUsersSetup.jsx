@@ -96,6 +96,7 @@ export default function SalesmanUsersSetup() {
 
   const handleSaveOrder = async () => {
     setSavingOrder(true);
+    notify('Saving display order…', 'loading');
     try {
       await api.put('/salespeople/reorder', reorderList.map((sp, i) => ({ id: sp.id, displayOrder: i })));
       notify('Display order saved', 'success');
@@ -130,6 +131,7 @@ export default function SalesmanUsersSetup() {
     if (newSp.username && !newSp.password) { notify('Password is required when setting a username', 'warning'); return; }
     if (!newSp.username && newSp.password) { notify('Username is required when setting a password', 'warning'); return; }
     setSubmitting(true);
+    notify('Adding salesperson…', 'loading');
     try {
       const payload = { name: newSp.name, phone: newSp.phone || undefined, route: newSp.route || undefined };
       if (newSp.username) { payload.username = newSp.username; payload.password = newSp.password; }
@@ -147,9 +149,11 @@ export default function SalesmanUsersSetup() {
   };
 
   const handleToggleActive = async (sp) => {
+    notify(sp.isActive ? 'Deactivating salesperson…' : 'Activating salesperson…', 'loading');
     try {
       await api.put(`/salespeople/${sp.id}`, { isActive: !sp.isActive });
       setSalespeople(prev => prev.map(s => s.id === sp.id ? { ...s, isActive: !s.isActive } : s));
+      notify(sp.isActive ? 'Salesperson deactivated' : 'Salesperson activated', 'success');
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to update', 'error');
     }
@@ -162,6 +166,7 @@ export default function SalesmanUsersSetup() {
 
   const handleDelete = async () => {
     setDeleting(true);
+    notify('Deleting salesperson…', 'loading');
     try {
       await api.delete(`/salespeople/${deletingSpId}`);
       notify('Salesperson deleted', 'success');
@@ -188,6 +193,7 @@ export default function SalesmanUsersSetup() {
       notify('Passwords do not match', 'warning'); return;
     }
     setSavingPw(true);
+    notify('Updating credentials…', 'loading');
     try {
       const payload = {};
       if (pwForm.username !== (editingSp.username ?? '')) payload.username = pwForm.username || null;

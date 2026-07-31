@@ -176,6 +176,7 @@ export default function SalesmanPricesSetup() {
     const price = parseFloat(priceForm.sellingPrice);
     if (!(price >= 0)) { notify('Enter a valid price', 'warning'); return; }
     setSavingPrice(true);
+    notify('Updating price…', 'loading');
     try {
       await api.post(`/salespeople/${selectedSpId}/prices/bulk`, {
         effectiveFrom: priceForm.effectiveFrom,
@@ -265,6 +266,7 @@ export default function SalesmanPricesSetup() {
   async function handleCopyPrices() {
     if (!copyFromSpId) { notify('Select a salesman to copy from', 'warning'); return; }
     setCopyingPrices(true);
+    notify('Copying prices…', 'loading');
     try {
       await api.post(`/salespeople/${selectedSpId}/prices/copy-from/${copyFromSpId}?brandId=${activeBrandId}`);
       notify('Prices copied successfully', 'success');
@@ -379,6 +381,7 @@ export default function SalesmanPricesSetup() {
     }
 
     setUpdatingBulkPrices(true);
+    notify('Updating prices…', 'loading');
     try {
       await api.post('/salespeople/bulk-update', {
         salespersonIds: Array.from(bulkUpdateForm.selectedSalesmen),
@@ -413,6 +416,7 @@ export default function SalesmanPricesSetup() {
     }
 
     setUpdatingBulkProducts(true);
+    notify('Updating product access…', 'loading');
     try {
       await api.post('/salespeople/products/bulk-update', {
         salespersonIds: Array.from(bulkProductForm.selectedSalesmen),
@@ -479,6 +483,7 @@ export default function SalesmanPricesSetup() {
       }
 
       setSaving(true);
+      notify('Saving global settings…', 'loading');
       try {
         await api.patch('/products/salesperson-global', {
           products: productsToSave
@@ -499,6 +504,7 @@ export default function SalesmanPricesSetup() {
     if (!hasToggleChanges) { notify('No changes to save', 'warning'); return; }
 
     setSaving(true);
+    notify('Saving…', 'loading');
     try {
       await api.post(`/salespeople/${selectedSpId}/products/bulk`, {
         products: Object.keys(dirtyToggles).map(id => ({
@@ -525,6 +531,7 @@ export default function SalesmanPricesSetup() {
     if (!confirmed) return;
 
     setClearingProductId(productId);
+    notify('Clearing prices…', 'loading');
     try {
       const response = await api.delete(`/products/${productId}/salesperson-prices`);
       notify(response.data.data.message, 'success');
@@ -538,6 +545,7 @@ export default function SalesmanPricesSetup() {
 
   const handleClearAllSalesmanPrices = async () => {
     setClearingAllPrices(true);
+    notify('Clearing all salesman prices…', 'loading');
     try {
       const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
       const allClearedSalespersonIds = new Set();

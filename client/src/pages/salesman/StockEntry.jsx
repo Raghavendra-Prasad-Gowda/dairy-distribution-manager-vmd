@@ -359,6 +359,7 @@ export default function SalespersonStockEntry() {
     }
     const isClear = items.length === 0 && dispatch;
     setSaving(true);
+    notify(isClear ? 'Clearing stock entry…' : 'Saving draft…', 'loading');
     try {
       await api.post('/dispatches', { dispatchDate: date, items });
       notify(isClear ? 'Stock entry cleared.' : 'Stock entry saved as draft.', 'success');
@@ -377,6 +378,7 @@ export default function SalespersonStockEntry() {
 
     if (!items.length) { notify('Enter at least one quantity before submitting.', 'warning'); return; }
     setSubmitting(true);
+    notify('Submitting stock entry…', 'loading');
     try {
       const saveRes = await api.post('/dispatches', { dispatchDate: date, items });
       const savedId = saveRes.data.data?.id ?? dispatch?.id;
