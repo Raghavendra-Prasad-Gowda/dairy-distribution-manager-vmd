@@ -159,6 +159,7 @@ export default function SalespersonCollections() {
 
   const handlePayment = async (formData) => {
     setSaving(true);
+    notify('Recording collection…', 'loading');
     try {
       await api.post('/salesperson-payments', { ...formData, salespersonId: Number(selectedSpId) });
       notify('Collection recorded successfully', 'success');
@@ -188,6 +189,7 @@ export default function SalespersonCollections() {
     const { id } = deleteConfirm;
     setDeleteConfirm(null);
     setDeleting(true);
+    notify('Deleting record…', 'loading');
     try {
       await api.delete(`/salesperson-payments/${id}`);
       notify('Record deleted', 'success');
@@ -234,6 +236,7 @@ export default function SalespersonCollections() {
   const handleEditSave = async () => {
     if (!editPayment) return;
     setEditSaving(true);
+    notify('Updating collection…', 'loading');
     try {
       await api.put(`/salesperson-payments/${editPayment.id}`, {
         ...editForm,
