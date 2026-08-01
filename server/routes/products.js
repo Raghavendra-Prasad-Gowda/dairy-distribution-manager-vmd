@@ -165,6 +165,7 @@ router.get('/salesperson-global', asyncHandler(async (req, res) => {
       brandName:               p.brand.name,
       category:                p.category,
       categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+      displayOrder:            p.displayOrder,
       salespersonEnabled:      p.salespersonEnabled,
       salespersonDefaultPrice: Number(p.salespersonDefaultPrice),
       dairyCostPrice:          Number(p.costPrice),

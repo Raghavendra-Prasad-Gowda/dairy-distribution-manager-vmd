@@ -586,7 +586,14 @@ export default function SalesmanPricesSetup() {
         )
       : brandItems;
 
-    const grouped = filtered.reduce((acc, p) => {
+    // Sort by layout display order (category order → product order → name)
+    const sorted = [...filtered].sort((a, b) =>
+      (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+      (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+      a.productName.localeCompare(b.productName)
+    );
+
+    const grouped = sorted.reduce((acc, p) => {
       const key = p.category || 'Uncategorised';
       if (!acc[key]) acc[key] = [];
       acc[key].push(p);
