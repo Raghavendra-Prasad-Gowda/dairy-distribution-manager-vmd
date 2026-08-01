@@ -100,6 +100,98 @@ test.describe('GET /api/v1/products/salesperson-global', () => {
   });
 });
 
+// ─── Display order fields — used by the salesman pricing UI for sorted layout ──
+
+test.describe('GET /api/v1/products/salesperson-global — display order fields', () => {
+  const PRODUCT_WITH_ORDER = {
+    id: 10,
+    name: 'Nandini Toned Milk 500ml',
+    brandId: 1,
+    brand: { id: 1, name: 'Nandini', displayOrder: 1 },
+    category: 'Milk',
+    displayOrder: 3,
+    salespersonEnabled: true,
+    salespersonDefaultPrice: '50.00',
+    costPrice: '30.00',
+    sellingPrice: '45.00',
+  };
+
+  test('response includes displayOrder field from product', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_WITH_ORDER]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/products/salesperson-global', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const product = (await res.json()).data[0];
+    expect(product).toHaveProperty('displayOrder', 3);
+  });
+
+  test('categoryDisplayOrder is computed from category.findMany lookup', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_WITH_ORDER]);
+    // Category row for brandId=1, name='Milk' has displayOrder=5
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 1, name: 'Milk', displayOrder: 5 },
+      { brandId: 1, name: 'Curd', displayOrder: 8 },
+    ]);
+
+    const res = await request.get('/api/v1/products/salesperson-global', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const product = (await res.json()).data[0];
+    // categoryDisplayOrder must reflect the category table value, not 999
+    expect(product).toHaveProperty('categoryDisplayOrder', 5);
+  });
+
+  test('categoryDisplayOrder defaults to 999 when no matching category exists', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_WITH_ORDER]);
+    // No category row for brandId=1 + 'Milk'
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 2, name: 'Milk', displayOrder: 1 }, // wrong brandId
+    ]);
+
+    const res = await request.get('/api/v1/products/salesperson-global', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const product = (await res.json()).data[0];
+    expect(product).toHaveProperty('categoryDisplayOrder', 999);
+  });
+
+  test('categoryDisplayOrder is keyed by brandId+category so products in same-named category of different brands get their own order', async ({ request }) => {
+    const BRAND1_MILK = { ...PRODUCT_WITH_ORDER, id: 11, brandId: 1, category: 'Milk' };
+    const BRAND2_MILK = {
+      id: 12, name: 'Jersey Full Cream 1L', brandId: 2,
+      brand: { id: 2, name: 'Jersey', displayOrder: 2 },
+      category: 'Milk', displayOrder: 1,
+      salespersonEnabled: true, salespersonDefaultPrice: '60.00',
+      costPrice: '40.00', sellingPrice: '55.00',
+    };
+
+    ctx.mockPrisma.product.findMany.mockResolvedValue([BRAND1_MILK, BRAND2_MILK]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 1, name: 'Milk', displayOrder: 2 },
+      { brandId: 2, name: 'Milk', displayOrder: 7 },
+    ]);
+
+    const res = await request.get('/api/v1/products/salesperson-global', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const data = (await res.json()).data;
+    const brand1 = data.find(p => p.brandId === 1);
+    const brand2 = data.find(p => p.brandId === 2);
+    expect(brand1.categoryDisplayOrder).toBe(2);
+    expect(brand2.categoryDisplayOrder).toBe(7);
+  });
+});
+
 // ─── PATCH /api/v1/products/salesperson-global (admin-only) ────────────────────
 
 test.describe('PATCH /api/v1/products/salesperson-global', () => {

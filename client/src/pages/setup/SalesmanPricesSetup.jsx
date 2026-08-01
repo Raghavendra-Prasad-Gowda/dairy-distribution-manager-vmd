@@ -1800,8 +1800,8 @@ export default function SalesmanPricesSetup() {
       {/* View All Salesmen Prices Modal */}
       {showAllSalesmenPrices && (
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllSalesmenPrices(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <Eye size={18} className="text-emerald-200 flex-shrink-0" />
                 <div>
@@ -1814,7 +1814,7 @@ export default function SalesmanPricesSetup() {
               </button>
             </div>
 
-            <div className="p-5">
+            <div className="flex-1 overflow-y-auto p-5">
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200">
