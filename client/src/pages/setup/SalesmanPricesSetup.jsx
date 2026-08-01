@@ -1845,12 +1845,10 @@ export default function SalesmanPricesSetup() {
                             if (cat !== lastCat) {
                               rows.push(
                                 <tr key={`cat-${cat}`} className="bg-slate-100 border-l-4 border-emerald-500">
-                                  <td
-                                    colSpan={activeSp.length + 1}
-                                    className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest sticky left-0"
-                                  >
+                                  <td className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest sticky left-0 z-10 bg-slate-100 min-w-[180px]">
                                     {cat}
                                   </td>
+                                  <td colSpan={activeSp.length} className="bg-slate-100" />
                                 </tr>
                               );
                               lastCat = cat;
