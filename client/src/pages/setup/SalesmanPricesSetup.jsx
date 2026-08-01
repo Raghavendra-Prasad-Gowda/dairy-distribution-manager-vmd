@@ -586,7 +586,14 @@ export default function SalesmanPricesSetup() {
         )
       : brandItems;
 
-    const grouped = filtered.reduce((acc, p) => {
+    // Sort by layout display order (category order → product order → name)
+    const sorted = [...filtered].sort((a, b) =>
+      (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+      (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+      a.productName.localeCompare(b.productName)
+    );
+
+    const grouped = sorted.reduce((acc, p) => {
       const key = p.category || 'Uncategorised';
       if (!acc[key]) acc[key] = [];
       acc[key].push(p);
@@ -1811,9 +1818,9 @@ export default function SalesmanPricesSetup() {
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-cyan-700 sticky top-0 z-10">
+                    <thead className="bg-cyan-700 sticky top-0 z-20">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider min-w-max">Product</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider min-w-[180px] sticky left-0 z-30 bg-cyan-700 border-r border-cyan-600">Product</th>
                         {salespeople.filter(s => s.isActive).map(sp => (
                           <th key={sp.id} className="px-3 py-3 text-center text-xs font-bold text-emerald-200 uppercase tracking-wider whitespace-nowrap">
                             {sp.name}
@@ -1824,38 +1831,55 @@ export default function SalesmanPricesSetup() {
                     <tbody className="bg-white divide-y divide-slate-100">
                       {productView.length === 0 ? (
                         <tr>
-                          <td colSpan={salespeople.length + 1} className="py-12 text-center text-slate-400 text-sm">
+                          <td colSpan={salespeople.filter(s => s.isActive).length + 1} className="py-12 text-center text-slate-400 text-sm">
                             No products for this brand
                           </td>
                         </tr>
                       ) : (
-                        productView.map(product => (
-                          <tr key={product.productId} className="hover:bg-slate-50">
-                            <td className="px-6 py-3 align-middle min-w-max">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-800">{product.productName}</p>
-                                {product.category && <p className="text-xs text-slate-400">{product.category}</p>}
-                              </div>
-                            </td>
-                            {salespeople.filter(s => s.isActive).map(sp => {
-                              const priceInfo = product.salespersonPrices[sp.id];
-                              return (
-                                <td key={sp.id} className="px-3 py-3 text-center align-middle">
-                                  {priceInfo ? (
-                                    <div className="flex flex-col items-center gap-1">
-                                      <span className={`text-xs font-semibold tabular-nums ${priceInfo.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                                        {priceInfo.sellingPrice != null ? `₹${Number(priceInfo.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Not set'}
-                                      </span>
-                                      {!priceInfo.isEnabled && <span className="text-[9px] bg-slate-200 text-slate-500 px-1 py-0.5 rounded">disabled</span>}
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-slate-300">—</span>
-                                  )}
-                                </td>
+                        (() => {
+                          const rows = [];
+                          let lastCat = null;
+                          const activeSp = salespeople.filter(s => s.isActive);
+                          for (const product of productView) {
+                            const cat = product.category || 'Uncategorised';
+                            if (cat !== lastCat) {
+                              rows.push(
+                                <tr key={`cat-${cat}`} className="bg-slate-100 border-l-4 border-emerald-500">
+                                  <td className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest sticky left-0 z-10 bg-slate-100 min-w-[180px]">
+                                    {cat}
+                                  </td>
+                                  <td colSpan={activeSp.length} className="bg-slate-100" />
+                                </tr>
                               );
-                            })}
-                          </tr>
-                        ))
+                              lastCat = cat;
+                            }
+                            rows.push(
+                              <tr key={product.productId} className="hover:bg-slate-50 group">
+                                <td className="px-6 py-3 align-middle min-w-[180px] sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-200">
+                                  <p className="text-sm font-semibold text-slate-800">{product.productName}</p>
+                                </td>
+                                {activeSp.map(sp => {
+                                  const priceInfo = product.salespersonPrices[sp.id];
+                                  return (
+                                    <td key={sp.id} className="px-3 py-3 text-center align-middle">
+                                      {priceInfo ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <span className={`text-xs font-semibold tabular-nums ${priceInfo.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                                            {priceInfo.sellingPrice != null ? `₹${Number(priceInfo.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Not set'}
+                                          </span>
+                                          {!priceInfo.isEnabled && <span className="text-[9px] bg-slate-200 text-slate-500 px-1 py-0.5 rounded">disabled</span>}
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-slate-300">—</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          }
+                          return rows;
+                        })()
                       )}
                     </tbody>
                   </table>
