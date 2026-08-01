@@ -1581,14 +1581,27 @@ export default function SalesmanPricesSetup() {
                   />
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                  {globalProducts
-                    .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
-                    .filter(p => {
-                      const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
-                      const q = bulkUpdateProductSearch.toLowerCase();
-                      return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
-                    })
-                    .map(p => (
+                  {(() => {
+                    const q = bulkUpdateProductSearch.toLowerCase();
+                    const available = globalProducts
+                      .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
+                      .filter(p => {
+                        const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
+                        return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
+                      })
+                      .sort((a, b) =>
+                        (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+                        (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+                        a.productName.localeCompare(b.productName)
+                      );
+                    if (available.length === 0) {
+                      return (
+                        <div className="px-3 py-4 text-center text-xs text-slate-400">
+                          {bulkUpdateProductSearch ? 'No products found' : 'No enabled products or all added'}
+                        </div>
+                      );
+                    }
+                    return available.map(p => (
                       <button
                         key={p.productId}
                         type="button"
@@ -1596,20 +1609,10 @@ export default function SalesmanPricesSetup() {
                         className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition"
                       >
                         <div className="font-medium text-slate-900">{p.productName}</div>
-                        {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
+                        {p.category && <div className="text-xs text-slate-500 uppercase tracking-wide">{p.category}</div>}
                       </button>
-                    ))}
-                  {globalProducts
-                    .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
-                    .filter(p => {
-                      const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
-                      const q = bulkUpdateProductSearch.toLowerCase();
-                      return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
-                    }).length === 0 && (
-                    <div className="px-3 py-4 text-center text-xs text-slate-400">
-                      {bulkUpdateProductSearch ? 'No products found' : 'No enabled products or all added'}
-                    </div>
-                  )}
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -2041,7 +2044,12 @@ export default function SalesmanPricesSetup() {
                       const q = bulkProductSearch.toLowerCase();
                       // Filter to only show products from the selected brand
                       const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
-                      const filtered = q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts;
+                      const filtered = (q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts)
+                        .sort((a, b) =>
+                          (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+                          (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+                          a.productName.localeCompare(b.productName)
+                        );
 
                       return filtered.length === 0 ? (
                         <p className="text-sm text-slate-400">No products found</p>
