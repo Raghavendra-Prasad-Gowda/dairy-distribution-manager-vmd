@@ -283,6 +283,96 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
   });
 });
 
+// ─── Display order fields — used by the salesman pricing UI for sorted layout ──
+
+test.describe('GET /api/v1/salespeople/:id/prices — display order fields', () => {
+  const PRODUCT_FULL = {
+    id: 1, name: 'Toned 500ml', brandId: 10,
+    brand: { id: 10, name: 'Nandini', displayOrder: 1 },
+    category: 'Milk', displayOrder: 4,
+    isActive: true, showInStockReceipt: true,
+    salespersonEnabled: true, salespersonDefaultPrice: '50.00',
+    costPrice: '22.00', sellingPrice: '24.00',
+    unitType: 'ml', unitSize: 500, containerType: 'crate', unitsPerContainer: 20,
+  };
+
+  test('response includes displayOrder field from product', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_FULL]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row).toHaveProperty('displayOrder', 4);
+  });
+
+  test('categoryDisplayOrder is computed from category.findMany lookup', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_FULL]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 10, name: 'Milk', displayOrder: 3 },
+      { brandId: 10, name: 'Curd', displayOrder: 6 },
+    ]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row).toHaveProperty('categoryDisplayOrder', 3);
+  });
+
+  test('categoryDisplayOrder defaults to 999 when no matching category', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT_FULL]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    // Only a category for a different brand
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 99, name: 'Milk', displayOrder: 1 },
+    ]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row).toHaveProperty('categoryDisplayOrder', 999);
+  });
+
+  test('multiple products receive correct per-category display orders', async ({ request }) => {
+    const MILK_PRODUCT = { ...PRODUCT_FULL, id: 1, name: 'Toned Milk', category: 'Milk', displayOrder: 1 };
+    const CURD_PRODUCT = {
+      ...PRODUCT_FULL, id: 2, name: 'Curd 400g', category: 'Curd', displayOrder: 1,
+    };
+    ctx.mockPrisma.product.findMany.mockResolvedValue([MILK_PRODUCT, CURD_PRODUCT]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 10, name: 'Milk', displayOrder: 1 },
+      { brandId: 10, name: 'Curd', displayOrder: 2 },
+    ]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const data = (await res.json()).data;
+    const milk = data.find(p => p.productId === 1);
+    const curd = data.find(p => p.productId === 2);
+    expect(milk.categoryDisplayOrder).toBe(1);
+    expect(curd.categoryDisplayOrder).toBe(2);
+  });
+});
+
 // ─── GET response shape contract — used by the admin prices UI ───────────────
 
 test.describe('GET /api/v1/salespeople/:id/prices — UI contract', () => {
