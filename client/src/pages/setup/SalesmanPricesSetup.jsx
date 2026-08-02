@@ -1581,14 +1581,27 @@ export default function SalesmanPricesSetup() {
                   />
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                  {globalProducts
-                    .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
-                    .filter(p => {
-                      const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
-                      const q = bulkUpdateProductSearch.toLowerCase();
-                      return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
-                    })
-                    .map(p => (
+                  {(() => {
+                    const q = bulkUpdateProductSearch.toLowerCase();
+                    const available = globalProducts
+                      .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
+                      .filter(p => {
+                        const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
+                        return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
+                      })
+                      .sort((a, b) =>
+                        (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+                        (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+                        a.productName.localeCompare(b.productName)
+                      );
+                    if (available.length === 0) {
+                      return (
+                        <div className="px-3 py-4 text-center text-xs text-slate-400">
+                          {bulkUpdateProductSearch ? 'No products found' : 'No enabled products or all added'}
+                        </div>
+                      );
+                    }
+                    return available.map(p => (
                       <button
                         key={p.productId}
                         type="button"
@@ -1596,20 +1609,10 @@ export default function SalesmanPricesSetup() {
                         className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition"
                       >
                         <div className="font-medium text-slate-900">{p.productName}</div>
-                        {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
+                        {p.category && <div className="text-xs text-slate-500 uppercase tracking-wide">{p.category}</div>}
                       </button>
-                    ))}
-                  {globalProducts
-                    .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
-                    .filter(p => {
-                      const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
-                      const q = bulkUpdateProductSearch.toLowerCase();
-                      return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
-                    }).length === 0 && (
-                    <div className="px-3 py-4 text-center text-xs text-slate-400">
-                      {bulkUpdateProductSearch ? 'No products found' : 'No enabled products or all added'}
-                    </div>
-                  )}
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -1814,21 +1817,20 @@ export default function SalesmanPricesSetup() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-cyan-700 sticky top-0 z-20">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider min-w-[180px] sticky left-0 z-30 bg-cyan-700 border-r border-cyan-600">Product</th>
-                        {salespeople.filter(s => s.isActive).map(sp => (
-                          <th key={sp.id} className="px-3 py-3 text-center text-xs font-bold text-emerald-200 uppercase tracking-wider whitespace-nowrap">
-                            {sp.name}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-100">
+            {/* Single overflow-auto container — both axes in one scroller so sticky thead/col work */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-cyan-700 sticky top-0 z-20">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider min-w-[180px] sticky left-0 z-30 bg-cyan-700 border-r border-cyan-600">Product</th>
+                    {salespeople.filter(s => s.isActive).map(sp => (
+                      <th key={sp.id} className="px-3 py-3 text-center text-xs font-bold text-emerald-200 uppercase tracking-wider whitespace-nowrap">
+                        {sp.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-100">
                       {productView.length === 0 ? (
                         <tr>
                           <td colSpan={salespeople.filter(s => s.isActive).length + 1} className="py-12 text-center text-slate-400 text-sm">
@@ -1881,14 +1883,15 @@ export default function SalesmanPricesSetup() {
                           return rows;
                         })()
                       )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                </tbody>
+              </table>
+            </div>
+            {/* Close button — pinned at bottom, never scrolls */}
+            <div className="flex-shrink-0 px-5 py-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setShowAllSalesmenPrices(false)}
-                className="w-full mt-4 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                className="w-full px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
               >
                 Close
               </button>
@@ -2041,7 +2044,12 @@ export default function SalesmanPricesSetup() {
                       const q = bulkProductSearch.toLowerCase();
                       // Filter to only show products from the selected brand
                       const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
-                      const filtered = q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts;
+                      const filtered = (q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts)
+                        .sort((a, b) =>
+                          (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+                          (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+                          a.productName.localeCompare(b.productName)
+                        );
 
                       return filtered.length === 0 ? (
                         <p className="text-sm text-slate-400">No products found</p>
