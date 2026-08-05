@@ -107,6 +107,15 @@ const SALESMAN_NAV = [
   },
 ];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 // ─── Components ───────────────────────────────────────────────────────────────
 
 function SidebarLink({ item, compact, setMobileOpen }) {
@@ -169,10 +178,32 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
       {/* Logo */}
       <div className={`border-b border-white/10 ${compact ? 'px-3 py-4 flex justify-center' : 'px-4 py-5'}`}>
         {compact ? (
-          <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
-            <Milk className="text-white" size={18} />
+          user?.role === 'salesman' ? (
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
+              <Milk className="text-white" size={18} />
+            </div>
+          )
+        ) : user?.role === 'salesman' ? (
+          /* ── Salesman: name is the headline ── */
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 ring-2 ring-white/30">
+              <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-base leading-tight truncate">
+                {user.salespersonName ?? 'Salesman'}
+              </p>
+              <p className="text-emerald-300 text-xs leading-tight truncate">
+                {user.businessName ?? 'Vikas Milk Dairy'}
+              </p>
+            </div>
           </div>
         ) : (
+          /* ── Admin: business name is the headline ── */
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0">
               <Milk className="text-white" size={18} />
@@ -180,7 +211,7 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
             <div>
               <p className="text-white font-bold text-sm leading-tight">{user?.businessName ?? 'Vikas Milk Dairy'}</p>
               <p className="text-emerald-300 text-xs leading-tight">
-                {user?.role === 'salesman' ? (user.salespersonName ?? 'Salesman') : user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                {user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
               </p>
             </div>
           </div>
@@ -314,10 +345,26 @@ export default function Layout() {
           <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
             <Menu size={20} />
           </button>
-          <div className="flex items-center gap-2">
-            <Milk className="text-emerald-600" size={18} />
-            <span className="font-bold text-slate-900 text-sm">{user?.businessName ?? 'Vikas Milk Dairy'}</span>
-          </div>
+          {user?.role === 'salesman' ? (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-xs">{getInitials(user.salespersonName)}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 text-sm leading-tight truncate">
+                  {user.salespersonName ?? 'Salesman'}
+                </p>
+                <p className="text-slate-400 text-xs leading-tight truncate">
+                  {user.businessName ?? 'Vikas Milk Dairy'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Milk className="text-emerald-600" size={18} />
+              <span className="font-bold text-slate-900 text-sm">{user?.businessName ?? 'Vikas Milk Dairy'}</span>
+            </div>
+          )}
         </header>
 
         <main className="flex-1 overflow-y-auto bg-slate-100">
