@@ -340,37 +340,84 @@ export default function Layout() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile topbar */}
+        {/* Mobile topbar — salesman has no hamburger (uses bottom nav instead) */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
-          <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
-            <Menu size={20} />
-          </button>
           {user?.role === 'salesman' ? (
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-xs">{getInitials(user.salespersonName)}</span>
+            /* Salesman: full-width identity bar, no hamburger */
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
               </div>
-              <div className="min-w-0">
-                <p className="font-bold text-slate-900 text-sm leading-tight truncate">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-slate-900 text-base leading-tight truncate">
                   {user.salespersonName ?? 'Salesman'}
                 </p>
                 <p className="text-slate-400 text-xs leading-tight truncate">
                   {user.businessName ?? 'Vikas Milk Dairy'}
                 </p>
               </div>
+              {/* Sign out button in topbar for salesman */}
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition flex-shrink-0"
+                title="Sign out"
+              >
+                <LogOut size={18} />
+              </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <Milk className="text-emerald-600" size={18} />
-              <span className="font-bold text-slate-900 text-sm">{user?.businessName ?? 'Vikas Milk Dairy'}</span>
-            </div>
+            <>
+              <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
+                <Menu size={20} />
+              </button>
+              <div className="flex items-center gap-2">
+                <Milk className="text-emerald-600" size={18} />
+                <span className="font-bold text-slate-900 text-sm">{user?.businessName ?? 'Vikas Milk Dairy'}</span>
+              </div>
+            </>
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-slate-100">
+        <main
+          className="flex-1 overflow-y-auto bg-slate-100"
+          style={user?.role === 'salesman' ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom))' } : undefined}
+        >
           <Outlet />
         </main>
       </div>
+
+      {/* ── Salesman bottom tab bar (mobile only) ──────────────────────────── */}
+      {user?.role === 'salesman' && (
+        <nav
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 flex items-stretch"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          {[
+            { to: '/',                        icon: ShoppingCart, label: 'Stock',     end: true },
+            { to: '/salesman/balance',         icon: Wallet,       label: 'Balance'           },
+            { to: '/salesman/my-statement',    icon: ScrollText,   label: 'Statement'         },
+            { to: '/salesman/change-password', icon: Lock,         label: 'Security'          },
+          ].map(({ to, icon: Icon, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end || to === '/'}
+              className={({ isActive }) =>
+                `flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-[10px] font-bold uppercase tracking-wide transition ${
+                  isActive ? 'text-emerald-700' : 'text-slate-400'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon size={21} strokeWidth={isActive ? 2.5 : 1.75} />
+                  {label}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }
