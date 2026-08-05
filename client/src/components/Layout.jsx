@@ -389,10 +389,11 @@ export default function Layout() {
       {/* ── Salesman bottom tab bar (mobile only) ──────────────────────────── */}
       {user?.role === 'salesman' && (
         <nav
-          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 ddm-gradient flex items-stretch"
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white flex items-stretch"
           style={{
             paddingBottom: 'env(safe-area-inset-bottom)',
-            boxShadow: '0 -4px 24px rgba(0,0,0,0.35)',
+            borderTop: '3px solid #059669',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.12)',
           }}
         >
           {[
@@ -405,21 +406,21 @@ export default function Layout() {
               key={to}
               to={to}
               end={end || to === '/'}
-              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition-colors"
+              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
             >
               {({ isActive }) => (
                 <>
-                  <div className={`flex items-center justify-center w-10 h-7 rounded-xl transition-colors ${
-                    isActive ? 'bg-white/20' : ''
+                  <div className={`flex items-center justify-center w-11 h-8 rounded-xl transition-colors ${
+                    isActive ? 'bg-emerald-600' : ''
                   }`}>
                     <Icon
-                      size={20}
-                      strokeWidth={isActive ? 2.5 : 1.75}
-                      className={isActive ? 'text-white' : 'text-emerald-400'}
+                      size={19}
+                      strokeWidth={2}
+                      className={isActive ? 'text-white' : 'text-slate-400'}
                     />
                   </div>
-                  <span className={`text-[9px] font-bold uppercase tracking-widest leading-none ${
-                    isActive ? 'text-white' : 'text-emerald-500'
+                  <span className={`text-[10px] font-semibold leading-none ${
+                    isActive ? 'text-emerald-700' : 'text-slate-400'
                   }`}>
                     {label}
                   </span>
