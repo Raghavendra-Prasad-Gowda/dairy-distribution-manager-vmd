@@ -341,25 +341,29 @@ export default function Layout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile topbar — salesman has no hamburger (uses bottom nav instead) */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
+        <header className={`lg:hidden flex items-center gap-3 px-4 py-3 border-b shadow-sm ${
+          user?.role === 'salesman'
+            ? 'bg-emerald-50 border-emerald-200'
+            : 'bg-white border-slate-200'
+        }`}>
           {user?.role === 'salesman' ? (
             /* Salesman: full-width identity bar, no hamburger */
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 ring-2 ring-emerald-200">
                 <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-slate-900 text-base leading-tight truncate">
                   {user.salespersonName ?? 'Salesman'}
                 </p>
-                <p className="text-slate-400 text-xs leading-tight truncate">
+                <p className="text-emerald-600/70 text-xs leading-tight truncate">
                   {user.businessName ?? 'Vikas Milk Dairy'}
                 </p>
               </div>
-              {/* Sign out button in topbar for salesman */}
+              {/* Sign out button */}
               <button
                 onClick={() => setShowLogoutConfirm(true)}
-                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition flex-shrink-0"
+                className="p-2 rounded-lg text-emerald-600/60 hover:bg-emerald-100 hover:text-emerald-800 transition flex-shrink-0"
                 title="Sign out"
               >
                 <LogOut size={18} />
@@ -389,11 +393,11 @@ export default function Layout() {
       {/* ── Salesman bottom tab bar (mobile only) ──────────────────────────── */}
       {user?.role === 'salesman' && (
         <nav
-          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white flex items-stretch"
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-emerald-50 flex items-stretch"
           style={{
             paddingBottom: 'env(safe-area-inset-bottom)',
-            borderTop: '3px solid #059669',
-            boxShadow: '0 -4px 20px rgba(0,0,0,0.12)',
+            borderTop: '2px solid #a7f3d0',
+            boxShadow: '0 -4px 20px rgba(16,185,129,0.12)',
           }}
         >
           {[
@@ -416,11 +420,11 @@ export default function Layout() {
                     <Icon
                       size={19}
                       strokeWidth={2}
-                      className={isActive ? 'text-white' : 'text-slate-400'}
+                      className={isActive ? 'text-white' : 'text-emerald-700/40'}
                     />
                   </div>
                   <span className={`text-[10px] font-semibold leading-none ${
-                    isActive ? 'text-emerald-700' : 'text-slate-400'
+                    isActive ? 'text-emerald-700' : 'text-emerald-700/40'
                   }`}>
                     {label}
                   </span>
