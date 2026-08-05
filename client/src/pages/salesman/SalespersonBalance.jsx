@@ -237,6 +237,42 @@ export default function SalespersonBalance() {
                             );
                           })}
                         </tbody>
+                        <tfoot>
+                          {(() => {
+                            const totalBill = history.reduce((s, e) => s + e.stockGiven, 0);
+                            const totalPaid = history.reduce((s, e) => s + e.amountPaid, 0);
+                            const lastBalance = history[history.length - 1]?.closingBalance ?? 0;
+                            const balOwing = lastBalance > 0;
+                            const balCredit = lastBalance < 0;
+                            return (
+                              <tr className="border-t-2 border-slate-300">
+                                <td className="px-4 py-3 bg-slate-700 text-xs font-bold text-white uppercase tracking-wider">
+                                  Totals
+                                </td>
+                                <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-blue-300 tabular-nums">
+                                  {formatCurrency(totalBill)}
+                                </td>
+                                <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-emerald-300 tabular-nums">
+                                  {formatCurrency(totalPaid)}
+                                </td>
+                                <td className={`px-4 py-3 bg-slate-700 text-right text-xs font-bold tabular-nums ${
+                                  balOwing ? 'text-red-300' : balCredit ? 'text-violet-300' : 'text-emerald-300'
+                                }`}>
+                                  {formatCurrency(Math.abs(lastBalance))}
+                                </td>
+                                <td className="px-4 py-3 bg-slate-700 text-center">
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                    balOwing  ? 'bg-red-900/40 text-red-300'
+                                    : balCredit ? 'bg-violet-900/40 text-violet-300'
+                                    : 'bg-emerald-900/40 text-emerald-300'
+                                  }`}>
+                                    {balOwing ? 'Owing' : balCredit ? 'Credit' : 'Settled'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })()}
+                        </tfoot>
                       </table>
                     </div>
 
