@@ -346,10 +346,13 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile topbar — salesman has no hamburger (uses bottom nav instead) */}
         <header
-          className={`lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm ${
+          className={`lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm relative z-10 ${
             user?.role === 'salesman' ? 'bg-emerald-50' : 'bg-white border-b border-slate-200'
           }`}
-          style={user?.role === 'salesman' ? { borderBottom: '2px solid #a7f3d0' } : undefined}
+          style={user?.role === 'salesman' ? {
+            borderBottom: '3px solid #059669',
+            boxShadow: '0 4px 12px rgba(5,150,105,0.15)',
+          } : undefined}
         >
           {user?.role === 'salesman' ? (
             /* Salesman: full-width identity bar, no hamburger */
@@ -398,11 +401,11 @@ export default function Layout() {
              never fights with a page's own internal scroll container. ──────── */}
         {user?.role === 'salesman' && (
           <nav
-            className="lg:hidden flex-shrink-0 bg-emerald-50 flex items-stretch"
+            className="lg:hidden flex-shrink-0 bg-emerald-50 flex items-stretch relative z-10"
             style={{
               paddingBottom: 'env(safe-area-inset-bottom)',
-              borderTop: '2px solid #a7f3d0',
-              boxShadow: '0 -4px 20px rgba(16,185,129,0.12)',
+              borderTop: '3px solid #059669',
+              boxShadow: '0 -4px 12px rgba(5,150,105,0.15)',
             }}
           >
             {[
