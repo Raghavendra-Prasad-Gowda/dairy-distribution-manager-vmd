@@ -91,7 +91,7 @@ export default function SalespersonBalance() {
           ) : (
             <>
               {/* ── Main Balance Card ──────────────────────────────── */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
                 {/* Status badge row */}
                 <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-blue-50 border-b border-emerald-100 flex items-center justify-between">
@@ -141,14 +141,14 @@ export default function SalespersonBalance() {
                   <Calendar size={14} className="text-slate-600" />
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-600">History Range</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-1.5">From</label>
                     <input
                       type="date"
                       value={fromDate}
                       onChange={(e) => { setFromDate(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
                     />
                   </div>
                   <div>
@@ -157,7 +157,7 @@ export default function SalespersonBalance() {
                       type="date"
                       value={toDate}
                       onChange={(e) => { setToDate(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
                     />
                   </div>
                 </div>
@@ -169,7 +169,7 @@ export default function SalespersonBalance() {
               </div>
 
               {/* ── Payment History ────────────────────────────────── */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
                   <Calendar size={14} className="text-slate-600" />
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Payment History</span>
