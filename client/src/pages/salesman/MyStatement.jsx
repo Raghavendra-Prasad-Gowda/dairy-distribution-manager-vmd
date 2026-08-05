@@ -42,21 +42,32 @@ function ExpandableRow({ row, open, onToggle }) {
 
       {open && (row.items?.length > 0 || row.payments?.length > 0) && (
         <tr>
-          <td colSpan={6} className="px-4 py-3 bg-emerald-50/50 border-b border-slate-100">
-            <div className="space-y-3">
+          <td colSpan={6} className="border-b border-slate-100 bg-slate-50/60">
+            <div className="divide-y divide-slate-100">
+
+              {/* ── Stock Received ── */}
               {row.items?.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-600 mb-1.5">Stock Received</p>
-                  <div className="space-y-1">
+                  {/* Total header row — blue highlight, matches admin dairy statement */}
+                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Stock Received
+                    </span>
+                    <span className="text-sm font-bold text-blue-600 tabular-nums">
+                      {formatCurrency(row.stockGiven)}
+                    </span>
+                  </div>
+                  {/* Individual line items */}
+                  <div className="px-4 py-2 space-y-1.5">
                     {row.items.map((item, i) => (
-                      <div key={i} className="grid grid-cols-3 text-xs">
-                        <span className="font-medium text-slate-700">
+                      <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="font-medium text-slate-700 min-w-0 truncate">
                           {item.brandName} {item.productName}
                         </span>
-                        <span className="text-right text-slate-500">
+                        <span className="text-slate-400 whitespace-nowrap flex-shrink-0">
                           {item.quantity} × ₹{item.unitPrice}
                         </span>
-                        <span className="text-right font-semibold text-slate-700">
+                        <span className="font-semibold text-slate-700 tabular-nums whitespace-nowrap flex-shrink-0">
                           {formatCurrency(item.totalAmount)}
                         </span>
                       </div>
@@ -64,21 +75,33 @@ function ExpandableRow({ row, open, onToggle }) {
                   </div>
                 </div>
               )}
+
+              {/* ── Payments Made ── */}
               {row.payments?.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-600 mb-1.5">Payments Made</p>
-                  <div className="flex gap-2 flex-wrap">
+                  {/* Total header row — emerald highlight */}
+                  <div className="flex items-center justify-between px-4 py-2 bg-emerald-50 border-b border-emerald-100">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Payments Made
+                    </span>
+                    <span className="text-sm font-bold text-emerald-600 tabular-nums">
+                      {formatCurrency(row.payments.reduce((s, p) => s + p.amount, 0))}
+                    </span>
+                  </div>
+                  {/* Individual payments */}
+                  <div className="px-4 py-2 space-y-1.5">
                     {row.payments.map((p, i) => (
-                      <span
-                        key={i}
-                        className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium"
-                      >
-                        {formatCurrency(p.amount)} via {p.mode || 'Cash'}
-                      </span>
+                      <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="text-slate-500">via {p.mode || 'Cash'}</span>
+                        <span className="font-semibold text-emerald-600 tabular-nums">
+                          {formatCurrency(p.amount)}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
+
             </div>
           </td>
         </tr>
