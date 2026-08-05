@@ -345,11 +345,12 @@ export default function Layout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile topbar — salesman has no hamburger (uses bottom nav instead) */}
-        <header className={`lg:hidden flex items-center gap-3 px-4 py-3 border-b shadow-sm ${
-          user?.role === 'salesman'
-            ? 'bg-emerald-50 border-emerald-200'
-            : 'bg-white border-slate-200'
-        }`}>
+        <header
+          className={`lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm ${
+            user?.role === 'salesman' ? 'bg-emerald-50' : 'bg-white border-b border-slate-200'
+          }`}
+          style={user?.role === 'salesman' ? { borderBottom: '2px solid #a7f3d0' } : undefined}
+        >
           {user?.role === 'salesman' ? (
             /* Salesman: full-width identity bar, no hamburger */
             <div className="flex items-center gap-3 min-w-0 flex-1">
