@@ -368,13 +368,13 @@ export default function Layout() {
                   {user.businessName ?? 'Vikas Milk Dairy'}
                 </p>
               </div>
-              {/* Sign out button */}
+              {/* Sign out button — deliberately red, distinct from the green theme */}
               <button
                 onClick={() => setShowLogoutConfirm(true)}
-                className="p-2 rounded-lg text-emerald-600/60 hover:bg-emerald-100 hover:text-emerald-800 transition flex-shrink-0"
+                className="flex items-center justify-center w-10 h-10 rounded-full bg-white border-2 border-red-200 text-red-500 shadow-sm active:bg-red-50 active:border-red-300 active:text-red-600 active:scale-95 transition flex-shrink-0"
                 title="Sign out"
               >
-                <LogOut size={18} />
+                <LogOut size={18} strokeWidth={2.5} />
               </button>
             </div>
           ) : (
