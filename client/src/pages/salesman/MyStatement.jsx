@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
@@ -42,32 +42,37 @@ function ExpandableRow({ row, open, onToggle }) {
 
       {open && (row.items?.length > 0 || row.payments?.length > 0) && (
         <tr>
-          <td colSpan={6} className="border-b border-slate-100 bg-slate-50/60">
-            <div className="divide-y divide-slate-100">
+          <td colSpan={6} className="border-b border-slate-100 bg-slate-50 px-3 py-3">
+            <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 divide-y divide-slate-100">
 
               {/* ── Stock Received ── */}
               {row.items?.length > 0 && (
                 <div>
-                  {/* Total header row — blue highlight, matches admin dairy statement */}
-                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      Stock Received
-                    </span>
-                    <span className="text-sm font-bold text-blue-600 tabular-nums">
+                  {/* Solid blue header band */}
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-blue-600">
+                    <div className="flex items-center gap-2">
+                      <Package size={13} className="text-blue-200 flex-shrink-0" />
+                      <span className="text-[10px] font-bold text-white uppercase tracking-widest">
+                        Stock Received
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold text-white tabular-nums">
                       {formatCurrency(row.stockGiven)}
                     </span>
                   </div>
-                  {/* Individual line items */}
-                  <div className="px-4 py-2 space-y-1.5">
+                  {/* Item rows */}
+                  <div className="bg-white divide-y divide-slate-50">
                     {row.items.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="font-medium text-slate-700 min-w-0 truncate">
-                          {item.brandName} {item.productName}
-                        </span>
-                        <span className="text-slate-400 whitespace-nowrap flex-shrink-0">
-                          {item.quantity} × ₹{item.unitPrice}
-                        </span>
-                        <span className="font-semibold text-slate-700 tabular-nums whitespace-nowrap flex-shrink-0">
+                      <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-800 leading-tight truncate">
+                            {item.productName}
+                          </p>
+                          <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                            {item.brandName} &middot; {item.quantity} × ₹{item.unitPrice}
+                          </p>
+                        </div>
+                        <span className="text-xs font-bold text-blue-700 tabular-nums whitespace-nowrap flex-shrink-0">
                           {formatCurrency(item.totalAmount)}
                         </span>
                       </div>
@@ -79,21 +84,26 @@ function ExpandableRow({ row, open, onToggle }) {
               {/* ── Payments Made ── */}
               {row.payments?.length > 0 && (
                 <div>
-                  {/* Total header row — emerald highlight */}
-                  <div className="flex items-center justify-between px-4 py-2 bg-emerald-50 border-b border-emerald-100">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      Payments Made
-                    </span>
-                    <span className="text-sm font-bold text-emerald-600 tabular-nums">
+                  {/* Solid emerald header band */}
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-600">
+                    <div className="flex items-center gap-2">
+                      <BadgeCheck size={13} className="text-emerald-200 flex-shrink-0" />
+                      <span className="text-[10px] font-bold text-white uppercase tracking-widest">
+                        Payments Made
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold text-white tabular-nums">
                       {formatCurrency(row.payments.reduce((s, p) => s + p.amount, 0))}
                     </span>
                   </div>
-                  {/* Individual payments */}
-                  <div className="px-4 py-2 space-y-1.5">
+                  {/* Payment rows */}
+                  <div className="bg-white divide-y divide-slate-50">
                     {row.payments.map((p, i) => (
-                      <div key={i} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="text-slate-500">via {p.mode || 'Cash'}</span>
-                        <span className="font-semibold text-emerald-600 tabular-nums">
+                      <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-wide flex-shrink-0">
+                          {p.mode || 'Cash'}
+                        </span>
+                        <span className="text-xs font-bold text-emerald-700 tabular-nums">
                           {formatCurrency(p.amount)}
                         </span>
                       </div>
