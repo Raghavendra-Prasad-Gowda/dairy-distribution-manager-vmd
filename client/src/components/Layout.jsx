@@ -382,58 +382,59 @@ export default function Layout() {
           )}
         </header>
 
-        <main
-          className="flex-1 overflow-y-auto bg-slate-100"
-          style={user?.role === 'salesman' ? { paddingBottom: 'calc(56px + env(safe-area-inset-bottom))' } : undefined}
-        >
+        <main className={`flex-1 min-h-0 bg-slate-100 ${
+          user?.role === 'salesman' ? 'overflow-hidden' : 'overflow-y-auto'
+        }`}>
           <Outlet />
         </main>
-      </div>
 
-      {/* ── Salesman bottom tab bar (mobile only) ──────────────────────────── */}
-      {user?.role === 'salesman' && (
-        <nav
-          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-emerald-50 flex items-stretch"
-          style={{
-            paddingBottom: 'env(safe-area-inset-bottom)',
-            borderTop: '2px solid #a7f3d0',
-            boxShadow: '0 -4px 20px rgba(16,185,129,0.12)',
-          }}
-        >
-          {[
-            { to: '/',                        icon: ShoppingCart, label: 'Stock',     end: true },
-            { to: '/salesman/balance',         icon: Wallet,       label: 'Balance'           },
-            { to: '/salesman/my-statement',    icon: ScrollText,   label: 'Statement'         },
-            { to: '/salesman/change-password', icon: Lock,         label: 'Security'          },
-          ].map(({ to, icon: Icon, label, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end || to === '/'}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
-            >
-              {({ isActive }) => (
-                <>
-                  <div className={`flex items-center justify-center w-11 h-8 rounded-xl transition-colors ${
-                    isActive ? 'bg-emerald-600' : ''
-                  }`}>
-                    <Icon
-                      size={19}
-                      strokeWidth={2}
-                      className={isActive ? 'text-white' : 'text-emerald-700/40'}
-                    />
-                  </div>
-                  <span className={`text-[10px] font-semibold leading-none ${
-                    isActive ? 'text-emerald-700' : 'text-emerald-700/40'
-                  }`}>
-                    {label}
-                  </span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-      )}
+        {/* ── Salesman bottom tab bar (mobile only) — flex sibling of main, ─────
+             not position:fixed, so it always occupies real layout height and
+             never fights with a page's own internal scroll container. ──────── */}
+        {user?.role === 'salesman' && (
+          <nav
+            className="lg:hidden flex-shrink-0 bg-emerald-50 flex items-stretch"
+            style={{
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              borderTop: '2px solid #a7f3d0',
+              boxShadow: '0 -4px 20px rgba(16,185,129,0.12)',
+            }}
+          >
+            {[
+              { to: '/',                        icon: ShoppingCart, label: 'Stock',     end: true },
+              { to: '/salesman/balance',         icon: Wallet,       label: 'Balance'           },
+              { to: '/salesman/my-statement',    icon: ScrollText,   label: 'Statement'         },
+              { to: '/salesman/change-password', icon: Lock,         label: 'Security'          },
+            ].map(({ to, icon: Icon, label, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end || to === '/'}
+                className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
+              >
+                {({ isActive }) => (
+                  <>
+                    <div className={`flex items-center justify-center w-11 h-8 rounded-xl transition-colors ${
+                      isActive ? 'bg-emerald-600' : ''
+                    }`}>
+                      <Icon
+                        size={19}
+                        strokeWidth={2}
+                        className={isActive ? 'text-white' : 'text-emerald-700/40'}
+                      />
+                    </div>
+                    <span className={`text-[10px] font-semibold leading-none ${
+                      isActive ? 'text-emerald-700' : 'text-emerald-700/40'
+                    }`}>
+                      {label}
+                    </span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        )}
+      </div>
     </div>
   );
 }
