@@ -27,7 +27,8 @@ const reportsRoutes             = require('./routes/reports');
 const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
 const clientErrorsRoutes        = require('./routes/clientErrors');
-const adminUsersRoutes          = require('./routes/adminUsers');
+const adminUsersRoutes              = require('./routes/adminUsers');
+const salespersonStatementRoutes    = require('./routes/salespersonStatement');
 const { authenticate, requireAdmin, requireSuperAdmin } = require('./middleware/auth');
 
 const app = express();
@@ -97,6 +98,7 @@ app.use('/api/v1/errors/client', clientErrorsRoutes);
 app.use('/api/v1', authenticate);
 
 // Shared (admin + salesman)
+app.use('/api/v1/salesperson-statement', salespersonStatementRoutes);
 app.use('/api/v1/brands',               brandsRoutes);
 app.use('/api/v1/products',             productsRoutes);
 app.use('/api/v1/categories',           categoriesRoutes);

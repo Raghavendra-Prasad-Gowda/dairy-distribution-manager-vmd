@@ -41,6 +41,8 @@ const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'
 const SalespersonStockEntry  = lazy(() => import('./pages/salesman/StockEntry'));
 const SalespersonBalance     = lazy(() => import('./pages/salesman/SalespersonBalance'));
 const ChangePassword         = lazy(() => import('./pages/salesman/ChangePassword'));
+const MyStatement            = lazy(() => import('./pages/salesman/MyStatement'));
+const MyStatementPrint       = lazy(() => import('./pages/salesman/MyStatementPrint'));
 
 function PageLoader() {
   return <BrandedLoader label="Loading…" />;
@@ -76,6 +78,9 @@ function AppRoutes() {
       <Route path="/print/salesperson-statement" element={
         <ProtectedRoute>{S(SalespersonStatementPrint)}</ProtectedRoute>
       } />
+      <Route path="/print/salesman-my-statement" element={
+        <ProtectedRoute>{S(MyStatementPrint)}</ProtectedRoute>
+      } />
 
       <Route
         path="/"
@@ -89,8 +94,9 @@ function AppRoutes() {
         {user?.role === 'salesman' && (
           <>
             <Route index element={S(SalespersonStockEntry)} />
-            <Route path="salesman/stock-entry" element={S(SalespersonStockEntry)} />
-            <Route path="salesman/balance" element={S(SalespersonBalance)} />
+            <Route path="salesman/stock-entry"  element={S(SalespersonStockEntry)} />
+            <Route path="salesman/balance"       element={S(SalespersonBalance)} />
+            <Route path="salesman/my-statement"  element={S(MyStatement)} />
             <Route path="salesman/change-password" element={S(ChangePassword)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>

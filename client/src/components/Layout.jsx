@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock, ScrollText
 } from 'lucide-react';
 import { getBrandColors } from '../utils/constants';
 import api from '../api/axios';
@@ -93,7 +93,8 @@ const SALESMAN_NAV = [
       {
         label: 'PAYMENTS',
         items: [
-          { to: '/salesman/balance', icon: Wallet, label: 'My Balance' },
+          { to: '/salesman/balance',      icon: Wallet,     label: 'My Balance' },
+          { to: '/salesman/my-statement', icon: ScrollText, label: 'My Statement' },
         ],
       },
       {
