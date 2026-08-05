@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import DateSelector from '../../components/DateSelector';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
@@ -9,7 +8,7 @@ import api from '../../api/axios';
 export default function SalespersonBalance() {
   const { user } = useAuth();
 
-  const [date, setDate] = useState(getIndiaDate());
+  const today = getIndiaDate();
   const [balance, setBalance] = useState(null);
   const [history, setHistory] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 20 });
@@ -34,7 +33,7 @@ export default function SalespersonBalance() {
     const historyUrl = `/salesperson-balance/${salespersonId}/history?page=${pagination.page}&limit=${pagination.limit}&from=${fromDate}&to=${toDate}`;
 
     Promise.all([
-      api.get(`/salesperson-balance/${salespersonId}?date=${date}`),
+      api.get(`/salesperson-balance/${salespersonId}?date=${today}`),
       api.get(historyUrl),
     ])
       .then(([balRes, histRes]) => {
@@ -47,7 +46,7 @@ export default function SalespersonBalance() {
         setError(e.response?.data?.error ?? 'Failed to load balance information');
       })
       .finally(() => setLoading(false));
-  }, [salespersonId, date, pagination.page, fromDate, toDate]);
+  }, [salespersonId, today, pagination.page, fromDate, toDate]);
 
   if (!salespersonId) {
     return <div className="p-4 text-center text-slate-500">Unable to load balance</div>;
@@ -67,17 +66,14 @@ export default function SalespersonBalance() {
     <div className="flex flex-col h-full bg-slate-100">
 
       {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3.5 bg-emerald-800">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <TrendingUp size={17} className="text-emerald-300 flex-shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold text-white leading-tight truncate">
-              My Balance
-            </h1>
-            <p className="text-emerald-300 text-xs">Payment &amp; outstanding tracking</p>
-          </div>
+      <div className="flex-shrink-0 flex items-center gap-2.5 px-4 py-3.5 bg-emerald-800">
+        <TrendingUp size={17} className="text-emerald-300 flex-shrink-0" />
+        <div className="min-w-0">
+          <h1 className="text-sm font-bold text-white leading-tight truncate">
+            My Balance
+          </h1>
+          <p className="text-emerald-300 text-xs">Payment &amp; outstanding tracking</p>
         </div>
-        <DateSelector date={date} onChange={setDate} dark />
       </div>
 
       {/* ── Content ────────────────────────────────────────────────── */}
