@@ -308,7 +308,11 @@ export default function Layout() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="flex h-screen bg-slate-100">
+    // fixed inset-0 (not h-screen) pins the whole app shell exactly to the
+    // viewport, independent of document/body scroll height or mobile
+    // rubber-band bounce — this is what keeps the topbar + bottom nav from
+    // drifting when the page's internal content scrolls.
+    <div className="fixed inset-0 flex bg-slate-100">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-56 flex-shrink-0">
         <Sidebar compact={false} onLogoutRequest={() => setShowLogoutConfirm(true)} user={user} />

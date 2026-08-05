@@ -13,6 +13,10 @@
     --ddm-sidebar:     #065f46;
   }
 
+  html, body {
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-slate-100 text-slate-900 font-sans;
   }
