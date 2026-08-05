@@ -112,7 +112,7 @@ export default function SalesmanDayBalance() {
               <table className="min-w-full text-sm border-separate border-spacing-0">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600">Salesman</th>
+                    <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 sticky left-0 z-20">Salesman</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billBalanceHeader}</th>
@@ -129,7 +129,7 @@ export default function SalesmanDayBalance() {
                   ) : (
                     filteredRows.map((r, idx) => (
                       <tr key={r.salespersonId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
-                        <td className="px-4 py-2.5 border-b border-r border-slate-100">
+                        <td className={`px-4 py-2.5 border-b border-r border-slate-100 sticky left-0 z-[5] ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                           <p className="text-sm font-semibold text-slate-800 leading-tight">{r.salespersonName}</p>
                           {r.route && <p className="text-xs text-slate-400 leading-tight mt-0.5">{r.route}</p>}
                         </td>
@@ -158,7 +158,7 @@ export default function SalesmanDayBalance() {
                 {filteredRows.length > 0 && (
                   <tfoot className="sticky bottom-0 z-10">
                     <tr>
-                      <td className="bg-slate-700 px-4 py-3 text-xs font-bold text-white uppercase tracking-wider border-r border-slate-600">
+                      <td className="bg-slate-700 px-4 py-3 text-xs font-bold text-white uppercase tracking-wider border-r border-slate-600 sticky left-0 z-20">
                         Totals · {filteredRows.length} salesm{filteredRows.length === 1 ? 'an' : 'en'}
                       </td>
                       <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock, ScrollText
 } from 'lucide-react';
 import { getBrandColors } from '../utils/constants';
 import api from '../api/axios';
@@ -93,7 +93,8 @@ const SALESMAN_NAV = [
       {
         label: 'PAYMENTS',
         items: [
-          { to: '/salesman/balance', icon: Wallet, label: 'My Balance' },
+          { to: '/salesman/balance',      icon: Wallet,     label: 'My Balance' },
+          { to: '/salesman/my-statement', icon: ScrollText, label: 'My Statement' },
         ],
       },
       {
@@ -105,6 +106,15 @@ const SALESMAN_NAV = [
     ],
   },
 ];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -168,10 +178,32 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
       {/* Logo */}
       <div className={`border-b border-white/10 ${compact ? 'px-3 py-4 flex justify-center' : 'px-4 py-5'}`}>
         {compact ? (
-          <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
-            <Milk className="text-white" size={18} />
+          user?.role === 'salesman' ? (
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center">
+              <Milk className="text-white" size={18} />
+            </div>
+          )
+        ) : user?.role === 'salesman' ? (
+          /* ── Salesman: name is the headline ── */
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 ring-2 ring-white/30">
+              <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-base leading-tight truncate">
+                {user.salespersonName ?? 'Salesman'}
+              </p>
+              <p className="text-emerald-300 text-xs leading-tight truncate">
+                {user.businessName ?? 'Vikas Milk Dairy'}
+              </p>
+            </div>
           </div>
         ) : (
+          /* ── Admin: business name is the headline ── */
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0">
               <Milk className="text-white" size={18} />
@@ -179,7 +211,7 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
             <div>
               <p className="text-white font-bold text-sm leading-tight">{user?.businessName ?? 'Vikas Milk Dairy'}</p>
               <p className="text-emerald-300 text-xs leading-tight">
-                {user?.role === 'salesman' ? (user.salespersonName ?? 'Salesman') : user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                {user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
               </p>
             </div>
           </div>
@@ -276,7 +308,11 @@ export default function Layout() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="flex h-screen bg-slate-100">
+    // fixed inset-0 (not h-screen) pins the whole app shell exactly to the
+    // viewport, independent of document/body scroll height or mobile
+    // rubber-band bounce — this is what keeps the topbar + bottom nav from
+    // drifting when the page's internal content scrolls.
+    <div className="fixed inset-0 flex bg-slate-100">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-56 flex-shrink-0">
         <Sidebar compact={false} onLogoutRequest={() => setShowLogoutConfirm(true)} user={user} />
@@ -308,20 +344,104 @@ export default function Layout() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile topbar */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
-          <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
-            <Menu size={20} />
-          </button>
-          <div className="flex items-center gap-2">
-            <Milk className="text-emerald-600" size={18} />
-            <span className="font-bold text-slate-900 text-sm">{user?.businessName ?? 'Vikas Milk Dairy'}</span>
-          </div>
+        {/* Mobile topbar — salesman has no hamburger (uses bottom nav instead) */}
+        <header
+          className={`lg:hidden flex items-center gap-3 px-4 py-3 shadow-sm relative z-10 ${
+            user?.role === 'salesman' ? 'bg-emerald-50' : 'bg-white border-b border-slate-200'
+          }`}
+          style={user?.role === 'salesman' ? {
+            border: '3px solid #059669',
+            boxShadow: '0 4px 12px rgba(5,150,105,0.15)',
+          } : undefined}
+        >
+          {user?.role === 'salesman' ? (
+            /* Salesman: full-width identity bar, no hamburger */
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-11 h-11 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 ring-2 ring-emerald-200">
+                <span className="text-white font-bold text-base">{getInitials(user.salespersonName)}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-extrabold text-slate-900 text-lg leading-tight truncate">
+                  {user.salespersonName ?? 'Salesman'}
+                </p>
+                <p className="text-emerald-600/70 text-xs leading-tight truncate">
+                  {user.businessName ?? 'Vikas Milk Dairy'}
+                </p>
+              </div>
+              {/* Sign out button — deliberately red, distinct from the green theme */}
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="flex items-center justify-center w-10 h-10 rounded-full bg-white border-2 border-red-200 text-red-500 shadow-sm active:bg-red-50 active:border-red-300 active:text-red-600 active:scale-95 transition flex-shrink-0"
+                title="Sign out"
+              >
+                <LogOut size={18} strokeWidth={2.5} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
+                <Menu size={20} />
+              </button>
+              <div className="flex items-center gap-2">
+                <Milk className="text-emerald-600" size={18} />
+                <span className="font-bold text-slate-900 text-sm">{user?.businessName ?? 'Vikas Milk Dairy'}</span>
+              </div>
+            </>
+          )}
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-slate-100">
+        <main className={`flex-1 min-h-0 bg-slate-100 ${
+          user?.role === 'salesman' ? 'overflow-hidden' : 'overflow-y-auto'
+        }`}>
           <Outlet />
         </main>
+
+        {/* ── Salesman bottom tab bar (mobile only) — flex sibling of main, ─────
+             not position:fixed, so it always occupies real layout height and
+             never fights with a page's own internal scroll container. ──────── */}
+        {user?.role === 'salesman' && (
+          <nav
+            className="lg:hidden flex-shrink-0 bg-emerald-50 flex items-stretch relative z-10"
+            style={{
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              border: '3px solid #059669',
+              boxShadow: '0 -4px 12px rgba(5,150,105,0.15)',
+            }}
+          >
+            {[
+              { to: '/',                        icon: ShoppingCart, label: 'Stock',     end: true },
+              { to: '/salesman/balance',         icon: Wallet,       label: 'Balance'           },
+              { to: '/salesman/my-statement',    icon: ScrollText,   label: 'Statement'         },
+              { to: '/salesman/change-password', icon: Lock,         label: 'Security'          },
+            ].map(({ to, icon: Icon, label, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end || to === '/'}
+                className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
+              >
+                {({ isActive }) => (
+                  <>
+                    <div className={`flex items-center justify-center w-11 h-8 rounded-xl transition-colors ${
+                      isActive ? 'bg-emerald-600' : ''
+                    }`}>
+                      <Icon
+                        size={19}
+                        strokeWidth={2}
+                        className={isActive ? 'text-white' : 'text-emerald-700/40'}
+                      />
+                    </div>
+                    <span className={`text-[10px] font-semibold leading-none ${
+                      isActive ? 'text-emerald-700' : 'text-emerald-700/40'
+                    }`}>
+                      {label}
+                    </span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        )}
       </div>
     </div>
   );

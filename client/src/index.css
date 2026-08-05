@@ -13,12 +13,25 @@
     --ddm-sidebar:     #065f46;
   }
 
+  html, body {
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-slate-100 text-slate-900 font-sans;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  /* iOS Safari renders its own pill-shaped chrome around <input type="date">
+     on top of any CSS border/rounded-corner styling, producing a visible
+     "double box" that pokes out past custom card borders. Strip the native
+     appearance app-wide so only our own border/radius renders. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
   }
 }
 
