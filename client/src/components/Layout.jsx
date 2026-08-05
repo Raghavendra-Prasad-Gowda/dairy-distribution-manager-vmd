@@ -389,8 +389,11 @@ export default function Layout() {
       {/* ── Salesman bottom tab bar (mobile only) ──────────────────────────── */}
       {user?.role === 'salesman' && (
         <nav
-          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 flex items-stretch"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-50 ddm-gradient flex items-stretch"
+          style={{
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.35)',
+          }}
         >
           {[
             { to: '/',                        icon: ShoppingCart, label: 'Stock',     end: true },
@@ -402,16 +405,24 @@ export default function Layout() {
               key={to}
               to={to}
               end={end || to === '/'}
-              className={({ isActive }) =>
-                `flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-[10px] font-bold uppercase tracking-wide transition ${
-                  isActive ? 'text-emerald-700' : 'text-slate-400'
-                }`
-              }
+              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition-colors"
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={21} strokeWidth={isActive ? 2.5 : 1.75} />
-                  {label}
+                  <div className={`flex items-center justify-center w-10 h-7 rounded-xl transition-colors ${
+                    isActive ? 'bg-white/20' : ''
+                  }`}>
+                    <Icon
+                      size={20}
+                      strokeWidth={isActive ? 2.5 : 1.75}
+                      className={isActive ? 'text-white' : 'text-emerald-400'}
+                    />
+                  </div>
+                  <span className={`text-[9px] font-bold uppercase tracking-widest leading-none ${
+                    isActive ? 'text-white' : 'text-emerald-500'
+                  }`}>
+                    {label}
+                  </span>
                 </>
               )}
             </NavLink>
