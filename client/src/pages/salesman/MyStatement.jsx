@@ -192,7 +192,7 @@ export default function MyStatement() {
         <div className="p-3 md:p-6 max-w-4xl mx-auto space-y-3">
 
           {/* ── Date filters ────────────────────────────────────────── */}
-          <div className="ddm-card p-4">
+          <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm p-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 ['from', 'From', from, setFrom],
@@ -218,22 +218,22 @@ export default function MyStatement() {
           {/* ── Summary cards ───────────────────────────────────────── */}
           {rows.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
-              <div className="ddm-card p-3 text-center">
+              <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm p-3 text-center">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Billed</p>
                 <p className="text-sm font-bold text-blue-600 tabular-nums leading-tight">
                   {formatCurrency(totalGiven)}
                 </p>
               </div>
-              <div className="ddm-card p-3 text-center">
+              <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm p-3 text-center">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Paid</p>
                 <p className="text-sm font-bold text-emerald-600 tabular-nums leading-tight">
                   {formatCurrency(totalCollected)}
                 </p>
               </div>
-              <div className={`rounded-2xl shadow-sm border p-3 text-center ${
-                isOwing  ? 'bg-red-50 border-red-100'
-                : isCredit ? 'bg-violet-50 border-violet-100'
-                : 'bg-emerald-50 border-emerald-100'
+              <div className={`rounded-2xl shadow-sm border-2 p-3 text-center ${
+                isOwing  ? 'bg-red-50 border-red-200'
+                : isCredit ? 'bg-violet-50 border-violet-200'
+                : 'bg-emerald-50 border-emerald-200'
               }`}>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">
                   {isOwing ? 'Owed' : isCredit ? 'Credit' : 'Settled'}
@@ -255,11 +255,11 @@ export default function MyStatement() {
 
           {/* ── Statement content ─────────────────────────────────────── */}
           {loading ? (
-            <div className="ddm-card py-12">
+            <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm py-12">
               <BrandedLoader size="sm" hideBrand inlinePadY="py-0" />
             </div>
           ) : rows.length === 0 && !error ? (
-            <div className="ddm-card py-12 text-center text-slate-400 text-sm">
+            <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
               No data for this period
             </div>
           ) : rows.length > 0 && (
@@ -282,7 +282,7 @@ export default function MyStatement() {
               )}
 
               {/* ══ MOBILE: card list (hidden on md+) ══════════════════ */}
-              <div className="md:hidden ddm-card overflow-hidden divide-y divide-slate-100">
+              <div className="md:hidden bg-white border-2 border-slate-300 rounded-2xl shadow-sm overflow-hidden divide-y divide-slate-100">
                 {rows.map((row, i) => {
                   const rowOwing  = row.closingBalance > 0;
                   const rowCredit = row.closingBalance < 0;
@@ -366,7 +366,7 @@ export default function MyStatement() {
               </div>
 
               {/* ══ DESKTOP: table (hidden below md) ═══════════════════ */}
-              <div className="hidden md:block ddm-card overflow-hidden">
+              <div className="hidden md:block bg-white border-2 border-slate-300 rounded-2xl shadow-sm overflow-hidden">
                 <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-bold text-white">Account Statement</h2>

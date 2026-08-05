@@ -91,7 +91,7 @@ export default function SalespersonBalance() {
           ) : (
             <>
               {/* ── Main Balance Card ──────────────────────────────── */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border-2 border-slate-300 overflow-hidden">
 
                 {/* Status badge row */}
                 <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-blue-50 border-b border-emerald-100 flex items-center justify-between">
@@ -136,7 +136,7 @@ export default function SalespersonBalance() {
               </div>
 
               {/* ── Date Range Filter ──────────────────────────────── */}
-              <div className="bg-white rounded-2xl shadow-sm p-4 border border-slate-200">
+              <div className="bg-white rounded-2xl shadow-sm p-4 border-2 border-slate-300">
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar size={14} className="text-slate-600" />
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-600">History Range</span>
@@ -171,7 +171,7 @@ export default function SalespersonBalance() {
               </div>
 
               {/* ── Payment History ────────────────────────────────── */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border-2 border-slate-300 overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
                   <Calendar size={14} className="text-slate-600" />
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Payment History</span>
