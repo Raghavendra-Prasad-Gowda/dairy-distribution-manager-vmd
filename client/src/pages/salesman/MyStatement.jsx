@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
-import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 
 // ─── Shared breakdown panel (mobile cards + desktop expanded rows) ─────────────
@@ -117,8 +116,6 @@ function ExpandableRow({ row, open, onToggle }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MyStatement() {
-  const { user } = useAuth();
-
   const [from, setFrom]           = useState(getFirstDayOfMonth());
   const [to, setTo]               = useState(getIndiaDate());
   const [rows, setRows]           = useState([]);
@@ -175,9 +172,7 @@ export default function MyStatement() {
           <FileText size={17} className="text-emerald-300 flex-shrink-0" />
           <div className="min-w-0">
             <h1 className="text-sm font-bold text-white leading-tight">My Statement</h1>
-            <p className="text-emerald-300 text-xs truncate">
-              {user?.salespersonName ? `${user.salespersonName} — account statement` : 'Account statement'}
-            </p>
+            <p className="text-emerald-300 text-xs truncate">Account statement</p>
           </div>
         </div>
         {rows.length > 0 && (

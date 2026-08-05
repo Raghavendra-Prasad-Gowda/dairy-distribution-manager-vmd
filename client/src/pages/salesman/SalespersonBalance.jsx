@@ -72,7 +72,7 @@ export default function SalespersonBalance() {
           <TrendingUp size={17} className="text-emerald-300 flex-shrink-0" />
           <div className="min-w-0">
             <h1 className="text-sm font-bold text-white leading-tight truncate">
-              {user?.salespersonName ? `${user.salespersonName}'s Balance` : 'My Balance'}
+              My Balance
             </h1>
             <p className="text-emerald-300 text-xs">Payment &amp; outstanding tracking</p>
           </div>

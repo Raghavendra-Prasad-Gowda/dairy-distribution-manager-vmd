@@ -415,7 +415,7 @@ export default function SalespersonStockEntry() {
           <ShoppingCart size={17} className="text-emerald-300 flex-shrink-0" />
           <div className="min-w-0">
             <h1 className="text-sm font-bold text-white leading-tight truncate">
-              {user?.salespersonName ? `${user.salespersonName}'s Stock` : 'Stock Entry'}
+              Stock Entry
             </h1>
             <p className="text-emerald-300 text-xs">Enter today's quantities</p>
           </div>

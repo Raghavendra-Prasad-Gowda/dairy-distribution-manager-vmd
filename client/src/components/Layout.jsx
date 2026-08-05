@@ -357,11 +357,11 @@ export default function Layout() {
           {user?.role === 'salesman' ? (
             /* Salesman: full-width identity bar, no hamburger */
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 ring-2 ring-emerald-200">
-                <span className="text-white font-bold text-sm">{getInitials(user.salespersonName)}</span>
+              <div className="w-11 h-11 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 ring-2 ring-emerald-200">
+                <span className="text-white font-bold text-base">{getInitials(user.salespersonName)}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-slate-900 text-base leading-tight truncate">
+                <p className="font-extrabold text-slate-900 text-lg leading-tight truncate">
                   {user.salespersonName ?? 'Salesman'}
                 </p>
                 <p className="text-emerald-600/70 text-xs leading-tight truncate">
