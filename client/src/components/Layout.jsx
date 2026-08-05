@@ -350,7 +350,7 @@ export default function Layout() {
             user?.role === 'salesman' ? 'bg-emerald-50' : 'bg-white border-b border-slate-200'
           }`}
           style={user?.role === 'salesman' ? {
-            borderBottom: '3px solid #059669',
+            border: '3px solid #059669',
             boxShadow: '0 4px 12px rgba(5,150,105,0.15)',
           } : undefined}
         >
@@ -404,7 +404,7 @@ export default function Layout() {
             className="lg:hidden flex-shrink-0 bg-emerald-50 flex items-stretch relative z-10"
             style={{
               paddingBottom: 'env(safe-area-inset-bottom)',
-              borderTop: '3px solid #059669',
+              border: '3px solid #059669',
               boxShadow: '0 -4px 12px rgba(5,150,105,0.15)',
             }}
           >
