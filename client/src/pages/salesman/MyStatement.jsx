@@ -207,7 +207,8 @@ export default function MyStatement() {
                     value={val}
                     onChange={(e) => setter(e.target.value)}
                     max={getIndiaDate()}
-                    className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+                    className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none"
+                    style={{ WebkitAppearance: 'none' }}
                   />
                 </div>
               ))}

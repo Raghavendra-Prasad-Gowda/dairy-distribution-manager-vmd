@@ -148,7 +148,8 @@ export default function SalespersonBalance() {
                       type="date"
                       value={fromDate}
                       onChange={(e) => { setFromDate(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-                      className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 appearance-none"
+                      style={{ WebkitAppearance: 'none' }}
                     />
                   </div>
                   <div>
@@ -157,7 +158,8 @@ export default function SalespersonBalance() {
                       type="date"
                       value={toDate}
                       onChange={(e) => { setToDate(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-                      className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      className="w-full min-w-0 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 appearance-none"
+                      style={{ WebkitAppearance: 'none' }}
                     />
                   </div>
                 </div>
