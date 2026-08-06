@@ -21,6 +21,14 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createAdminUser, req, res);
   if (!data) return;
 
+  // Login matches usernames case-insensitively, so "John" and "john" must
+  // not both be allowed to exist — check before hitting the DB's
+  // case-sensitive unique constraint.
+  const existing = await prisma.adminUser.findFirst({
+    where: { username: { equals: data.username, mode: 'insensitive' } },
+  });
+  if (existing) throw new AppError('Username is already taken', 409);
+
   const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
   const user = await prisma.adminUser.create({
     data: { username: data.username, passwordHash, role: data.role },
@@ -41,6 +49,13 @@ const update = asyncHandler(async (req, res) => {
   // Prevent deactivating self
   if (req.user.adminUserId === id && data.isActive === false) {
     throw new AppError('You cannot deactivate your own account', 400);
+  }
+
+  if (data.username !== undefined) {
+    const existing = await prisma.adminUser.findFirst({
+      where: { username: { equals: data.username, mode: 'insensitive' }, id: { not: id } },
+    });
+    if (existing) throw new AppError('Username is already taken', 409);
   }
 
   const updateData = {};

@@ -26,8 +26,9 @@ const login = asyncHandler(async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
 
   // ── 1. Try AdminUser table (superadmin + managed admins) ─────────────────
+  // Username lookup is case-insensitive — "Admin" and "admin" both match.
   const adminUser = await prisma.adminUser.findFirst({
-    where: { username: data.username },
+    where: { username: { equals: data.username, mode: 'insensitive' } },
   });
 
   if (adminUser) {
@@ -61,8 +62,9 @@ const login = asyncHandler(async (req, res) => {
   }
 
   // ── 2. Try salesperson ────────────────────────────────────────────────────
+  // Username lookup is case-insensitive, same as the admin lookup above.
   const salesperson = await prisma.salesperson.findFirst({
-    where: { username: data.username, isActive: true },
+    where: { username: { equals: data.username, mode: 'insensitive' }, isActive: true },
   });
 
   if (!salesperson || !salesperson.passwordHash) {
