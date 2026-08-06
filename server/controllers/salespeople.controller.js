@@ -42,6 +42,15 @@ const create = asyncHandler(async (req, res) => {
   if (rest.username && !password) throw new AppError('Password is required when setting a username', 400);
   if (password && !rest.username) throw new AppError('Username is required when setting a password', 400);
 
+  if (rest.username) {
+    // Login matches usernames case-insensitively, so "John" and "john"
+    // must not both be allowed to exist among salespeople.
+    const existing = await prisma.salesperson.findFirst({
+      where: { username: { equals: rest.username, mode: 'insensitive' } },
+    });
+    if (existing) throw new AppError('Username is already taken', 409);
+  }
+
   const spData = { ...rest };
   if (rest.username && password) {
     spData.passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -58,6 +67,13 @@ const update = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const { password, ...rest } = data;
+
+  if (rest.username) {
+    const existing = await prisma.salesperson.findFirst({
+      where: { username: { equals: rest.username, mode: 'insensitive' }, id: { not: id } },
+    });
+    if (existing) throw new AppError('Username is already taken', 409);
+  }
 
   const updateData = { ...rest };
   if (password) {
