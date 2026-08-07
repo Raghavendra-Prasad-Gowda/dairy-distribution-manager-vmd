@@ -15,6 +15,55 @@ function isEffectivelyLocked(dispatch, todayStr) {
   return (dispatch.isSubmitted || isPastDate) && !dispatch.isAdminUnlocked;
 }
 
+// SECURITY: a salesman's own client never gets to decide what they're billed.
+// Re-derive each item's unitPrice server-side from the same source the price
+// screen uses (SalespersonPrice effective on dispatchDate, else the
+// product's global salespersonDefaultPrice) and reject any product that
+// isn't enabled for them — whatever the request body claims is discarded.
+async function resolveSalespersonItemPricing(salespersonId, items, dispatchDate) {
+  const productIds = items.map((i) => i.productId);
+
+  const [products, enabledRows, priceRows] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: true },
+    }),
+    prisma.salespersonProduct.findMany({
+      where: { salespersonId, productId: { in: productIds } },
+      select: { productId: true, isEnabled: true },
+    }),
+    prisma.salespersonPrice.findMany({
+      where: { salespersonId, productId: { in: productIds }, effectiveFrom: { lte: dispatchDate } },
+      orderBy: { effectiveFrom: 'desc' },
+    }),
+  ]);
+
+  const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
+  const enabledMap  = Object.fromEntries(enabledRows.map((r) => [r.productId, r.isEnabled]));
+
+  // priceRows is effectiveFrom-desc, so the first row seen per product is the
+  // latest one effective on or before dispatchDate.
+  const priceMap = {};
+  for (const row of priceRows) {
+    if (!(row.productId in priceMap)) priceMap[row.productId] = row;
+  }
+
+  return items.map((item) => {
+    const product = productMap[item.productId];
+    if (!product || !product.isActive) {
+      throw new AppError(`Product ${item.productId} is not available`, 400);
+    }
+    const isEnabled = product.salespersonEnabled && (enabledMap[item.productId] ?? true);
+    if (!isEnabled) {
+      throw new AppError(`Product ${item.productId} is not enabled for your account`, 403);
+    }
+    const resolvedPrice = priceMap[item.productId]
+      ? Number(priceMap[item.productId].sellingPrice)
+      : Number(product.salespersonDefaultPrice);
+    return { ...item, unitPrice: resolvedPrice };
+  });
+}
+
 const getAll = asyncHandler(async (req, res) => {
   const { date, salespersonId } = req.query;
   const where = {};
@@ -51,7 +100,11 @@ const getAll = asyncHandler(async (req, res) => {
   res.json({ success: true, data: result });
 });
 
+// Admin only — cross-salesperson report. Salesmen already have their own
+// scoped view via getAll (?date=), which filters to req.user.salespersonId.
 const getSummary = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
@@ -82,6 +135,12 @@ const createOrUpdate = asyncHandler(async (req, res) => {
 
   const dispatchDate = new Date(data.dispatchDate);
   const today = getIndiaDateStr();
+
+  // A salesman's own request body must never dictate their billed price —
+  // overwrite whatever unitPrice was submitted with the server-resolved one.
+  if (req.user.role === 'salesman' && data.items.length > 0) {
+    data.items = await resolveSalespersonItemPricing(salespersonId, data.items, dispatchDate);
+  }
 
   const existing = await prisma.stockDispatch.findUnique({
     where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
