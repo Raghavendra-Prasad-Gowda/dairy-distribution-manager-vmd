@@ -100,8 +100,6 @@ app.use('/api/v1', authenticate);
 // Shared (admin + salesman)
 app.use('/api/v1/salesperson-statement', salespersonStatementRoutes);
 app.use('/api/v1/brands',               brandsRoutes);
-app.use('/api/v1/products',             productsRoutes);
-app.use('/api/v1/categories',           categoriesRoutes);
 app.use('/api/v1/dispatches',           dispatchesRoutes);
 app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
@@ -111,6 +109,13 @@ app.use('/api/v1/salespeople',          salespersonPricesRoutes);
 app.use('/api/v1/salespeople',          requireAdmin, bulkWriteLimiter, salespersonProductsRoutes);
 
 // Admin-only routes
+// products/categories: no salesman page ever calls these directly — the
+// salesman product/price screen goes through /salespeople/:id/prices
+// instead. The base CRUD (create/update/delete/reorder) had no route-level
+// gate before, relying only on a couple of manual in-controller checks on
+// specific sub-routes — moved the whole router behind requireAdmin.
+app.use('/api/v1/products',             requireAdmin, productsRoutes);
+app.use('/api/v1/categories',           requireAdmin, categoriesRoutes);
 app.use('/api/v1/stock-receipts',       requireAdmin, bulkWriteLimiter, stockReceiptsRoutes);
 app.use('/api/v1/dairy-balance',        requireAdmin, dairyBalanceRoutes);
 app.use('/api/v1/dairy-payments',       requireAdmin, dairyPaymentsRoutes);
