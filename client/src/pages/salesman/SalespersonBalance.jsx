@@ -15,12 +15,8 @@ export default function SalespersonBalance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Date range filters — default to current month
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
-    d.setDate(1);
-    return d.toISOString().slice(0, 10);
-  });
+  // Date range filters — default to today
+  const [fromDate, setFromDate] = useState(getIndiaDate());
   const [toDate, setToDate] = useState(getIndiaDate());
 
   const salespersonId = user?.salespersonId;
