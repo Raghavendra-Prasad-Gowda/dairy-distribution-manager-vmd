@@ -36,8 +36,15 @@ function BreakdownPanel({ row }) {
       items,
       crates: items.reduce((s, i) => s + i.crates, 0),
       litres: items.reduce((s, i) => s + i.litres, 0),
+      amount: items.reduce((s, i) => s + i.totalAmount, 0),
     }));
   }, [row.items]);
+
+  // Day-level totals across all brands — shown as one line above Payments Made
+  const rowTotals = useMemo(() => ({
+    crates: (row.items ?? []).reduce((s, i) => s + i.crates, 0),
+    litres: (row.items ?? []).reduce((s, i) => s + i.litres, 0),
+  }), [row.items]);
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 divide-y divide-slate-100">
@@ -67,6 +74,11 @@ function BreakdownPanel({ row }) {
                         {formatLitres(group.litres)}
                       </span>
                     )}
+                    {group.amount > 0 && (
+                      <span className="text-[10px] font-semibold text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded-full tabular-nums">
+                        {formatCurrency(group.amount)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {group.items.map((item, i) => (
@@ -85,6 +97,21 @@ function BreakdownPanel({ row }) {
               </div>
             ))}
           </div>
+          {(rowTotals.crates > 0 || rowTotals.litres > 0) && (
+            <div className="flex items-center justify-end gap-1.5 px-4 py-2 bg-slate-50 border-t border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-auto">Total</span>
+              {rowTotals.crates > 0 && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full tabular-nums">
+                  {rowTotals.crates} crates
+                </span>
+              )}
+              {rowTotals.litres > 0 && (
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full tabular-nums">
+                  {formatLitres(rowTotals.litres)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
