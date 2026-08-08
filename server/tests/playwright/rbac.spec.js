@@ -144,6 +144,15 @@ test.describe('RBAC — shared endpoints scoping', () => {
       createArgs = args;
       return { id: 1, salespersonId: args.data.salespersonId, dispatchDate: args.data.dispatchDate, totalAmount: 0, items: [] };
     });
+    // Salesman requests re-derive each item's price server-side (see
+    // resolveSalespersonItemPricing in dispatches.controller.js) — product
+    // must be active + salesperson-enabled, with no per-salesperson override
+    // rows or custom price rows, so it falls back to salespersonDefaultPrice.
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 10 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
     mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.post('/api/v1/dispatches', {
