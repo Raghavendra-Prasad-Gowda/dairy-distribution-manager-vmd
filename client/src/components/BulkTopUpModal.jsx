@@ -61,9 +61,26 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
   const toggle = (id) =>
     setPicked(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
+  // Select-all acts on what's currently visible, so it composes with the search
+  // box (search "route 3", select all → only that route gets picked).
+  const allFilteredPicked =
+    filtered.length > 0 && filtered.every(sp => picked.includes(sp.id));
+
+  const toggleAllFiltered = () =>
+    setPicked((prev) => {
+      const ids = filtered.map(sp => sp.id);
+      return allFilteredPicked
+        ? prev.filter(id => !ids.includes(id))
+        : [...new Set([...prev, ...ids])];
+    });
+
   async function handleSave() {
     if (entries.length === 0 || saving) return;
     setSaving(true);
+    // Global loading modal (same as bulk price update) rather than a spinner
+    // inside the button — the save fans out across several salespeople and
+    // cascades each balance, so the whole screen should be blocked meanwhile.
+    notify?.('Adding top-up…', 'loading');
     try {
       const res = await onSaved({ paymentDate: date, notes: notes.trim() || undefined, entries });
       notify?.(`Top-up added for ${res.count} salesperson${res.count === 1 ? '' : 's'}`, 'success');
@@ -100,7 +117,7 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
                 Next
               </Button>
             ) : (
-              <Button size="sm" onClick={handleSave} loading={saving} disabled={entries.length === 0}>
+              <Button size="sm" onClick={handleSave} disabled={saving || entries.length === 0}>
                 Add top-up
               </Button>
             )}
@@ -134,6 +151,20 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
                 <X size={12} />
               </button>
             )}
+          </div>
+
+          <div className="flex items-center justify-between px-1 mb-1.5">
+            <p className="text-[11px] text-slate-400 font-medium">
+              {search ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}` : `${salespeople.length} salespeople`}
+            </p>
+            <button
+              type="button"
+              onClick={toggleAllFiltered}
+              disabled={filtered.length === 0}
+              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed"
+            >
+              {allFilteredPicked ? 'Deselect All' : 'Select All'}
+            </button>
           </div>
 
           <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
