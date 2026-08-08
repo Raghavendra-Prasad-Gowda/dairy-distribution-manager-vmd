@@ -380,6 +380,7 @@ describe('BulkTopUpModal — paymentMode override', () => {
         titlePrefix="Deposit Top-up"
       />
     );
-    expect(screen.getByText(/Deposit Top-up — select salespeople/i)).toBeInTheDocument();
+    expect(screen.getByText('Deposit Top-up')).toBeInTheDocument();
+    expect(screen.getByText(/select salespeople/i)).toBeInTheDocument();
   });
 });

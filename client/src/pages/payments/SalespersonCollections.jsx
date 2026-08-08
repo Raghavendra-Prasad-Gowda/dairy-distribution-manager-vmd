@@ -320,24 +320,23 @@ export default function SalespersonCollections() {
               {pendingCount} pending
             </span>
           )}
-          {isSuperAdmin && (
-            <button
-              onClick={() => setTopUpOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-            >
-              <Wallet size={13} /> Bulk Top-up
-            </button>
-          )}
-          {isSuperAdmin && (
-            <button
-              onClick={() => setResetOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-red-200 hover:text-white border border-red-700 hover:border-red-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-            >
-              <Eraser size={13} /> Reset Ledger
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Superadmin action toolbar — kept off the dark header band; the soft
+          pill buttons read poorly against emerald-800, and this matches the
+          light toolbar convention used for bulk actions elsewhere (e.g.
+          Bulk Update Prices on the salesman pricing page). */}
+      {isSuperAdmin && (
+        <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
+          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
+            Bulk Top-up
+          </Button>
+          <Button variant="soft-danger" size="sm" icon={Eraser} onClick={() => setResetOpen(true)}>
+            Reset Ledger
+          </Button>
+        </div>
+      )}
 
       {/* Split panel */}
       <div className="flex flex-1 overflow-hidden">

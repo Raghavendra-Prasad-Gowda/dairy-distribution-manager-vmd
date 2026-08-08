@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, X, Check, AlertTriangle } from 'lucide-react';
+import { Search, X, Check, AlertTriangle, Wallet } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
@@ -32,6 +32,11 @@ export default function BulkTopUpModal({
   // server's own 'Top-up' default) — lets one endpoint serve two differently
   // labelled top-up flows without the modal needing to know what they mean.
   paymentMode,
+  // Header band color + icon — matches the "bulk action" dialogs elsewhere
+  // in the app (Bulk Update Prices etc.). Deposit top-up passes 'teal' /
+  // Landmark to stay visually distinct from the amber dues top-up.
+  accent = 'amber',
+  icon   = Wallet,
 }) {
   const [step, setStep]       = useState('pick'); // 'pick' | 'amounts'
   const [search, setSearch]   = useState('');
@@ -127,7 +132,10 @@ export default function BulkTopUpModal({
       open={open}
       onClose={onClose}
       size="xl"
-      title={step === 'pick' ? `${titlePrefix} — select ${nounPlural}` : `${titlePrefix} — enter amounts`}
+      accent={accent}
+      icon={icon}
+      title={titlePrefix}
+      subtitle={step === 'pick' ? `Step 1 of 2 — select ${nounPlural}` : 'Step 2 of 2 — enter amounts'}
       footer={
         <div className="flex items-center justify-between gap-3 w-full">
           <p className="text-xs text-slate-500">

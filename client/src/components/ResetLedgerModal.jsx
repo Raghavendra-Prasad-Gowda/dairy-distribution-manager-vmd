@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { AlertTriangle, Search, X, Check } from 'lucide-react';
+import { AlertTriangle, Search, X, Check, Eraser } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import PinModal from './PinModal';
@@ -105,7 +105,10 @@ export default function ResetLedgerModal({ open, onClose, salespeople, onConfirm
       open
       onClose={onClose}
       size="xl"
-      title="Reset ledger — select salespeople"
+      accent="red"
+      icon={Eraser}
+      title="Reset Ledger"
+      subtitle="Select salespeople"
       footer={
         <div className="flex items-center justify-between gap-3 w-full">
           <p className="text-xs text-slate-500">{picked.length} selected</p>

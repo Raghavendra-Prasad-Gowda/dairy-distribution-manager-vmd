@@ -8,6 +8,18 @@ const SIZE_CLASSES = {
   xl: 'max-w-2xl',
 };
 
+// Colored header band — matches the "bulk action" dialogs elsewhere in the
+// app (Bulk Update Prices, Bulk Enable/Disable Products), which use a solid
+// band + icon + white title/subtitle rather than this component's plain
+// white header. Opt-in via the `accent` prop so the six existing plain-header
+// callers (simple confirm/edit dialogs) are completely unaffected.
+const ACCENT_CLASSES = {
+  emerald: { band: 'bg-emerald-700', subtitle: 'text-emerald-200', close: 'text-emerald-200 hover:text-white hover:bg-emerald-600' },
+  amber:   { band: 'bg-amber-600',   subtitle: 'text-amber-100',   close: 'text-amber-100 hover:text-white hover:bg-amber-500' },
+  teal:    { band: 'bg-teal-700',    subtitle: 'text-teal-200',    close: 'text-teal-200 hover:text-white hover:bg-teal-600' },
+  red:     { band: 'bg-red-700',     subtitle: 'text-red-200',     close: 'text-red-200 hover:text-white hover:bg-red-600' },
+};
+
 function useFocusTrap(open, containerRef) {
   useEffect(() => {
     if (!open) return;
@@ -51,6 +63,9 @@ export default function Modal({
   open,
   onClose,
   title,
+  subtitle,
+  icon: Icon,
+  accent,
   size = 'md',
   showClose = true,
   closeOnBackdrop = true,
@@ -69,7 +84,8 @@ export default function Modal({
 
   if (!open) return null;
 
-  const sizeCls = SIZE_CLASSES[size] ?? SIZE_CLASSES.md;
+  const sizeCls  = SIZE_CLASSES[size] ?? SIZE_CLASSES.md;
+  const accentCls = accent ? ACCENT_CLASSES[accent] ?? ACCENT_CLASSES.emerald : null;
 
   return (
     <div
@@ -86,20 +102,44 @@ export default function Modal({
         className={`w-full ${sizeCls} bg-white rounded-2xl shadow-2xl overflow-hidden`}
         style={{ animation: 'popIn 0.2s ease' }}
       >
-        {(title || showClose) && (
-          <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3">
-            <h3 id="modal-title" className="text-base font-bold text-slate-900 leading-tight">{title}</h3>
-            {showClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close dialog"
-                className="text-slate-400 hover:text-slate-600 flex-shrink-0 p-1 -m-1 rounded"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
+        {accentCls ? (
+          (title || showClose) && (
+            <div className={`flex items-center justify-between gap-3 px-6 py-4 ${accentCls.band}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                {Icon && <Icon size={18} className={`${accentCls.subtitle} flex-shrink-0`} />}
+                <div className="min-w-0">
+                  <h3 id="modal-title" className="text-base font-bold text-white leading-tight truncate">{title}</h3>
+                  {subtitle && <p className={`text-[11px] mt-0.5 ${accentCls.subtitle} truncate`}>{subtitle}</p>}
+                </div>
+              </div>
+              {showClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close dialog"
+                  className={`flex-shrink-0 p-1.5 rounded-lg transition ${accentCls.close}`}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          )
+        ) : (
+          (title || showClose) && (
+            <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3">
+              <h3 id="modal-title" className="text-base font-bold text-slate-900 leading-tight">{title}</h3>
+              {showClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close dialog"
+                  className="text-slate-400 hover:text-slate-600 flex-shrink-0 p-1 -m-1 rounded"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          )
         )}
         <div className={title ? 'px-6 pb-5' : 'p-6'}>{children}</div>
         {footer && (

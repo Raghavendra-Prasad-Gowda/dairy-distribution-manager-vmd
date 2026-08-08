@@ -309,23 +309,22 @@ export default function DairyPayments() {
             <p className="text-emerald-300 text-xs">Record payments to dairy suppliers</p>
           </div>
         </div>
-        {isSuperAdmin && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setTopUpOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-            >
-              <Wallet size={13} /> Bulk Top-up
-            </button>
-            <button
-              onClick={() => setDepositTopUpOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-amber-200 hover:text-white border border-amber-600 hover:border-amber-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-            >
-              <Landmark size={13} /> Deposit Top-up
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* Superadmin action toolbar — kept off the dark header band; the soft
+          pill buttons read poorly against emerald-800, and this matches the
+          light toolbar convention used for bulk actions elsewhere (e.g.
+          Bulk Update Prices on the salesman pricing page). */}
+      {isSuperAdmin && (
+        <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
+          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
+            Bulk Top-up
+          </Button>
+          <Button variant="soft-teal" size="sm" icon={Landmark} onClick={() => setDepositTopUpOpen(true)}>
+            Deposit Top-up
+          </Button>
+        </div>
+      )}
 
       {/* ── Bulk top-up modal (dues) ─────────────────────────── */}
       <BulkTopUpModal
@@ -369,6 +368,8 @@ export default function DairyPayments() {
         searchPlaceholder="Search brand…"
         titlePrefix="Deposit Top-up"
         paymentMode="Deposit Top-up"
+        accent="teal"
+        icon={Landmark}
         warning={
           <>
             A deposit top-up <strong>increases</strong> what the dairy owes this brand,
