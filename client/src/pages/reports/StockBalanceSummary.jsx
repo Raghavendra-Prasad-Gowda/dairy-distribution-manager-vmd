@@ -182,6 +182,14 @@ export default function StockBalanceSummary() {
               <span className={`text-[10px] font-bold uppercase tracking-wide ${grandTotals.remaining >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>Shortage</span>
               <span className={`text-sm font-extrabold tabular-nums ${grandTotals.remaining >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{grandTotals.remaining}</span>
             </div>
+            <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
+              <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wide">Crates Received</span>
+              <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesReceived || '—'}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
+              <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wide">Crates Dispatched</span>
+              <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesDispatched || '—'}</span>
+            </div>
             {(showEmptyProducts || visibleProducts.length < products.length) && (
               <button
                 type="button"
