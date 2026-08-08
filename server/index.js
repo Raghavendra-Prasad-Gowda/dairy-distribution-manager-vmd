@@ -36,6 +36,30 @@ async function runMigrations() {
   logger.info('Migrations complete.');
 }
 
+// Node process lifecycle guards — these fire for errors that never touched
+// asyncHandler/the Express error handler at all (thrown outside a request,
+// or a rejected promise nobody awaited). Without these, such a crash was
+// completely silent: no Slack, just the process dying. Awaited (not
+// fire-and-forget) since the process is about to exit right after.
+process.on('uncaughtException', async (err) => {
+  logger.error('Uncaught exception — crashing.', { message: err.message, stack: err.stack });
+  await notifySlack(SLACK_EVENTS.PROCESS_CRASH, {
+    env: process.env.NODE_ENV, type: 'uncaughtException', message: err.message, stack: err.stack,
+  });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error('Unhandled promise rejection.', { message: err.message, stack: err.stack });
+  await notifySlack(SLACK_EVENTS.PROCESS_CRASH, {
+    env: process.env.NODE_ENV, type: 'unhandledRejection', message: err.message, stack: err.stack,
+  });
+  // Not exiting here — Node itself doesn't crash on an unhandled rejection by
+  // default, and process state after one is usually still trustworthy (unlike
+  // after a genuine uncaught exception). Just make sure it's visible.
+});
+
 async function boot() {
   const PORT = process.env.PORT || 3001;
 
@@ -47,6 +71,9 @@ async function boot() {
     await runMigrations();
   } catch (err) {
     logger.error('Migrations failed.', { message: err.message });
+    await notifySlack(SLACK_EVENTS.SERVER_BOOT_FAILED, {
+      env: process.env.NODE_ENV, stage: 'migrations', message: err.message, stack: err.stack,
+    });
     process.exit(1);
   }
 
@@ -55,6 +82,9 @@ async function boot() {
     await seedFoundationData();
   } catch (err) {
     logger.error('Failed to seed admin user — shutting down.', { message: err.message });
+    await notifySlack(SLACK_EVENTS.SERVER_BOOT_FAILED, {
+      env: process.env.NODE_ENV, stage: 'seed', message: err.message, stack: err.stack,
+    });
     process.exit(1);
   }
 
@@ -70,7 +100,10 @@ async function boot() {
   process.on('SIGINT',  () => shutdown('SIGINT'));
 }
 
-boot().catch(err => {
+boot().catch(async (err) => {
   logger.error('Fatal error during startup', { message: err.message, stack: err.stack });
+  await notifySlack(SLACK_EVENTS.SERVER_BOOT_FAILED, {
+    env: process.env.NODE_ENV, stage: 'boot', message: err.message, stack: err.stack,
+  });
   process.exit(1);
 });

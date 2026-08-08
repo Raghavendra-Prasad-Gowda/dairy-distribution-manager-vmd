@@ -103,6 +103,7 @@ const changePassword = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const { role, adminUserId, salespersonId } = req.user;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
 
   if (role === 'admin' || role === 'superadmin') {
     // Admin changing their own password
@@ -115,6 +116,11 @@ const changePassword = asyncHandler(async (req, res) => {
     const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
     await prisma.adminUser.update({ where: { id: adminUserId }, data: { passwordHash } });
 
+    void notifySlack(SLACK_EVENTS.PASSWORD_CHANGED, {
+      username: adminUser.username,
+      role:     adminUser.role === 'superadmin' ? 'Super Admin' : 'Admin',
+      ip,
+    });
     res.json({ success: true, data: { message: 'Password changed successfully' } });
   } else if (role === 'salesman') {
     // Salesman changing their own password
@@ -127,6 +133,11 @@ const changePassword = asyncHandler(async (req, res) => {
     const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
     await prisma.salesperson.update({ where: { id: salespersonId }, data: { passwordHash } });
 
+    void notifySlack(SLACK_EVENTS.PASSWORD_CHANGED, {
+      username: salesperson.username ?? salesperson.name,
+      role:     'Salesman',
+      ip,
+    });
     res.json({ success: true, data: { message: 'Password changed successfully' } });
   } else {
     throw new AppError('Unauthorized', 403);

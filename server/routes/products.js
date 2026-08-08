@@ -8,6 +8,14 @@ const { getIndiaDateStr } = require('../utils/dateUtils');
 
 const router = express.Router();
 
+async function resolveActingUsername(req) {
+  const actor = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  return actor?.username ?? 'admin';
+}
+
 // GET /products?brandId=&date=YYYY-MM-DD
 // When ?date= is supplied, costPrice on each product reflects the price effective on that date.
 // Always returns upcomingCostPrice / upcomingSellingPrice (+ their dates) for any
@@ -251,6 +259,24 @@ router.patch('/salesperson-global', asyncHandler(async (req, res) => {
   }
 
   await prisma.$transaction(txOps);
+
+  const by = await resolveActingUsername(req);
+  const changedProducts = await prisma.product.findMany({
+    where:  { id: { in: products.map(p => p.productId) } },
+    select: { id: true, name: true, salespersonDefaultPrice: true, brand: { select: { name: true } } },
+  });
+  const productMap = Object.fromEntries((changedProducts ?? []).map(p => [p.id, p]));
+  for (const p of products) {
+    const info = productMap[p.productId];
+    void notifySlack(SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED, {
+      name:      info?.name || `Product #${p.productId}`,
+      brandName: info?.brand?.name || null,
+      isEnabled: p.isEnabled,
+      price:     p.defaultPrice !== undefined ? p.defaultPrice : Number(info?.salespersonDefaultPrice ?? 0),
+      count:     salesmanIds.length,
+      by,
+    });
+  }
   res.json({ success: true, data: { message: `${products.length} products updated` } });
 }));
 
@@ -275,6 +301,14 @@ router.delete('/:id/salesperson-prices', asyncHandler(async (req, res) => {
   // Delete all custom SalespersonPrice records for this product
   const result = await prisma.salespersonPrice.deleteMany({
     where: { productId },
+  });
+
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.PRODUCT_PRICES_CLEARED, {
+    productName: product.name,
+    brandId:     product.brandId,
+    count:       result.count,
+    by,
   });
 
   res.json({

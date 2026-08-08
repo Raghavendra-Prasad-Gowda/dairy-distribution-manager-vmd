@@ -150,3 +150,214 @@ test.describe('SALESPERSON_LEDGER_RESET card', () => {
     expect(allText(c)).toContain('K Pandu, Mahesh, Ravi');
   });
 });
+
+// ─── Slack audit additions ────────────────────────────────────────────────
+// Coverage for the gaps closed in the full Slack-card audit: salesman self-
+// service actions (password change, dispatch submit, actor-attributed
+// dispatch save/delete), admin/superadmin security & money actions (brands,
+// admin users, salesperson pricing, global product access), and process-
+// level error visibility that previously didn't exist at all.
+
+test.describe('PASSWORD_CHANGED card', () => {
+  test('shows the role-specific header and who changed it', () => {
+    const c = buildCard(SLACK_EVENTS.PASSWORD_CHANGED, { username: 'raghav', role: 'Admin', ip: '1.2.3.4' });
+    expect(headerText(c)).toBe('🔑 Admin Password Changed');
+    expect(allText(c)).toContain('raghav');
+    expect(allText(c)).toContain('1.2.3.4');
+  });
+
+  test('salesman self-service uses the Salesman header', () => {
+    const c = buildCard(SLACK_EVENTS.PASSWORD_CHANGED, { username: 'mahesh', role: 'Salesman', ip: '5.6.7.8' });
+    expect(headerText(c)).toBe('🔑 Salesman Password Changed');
+  });
+});
+
+test.describe('PIN_FAILED card', () => {
+  test('reports who entered the wrong PIN', () => {
+    const c = buildCard(SLACK_EVENTS.PIN_FAILED, { username: 'raghav', role: 'Admin', ip: '1.2.3.4' });
+    expect(headerText(c)).toBe('🚫 Wrong PIN Entered');
+    expect(allText(c)).toContain('raghav');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+  });
+});
+
+test.describe('Dispatch actor attribution', () => {
+  test('DISPATCH_SAVED shows who did it — admin', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_SAVED, {
+      salespersonName: 'K Pandu', date: '2026-04-30', itemCount: 4, totalAmount: 1200, by: 'Admin (raghav)',
+    });
+    expect(allText(c)).toContain('Admin (raghav)');
+  });
+
+  test('DISPATCH_SAVED shows self-entry distinctly from admin', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_SAVED, {
+      salespersonName: 'K Pandu', date: '2026-04-30', itemCount: 4, totalAmount: 1200, by: 'Salesperson (self)',
+    });
+    expect(allText(c)).toContain('Salesperson (self)');
+  });
+
+  test('DISPATCH_DELETED also carries the by field', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_DELETED, {
+      salespersonName: 'K Pandu', date: '2026-04-30', totalAmount: 1200, by: 'Salesperson (self)',
+    });
+    expect(allText(c)).toContain('Salesperson (self)');
+  });
+});
+
+test.describe('DISPATCH_SUBMITTED card', () => {
+  test('confirms the salesman finalized their entry', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_SUBMITTED, {
+      salespersonName: 'K Pandu', date: '2026-04-30', itemCount: 4, totalAmount: 1200,
+    });
+    expect(headerText(c)).toBe('📮 Stock Entry Submitted');
+    expect(allText(c)).toContain('K Pandu');
+  });
+});
+
+test.describe('DISPATCH_LOCK_CHANGED card', () => {
+  test('locked action gets its own header and amber color', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_LOCK_CHANGED, {
+      action: 'locked', salespersonName: 'K Pandu', date: '2026-04-30', by: 'Admin (raghav)',
+    });
+    expect(headerText(c)).toBe('🔒 Dispatch Locked');
+    expect(c.attachments[0].color).toBe('#e8a838'); // AMBER
+  });
+
+  test('unlocked and opened actions get distinct headers', () => {
+    const unlocked = buildCard(SLACK_EVENTS.DISPATCH_LOCK_CHANGED, {
+      action: 'unlocked', salespersonName: 'K Pandu', date: '2026-04-30', by: 'Admin (raghav)',
+    });
+    const opened = buildCard(SLACK_EVENTS.DISPATCH_LOCK_CHANGED, {
+      action: 'opened', salespersonName: 'K Pandu', date: '2026-04-30', by: 'Admin (raghav)',
+    });
+    expect(headerText(unlocked)).toBe('🔓 Dispatch Unlocked');
+    expect(headerText(opened)).toBe('🔓 Dispatch Reopened for Entry');
+  });
+});
+
+test.describe('Salesperson pricing cards', () => {
+  test('SALESPERSON_PRICES_UPDATED reports who and how many', () => {
+    const c = buildCard(SLACK_EVENTS.SALESPERSON_PRICES_UPDATED, {
+      salespersonName: 'K Pandu', count: 6, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('💲 Salesperson Prices Updated');
+    expect(allText(c)).toContain('K Pandu');
+    expect(allText(c)).toContain('raghav');
+  });
+
+  test('SALESPERSON_PRICES_COPIED shows source and target', () => {
+    const c = buildCard(SLACK_EVENTS.SALESPERSON_PRICES_COPIED, {
+      fromName: 'K Pandu', toName: 'Mahesh', count: 10, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('📋 Salesperson Prices Copied');
+    const text = allText(c);
+    expect(text).toContain('K Pandu');
+    expect(text).toContain('Mahesh');
+  });
+
+  test('SALESPERSON_PRICES_BULK_UPDATED shows product and affected count', () => {
+    const c = buildCard(SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED, {
+      salespersonNames: ['K Pandu', 'Mahesh'], count: 2, productName: 'Toned Milk 500ml', price: 24, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('💲 Salesperson Prices Bulk Updated');
+    const text = allText(c);
+    expect(text).toContain('Toned Milk 500ml');
+    expect(text).toContain('₹24.00');
+  });
+
+  test('PRODUCT_PRICES_CLEARED is a destructive (red) card', () => {
+    const c = buildCard(SLACK_EVENTS.PRODUCT_PRICES_CLEARED, {
+      productName: 'Toned Milk 500ml', brandName: 'Nandini', count: 8, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('🧹 Custom Prices Cleared');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+  });
+});
+
+test.describe('PRODUCT_GLOBAL_ACCESS_UPDATED card', () => {
+  test('shows enabled state, price and blast radius', () => {
+    const c = buildCard(SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED, {
+      name: 'Curd 200ml', brandName: 'Nandini', isEnabled: true, price: 18, count: 12, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('🌐 Product Access Updated — All Salespeople');
+    const text = allText(c);
+    expect(text).toContain('Enabled ✅');
+    expect(text).toContain('12 salespeople');
+  });
+
+  test('shows Disabled when access is revoked', () => {
+    const c = buildCard(SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED, {
+      name: 'Curd 200ml', brandName: 'Nandini', isEnabled: false, count: 12, by: 'raghav',
+    });
+    expect(allText(c)).toContain('Disabled ❌');
+  });
+});
+
+test.describe('Brand cards', () => {
+  test('BRAND_CREATED shows deposit config', () => {
+    const c = buildCard(SLACK_EVENTS.BRAND_CREATED, {
+      name: 'Heritage', depositEnabled: true, depositPerLitre: 2, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('🆕 Brand Added');
+    expect(allText(c)).toContain('Heritage');
+  });
+
+  test('BRAND_UPDATED plain update keeps the normal header and color', () => {
+    const c = buildCard(SLACK_EVENTS.BRAND_UPDATED, {
+      name: 'Nandini', depositEnabled: true, depositPerLitre: 2, isActive: true, isArchived: false, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('✏️ Brand Updated');
+    expect(c.attachments[0].color).toBe('#e8a838'); // AMBER
+  });
+
+  test('BRAND_UPDATED with isArchived becomes a red, irreversible-warning card', () => {
+    const c = buildCard(SLACK_EVENTS.BRAND_UPDATED, {
+      name: 'Old Brand', depositEnabled: false, isActive: false, isArchived: true, by: 'raghav',
+    });
+    expect(headerText(c)).toBe('📦 Brand Archived');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+    expect(allText(c)).toContain('cannot be restored');
+  });
+});
+
+test.describe('Admin user cards (superadmin-only)', () => {
+  test('ADMIN_USER_CREATED reports the new user, role and creator', () => {
+    const c = buildCard(SLACK_EVENTS.ADMIN_USER_CREATED, { username: 'newadmin', role: 'admin', by: 'raghav' });
+    expect(headerText(c)).toBe('🆕 Admin User Created');
+    expect(allText(c)).toContain('newadmin');
+    expect(allText(c)).toContain('raghav');
+  });
+
+  test('ADMIN_USER_UPDATED reports status changes', () => {
+    const c = buildCard(SLACK_EVENTS.ADMIN_USER_UPDATED, { username: 'someadmin', role: 'admin', isActive: false, by: 'raghav' });
+    expect(headerText(c)).toBe('✏️ Admin User Updated');
+    expect(allText(c)).toContain('Deactivated ❌');
+  });
+
+  test('ADMIN_USER_DELETED is colored red', () => {
+    const c = buildCard(SLACK_EVENTS.ADMIN_USER_DELETED, { username: 'oldadmin', role: 'admin', by: 'raghav' });
+    expect(headerText(c)).toBe('🗑️ Admin User Deleted');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+  });
+});
+
+test.describe('Process-level error cards', () => {
+  test('SERVER_BOOT_FAILED reports the failing stage', () => {
+    const c = buildCard(SLACK_EVENTS.SERVER_BOOT_FAILED, {
+      env: 'production', stage: 'migrations', message: 'connection refused',
+    });
+    expect(headerText(c)).toBe('🆘 Server Failed to Start');
+    expect(allText(c)).toContain('migrations');
+    expect(allText(c)).toContain('connection refused');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+  });
+
+  test('PROCESS_CRASH reports the crash type and message', () => {
+    const c = buildCard(SLACK_EVENTS.PROCESS_CRASH, {
+      env: 'production', type: 'uncaughtException', message: 'Cannot read properties of undefined',
+    });
+    expect(headerText(c)).toBe('☠️ Uncaught Process Crash');
+    expect(allText(c)).toContain('uncaughtException');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+  });
+});

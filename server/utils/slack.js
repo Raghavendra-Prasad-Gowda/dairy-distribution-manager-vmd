@@ -8,23 +8,32 @@ const APP_URL     = process.env.APP_URL || '';
 // ─── Event catalogue ──────────────────────────────────────────────────────────
 const SLACK_EVENTS = {
   // System
-  SERVER_STARTED:  'SERVER_STARTED',
-  SERVER_SHUTDOWN: 'SERVER_SHUTDOWN',
-  SERVER_ERROR:    'SERVER_ERROR',
-  CLIENT_ERROR:    'CLIENT_ERROR',
-  // Auth
-  LOGIN:        'LOGIN',
-  LOGOUT:       'LOGOUT',
-  FAILED_LOGIN: 'FAILED_LOGIN',
+  SERVER_STARTED:    'SERVER_STARTED',
+  SERVER_SHUTDOWN:   'SERVER_SHUTDOWN',
+  SERVER_BOOT_FAILED: 'SERVER_BOOT_FAILED',
+  SERVER_ERROR:      'SERVER_ERROR',
+  PROCESS_CRASH:     'PROCESS_CRASH',
+  CLIENT_ERROR:      'CLIENT_ERROR',
+  // Auth — shared by admin, superadmin and salesman logins alike; the card
+  // itself reads whichever role was passed in.
+  LOGIN:            'LOGIN',
+  LOGOUT:           'LOGOUT',
+  FAILED_LOGIN:     'FAILED_LOGIN',
+  PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  PIN_FAILED:       'PIN_FAILED',
   // Stock receipts
   STOCK_RECEIPT_SAVED: 'STOCK_RECEIPT_SAVED',
   // Dairy payments
   DAIRY_PAYMENT_RECORDED: 'DAIRY_PAYMENT_RECORDED',
   DAIRY_PAYMENT_UPDATED:  'DAIRY_PAYMENT_UPDATED',
   DAIRY_PAYMENT_DELETED:  'DAIRY_PAYMENT_DELETED',
-  // Dispatch
-  DISPATCH_SAVED:   'DISPATCH_SAVED',
-  DISPATCH_DELETED: 'DISPATCH_DELETED',
+  // Dispatch — createOrUpdate/remove are shared by admin (dispatching stock
+  // to a salesperson) and the salesman themselves (self-entering their own
+  // day's stock), distinguished by data.by on the card.
+  DISPATCH_SAVED:       'DISPATCH_SAVED',
+  DISPATCH_DELETED:     'DISPATCH_DELETED',
+  DISPATCH_SUBMITTED:   'DISPATCH_SUBMITTED',
+  DISPATCH_LOCK_CHANGED: 'DISPATCH_LOCK_CHANGED',
   // Salesperson payments
   SALESPERSON_PAYMENT_RECORDED: 'SALESPERSON_PAYMENT_RECORDED',
   SALESPERSON_PAYMENT_UPDATED:  'SALESPERSON_PAYMENT_UPDATED',
@@ -38,10 +47,17 @@ const SLACK_EVENTS = {
   // Setup — salespeople
   SALESPERSON_CREATED: 'SALESPERSON_CREATED',
   SALESPERSON_UPDATED: 'SALESPERSON_UPDATED',
+  // Setup — salesman pricing (drives what a salesman is billed — see
+  // dispatches.controller.js's resolveSalespersonItemPricing)
+  SALESPERSON_PRICES_UPDATED:      'SALESPERSON_PRICES_UPDATED',
+  SALESPERSON_PRICES_COPIED:       'SALESPERSON_PRICES_COPIED',
+  SALESPERSON_PRICES_BULK_UPDATED: 'SALESPERSON_PRICES_BULK_UPDATED',
+  PRODUCT_PRICES_CLEARED:          'PRODUCT_PRICES_CLEARED',
   // Setup — products
-  PRODUCT_CREATED: 'PRODUCT_CREATED',
-  PRODUCT_UPDATED: 'PRODUCT_UPDATED',
-  PRODUCT_DELETED: 'PRODUCT_DELETED',
+  PRODUCT_CREATED:               'PRODUCT_CREATED',
+  PRODUCT_UPDATED:                'PRODUCT_UPDATED',
+  PRODUCT_DELETED:                'PRODUCT_DELETED',
+  PRODUCT_GLOBAL_ACCESS_UPDATED:  'PRODUCT_GLOBAL_ACCESS_UPDATED',
   // Setup — categories
   CATEGORY_CREATED: 'CATEGORY_CREATED',
   CATEGORY_UPDATED: 'CATEGORY_UPDATED',
@@ -50,6 +66,13 @@ const SLACK_EVENTS = {
   ROUTE_CREATED: 'ROUTE_CREATED',
   ROUTE_UPDATED: 'ROUTE_UPDATED',
   ROUTE_DELETED: 'ROUTE_DELETED',
+  // Setup — brands (dairies) — renaming, enabling/disabling, deposit config
+  BRAND_CREATED: 'BRAND_CREATED',
+  BRAND_UPDATED: 'BRAND_UPDATED',
+  // Superadmin — who can log in as admin at all
+  ADMIN_USER_CREATED: 'ADMIN_USER_CREATED',
+  ADMIN_USER_UPDATED: 'ADMIN_USER_UPDATED',
+  ADMIN_USER_DELETED: 'ADMIN_USER_DELETED',
 };
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -94,6 +117,23 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.ROUTE_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.ROUTE_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.ROUTE_DELETED]: COLORS.RED,
+
+  [SLACK_EVENTS.SERVER_BOOT_FAILED]: COLORS.RED,
+  [SLACK_EVENTS.PROCESS_CRASH]:      COLORS.RED,
+  [SLACK_EVENTS.PASSWORD_CHANGED]:   COLORS.AMBER,
+  [SLACK_EVENTS.PIN_FAILED]:         COLORS.RED,
+  [SLACK_EVENTS.DISPATCH_SUBMITTED]:    COLORS.GREEN,
+  [SLACK_EVENTS.DISPATCH_LOCK_CHANGED]: COLORS.AMBER, // overridden per action (locked/unlocked/opened)
+  [SLACK_EVENTS.SALESPERSON_PRICES_UPDATED]:      COLORS.AMBER,
+  [SLACK_EVENTS.SALESPERSON_PRICES_COPIED]:       COLORS.BLUE,
+  [SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.PRODUCT_PRICES_CLEARED]:          COLORS.RED,
+  [SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED]:   COLORS.AMBER,
+  [SLACK_EVENTS.BRAND_CREATED]: COLORS.GREEN,
+  [SLACK_EVENTS.BRAND_UPDATED]: COLORS.AMBER, // overridden to RED when the update archives the brand
+  [SLACK_EVENTS.ADMIN_USER_CREATED]: COLORS.GREEN,
+  [SLACK_EVENTS.ADMIN_USER_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.ADMIN_USER_DELETED]: COLORS.RED,
 };
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -232,6 +272,28 @@ function buildCard(event, data) {
         ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
       ], `Frontend crash on ${data.page}: ${data.message}`);
 
+    case SLACK_EVENTS.SERVER_BOOT_FAILED:
+      return card(event, [
+        headerBlock('🆘 Server Failed to Start'),
+        fieldsBlock([
+          ['🔧 Environment', data.env     || 'unknown'],
+          ['📍 Stage',       data.stage   || 'unknown'],
+          ['❌ Message',     data.message || 'unknown'],
+        ]),
+        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+      ], `Server Boot FAILED at ${data.stage}: ${data.message}`);
+
+    case SLACK_EVENTS.PROCESS_CRASH:
+      return card(event, [
+        headerBlock('☠️ Uncaught Process Crash'),
+        fieldsBlock([
+          ['🔧 Environment', data.env     || 'unknown'],
+          ['⚡ Type',        data.type    || 'unknown'],
+          ['❌ Message',     data.message || 'unknown'],
+        ]),
+        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+      ], `Process Crash (${data.type}): ${data.message}`);
+
     // ── Auth ───────────────────────────────────────────────────────────────
     case SLACK_EVENTS.LOGIN: {
       const loginRole = data.role || 'Admin';
@@ -266,6 +328,28 @@ function buildCard(event, data) {
           ['❌ Reason', data.reason || 'Invalid credentials'],
         ]),
       ], `Failed Login — "${data.attemptedUsername}" from ${data.ip}`);
+
+    case SLACK_EVENTS.PASSWORD_CHANGED: {
+      const pwRole = data.role || 'Admin';
+      return card(event, [
+        headerBlock(`🔑 ${pwRole} Password Changed`),
+        fieldsBlock([
+          ['👤 Username',   data.username || 'unknown'],
+          ['👑 Role',       pwRole],
+          ['🌐 IP Address', data.ip || 'unknown'],
+        ]),
+      ], `${pwRole} Password Changed — ${data.username}`);
+    }
+
+    case SLACK_EVENTS.PIN_FAILED:
+      return card(event, [
+        headerBlock('🚫 Wrong PIN Entered'),
+        fieldsBlock([
+          ['👤 Attempted By', data.username || 'unknown'],
+          ['👑 Role',         data.role     || 'unknown'],
+          ['🌐 IP Address',   data.ip       || 'unknown'],
+        ]),
+      ], `Wrong PIN — ${data.username}`);
 
     // ── Stock Receipts ─────────────────────────────────────────────────────
     case SLACK_EVENTS.STOCK_RECEIPT_SAVED: {
@@ -342,6 +426,7 @@ function buildCard(event, data) {
           ['📅 Date',        formatDate(data.date)],
           ['📦 Items',       String(data.itemCount)],
           ['💰 Total',       formatINR(data.totalAmount)],
+          ['🖊️ By',          data.by || null],
         ]),
       ], `Dispatch ${data.isUpdate ? 'Updated' : 'Created'} — ${data.salespersonName} — ${formatINR(data.totalAmount)}`);
 
@@ -352,8 +437,37 @@ function buildCard(event, data) {
           ['👤 Salesperson', data.salespersonName],
           ['📅 Date',        formatDate(data.date)],
           ['💰 Total',       formatINR(data.totalAmount)],
+          ['🖊️ By',          data.by || null],
         ]),
       ], `Dispatch Deleted — ${data.salespersonName} on ${data.date}`);
+
+    case SLACK_EVENTS.DISPATCH_SUBMITTED:
+      return card(event, [
+        headerBlock('📮 Stock Entry Submitted'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['📦 Items',       data.itemCount != null ? String(data.itemCount) : null],
+          ['💰 Total',       data.totalAmount != null ? formatINR(data.totalAmount) : null],
+        ]),
+      ], `Stock Entry Submitted — ${data.salespersonName} on ${data.date}`);
+
+    case SLACK_EVENTS.DISPATCH_LOCK_CHANGED: {
+      const lockCopy = {
+        locked:   { header: '🔒 Dispatch Locked',        fallback: 'Locked' },
+        unlocked: { header: '🔓 Dispatch Unlocked',       fallback: 'Unlocked' },
+        opened:   { header: '🔓 Dispatch Reopened for Entry', fallback: 'Reopened for entry' },
+      }[data.action] || { header: '🔐 Dispatch Lock Changed', fallback: data.action };
+      const lockColor = data.action === 'locked' ? COLORS.AMBER : COLORS.BLUE;
+      return card(event, [
+        headerBlock(lockCopy.header),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Date',        formatDate(data.date)],
+          ['🖊️ By',          data.by || null],
+        ]),
+      ], `${lockCopy.fallback} — ${data.salespersonName} on ${data.date}`, lockColor);
+    }
 
     // ── Salesperson Payments ───────────────────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED:
@@ -460,6 +574,53 @@ function buildCard(event, data) {
         ]),
       ], `Salesperson Updated — ${data.name}`);
 
+    // ── Salesperson Pricing ─────────────────────────────────────────────────
+    case SLACK_EVENTS.SALESPERSON_PRICES_UPDATED:
+      return card(event, [
+        headerBlock('💲 Salesperson Prices Updated'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['🏷️ Brand',       data.brandName || null],
+          ['🔢 Products',    data.count != null ? String(data.count) : null],
+          ['🖊️ Updated By',  data.by || null],
+        ]),
+      ], `Salesperson Prices Updated — ${data.salespersonName}`);
+
+    case SLACK_EVENTS.SALESPERSON_PRICES_COPIED:
+      return card(event, [
+        headerBlock('📋 Salesperson Prices Copied'),
+        fieldsBlock([
+          ['👤 From',       data.fromName],
+          ['👤 To',         data.toName],
+          ['🔢 Products',   data.count != null ? String(data.count) : null],
+          ['🖊️ Copied By',  data.by || null],
+        ]),
+      ], `Prices Copied — ${data.fromName} → ${data.toName}`);
+
+    case SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED: {
+      const names = joinNames(data.salespersonNames, data.count, 'salesperson(s)');
+      return card(event, [
+        headerBlock('💲 Salesperson Prices Bulk Updated'),
+        fieldsBlock([
+          ['👥 Salespeople', names],
+          ['📦 Product',     data.productName || null],
+          ['💰 New Price',   data.price != null ? formatINR(data.price) : null],
+          ['🖊️ Updated By',  data.by || null],
+        ]),
+      ], `Prices Bulk Updated — ${data.productName} — ${names}`);
+    }
+
+    case SLACK_EVENTS.PRODUCT_PRICES_CLEARED:
+      return card(event, [
+        headerBlock('🧹 Custom Prices Cleared'),
+        fieldsBlock([
+          ['📦 Product',    data.productName || null],
+          ['🏷️ Brand',      data.brandName || null],
+          ['🔢 Salespeople', data.count != null ? String(data.count) : null],
+          ['🖊️ Cleared By', data.by || null],
+        ]),
+      ], `Custom Prices Cleared — ${data.productName}`);
+
     // ── Products ───────────────────────────────────────────────────────────
     case SLACK_EVENTS.PRODUCT_CREATED:
       return card(event, [
@@ -495,6 +656,19 @@ function buildCard(event, data) {
           ['📂 Category', data.category || null],
         ]),
       ], `Product Deactivated — ${data.name} (${data.brandName})`);
+
+    case SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED:
+      return card(event, [
+        headerBlock('🌐 Product Access Updated — All Salespeople'),
+        fieldsBlock([
+          ['📦 Product',      data.name || null],
+          ['🏷️ Brand',        data.brandName || null],
+          ['🔘 Access',       data.isEnabled === false ? 'Disabled ❌' : 'Enabled ✅'],
+          ['💰 Default Price', data.price != null ? formatINR(data.price) : null],
+          ['🔢 Affected',     data.count != null ? `${data.count} salespeople` : null],
+          ['🖊️ Updated By',   data.by || null],
+        ]),
+      ], `Product Access Updated — ${data.name} — All Salespeople`);
 
     // ── Categories ─────────────────────────────────────────────────────────
     case SLACK_EVENTS.CATEGORY_CREATED:
@@ -553,6 +727,63 @@ function buildCard(event, data) {
           ['🛣️ Route No.', String(data.routeNumber)],
         ]),
       ], `Route Deleted — ${data.routeNumber} (${data.brandName})`);
+
+    // ── Brands (dairies) ───────────────────────────────────────────────────
+    case SLACK_EVENTS.BRAND_CREATED:
+      return card(event, [
+        headerBlock('🆕 Brand Added'),
+        fieldsBlock([
+          ['🏷️ Name',       data.name],
+          ['💧 Deposit',    data.depositEnabled ? `Enabled ✅ (${formatINR(data.depositPerLitre ?? 0)}/L)` : 'Disabled ❌'],
+          ['🖊️ Added By',   data.by || null],
+        ]),
+      ], `Brand Added — ${data.name}`);
+
+    case SLACK_EVENTS.BRAND_UPDATED: {
+      const archived = data.isArchived === true;
+      return card(event, [
+        headerBlock(archived ? '📦 Brand Archived' : '✏️ Brand Updated'),
+        fieldsBlock([
+          ['🏷️ Name',     data.name],
+          ['💧 Deposit',  data.depositEnabled ? `Enabled ✅ (${formatINR(data.depositPerLitre ?? 0)}/L)` : 'Disabled ❌'],
+          ['🔘 Status',   archived ? 'Archived (irreversible) 🔒' : (data.isActive === false ? 'Deactivated ❌' : 'Active ✅')],
+          ['🖊️ Updated By', data.by || null],
+        ]),
+        ...(archived ? [textBlock('⚠️ *Archived brands cannot be restored from the app.*')] : []),
+      ], `Brand ${archived ? 'Archived' : 'Updated'} — ${data.name}`, archived ? COLORS.RED : undefined);
+    }
+
+    // ── Superadmin — Admin Users ────────────────────────────────────────────
+    case SLACK_EVENTS.ADMIN_USER_CREATED:
+      return card(event, [
+        headerBlock('🆕 Admin User Created'),
+        fieldsBlock([
+          ['👤 Username',  data.username],
+          ['👑 Role',      data.role || 'admin'],
+          ['🖊️ Created By', data.by || null],
+        ]),
+      ], `Admin User Created — ${data.username} (${data.role})`);
+
+    case SLACK_EVENTS.ADMIN_USER_UPDATED:
+      return card(event, [
+        headerBlock('✏️ Admin User Updated'),
+        fieldsBlock([
+          ['👤 Username',   data.username],
+          ['👑 Role',       data.role || null],
+          ['🔘 Status',     data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ['🖊️ Updated By', data.by || null],
+        ]),
+      ], `Admin User Updated — ${data.username}`);
+
+    case SLACK_EVENTS.ADMIN_USER_DELETED:
+      return card(event, [
+        headerBlock('🗑️ Admin User Deleted'),
+        fieldsBlock([
+          ['👤 Username',   data.username],
+          ['👑 Role',       data.role || null],
+          ['🖊️ Deleted By', data.by || null],
+        ]),
+      ], `Admin User Deleted — ${data.username}`);
 
     default:
       return { text: `[VMD] Event: ${event}` };
