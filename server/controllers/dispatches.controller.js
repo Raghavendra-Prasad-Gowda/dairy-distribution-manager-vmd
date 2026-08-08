@@ -136,22 +136,37 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   const dispatchDate = new Date(data.dispatchDate);
   const today = getIndiaDateStr();
 
+  const existing = await prisma.stockDispatch.findUnique({
+    where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
+  });
+
+  // Block salesman from editing a locked dispatch — checked BEFORE price
+  // resolution / any write, so an unauthorized request fails fast without
+  // doing extra work. A record already existing is checked via
+  // isEffectivelyLocked as before — but a past date with NO record yet must
+  // be blocked too, otherwise a salesman could POST a brand new dispatch
+  // straight into a date they never touched, bypassing the lock entirely
+  // (the UI hides this, but nothing stopped a direct API call). Admin
+  // explicitly opening a date for entry (openForEntry) always creates the
+  // row first, so existing is only null here for dates admin never opened —
+  // safe to treat as locked.
+  if (req.user.role === 'salesman') {
+    if (existing) {
+      if (isEffectivelyLocked(existing, today)) {
+        throw new AppError('This stock entry is locked. Contact your admin to unlock it.', 403);
+      }
+    } else if (data.dispatchDate < today) {
+      throw new AppError('This date is locked. Contact your admin to unlock it.', 403);
+    }
+  }
+
   // A salesman's own request body must never dictate their billed price —
   // overwrite whatever unitPrice was submitted with the server-resolved one.
   if (req.user.role === 'salesman' && data.items.length > 0) {
     data.items = await resolveSalespersonItemPricing(salespersonId, data.items, dispatchDate);
   }
 
-  const existing = await prisma.stockDispatch.findUnique({
-    where: { salespersonId_dispatchDate: { salespersonId, dispatchDate } },
-  });
-
   const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-
-  // Block salesman from editing a locked dispatch
-  if (existing && req.user.role === 'salesman' && isEffectivelyLocked(existing, today)) {
-    throw new AppError('This stock entry is locked. Contact your admin to unlock it.', 403);
-  }
 
   // Empty items → clear the existing dispatch. No-op if nothing exists.
   if (data.items.length === 0) {

@@ -17,6 +17,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
+const { getIndiaDateStr } = require('../../utils/dateUtils');
 const jwt = require('jsonwebtoken');
 
 const { test, ctx } = setupSuite();
@@ -157,11 +158,28 @@ test.describe('RBAC — shared endpoints scoping', () => {
 
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${salesmanToken(7)}` },
-      data: { salespersonId: 999, dispatchDate: '2026-04-30', items: [{ productId: 1, quantity: 1, unitPrice: 10 }] },
+      // Must be today (IST) — a salesman posting to a past date with no
+      // existing record is blocked by the past-date lock (see
+      // "past date with no existing record → locked" below), which is
+      // unrelated to what this test is checking.
+      data: { salespersonId: 999, dispatchDate: getIndiaDateStr(), items: [{ productId: 1, quantity: 1, unitPrice: 10 }] },
     });
     expect(res.status()).toBe(201);
     // Server must use salesperson 7 from JWT, not 999 from payload
     expect(createArgs.data.salespersonId).toBe(7);
+  });
+
+  // POST /dispatches — a salesman can never create a fresh dispatch on a past
+  // date that admin never opened (openForEntry always creates the row first,
+  // so "no existing row" + "past date" together mean admin hasn't touched it).
+  test('POST /dispatches → past date with no existing record → locked', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${salesmanToken(7)}` },
+      data: { dispatchDate: '2020-01-01', items: [{ productId: 1, quantity: 1, unitPrice: 10 }] },
+    });
+    expect(res.status()).toBe(403);
   });
 
   // GET /salesperson-balance/:id — salesman accessing own = OK
