@@ -3,8 +3,9 @@ const controller = require('../controllers/salespersonPayments.controller');
 
 const router = express.Router();
 
-router.post('/',      controller.create);
-router.get('/',       controller.getAll);
+router.post('/',            controller.create);
+router.post('/bulk-topup',  controller.bulkTopUp);
+router.get('/',             controller.getAll);
 router.put('/:id',    controller.update);
 router.delete('/:id', controller.remove);
 

@@ -237,6 +237,16 @@ const schemas = {
     notes:       shortText,
   }),
 
+  // Bulk top-up — admin loads pre-existing dues for several salesmen at once
+  bulkSalespersonTopUp: z.object({
+    paymentDate: dateString(),
+    notes:       shortText,
+    entries: z.array(z.object({
+      salespersonId: z.number().int().positive(),
+      amount:        z.number().positive('Amount must be positive'),
+    })).min(1, 'At least one salesperson is required'),
+  }),
+
   // Admin Users (superadmin-only)
   createAdminUser: z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),

@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
@@ -363,6 +363,187 @@ test.describe('DELETE /api/v1/salesperson-payments/:id', () => {
   test('returns 400 for non-numeric payment ID', async ({ request }) => {
     const res = await request.delete('/api/v1/salesperson-payments/abc', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(400);
+  });
+});
+
+
+// ─── POST /api/v1/salesperson-payments/bulk-topup ────────────────────────────
+
+test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
+  /**
+   * Wires the mocks a successful bulk top-up needs and returns the arrays that
+   * capture what the controller wrote (mockFn has no built-in call recording).
+   */
+  function mockTopUpDeps(ids = [1, 2], username = 'admin') {
+    const createCalls = [];
+    const upsertCalls = [];
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue(ids.map(id => ({ id })));
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username });
+    ctx.mockPrisma.salespersonPayment.create.mockImplementation(async (args) => {
+      createCalls.push(args);
+      return { id: 90 + createCalls.length, ...args.data };
+    });
+    mockSalespersonCascade(ctx.mockPrisma);
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
+    return { createCalls, upsertCalls };
+  }
+
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when caller is a salesman', async ({ request }) => {
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 201 and creates one top-up row per entry', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps();
+
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 2, amount: 750 }],
+      },
+    });
+
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.data.count).toBe(2);
+    expect(body.data.total).toBe(1250);
+    expect(createCalls).toHaveLength(2);
+  });
+
+  test('marks rows isTopUp with mode Top-up and stamps the admin username', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1], 'raghav');
+
+    await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
+    });
+
+    expect(createCalls[0].data).toMatchObject({
+      isTopUp:     true,
+      paymentMode: 'Top-up',
+      createdBy:   'raghav',
+      amount:      500,
+    });
+  });
+
+  test('stores a positive amount — top-ups are added, not subtracted', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1]);
+
+    await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
+    });
+
+    expect(createCalls[0].data.amount).toBeGreaterThan(0);
+  });
+
+  test('cascades the balance for every salesperson touched', async ({ request }) => {
+    const { upsertCalls } = mockTopUpDeps([1, 2]);
+
+    await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 2, amount: 750 }],
+      },
+    });
+
+    const cascaded = upsertCalls.map(c => c.create.salespersonId);
+    expect(cascaded).toContain(1);
+    expect(cascaded).toContain(2);
+  });
+
+  test('a top-up increases what the salesman owes', async ({ request }) => {
+    const upsertCalls = [];
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
+    ctx.mockPrisma.salespersonPayment.create.mockImplementation(async ({ data }) => ({ id: 1, ...data }));
+    mockSalespersonCascade(ctx.mockPrisma, {
+      onTopUpAggregate: async () => ({ _sum: { amount: 50000 } }),
+    });
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
+
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 50000 }] },
+    });
+
+    expect(res.status()).toBe(201);
+    // opening 0 + stock 0 + topUp 50000 - paid 0 = 50000 owed
+    expect(upsertCalls[0].create.topUpAmount).toBe(50000);
+    expect(upsertCalls[0].create.closingBalance).toBe(50000);
+  });
+
+  test('returns 404 when a salesperson in the batch does not exist', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1]); // 2 is missing
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
+
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 2, amount: 750 }],
+      },
+    });
+
+    expect(res.status()).toBe(404);
+    expect(createCalls).toHaveLength(0);
+  });
+
+  test('returns 400 when the same salesperson appears twice', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1]);
+
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 1, amount: 750 }],
+      },
+    });
+
+    expect(res.status()).toBe(400);
+    expect(createCalls).toHaveLength(0);
+  });
+
+  test('returns 400 when entries is empty', async ({ request }) => {
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when an amount is zero or negative', async ({ request }) => {
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: -500 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when paymentDate format is invalid', async ({ request }) => {
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '30-04-2026', entries: [{ salespersonId: 1, amount: 500 }] },
     });
     expect(res.status()).toBe(400);
   });

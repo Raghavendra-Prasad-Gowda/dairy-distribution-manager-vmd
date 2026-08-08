@@ -113,12 +113,39 @@ const getHistory = asyncHandler(async (req, res) => {
     prisma.salespersonBalance.count({ where }),
   ]);
 
+  // Attach the admin-recorded top-ups behind each date, so the salesman can see
+  // who loaded a pre-existing due rather than just an unexplained balance jump.
+  const hasTopUps = balances.some(b => Number(b.topUpAmount ?? 0) !== 0);
+  const topUps = hasTopUps
+    ? (await prisma.salespersonPayment.findMany({
+        where: {
+          salespersonId: id,
+          isTopUp:       true,
+          paymentDate:   { in: balances.map(b => b.balanceDate) },
+        },
+        select: { paymentDate: true, amount: true, notes: true, createdBy: true },
+      })) ?? []
+    : [];
+
+  const topUpsByDate = new Map();
+  for (const t of topUps) {
+    const key = t.paymentDate.toISOString();
+    if (!topUpsByDate.has(key)) topUpsByDate.set(key, []);
+    topUpsByDate.get(key).push({
+      amount:    Number(t.amount),
+      notes:     t.notes,
+      createdBy: t.createdBy,
+    });
+  }
+
   const formatted = balances.map(b => ({
     balanceDate: b.balanceDate,
     openingBalance: Number(b.openingBalance),
     stockGiven: Number(b.stockGiven),
+    topUpAmount: Number(b.topUpAmount ?? 0),
     amountPaid: Number(b.amountPaid),
     closingBalance: Number(b.closingBalance),
+    topUps: topUpsByDate.get(b.balanceDate.toISOString()) ?? [],
   }));
 
   res.json({

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
@@ -15,12 +15,8 @@ export default function SalespersonBalance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Date range filters — default to current month
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
-    d.setDate(1);
-    return d.toISOString().slice(0, 10);
-  });
+  // Date range filters — default to today
+  const [fromDate, setFromDate] = useState(getIndiaDate());
   const [toDate, setToDate] = useState(getIndiaDate());
 
   const salespersonId = user?.salespersonId;
@@ -94,12 +90,12 @@ export default function SalespersonBalance() {
               <div className="bg-white rounded-2xl shadow-sm border-2 border-slate-300 overflow-hidden">
 
                 {/* Status badge row */}
-                <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-blue-50 border-b border-emerald-100 flex items-center justify-between">
+                <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-blue-50 border-b-2 border-emerald-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TrendingUp size={14} className="text-emerald-600" />
                     <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Current Balance</span>
                   </div>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                     isOwing ? 'bg-red-100 text-red-700' : isCredit ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
                   }`}>
                     {isOwing ? 'Outstanding' : isCredit ? 'Credit' : 'Settled'}
@@ -107,11 +103,11 @@ export default function SalespersonBalance() {
                 </div>
 
                 {/* Large balance number */}
-                <div className="px-4 py-5 text-center border-b border-slate-100">
+                <div className="px-4 py-5 text-center border-b-2 border-slate-200">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
                     {isOwing ? 'You Owe' : isCredit ? "You're in Credit" : 'Settled'}
                   </p>
-                  <p className={`text-4xl font-bold tabular-nums leading-none ${
+                  <p className={`text-4xl font-extrabold tabular-nums leading-none ${
                     isOwing ? 'text-red-600' : isCredit ? 'text-violet-600' : 'text-emerald-600'
                   }`}>
                     {formatCurrency(Math.abs(balance?.closingBalance ?? 0))}
@@ -119,7 +115,7 @@ export default function SalespersonBalance() {
                 </div>
 
                 {/* 4 breakdown metrics — 2 cols on mobile, 4 on desktop */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-0.5 bg-slate-200">
                   {[
                     { label: 'Opening',   value: balance?.openingBalance ?? 0, color: 'text-slate-600' },
                     { label: 'Bill Today', value: balance?.stockGiven     ?? 0, color: 'text-blue-600' },
@@ -129,7 +125,7 @@ export default function SalespersonBalance() {
                   ].map(({ label, value, color }) => (
                     <div key={label} className="bg-white p-3 text-center">
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold mb-1">{label}</p>
-                      <p className={`text-sm font-bold tabular-nums ${color}`}>{formatCurrency(value)}</p>
+                      <p className={`text-sm font-extrabold tabular-nums ${color}`}>{formatCurrency(value)}</p>
                     </div>
                   ))}
                 </div>
@@ -172,7 +168,7 @@ export default function SalespersonBalance() {
 
               {/* ── Payment History ────────────────────────────────── */}
               <div className="bg-white rounded-2xl shadow-sm border-2 border-slate-300 overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                <div className="px-4 py-3 bg-slate-50 border-b-2 border-slate-200 flex items-center gap-2">
                   <Calendar size={14} className="text-slate-600" />
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Payment History</span>
                 </div>
@@ -180,47 +176,71 @@ export default function SalespersonBalance() {
                 {history && history.length > 0 ? (
                   <>
                     {/* ── MOBILE: card list ── */}
-                    <div className="md:hidden divide-y divide-slate-100">
+                    <div className="md:hidden divide-y-2 divide-slate-100">
                       {history.map((entry, idx) => {
                         const entryOwing  = entry.closingBalance > 0;
                         const entryCredit = entry.closingBalance < 0;
                         return (
-                          <div key={idx} className="px-4 py-3.5">
-                            {/* Top row: date + status */}
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-bold text-slate-800">
-                                {formatDateShort(entry.balanceDate)}
+                          <div key={idx} className="px-4 py-3.5 flex items-center gap-3">
+                            {/* Date pill — same style as My Statement */}
+                            <div className="w-12 flex-shrink-0 bg-slate-100 rounded-xl py-2 text-center">
+                              <p className="text-base font-extrabold text-slate-800 leading-none tabular-nums">
+                                {new Date(entry.balanceDate).toLocaleDateString('en-IN', { day: '2-digit' })}
                               </p>
-                              <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
-                                entryOwing  ? 'bg-red-50 text-red-600'
-                                : entryCredit ? 'bg-violet-50 text-violet-700'
-                                : 'bg-emerald-50 text-emerald-600'
-                              }`}>
-                                {entryOwing ? 'Owing' : entryCredit ? 'Credit' : 'Paid'}
-                              </span>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">
+                                {new Date(entry.balanceDate).toLocaleDateString('en-IN', { month: 'short' })}
+                              </p>
                             </div>
-                            {/* Bottom row: 3 metrics */}
-                            <div className="grid grid-cols-3 gap-2">
-                              <div className="text-center">
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Bill</p>
-                                <p className="text-sm font-semibold text-slate-700 tabular-nums">
-                                  {formatCurrency(entry.stockGiven)}
-                                </p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Paid</p>
-                                <p className="text-sm font-semibold text-emerald-600 tabular-nums">
-                                  {formatCurrency(entry.amountPaid)}
-                                </p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Balance</p>
-                                <p className={`text-sm font-bold tabular-nums ${
-                                  entryOwing ? 'text-red-600' : entryCredit ? 'text-violet-600' : 'text-emerald-600'
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                  entryOwing  ? 'bg-red-50 text-red-600'
+                                  : entryCredit ? 'bg-violet-50 text-violet-700'
+                                  : 'bg-emerald-50 text-emerald-600'
                                 }`}>
-                                  {formatCurrency(Math.abs(entry.closingBalance))}
-                                </p>
+                                  {entryOwing ? 'Owing' : entryCredit ? 'Credit' : 'Paid'}
+                                </span>
                               </div>
+                              {/* 3 metrics */}
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="text-center">
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Bill</p>
+                                  <p className="text-sm font-bold text-slate-700 tabular-nums">
+                                    {formatCurrency(entry.stockGiven)}
+                                  </p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Paid</p>
+                                  <p className="text-sm font-bold text-emerald-600 tabular-nums">
+                                    {formatCurrency(entry.amountPaid)}
+                                  </p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Balance</p>
+                                  <p className={`text-sm font-extrabold tabular-nums ${
+                                    entryOwing ? 'text-red-600' : entryCredit ? 'text-violet-600' : 'text-emerald-600'
+                                  }`}>
+                                    {formatCurrency(Math.abs(entry.closingBalance))}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Old dues loaded by an admin — shown so the salesman
+                                  knows where a jump in balance came from. */}
+                              {(entry.topUps ?? []).map((t, ti) => (
+                                <div key={ti} className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                  <Wallet size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-bold text-amber-800 tabular-nums">
+                                      Old balance added: {formatCurrency(t.amount)}
+                                    </p>
+                                    <p className="text-[10px] text-amber-700 leading-tight">
+                                      by {t.createdBy ?? 'admin'}{t.notes ? ` · ${t.notes}` : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         );
@@ -252,7 +272,7 @@ export default function SalespersonBalance() {
                     {/* ── DESKTOP: table ── */}
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-slate-100 border-b border-slate-200">
+                        <thead className="bg-slate-100 border-b-2 border-slate-300">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Date</th>
                             <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase tracking-wider">Bill</th>
@@ -261,12 +281,14 @@ export default function SalespersonBalance() {
                             <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider">Status</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y-2 divide-slate-100">
                           {history.map((entry, idx) => {
                             const entryOwing  = entry.closingBalance > 0;
                             const entryCredit = entry.closingBalance < 0;
+                            const topUps = entry.topUps ?? [];
                             return (
-                              <tr key={idx} className="hover:bg-slate-50 transition">
+                              <React.Fragment key={idx}>
+                              <tr className="hover:bg-slate-50 transition">
                                 <td className="px-4 py-3 text-left text-sm font-semibold text-slate-700 whitespace-nowrap">
                                   {formatDateShort(entry.balanceDate)}
                                 </td>
@@ -291,6 +313,22 @@ export default function SalespersonBalance() {
                                   </span>
                                 </td>
                               </tr>
+                              {topUps.map((t, ti) => (
+                                <tr key={`${idx}-topup-${ti}`} className="bg-amber-50">
+                                  <td colSpan={5} className="px-4 py-2">
+                                    <span className="inline-flex items-center gap-1.5 text-xs text-amber-800">
+                                      <Wallet size={12} className="text-amber-600 flex-shrink-0" />
+                                      <span className="font-bold tabular-nums">
+                                        Old balance added: {formatCurrency(t.amount)}
+                                      </span>
+                                      <span className="text-amber-700">
+                                        by {t.createdBy ?? 'admin'}{t.notes ? ` · ${t.notes}` : ''}
+                                      </span>
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>

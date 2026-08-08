@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Milk, Lock, User, AlertCircle } from 'lucide-react';
+import { Milk, Lock, User, AlertCircle, Info } from 'lucide-react';
 import { armForLogin } from '../api/coldStart';
+import { consumeSessionNotice } from '../utils/session';
 import BrandedLoader from '../components/ui/BrandedLoader';
 
 export default function Login() {
@@ -11,8 +12,17 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [notice, setNotice]     = useState('');
   const [slowWarning, setSlowWarning] = useState(false);
   const slowTimer = useRef(null);
+
+  // One-shot notice left by expireSessionAndRedirect() (session.js) when the
+  // user was bounced here by an expired/timed-out session — tells them why
+  // they landed back on the login page instead of leaving them guessing.
+  useEffect(() => {
+    const msg = consumeSessionNotice();
+    if (msg) setNotice(msg);
+  }, []);
 
   useEffect(() => {
     if (loading) {
@@ -38,6 +48,7 @@ export default function Login() {
     e.preventDefault();
     if (!username || !password) return setError('Username and password are required');
     setError('');
+    setNotice('');
     setLoading(true);
     // Arm the global cold-start screen: if the login + initial dashboard
     // requests hang past 2s (Render free-tier wake), show the branded overlay.
@@ -73,6 +84,13 @@ export default function Login() {
             <p className="text-slate-500 text-sm mb-6 text-center">Sign in to access your dashboard</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {notice && !error && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm">
+                  <Info className="w-4 h-4 flex-shrink-0" />
+                  <span>{notice}</span>
+                </div>
+              )}
+
               {error && (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />

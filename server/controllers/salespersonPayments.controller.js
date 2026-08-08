@@ -31,6 +31,71 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: payment });
 });
 
+// Admin only — bulk "top-up": loads each salesman's pre-existing dues so they
+// carry forward as opening balance. A top-up ADDS to what the salesman owes
+// (unlike a normal payment, which reduces it) — see balanceService.
+const bulkTopUp = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+
+  const data = validate(schemas.bulkSalespersonTopUp, req, res);
+  if (!data) return;
+
+  const ids = data.entries.map(e => e.salespersonId);
+  if (new Set(ids).size !== ids.length) {
+    throw new AppError('Each salesperson can only appear once', 400);
+  }
+
+  const found = await prisma.salesperson.findMany({
+    where:  { id: { in: ids } },
+    select: { id: true },
+  });
+  if (found.length !== ids.length) {
+    const missing = ids.filter(id => !found.some(s => s.id === id));
+    throw new AppError(`Salesperson not found: ${missing.join(', ')}`, 404);
+  }
+
+  // Stamped on every row so the salesman can see who loaded the amount.
+  const admin = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  const createdBy = admin?.username ?? 'admin';
+
+  const created = await prisma.$transaction(async (tx) => {
+    const rows = [];
+    for (const entry of data.entries) {
+      rows.push(await tx.salespersonPayment.create({
+        data: {
+          salespersonId: entry.salespersonId,
+          paymentDate:   new Date(data.paymentDate),
+          amount:        entry.amount,
+          paymentMode:   'Top-up',
+          notes:         data.notes ?? null,
+          isTopUp:       true,
+          createdBy,
+        },
+      }));
+      await recalculateSalespersonBalance(entry.salespersonId, data.paymentDate, tx);
+    }
+    return rows;
+  }, { isolationLevel: 'Serializable' });
+
+  const total = data.entries.reduce((s, e) => s + e.amount, 0);
+  logger.info('Salesperson bulk top-up recorded', {
+    count: created.length, total, date: data.paymentDate, createdBy,
+  });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED, {
+    date:   data.paymentDate,
+    amount: total,
+    note:   `Bulk top-up for ${created.length} salesperson(s) by ${createdBy}`,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: { count: created.length, total, createdBy, payments: created },
+  });
+});
+
 // Salesman sees only their own payments; admin sees all
 const getAll = asyncHandler(async (req, res) => {
   const { salespersonId, from, to } = req.query;
@@ -115,4 +180,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Payment deleted' } });
 });
 
-module.exports = { create, getAll, update, remove };
+module.exports = { create, bulkTopUp, getAll, update, remove };

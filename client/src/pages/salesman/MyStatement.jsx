@@ -1,12 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
+// ─── Item-level crates/litres, computed once when the statement loads ─────────
+// Crates: floor(quantity / unitsPerContainer) — same convention as the admin
+// Daily Dispatch Summary. Litres: only 'ml' products count (quantity × ml ÷ 1000);
+// gram-measured items (ghee, butter etc.) don't contribute litres.
+function withComputedFields(items) {
+  return (items ?? []).map((item) => {
+    const crates = item.unitsPerContainer > 0 ? Math.floor(item.quantity / item.unitsPerContainer) : 0;
+    const litres = item.unitType === 'ml' && item.unitSize > 0 ? (item.quantity * item.unitSize) / 1000 : 0;
+    return { ...item, crates, litres };
+  });
+}
+
+function formatLitres(litres) {
+  return `${litres.toLocaleString('en-IN', { maximumFractionDigits: 1 })} L`;
+}
+
 // ─── Shared breakdown panel (mobile cards + desktop expanded rows) ─────────────
 
 function BreakdownPanel({ row }) {
+  // Group stock-received items by brand so each brand gets its own header
+  // (mirrors the admin Daily Dispatch Summary layout).
+  const brandGroups = useMemo(() => {
+    const map = new Map();
+    for (const item of row.items ?? []) {
+      if (!map.has(item.brandName)) map.set(item.brandName, []);
+      map.get(item.brandName).push(item);
+    }
+    return Array.from(map.entries()).map(([brandName, items]) => ({
+      brandName,
+      items,
+      crates: items.reduce((s, i) => s + i.crates, 0),
+      litres: items.reduce((s, i) => s + i.litres, 0),
+      amount: items.reduce((s, i) => s + i.totalAmount, 0),
+    }));
+  }, [row.items]);
+
+  // Day-level totals across all brands — shown as one line above Payments Made
+  const rowTotals = useMemo(() => ({
+    crates: (row.items ?? []).reduce((s, i) => s + i.crates, 0),
+    litres: (row.items ?? []).reduce((s, i) => s + i.litres, 0),
+  }), [row.items]);
+
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 divide-y divide-slate-100">
 
@@ -20,16 +59,86 @@ function BreakdownPanel({ row }) {
             <span className="text-sm font-bold text-white tabular-nums">{formatCurrency(row.stockGiven)}</span>
           </div>
           <div className="bg-white divide-y divide-slate-50">
-            {row.items.map((item, i) => (
+            {brandGroups.map((group, gi) => (
+              <div key={gi}>
+                <div className="flex items-center justify-between gap-2 px-4 py-1.5 bg-slate-100">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{group.brandName}</span>
+                  <div className="flex items-center gap-1.5">
+                    {group.crates > 0 && (
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full tabular-nums">
+                        {group.crates} crates
+                      </span>
+                    )}
+                    {group.litres > 0 && (
+                      <span className="text-[10px] font-semibold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full tabular-nums">
+                        {formatLitres(group.litres)}
+                      </span>
+                    )}
+                    {group.amount > 0 && (
+                      <span className="text-[10px] font-semibold text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded-full tabular-nums">
+                        {formatCurrency(group.amount)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {group.items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-800 leading-tight truncate">{item.productName}</p>
+                      <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                        {item.quantity} × ₹{item.unitPrice}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-blue-700 tabular-nums whitespace-nowrap flex-shrink-0">
+                      {formatCurrency(item.totalAmount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          {(rowTotals.crates > 0 || rowTotals.litres > 0) && (
+            <div className="flex items-center justify-end gap-1.5 px-4 py-2 bg-slate-50 border-t border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-auto">Total</span>
+              {rowTotals.crates > 0 && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full tabular-nums">
+                  {rowTotals.crates} crates
+                </span>
+              )}
+              {rowTotals.litres > 0 && (
+                <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full tabular-nums">
+                  {formatLitres(rowTotals.litres)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {row.topUps?.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between px-4 py-2.5 bg-amber-600">
+            <div className="flex items-center gap-2">
+              <Wallet size={13} className="text-amber-200 flex-shrink-0" />
+              <span className="text-[10px] font-bold text-white uppercase tracking-widest">Old Balance Added</span>
+            </div>
+            <span className="text-sm font-bold text-white tabular-nums">
+              {formatCurrency(row.topUps.reduce((s, t) => s + t.amount, 0))}
+            </span>
+          </div>
+          <div className="bg-white divide-y divide-slate-50">
+            {row.topUps.map((t, i) => (
               <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-800 leading-tight truncate">{item.productName}</p>
-                  <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
-                    {item.brandName} &middot; {item.quantity} × ₹{item.unitPrice}
+                  <p className="text-xs font-semibold text-slate-800 leading-tight">
+                    Added by {t.createdBy ?? 'admin'}
                   </p>
+                  {t.notes && (
+                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5 truncate">{t.notes}</p>
+                  )}
                 </div>
-                <span className="text-xs font-bold text-blue-700 tabular-nums whitespace-nowrap flex-shrink-0">
-                  {formatCurrency(item.totalAmount)}
+                <span className="text-xs font-bold text-amber-700 tabular-nums whitespace-nowrap flex-shrink-0">
+                  {formatCurrency(t.amount)}
                 </span>
               </div>
             ))}
@@ -102,7 +211,7 @@ function ExpandableRow({ row, open, onToggle }) {
         </td>
       </tr>
 
-      {open && (row.items?.length > 0 || row.payments?.length > 0) && (
+      {open && (row.items?.length > 0 || row.payments?.length > 0 || row.topUps?.length > 0) && (
         <tr>
           <td colSpan={6} className="border-b border-slate-100 bg-slate-50 px-3 py-3">
             <BreakdownPanel row={row} />
@@ -124,7 +233,7 @@ export default function MyStatement() {
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   const expandableIndices = rows.reduce((acc, r, i) => {
-    if (r.items?.length > 0 || r.payments?.length > 0) acc.push(i);
+    if (r.items?.length > 0 || r.payments?.length > 0 || r.topUps?.length > 0) acc.push(i);
     return acc;
   }, []);
   const allExpanded =
@@ -149,7 +258,7 @@ export default function MyStatement() {
     setExpandedRows(new Set());
     try {
       const r = await api.get(`/salesperson-statement/me?from=${from}&to=${to}`);
-      setRows(r.data.data);
+      setRows(r.data.data.map((row) => ({ ...row, items: withComputedFields(row.items) })));
     } catch (e) {
       setError(e.response?.data?.error ?? 'Failed to load statement');
     } finally {
@@ -160,6 +269,8 @@ export default function MyStatement() {
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
   const totalGiven     = rows.reduce((s, r) => s + r.stockGiven, 0);
   const totalCollected = rows.reduce((s, r) => s + r.amountPaid, 0);
+  const totalCrates    = rows.reduce((s, r) => s + (r.items ?? []).reduce((s2, i) => s2 + i.crates, 0), 0);
+  const totalLitres    = rows.reduce((s, r) => s + (r.items ?? []).reduce((s2, i) => s2 + i.litres, 0), 0);
   const isOwing  = closingBalance > 0;
   const isCredit = closingBalance < 0;
 
@@ -247,6 +358,27 @@ export default function MyStatement() {
             </div>
           )}
 
+          {rows.length > 0 && (totalCrates > 0 || totalLitres > 0) && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl shadow-sm p-3 text-center">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-amber-700/70 mb-1 flex items-center justify-center gap-1">
+                  <Box size={11} /> Total Crates
+                </p>
+                <p className="text-sm font-bold text-amber-700 tabular-nums leading-tight">
+                  {totalCrates.toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl shadow-sm p-3 text-center">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-sky-700/70 mb-1 flex items-center justify-center gap-1">
+                  <Droplet size={11} /> Total Litres
+                </p>
+                <p className="text-sm font-bold text-sky-700 tabular-nums leading-tight">
+                  {formatLitres(totalLitres)}
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm">
               <AlertCircle size={15} className="flex-shrink-0" /> {error}
@@ -286,7 +418,7 @@ export default function MyStatement() {
                 {rows.map((row, i) => {
                   const rowOwing  = row.closingBalance > 0;
                   const rowCredit = row.closingBalance < 0;
-                  const hasDetail = row.items?.length > 0 || row.payments?.length > 0;
+                  const hasDetail = row.items?.length > 0 || row.payments?.length > 0 || row.topUps?.length > 0;
                   return (
                     <React.Fragment key={i}>
                       <button

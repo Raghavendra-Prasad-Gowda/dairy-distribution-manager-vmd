@@ -1,9 +1,8 @@
 import { createContext, useState, useEffect, useContext, useRef } from 'react';
 import api from '../api/axios';
+import { SESSION_MS, expireSessionAndRedirect } from '../utils/session';
 
 const AuthContext = createContext(null);
-
-const SESSION_MS = 2 * 60 * 60 * 1000; // 2 hours — matches JWT expiry
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser]       = useState(null);
@@ -50,9 +49,8 @@ export const AuthProvider = ({ children }) => {
   async function performAutoLogout() {
     clearTimer();
     await api.post('/auth/logout').catch(() => {});
-    clearStorage();
     setUser(null);
-    window.location.href = '/login';
+    expireSessionAndRedirect('Your session expired after 2 hours. Please log in again.');
   }
 
   const login = async (username, password) => {

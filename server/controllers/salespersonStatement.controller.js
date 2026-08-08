@@ -33,7 +33,19 @@ const myStatement = asyncHandler(async (req, res) => {
     prisma.stockDispatch.findMany({
       where:   { salespersonId: spId, dispatchDate: { gte: fromDate, lte: toDate } },
       include: {
-        items: { include: { product: { include: { brand: { select: { name: true } } } } } },
+        items: {
+          include: {
+            product: {
+              select: {
+                name:              true,
+                unitType:          true,
+                unitSize:          true,
+                unitsPerContainer: true,
+                brand:             { select: { name: true } },
+              },
+            },
+          },
+        },
       },
     }),
     prisma.salespersonPayment.findMany({
@@ -59,17 +71,32 @@ const myStatement = asyncHandler(async (req, res) => {
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       items: dispatch?.items.map((i) => ({
-        brandName:   i.product.brand.name,
-        productName: i.product.name,
-        quantity:    Number(i.quantity),
-        unitPrice:   Number(i.unitPrice),
-        totalAmount: Number(i.totalAmount),
+        brandName:         i.product.brand.name,
+        productName:       i.product.name,
+        quantity:          Number(i.quantity),
+        unitPrice:         Number(i.unitPrice),
+        totalAmount:       Number(i.totalAmount),
+        unitType:          i.product.unitType,
+        unitSize:          i.product.unitSize != null ? Number(i.product.unitSize) : null,
+        unitsPerContainer: i.product.unitsPerContainer,
       })) ?? [],
-      payments: (paymentsByDate.get(key) ?? []).map((p) => ({
-        amount: Number(p.amount),
-        mode:   p.paymentMode,
-        ref:    p.reference,
-      })),
+      // Top-ups are admin-loaded pre-existing dues — they add to what the
+      // salesman owes, so they are kept out of "payments made" and surfaced
+      // separately (with the admin who recorded them).
+      payments: (paymentsByDate.get(key) ?? [])
+        .filter((p) => !p.isTopUp)
+        .map((p) => ({
+          amount: Number(p.amount),
+          mode:   p.paymentMode,
+          ref:    p.reference,
+        })),
+      topUps: (paymentsByDate.get(key) ?? [])
+        .filter((p) => p.isTopUp)
+        .map((p) => ({
+          amount:    Number(p.amount),
+          notes:     p.notes,
+          createdBy: p.createdBy,
+        })),
     };
   });
 

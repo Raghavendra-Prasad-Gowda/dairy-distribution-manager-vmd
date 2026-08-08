@@ -284,6 +284,7 @@ model SalespersonBalance {
   balanceDate    DateTime @db.Date @map("balance_date")
   openingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("opening_balance")
   stockGiven     Decimal  @default(0) @db.Decimal(10, 2) @map("stock_given")
+  topUpAmount    Decimal  @default(0) @db.Decimal(10, 2) @map("top_up_amount")
   amountPaid     Decimal  @default(0) @db.Decimal(10, 2) @map("amount_paid")
   closingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("closing_balance")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -304,6 +305,11 @@ model SalespersonPayment {
   paymentMode   String?  @map("payment_mode")
   reference     String?
   notes         String?
+  // Top-up = admin loading a salesman's pre-existing dues. Unlike a normal
+  // payment (which reduces what they owe) a top-up ADDS to it, so the balance
+  // formula adds these rows instead of subtracting them. Amount stays positive.
+  isTopUp       Boolean  @default(false) @map("is_top_up")
+  createdBy     String?  @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
 
   salesperson Salesperson @relation(fields: [salespersonId], references: [id])

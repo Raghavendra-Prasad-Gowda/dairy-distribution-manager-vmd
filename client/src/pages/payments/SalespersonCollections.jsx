@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users } from 'lucide-react';
+import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
+import BulkTopUpModal from '../../components/BulkTopUpModal';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -17,6 +18,9 @@ const MODE_COLORS = {
   NEFT:   'bg-violet-100 text-violet-700',
   RTGS:   'bg-amber-100  text-amber-700',
   Cheque: 'bg-orange-100 text-orange-700',
+  // Not a collection — old dues loaded by an admin, which ADD to what the
+  // salesman owes. Amber keeps it visually distinct from real money in.
+  'Top-up': 'bg-amber-100 text-amber-800',
 };
 
 function getInitials(name) {
@@ -101,6 +105,7 @@ export default function SalespersonCollections() {
   // PIN gate state
   const [pinOpen, setPinOpen]             = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
+  const [topUpOpen, setTopUpOpen]         = useState(false);
 
   // History filter state
   const [showFilter, setShowFilter]   = useState(false);
@@ -302,11 +307,19 @@ export default function SalespersonCollections() {
             <p className="text-emerald-300 text-xs">Record cash / UPI collected from salespeople</p>
           </div>
         </div>
-        {pendingCount > 0 && (
-          <span className="text-xs font-semibold text-red-300 bg-red-900/50 px-2.5 py-1 rounded-full whitespace-nowrap">
-            {pendingCount} pending
-          </span>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {pendingCount > 0 && (
+            <span className="text-xs font-semibold text-red-300 bg-red-900/50 px-2.5 py-1 rounded-full whitespace-nowrap">
+              {pendingCount} pending
+            </span>
+          )}
+          <button
+            onClick={() => setTopUpOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+          >
+            <Wallet size={13} /> Bulk Top-up
+          </button>
+        </div>
       </div>
 
       {/* Split panel */}
@@ -581,6 +594,20 @@ export default function SalespersonCollections() {
           )}
         </div>
       </div>
+
+      {/* ── Bulk top-up modal ────────────────────────────────── */}
+      <BulkTopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        salespeople={salespeople}
+        notify={notify}
+        onSaved={async (payload) => {
+          const res = await api.post('/salesperson-payments/bulk-topup', payload);
+          await refreshAllBalances();
+          if (selectedSpId) await fetchDetail();
+          return res.data.data;
+        }}
+      />
 
       {/* ── PIN modal ────────────────────────────────────────── */}
       <PinModal
