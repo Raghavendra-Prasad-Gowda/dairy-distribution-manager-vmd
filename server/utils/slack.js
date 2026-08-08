@@ -29,6 +29,12 @@ const SLACK_EVENTS = {
   SALESPERSON_PAYMENT_RECORDED: 'SALESPERSON_PAYMENT_RECORDED',
   SALESPERSON_PAYMENT_UPDATED:  'SALESPERSON_PAYMENT_UPDATED',
   SALESPERSON_PAYMENT_DELETED:  'SALESPERSON_PAYMENT_DELETED',
+  // Bulk top-ups + ledger reset — distinct from the single-record events
+  // above: these touch several salespeople/brands at once and are admin-
+  // loaded balance adjustments, not a real collection/payment.
+  SALESPERSON_TOPUP_RECORDED: 'SALESPERSON_TOPUP_RECORDED',
+  DAIRY_TOPUP_RECORDED:       'DAIRY_TOPUP_RECORDED',
+  SALESPERSON_LEDGER_RESET:   'SALESPERSON_LEDGER_RESET',
   // Setup — salespeople
   SALESPERSON_CREATED: 'SALESPERSON_CREATED',
   SALESPERSON_UPDATED: 'SALESPERSON_UPDATED',
@@ -52,6 +58,9 @@ const COLORS = {
   BLUE:  '#1264a3',
   AMBER: '#e8a838',
   RED:   '#e01e5a',
+  // Matches the teal "Deposit Top-up" badge used client-side, so a deposit
+  // top-up is visually distinct from a plain dues top-up in Slack too.
+  TEAL:  '#0f9488',
 };
 
 const EVENT_COLOR = {
@@ -71,6 +80,9 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED]: COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED]:  COLORS.AMBER,
   [SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED]:  COLORS.RED,
+  [SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED]:   COLORS.AMBER,
+  [SLACK_EVENTS.DAIRY_TOPUP_RECORDED]:         COLORS.AMBER, // overridden to TEAL for a deposit top-up
+  [SLACK_EVENTS.SALESPERSON_LEDGER_RESET]:     COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.PRODUCT_CREATED]: COLORS.GREEN,
@@ -143,14 +155,19 @@ function footerBlock() {
   };
 }
 
-function card(event, blocks, fallbackText) {
+function card(event, blocks, fallbackText, colorOverride) {
   return {
     text: fallbackText,
     attachments: [{
-      color:  EVENT_COLOR[event] || COLORS.BLUE,
+      color:  colorOverride || EVENT_COLOR[event] || COLORS.BLUE,
       blocks: [...blocks, dividerBlock(), footerBlock()],
     }],
   };
+}
+
+/** "['A','B','C']" → "A, B, C" — falls back to a bare count when no names came through. */
+function joinNames(names, count, noun) {
+  return (names && names.length > 0) ? names.join(', ') : `${count} ${noun}`;
 }
 
 // ─── Data enrichment ──────────────────────────────────────────────────────────
@@ -373,6 +390,54 @@ function buildCard(event, data) {
         ]),
       ], `Collection Deleted — ${data.salespersonName} — ${formatINR(data.amount)}`);
 
+    // ── Bulk top-ups (admin-loaded pre-existing dues) ──────────────────────
+    case SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED: {
+      const names = joinNames(data.salespersonNames, data.count, 'salesperson(s)');
+      return card(event, [
+        headerBlock('💰 Salesperson Top-up Recorded'),
+        fieldsBlock([
+          ['👥 Salespeople', names],
+          ['📅 Date',        formatDate(data.date)],
+          ['🔢 Count',       String(data.count)],
+          ['💰 Total',       formatINR(data.total)],
+          ['🖊️ Added By',    data.createdBy],
+          ['📝 Note',        data.notes || null],
+        ]),
+      ], `Salesperson Top-up — ${names} — ${formatINR(data.total)}`);
+    }
+
+    case SLACK_EVENTS.DAIRY_TOPUP_RECORDED: {
+      const isDeposit = data.paymentMode === 'Deposit Top-up';
+      const names     = joinNames(data.brandNames, data.count, 'brand(s)');
+      return card(event, [
+        headerBlock(isDeposit ? '🏦 Dairy Deposit Top-up Recorded' : '💰 Dairy Top-up Recorded'),
+        fieldsBlock([
+          ['🏷️ Brands',   names],
+          ['📅 Date',     formatDate(data.date)],
+          ['🔢 Count',    String(data.count)],
+          ['💰 Total',    formatINR(data.total)],
+          ['🖊️ Added By', data.createdBy],
+          ['📝 Note',     data.notes || null],
+        ]),
+      ], `${isDeposit ? 'Dairy Deposit Top-up' : 'Dairy Top-up'} — ${names} — ${formatINR(data.total)}`,
+         isDeposit ? COLORS.TEAL : COLORS.AMBER);
+    }
+
+    // ── Ledger reset (irreversible wipe) ───────────────────────────────────
+    case SLACK_EVENTS.SALESPERSON_LEDGER_RESET: {
+      const names = joinNames(data.salespersonNames, data.count, 'salesperson(s)');
+      return card(event, [
+        headerBlock('🧹 Salesperson Ledger Reset'),
+        fieldsBlock([
+          ['👥 Salespeople',          names],
+          ['💳 Payments Removed',     String(data.payments)],
+          ['🚚 Dispatches Removed',   String(data.dispatches)],
+          ['📊 Balance Rows Removed', String(data.balances)],
+          ['🖊️ Reset By',            data.by],
+        ]),
+      ], `Salesperson Ledger Reset — ${names} — by ${data.by}`);
+    }
+
     // ── Setup ──────────────────────────────────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_CREATED:
       return card(event, [
@@ -530,4 +595,7 @@ const notifySlack = async (event, rawData = {}) => {
   }
 };
 
-module.exports = { notifySlack, SLACK_EVENTS };
+// buildCard is exported alongside the public API purely so tests can assert
+// on card content directly, without needing a live webhook or fighting
+// require-cache timing to override the module-level WEBHOOK_URL constant.
+module.exports = { notifySlack, SLACK_EVENTS, buildCard };

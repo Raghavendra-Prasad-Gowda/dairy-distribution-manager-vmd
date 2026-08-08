@@ -49,7 +49,7 @@ const bulkTopUp = asyncHandler(async (req, res) => {
 
   const found = await prisma.salesperson.findMany({
     where:  { id: { in: ids } },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (found.length !== ids.length) {
     const missing = ids.filter(id => !found.some(s => s.id === id));
@@ -86,10 +86,13 @@ const bulkTopUp = asyncHandler(async (req, res) => {
   logger.info('Salesperson bulk top-up recorded', {
     count: created.length, total, date: data.paymentDate, createdBy,
   });
-  void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED, {
-    date:   data.paymentDate,
-    amount: total,
-    note:   `Bulk top-up for ${created.length} salesperson(s) by ${createdBy}`,
+  void notifySlack(SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED, {
+    date:              data.paymentDate,
+    count:             created.length,
+    total,
+    createdBy,
+    notes:             data.notes,
+    salespersonNames:  found.map(s => s.name),
   });
 
   res.status(201).json({

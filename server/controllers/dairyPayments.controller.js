@@ -44,7 +44,7 @@ const bulkTopUp = asyncHandler(async (req, res) => {
 
   const found = await prisma.brand.findMany({
     where:  { id: { in: ids } },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (found.length !== ids.length) {
     const missing = ids.filter(id => !found.some(b => b.id === id));
@@ -80,10 +80,14 @@ const bulkTopUp = asyncHandler(async (req, res) => {
   logger.info('Dairy bulk top-up recorded', {
     count: created.length, total, date: data.paymentDate, paymentMode: data.paymentMode, createdBy,
   });
-  void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_RECORDED, {
-    date:   data.paymentDate,
-    amount: total,
-    note:   `Bulk ${data.paymentMode.toLowerCase()} for ${created.length} brand(s) by ${createdBy}`,
+  void notifySlack(SLACK_EVENTS.DAIRY_TOPUP_RECORDED, {
+    date:        data.paymentDate,
+    count:       created.length,
+    total,
+    createdBy,
+    notes:       data.notes,
+    paymentMode: data.paymentMode,
+    brandNames:  found.map(b => b.name),
   });
 
   res.status(201).json({

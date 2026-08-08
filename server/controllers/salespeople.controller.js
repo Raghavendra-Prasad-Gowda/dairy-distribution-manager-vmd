@@ -139,6 +139,14 @@ const resetLedger = asyncHandler(async (req, res) => {
     throw new AppError(`Salesperson not found: ${missing.join(', ')}`, 404);
   }
 
+  // Stamped on the log line and Slack card so it's clear who ran an
+  // irreversible wipe, not just an opaque numeric admin id.
+  const admin = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  const resetBy = admin?.username ?? 'admin';
+
   // One transaction for the whole batch: either every selected salesperson is
   // reset or none is, so a partial failure can't leave some wiped and some not.
   const counts = await prisma.$transaction(async (tx) => {
@@ -153,10 +161,12 @@ const resetLedger = asyncHandler(async (req, res) => {
     salespersonIds: ids,
     names,
     ...counts,
-    by: req.user?.adminUserId,
+    by: resetBy,
   });
-  void notifySlack(SLACK_EVENTS.SALESPERSON_UPDATED, {
-    note: `Ledger reset for ${names.join(', ')} — removed ${counts.payments} payment(s), ${counts.dispatches} dispatch(es), ${counts.balances} balance row(s)`,
+  void notifySlack(SLACK_EVENTS.SALESPERSON_LEDGER_RESET, {
+    salespersonNames: names,
+    ...counts,
+    by: resetBy,
   });
 
   res.json({
