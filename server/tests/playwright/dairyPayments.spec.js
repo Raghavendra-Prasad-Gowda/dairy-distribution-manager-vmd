@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSuperAdminToken, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockDairyCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
@@ -429,5 +429,245 @@ test.describe('DELETE /api/v1/dairy-payments/:id', () => {
     expect(recalcDates).toContain('2026-04-30');
     expect(recalcDates).toContain('2026-05-01');
     expect(recalcDates).toContain('2026-05-02');
+  });
+});
+
+// ─── POST /api/v1/dairy-payments/bulk-topup ──────────────────────────────────
+
+test.describe('POST /api/v1/dairy-payments/bulk-topup', () => {
+  /**
+   * Wires the mocks a successful bulk top-up needs and returns the arrays that
+   * capture what the controller wrote (mockFn has no built-in call recording).
+   */
+  function mockTopUpDeps(ids = [1, 2], username = 'admin') {
+    const createCalls = [];
+    const upsertCalls = [];
+    ctx.mockPrisma.brand.findMany.mockResolvedValue(ids.map(id => ({ id })));
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username });
+    ctx.mockPrisma.dairyPayment.create.mockImplementation(async (args) => {
+      createCalls.push(args);
+      return { id: 90 + createCalls.length, ...args.data };
+    });
+    mockDairyCascade(ctx.mockPrisma);
+    ctx.mockPrisma.dairyBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
+    return { createCalls, upsertCalls };
+  }
+
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: 500 }] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when caller is a salesman', async ({ request }) => {
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: 500 }] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when caller is a plain admin — superadmin only', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps();
+
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: 500 }] },
+    });
+
+    expect(res.status()).toBe(403);
+    expect(createCalls).toHaveLength(0);
+  });
+
+  test('returns 201 and creates one top-up row per brand', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps();
+
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ brandId: 1, amount: 500 }, { brandId: 2, amount: 750 }],
+      },
+    });
+
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.data.count).toBe(2);
+    expect(body.data.total).toBe(1250);
+    expect(createCalls).toHaveLength(2);
+  });
+
+  test('marks rows isTopUp with mode Top-up and stamps the admin username', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1], 'raghav');
+
+    await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: 500 }] },
+    });
+
+    expect(createCalls[0].data).toMatchObject({
+      isTopUp:     true,
+      paymentMode: 'Top-up',
+      createdBy:   'raghav',
+      amount:      500,
+      brandId:     1,
+    });
+  });
+
+  test('stores a positive amount — top-ups are added, not subtracted', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1]);
+
+    await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: 500 }] },
+    });
+
+    expect(createCalls[0].data.amount).toBeGreaterThan(0);
+  });
+
+  test('cascades the balance for every brand touched', async ({ request }) => {
+    const { upsertCalls } = mockTopUpDeps([1, 2]);
+
+    await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ brandId: 1, amount: 500 }, { brandId: 2, amount: 750 }],
+      },
+    });
+
+    const cascaded = upsertCalls.map(c => c.create.brandId);
+    expect(cascaded).toContain(1);
+    expect(cascaded).toContain(2);
+  });
+
+  test('returns 404 when a brand in the batch does not exist', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1]); // brand 2 missing
+
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ brandId: 1, amount: 500 }, { brandId: 2, amount: 750 }],
+      },
+    });
+
+    expect(res.status()).toBe(404);
+    expect(createCalls).toHaveLength(0);
+  });
+
+  test('returns 400 when the same brand appears twice', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1]);
+
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: {
+        paymentDate: '2026-04-30',
+        entries: [{ brandId: 1, amount: 500 }, { brandId: 1, amount: 750 }],
+      },
+    });
+
+    expect(res.status()).toBe(400);
+    expect(createCalls).toHaveLength(0);
+  });
+
+  test('returns 400 when entries is empty', async ({ request }) => {
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when an amount is zero or negative', async ({ request }) => {
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: -500 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when paymentDate format is invalid', async ({ request }) => {
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '30-04-2026', entries: [{ brandId: 1, amount: 500 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+});
+
+// ─── Dairy balance formula: + topUpAmount ────────────────────────────────────
+
+test.describe('Dairy balance formula — top-ups vs payments', () => {
+  async function runTopUp(request, cascadeOpts, amount = 50000) {
+    const upsertCalls = [];
+    ctx.mockPrisma.brand.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
+    ctx.mockPrisma.dairyPayment.create.mockImplementation(async ({ data }) => ({ id: 1, ...data }));
+    mockDairyCascade(ctx.mockPrisma, cascadeOpts);
+    ctx.mockPrisma.dairyBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
+
+    const res = await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount }] },
+    });
+    return { res, upsertCalls };
+  }
+
+  test('a top-up is ADDED to what the dairy owes, a payment is subtracted', async ({ request }) => {
+    const { res, upsertCalls } = await runTopUp(request, {
+      onTopUpAggregate:   async () => ({ _sum: { amount: 50000 } }),
+      onPaymentAggregate: async () => ({ _sum: { amount: 9000 } }),
+    });
+
+    expect(res.status()).toBe(201);
+    // opening 0 + stock 0 + deposit 0 + topUp 50000 − paid 9000 = 41000
+    expect(upsertCalls[0].create).toMatchObject({
+      topUpAmount:    50000,
+      amountPaid:     9000,
+      closingBalance: 41000,
+    });
+  });
+
+  test('payments and top-ups are aggregated separately, not lumped together', async ({ request }) => {
+    const seen = [];
+    ctx.mockPrisma.brand.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
+    ctx.mockPrisma.dairyPayment.create.mockImplementation(async ({ data }) => ({ id: 1, ...data }));
+    mockDairyCascade(ctx.mockPrisma);
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(async (args) => {
+      seen.push(args.where.isTopUp);
+      return { _sum: { amount: null } };
+    });
+
+    await request.post('/api/v1/dairy-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ brandId: 1, amount: 500 }] },
+    });
+
+    expect(seen).toContain(false);
+    expect(seen).toContain(true);
+  });
+
+  test('a back-dated top-up cascades forward to later dates', async ({ request }) => {
+    const { upsertCalls } = await runTopUp(request, {
+      subsequentDates:  ['2026-05-01', '2026-05-02'],
+      onTopUpAggregate: async () => ({ _sum: { amount: 50000 } }),
+    });
+
+    expect(upsertCalls).toHaveLength(3);
+    expect(upsertCalls.every(c => c.create.brandId === 1)).toBe(true);
+  });
+
+  test('topUpAmount is 0 when the brand has no top-ups that date', async ({ request }) => {
+    const { upsertCalls } = await runTopUp(request, {});
+    expect(upsertCalls[0].create.topUpAmount).toBe(0);
   });
 });

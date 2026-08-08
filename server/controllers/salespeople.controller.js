@@ -108,52 +108,65 @@ const remove = asyncHandler(async (req, res) => {
 });
 
 /**
- * Superadmin only — wipes a salesperson's entire financial ledger so their
- * balance resets to ₹0, while the account itself (name, login, custom prices,
- * product access) survives. Intended for starting a salesperson afresh, after
- * which their real dues are loaded with a top-up.
+ * Superadmin only — wipes the entire financial ledger of one or more
+ * salespeople so their balances reset to ₹0, while the accounts themselves
+ * (name, login, custom prices, product access) survive. Intended for starting
+ * a salesperson afresh, after which their real dues are loaded with a top-up.
  *
  * Clears, in FK-safe order: payments (incl. top-ups), dispatches — whose items
  * cascade — and the balance ledger. Deleting the balance rows is what actually
  * zeroes them: the cascade only ever recomputes dates that already have a row,
  * so with none left there is nothing to recompute.
  *
- * Note this also removes the salesperson's dispatches from the dairy-wide
- * Stock Balance report, which reads the same table.
+ * Note this also removes those dispatches from the dairy-wide Stock Balance
+ * report, which reads the same table.
  */
 const resetLedger = asyncHandler(async (req, res) => {
-  const id = parseId(req.params.id, 'Salesperson ID');
+  const data = validate(schemas.bulkResetLedger, req, res);
+  if (!data) return;
 
-  const sp = await prisma.salesperson.findUnique({ where: { id }, select: { id: true, name: true } });
-  if (!sp) throw new AppError('Salesperson not found', 404);
-
-  // Typing the exact name is the client-side arming step; re-checked here so
-  // the guard still holds for anyone calling the API directly.
-  const { confirmName } = req.body ?? {};
-  if (typeof confirmName !== 'string' || confirmName.trim() !== sp.name) {
-    throw new AppError('Confirmation name does not match this salesperson', 400);
+  const ids = data.salespersonIds;
+  if (new Set(ids).size !== ids.length) {
+    throw new AppError('Each salesperson can only appear once', 400);
   }
 
+  const found = await prisma.salesperson.findMany({
+    where:  { id: { in: ids } },
+    select: { id: true, name: true },
+  });
+  if (found.length !== ids.length) {
+    const missing = ids.filter(id => !found.some(s => s.id === id));
+    throw new AppError(`Salesperson not found: ${missing.join(', ')}`, 404);
+  }
+
+  // One transaction for the whole batch: either every selected salesperson is
+  // reset or none is, so a partial failure can't leave some wiped and some not.
   const counts = await prisma.$transaction(async (tx) => {
-    const payments  = await tx.salespersonPayment.deleteMany({ where: { salespersonId: id } });
-    const dispatches = await tx.stockDispatch.deleteMany({ where: { salespersonId: id } });
-    const balances  = await tx.salespersonBalance.deleteMany({ where: { salespersonId: id } });
+    const payments   = await tx.salespersonPayment.deleteMany({ where: { salespersonId: { in: ids } } });
+    const dispatches = await tx.stockDispatch.deleteMany({ where: { salespersonId: { in: ids } } });
+    const balances   = await tx.salespersonBalance.deleteMany({ where: { salespersonId: { in: ids } } });
     return { payments: payments.count, dispatches: dispatches.count, balances: balances.count };
   }, { isolationLevel: 'Serializable' });
 
+  const names = found.map(s => s.name);
   logger.warn('Salesperson ledger reset', {
-    salespersonId: id,
-    name:          sp.name,
+    salespersonIds: ids,
+    names,
     ...counts,
-    by:            req.user?.adminUserId,
+    by: req.user?.adminUserId,
   });
   void notifySlack(SLACK_EVENTS.SALESPERSON_UPDATED, {
-    salespersonId: id,
-    name:          sp.name,
-    note: `Ledger reset — removed ${counts.payments} payment(s), ${counts.dispatches} dispatch(es), ${counts.balances} balance row(s)`,
+    note: `Ledger reset for ${names.join(', ')} — removed ${counts.payments} payment(s), ${counts.dispatches} dispatch(es), ${counts.balances} balance row(s)`,
   });
 
-  res.json({ success: true, data: { message: `Ledger cleared for ${sp.name}`, ...counts } });
+  res.json({
+    success: true,
+    data: {
+      message: `Ledger cleared for ${names.length} salesperson(s)`,
+      salespeople: names,
+      ...counts,
+    },
+  });
 });
 
 module.exports = { getAll, getById, reorder, create, update, remove, resetLedger };

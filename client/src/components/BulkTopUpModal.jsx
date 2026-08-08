@@ -5,19 +5,32 @@ import Button from './ui/Button';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 
 /**
- * Bulk top-up — loads each salesman's pre-existing dues in one go.
+ * Bulk top-up — loads pre-existing dues in one go.
  *
- * A top-up is NOT a collection: it ADDS to what the salesman owes, so it
- * carries forward as their opening balance. Used to seed balances that
- * predate the app. The salesman sees the entry (and the admin who added it)
- * in their own My Balance page.
+ * A top-up is NOT a payment: it ADDS to what is owed, so it carries forward as
+ * an opening balance. Used to seed balances that predate the app.
  *
- * Two steps: pick the salespeople, then enter an amount for each.
+ * Shared by both ledgers, which have the same shape:
+ *   - salesmen owing the dairy  → entryKey "salespersonId"
+ *   - the dairy owing a brand   → entryKey "brandId"
+ *
+ * Two steps: pick the entities, then enter an amount for each.
  */
-export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, notify }) {
+export default function BulkTopUpModal({
+  open,
+  onClose,
+  entities,
+  onSaved,
+  notify,
+  entryKey       = 'salespersonId',
+  nounSingular   = 'salesperson',
+  nounPlural     = 'salespeople',
+  searchPlaceholder = 'Search name or route…',
+  warning,
+}) {
   const [step, setStep]       = useState('pick'); // 'pick' | 'amounts'
   const [search, setSearch]   = useState('');
-  const [picked, setPicked]   = useState([]);     // salesperson ids
+  const [picked, setPicked]   = useState([]);     // entity ids
   const [amounts, setAmounts] = useState({});     // { [id]: '1234' }
   const [date, setDate]       = useState(getIndiaDate());
   const [notes, setNotes]     = useState('');
@@ -35,24 +48,28 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
     setSaving(false);
   }, [open]);
 
+  // Memoised so the derived useMemos below don't re-run on every render
+  // just because `?? []` allocates a fresh array each time.
+  const list = useMemo(() => entities ?? [], [entities]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return salespeople;
-    return salespeople.filter(sp =>
-      sp.name.toLowerCase().includes(q) || (sp.route ?? '').toLowerCase().includes(q)
+    if (!q) return list;
+    return list.filter(e =>
+      e.name.toLowerCase().includes(q) || (e.route ?? '').toLowerCase().includes(q)
     );
-  }, [salespeople, search]);
+  }, [list, search]);
 
   const pickedList = useMemo(
-    () => picked.map(id => salespeople.find(sp => sp.id === id)).filter(Boolean),
-    [picked, salespeople]
+    () => picked.map(id => list.find(e => e.id === id)).filter(Boolean),
+    [picked, list]
   );
 
   const entries = useMemo(
     () => pickedList
-      .map(sp => ({ salespersonId: sp.id, amount: Number(amounts[sp.id]) }))
+      .map(e => ({ [entryKey]: e.id, amount: Number(amounts[e.id]) }))
       .filter(e => Number.isFinite(e.amount) && e.amount > 0),
-    [pickedList, amounts]
+    [pickedList, amounts, entryKey]
   );
 
   const total = entries.reduce((s, e) => s + e.amount, 0);
@@ -64,11 +81,11 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
   // Select-all acts on what's currently visible, so it composes with the search
   // box (search "route 3", select all → only that route gets picked).
   const allFilteredPicked =
-    filtered.length > 0 && filtered.every(sp => picked.includes(sp.id));
+    filtered.length > 0 && filtered.every(e => picked.includes(e.id));
 
   const toggleAllFiltered = () =>
     setPicked((prev) => {
-      const ids = filtered.map(sp => sp.id);
+      const ids = filtered.map(e => e.id);
       return allFilteredPicked
         ? prev.filter(id => !ids.includes(id))
         : [...new Set([...prev, ...ids])];
@@ -78,12 +95,15 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
     if (entries.length === 0 || saving) return;
     setSaving(true);
     // Global loading modal (same as bulk price update) rather than a spinner
-    // inside the button — the save fans out across several salespeople and
+    // inside the button — the save fans out across several records and
     // cascades each balance, so the whole screen should be blocked meanwhile.
     notify?.('Adding top-up…', 'loading');
     try {
       const res = await onSaved({ paymentDate: date, notes: notes.trim() || undefined, entries });
-      notify?.(`Top-up added for ${res.count} salesperson${res.count === 1 ? '' : 's'}`, 'success');
+      notify?.(
+        `Top-up added for ${res.count} ${res.count === 1 ? nounSingular : nounPlural}`,
+        'success'
+      );
       onClose();
     } catch (e) {
       notify?.(e.response?.data?.error ?? 'Failed to add top-up', 'error');
@@ -97,7 +117,7 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
       open={open}
       onClose={onClose}
       size="xl"
-      title={step === 'pick' ? 'Bulk Top-up — select salespeople' : 'Bulk Top-up — enter amounts'}
+      title={step === 'pick' ? `Bulk Top-up — select ${nounPlural}` : 'Bulk Top-up — enter amounts'}
       footer={
         <div className="flex items-center justify-between gap-3 w-full">
           <p className="text-xs text-slate-500">
@@ -129,9 +149,13 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3">
         <AlertTriangle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
         <p className="text-[11px] text-amber-800 leading-relaxed">
-          A top-up <strong>increases</strong> what the salesman owes — use it to load old dues
-          from before the app. It is not a collection. The salesman will see this entry with
-          your username in their My Balance.
+          {warning ?? (
+            <>
+              A top-up <strong>increases</strong> what the salesman owes — use it to load old dues
+              from before the app. It is not a collection. The salesman will see this entry with
+              your username in their My Balance.
+            </>
+          )}
         </p>
       </div>
 
@@ -143,7 +167,7 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search name or route…"
+              placeholder={searchPlaceholder}
               className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
             />
             {search && (
@@ -155,7 +179,9 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
 
           <div className="flex items-center justify-between px-1 mb-1.5">
             <p className="text-[11px] text-slate-400 font-medium">
-              {search ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}` : `${salespeople.length} salespeople`}
+              {search
+                ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}`
+                : `${list.length} ${nounPlural}`}
             </p>
             <button
               type="button"
@@ -169,14 +195,14 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
 
           <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
             {filtered.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-400">No salespeople match</p>
-            ) : filtered.map(sp => {
-              const on = picked.includes(sp.id);
+              <p className="px-4 py-8 text-center text-sm text-slate-400">No {nounPlural} match</p>
+            ) : filtered.map(e => {
+              const on = picked.includes(e.id);
               return (
                 <button
-                  key={sp.id}
+                  key={e.id}
                   type="button"
-                  onClick={() => toggle(sp.id)}
+                  onClick={() => toggle(e.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition ${on ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
                 >
                   <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border ${
@@ -185,8 +211,8 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
                     {on && <Check size={11} className="text-white" />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-800 truncate">{sp.name}</span>
-                    {sp.route && <span className="block text-[11px] text-slate-400 truncate">{sp.route}</span>}
+                    <span className="block text-sm font-semibold text-slate-800 truncate">{e.name}</span>
+                    {e.route && <span className="block text-[11px] text-slate-400 truncate">{e.route}</span>}
                   </span>
                 </button>
               );
@@ -219,19 +245,19 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
           </div>
 
           <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
-            {pickedList.map(sp => (
-              <div key={sp.id} className="flex items-center gap-3 px-3 py-2.5">
+            {pickedList.map(e => (
+              <div key={e.id} className="flex items-center gap-3 px-3 py-2.5">
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-800 truncate">{sp.name}</span>
-                  {sp.route && <span className="block text-[11px] text-slate-400 truncate">{sp.route}</span>}
+                  <span className="block text-sm font-semibold text-slate-800 truncate">{e.name}</span>
+                  {e.route && <span className="block text-[11px] text-slate-400 truncate">{e.route}</span>}
                 </span>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   inputMode="decimal"
-                  value={amounts[sp.id] ?? ''}
-                  onChange={e => setAmounts(a => ({ ...a, [sp.id]: e.target.value }))}
+                  value={amounts[e.id] ?? ''}
+                  onChange={ev => setAmounts(a => ({ ...a, [e.id]: ev.target.value }))}
                   placeholder="0.00"
                   className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
@@ -241,7 +267,7 @@ export default function BulkTopUpModal({ open, onClose, salespeople, onSaved, no
 
           {missingCount > 0 && (
             <p className="text-[11px] text-slate-400 mt-2">
-              {missingCount} selected salesperson{missingCount === 1 ? '' : 's'} without an amount will be skipped.
+              {missingCount} selected {missingCount === 1 ? nounSingular : nounPlural} without an amount will be skipped.
             </p>
           )}
         </>

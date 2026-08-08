@@ -328,7 +328,7 @@ export default function SalespersonCollections() {
               <Wallet size={13} /> Bulk Top-up
             </button>
           )}
-          {isSuperAdmin && selectedSp && (
+          {isSuperAdmin && (
             <button
               onClick={() => setResetOpen(true)}
               className="flex items-center gap-1.5 text-xs font-semibold text-red-200 hover:text-white border border-red-700 hover:border-red-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
@@ -616,7 +616,7 @@ export default function SalespersonCollections() {
       <BulkTopUpModal
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
-        salespeople={salespeople}
+        entities={salespeople}
         notify={notify}
         onSaved={async (payload) => {
           const res = await api.post('/salesperson-payments/bulk-topup', payload);
@@ -630,12 +630,12 @@ export default function SalespersonCollections() {
       <ResetLedgerModal
         open={resetOpen}
         onClose={() => setResetOpen(false)}
-        salesperson={selectedSp}
+        salespeople={salespeople}
         notify={notify}
-        onConfirm={async (confirmName) => {
-          const res = await api.post(`/salespeople/${selectedSpId}/reset-ledger`, { confirmName });
+        onConfirm={async (salespersonIds) => {
+          const res = await api.post('/salespeople/reset-ledger', { salespersonIds });
           await refreshAllBalances();
-          await fetchDetail();
+          if (selectedSpId) await fetchDetail();
           return res.data.data;
         }}
       />

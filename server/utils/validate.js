@@ -247,6 +247,22 @@ const schemas = {
     })).min(1, 'At least one salesperson is required'),
   }),
 
+  // Bulk ledger reset — wipes the financial history of several salesmen
+  bulkResetLedger: z.object({
+    salespersonIds: z.array(z.number().int().positive())
+      .min(1, 'At least one salesperson is required'),
+  }),
+
+  // Bulk top-up — admin loads dues already owed to several brands at once
+  bulkDairyTopUp: z.object({
+    paymentDate: dateString(),
+    notes:       shortText,
+    entries: z.array(z.object({
+      brandId: z.number().int().positive(),
+      amount:  z.number().positive('Amount must be positive'),
+    })).min(1, 'At least one brand is required'),
+  }),
+
   // Admin Users (superadmin-only)
   createAdminUser: z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),

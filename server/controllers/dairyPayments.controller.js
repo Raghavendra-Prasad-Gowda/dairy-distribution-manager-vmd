@@ -28,6 +28,70 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: payment });
 });
 
+// Superadmin only — bulk "top-up": loads dues already owed to each brand so
+// they carry forward as that brand's opening balance. A top-up ADDS to what
+// the dairy owes (unlike a payment, which reduces it) — see balanceService.
+const bulkTopUp = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'superadmin') throw new AppError('Super admin access required', 403);
+
+  const data = validate(schemas.bulkDairyTopUp, req, res);
+  if (!data) return;
+
+  const ids = data.entries.map(e => e.brandId);
+  if (new Set(ids).size !== ids.length) {
+    throw new AppError('Each brand can only appear once', 400);
+  }
+
+  const found = await prisma.brand.findMany({
+    where:  { id: { in: ids } },
+    select: { id: true },
+  });
+  if (found.length !== ids.length) {
+    const missing = ids.filter(id => !found.some(b => b.id === id));
+    throw new AppError(`Brand not found: ${missing.join(', ')}`, 404);
+  }
+
+  const admin = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  const createdBy = admin?.username ?? 'admin';
+
+  const created = await prisma.$transaction(async (tx) => {
+    const rows = [];
+    for (const entry of data.entries) {
+      rows.push(await tx.dairyPayment.create({
+        data: {
+          brandId:     entry.brandId,
+          paymentDate: new Date(data.paymentDate),
+          amount:      entry.amount,
+          paymentMode: 'Top-up',
+          notes:       data.notes ?? null,
+          isTopUp:     true,
+          createdBy,
+        },
+      }));
+      await recalculateDairyBalance(entry.brandId, data.paymentDate, tx);
+    }
+    return rows;
+  }, { isolationLevel: 'Serializable' });
+
+  const total = data.entries.reduce((s, e) => s + e.amount, 0);
+  logger.info('Dairy bulk top-up recorded', {
+    count: created.length, total, date: data.paymentDate, createdBy,
+  });
+  void notifySlack(SLACK_EVENTS.DAIRY_PAYMENT_RECORDED, {
+    date:   data.paymentDate,
+    amount: total,
+    note:   `Bulk top-up for ${created.length} brand(s) by ${createdBy}`,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: { count: created.length, total, createdBy, payments: created },
+  });
+});
+
 const getAll = asyncHandler(async (req, res) => {
   const { brandId, from, to } = req.query;
   const where = {};
@@ -99,4 +163,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Payment deleted' } });
 });
 
-module.exports = { create, getAll, update, remove };
+module.exports = { create, bulkTopUp, getAll, update, remove };

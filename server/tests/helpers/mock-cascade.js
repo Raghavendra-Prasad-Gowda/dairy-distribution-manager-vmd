@@ -26,8 +26,16 @@ function makeFindFirstRouter(outstanding) {
   };
 }
 
-/** Mocks all reads/writes used by the dairy balance cascade. */
-function mockDairyCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate, outstanding = 1e9 } = {}) {
+/**
+ * Mocks all reads/writes used by the dairy balance cascade.
+ *
+ * Like the salesperson cascade, dairyPayment is aggregated twice per date —
+ * once for real payments (`isTopUp: false`, subtracted) and once for admin
+ * top-ups (`isTopUp: true`, added). `onPaymentAggregate` answers only the
+ * payment call; use `onTopUpAggregate` for the top-up call. Without it,
+ * top-ups default to 0 so payment-only tests keep their old arithmetic.
+ */
+function mockDairyCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate, onTopUpAggregate, outstanding = 1e9 } = {}) {
   mockPrisma.dairyBalance.findFirst.mockImplementation(makeFindFirstRouter(outstanding));
   mockPrisma.dairyBalance.findMany.mockResolvedValue(
     subsequentDates.map(d => ({ balanceDate: new Date(d) }))
@@ -35,11 +43,14 @@ function mockDairyCascade(mockPrisma, { subsequentDates = [], onPaymentAggregate
   mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: false, depositPerLitre: 0 });
   mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
   mockPrisma.category.findMany.mockResolvedValue([]);
-  if (onPaymentAggregate) {
-    mockPrisma.dairyPayment.aggregate.mockImplementation(onPaymentAggregate);
-  } else {
-    mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
-  }
+
+  const empty = { _sum: { amount: null } };
+  const payments = onPaymentAggregate ?? (async () => empty);
+  const topUps   = onTopUpAggregate   ?? (async () => empty);
+  mockPrisma.dairyPayment.aggregate.mockImplementation(async (args) =>
+    args?.where?.isTopUp === true ? topUps(args) : payments(args)
+  );
+
   mockPrisma.dairyBalance.upsert.mockResolvedValue({});
 }
 

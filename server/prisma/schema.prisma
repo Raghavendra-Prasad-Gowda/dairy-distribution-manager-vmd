@@ -158,6 +158,7 @@ model DairyBalance {
   openingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("opening_balance")
   stockValue     Decimal  @default(0) @db.Decimal(10, 2) @map("stock_value")
   depositValue   Decimal  @default(0) @db.Decimal(10, 2) @map("deposit_value")
+  topUpAmount    Decimal  @default(0) @db.Decimal(10, 2) @map("top_up_amount")
   amountPaid     Decimal  @default(0) @db.Decimal(10, 2) @map("amount_paid")
   closingBalance Decimal  @default(0) @db.Decimal(10, 2) @map("closing_balance")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -178,6 +179,11 @@ model DairyPayment {
   paymentMode String?  @map("payment_mode")
   reference   String?
   notes       String?
+  // Top-up = admin loading dues already owed to this brand before the app.
+  // Unlike a payment (which reduces what the dairy owes) a top-up ADDS to it,
+  // so the balance formula adds these rows. Amount stays positive.
+  isTopUp     Boolean  @default(false) @map("is_top_up")
+  createdBy   String?  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
 
   brand Brand @relation(fields: [brandId], references: [id])

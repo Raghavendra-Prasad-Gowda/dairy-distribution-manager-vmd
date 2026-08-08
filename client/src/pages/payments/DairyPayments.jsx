@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
+import BulkTopUpModal from '../../components/BulkTopUpModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
 import { getBrandColors, PAYMENT_MODES } from '../../utils/constants';
@@ -85,6 +87,11 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
 
 export default function DairyPayments() {
   const { notify } = useNotification();
+  const { user } = useAuth();
+  // Loading pre-existing dues rewrites brand balances irreversibly — superadmin
+  // only, mirroring the requireSuperAdmin guard on the API route.
+  const isSuperAdmin = user?.role === 'superadmin';
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
@@ -289,13 +296,46 @@ export default function DairyPayments() {
       <LoadingOverlay open={saving} message="Recording payment…" />
 
       {/* Page header */}
-      <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <CreditCard size={17} className="text-emerald-300 flex-shrink-0" />
-        <div>
-          <h1 className="text-sm font-bold text-white leading-tight">Dairy Payments</h1>
-          <p className="text-emerald-300 text-xs">Record payments to dairy suppliers</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <CreditCard size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Dairy Payments</h1>
+            <p className="text-emerald-300 text-xs">Record payments to dairy suppliers</p>
+          </div>
         </div>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setTopUpOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap flex-shrink-0"
+          >
+            <Wallet size={13} /> Bulk Top-up
+          </button>
+        )}
       </div>
+
+      {/* ── Bulk top-up modal ────────────────────────────────── */}
+      <BulkTopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        entities={brands}
+        notify={notify}
+        entryKey="brandId"
+        nounSingular="brand"
+        nounPlural="brands"
+        searchPlaceholder="Search brand…"
+        warning={
+          <>
+            A top-up <strong>increases</strong> what the dairy owes this brand — use it
+            to load dues from before the app. It is not a payment.
+          </>
+        }
+        onSaved={async (payload) => {
+          const res = await api.post('/dairy-payments/bulk-topup', payload);
+          await fetchAll();
+          return res.data.data;
+        }}
+      />
 
       {/* Brand tabs */}
       {brands.length > 0 && (

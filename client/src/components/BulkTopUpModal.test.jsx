@@ -30,7 +30,7 @@ function setup(overrides = {}) {
     <BulkTopUpModal
       open
       onClose={onClose}
-      salespeople={SALESPEOPLE}
+      entities={SALESPEOPLE}
       onSaved={onSaved}
       notify={notify}
     />
@@ -240,7 +240,7 @@ describe('BulkTopUpModal — saving', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add top-up/i }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(notify).toHaveBeenCalledWith('Top-up added for 2 salespersons', 'success');
+    expect(notify).toHaveBeenCalledWith('Top-up added for 2 salespeople', 'success');
   });
 
   it('surfaces the API error and stays open so the entry is not lost', async () => {
@@ -257,5 +257,78 @@ describe('BulkTopUpModal — saving', () => {
       expect(notify).toHaveBeenCalledWith('Super admin access required', 'error')
     );
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Dairy configuration of the same modal ───────────────────────────────────
+
+describe('BulkTopUpModal — dairy (brands) mode', () => {
+  const BRANDS = [
+    { id: 1, name: 'Nandini' },
+    { id: 2, name: 'Jersey' },
+    { id: 3, name: 'Gowardhan' },
+  ];
+
+  function setupDairy(overrides = {}) {
+    const onSaved = overrides.onSaved ?? vi.fn().mockResolvedValue({ count: 1, total: 500 });
+    const onClose = vi.fn();
+    const notify  = vi.fn();
+    render(
+      <BulkTopUpModal
+        open
+        onClose={onClose}
+        entities={BRANDS}
+        onSaved={onSaved}
+        notify={notify}
+        entryKey="brandId"
+        nounSingular="brand"
+        nounPlural="brands"
+        searchPlaceholder="Search brand…"
+        warning={<>A top-up <strong>increases</strong> what the dairy owes this brand.</>}
+      />
+    );
+    return { onSaved, onClose, notify };
+  }
+
+  it('labels the picker with the brand noun', () => {
+    setupDairy();
+    expect(screen.getByText('3 brands')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search brand…')).toBeInTheDocument();
+  });
+
+  it('shows the dairy-specific warning instead of the salesman one', () => {
+    setupDairy();
+    expect(screen.getByText(/what the dairy owes this brand/i)).toBeInTheDocument();
+    expect(screen.queryByText(/My Balance/i)).toBeNull();
+  });
+
+  it('keys the entries by brandId, not salespersonId', async () => {
+    const { onSaved } = setupDairy();
+    fireEvent.click(screen.getByText('Nandini'));
+    fireEvent.click(screen.getByRole('button', { name: /^Next$/ }));
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '50000' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add top-up/i }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(onSaved.mock.calls[0][0].entries).toEqual([{ brandId: 1, amount: 50000 }]);
+  });
+
+  it('Select All works across brands too', () => {
+    setupDairy();
+    fireEvent.click(screen.getByRole('button', { name: /Select All/i }));
+    expect(screen.getByText('3 selected')).toBeInTheDocument();
+  });
+
+  it('pluralises the success message with the brand noun', async () => {
+    const onSaved = vi.fn().mockResolvedValue({ count: 3, total: 9000 });
+    const { notify } = setupDairy({ onSaved });
+    fireEvent.click(screen.getByRole('button', { name: /Select All/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Next$/ }));
+    fireEvent.change(screen.getAllByPlaceholderText('0.00')[0], { target: { value: '3000' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add top-up/i }));
+
+    await waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('Top-up added for 3 brands', 'success')
+    );
   });
 });
