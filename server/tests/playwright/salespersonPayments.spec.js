@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken, makeSuperAdminToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
@@ -408,11 +408,19 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     expect(res.status()).toBe(403);
   });
 
+  test('returns 403 when caller is a plain admin — superadmin only', async ({ request }) => {
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 201 and creates one top-up row per entry', async ({ request }) => {
     const { createCalls } = mockTopUpDeps();
 
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: {
         paymentDate: '2026-04-30',
         entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 2, amount: 750 }],
@@ -430,7 +438,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     const { createCalls } = mockTopUpDeps([1], 'raghav');
 
     await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
     });
 
@@ -446,7 +454,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     const { createCalls } = mockTopUpDeps([1]);
 
     await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
     });
 
@@ -457,7 +465,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     const { upsertCalls } = mockTopUpDeps([1, 2]);
 
     await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: {
         paymentDate: '2026-04-30',
         entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 2, amount: 750 }],
@@ -483,7 +491,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     });
 
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 50000 }] },
     });
 
@@ -498,7 +506,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
 
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: {
         paymentDate: '2026-04-30',
         entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 2, amount: 750 }],
@@ -513,7 +521,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     const { createCalls } = mockTopUpDeps([1]);
 
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: {
         paymentDate: '2026-04-30',
         entries: [{ salespersonId: 1, amount: 500 }, { salespersonId: 1, amount: 750 }],
@@ -526,7 +534,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
 
   test('returns 400 when entries is empty', async ({ request }) => {
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { paymentDate: '2026-04-30', entries: [] },
     });
     expect(res.status()).toBe(400);
@@ -534,7 +542,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
 
   test('returns 400 when an amount is zero or negative', async ({ request }) => {
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: -500 }] },
     });
     expect(res.status()).toBe(400);
@@ -542,7 +550,7 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
 
   test('returns 400 when paymentDate format is invalid', async ({ request }) => {
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
-      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { paymentDate: '30-04-2026', entries: [{ salespersonId: 1, amount: 500 }] },
     });
     expect(res.status()).toBe(400);

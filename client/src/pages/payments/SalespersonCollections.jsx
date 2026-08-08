@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet } from 'lucide-react';
+import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import BulkTopUpModal from '../../components/BulkTopUpModal';
+import ResetLedgerModal from '../../components/ResetLedgerModal';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
@@ -85,7 +87,11 @@ function SpBalanceCard({ sp, balance }) {
 
 export default function SalespersonCollections() {
   const { notify } = useNotification();
+  const { user } = useAuth();
   const today = getIndiaDate();
+  // Top-up and ledger reset both rewrite balances irreversibly — superadmin
+  // only, mirroring the requireSuperAdmin guard on the API routes.
+  const isSuperAdmin = user?.role === 'superadmin';
 
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
@@ -106,6 +112,7 @@ export default function SalespersonCollections() {
   const [pinOpen, setPinOpen]             = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
   const [topUpOpen, setTopUpOpen]         = useState(false);
+  const [resetOpen, setResetOpen]         = useState(false);
 
   // History filter state
   const [showFilter, setShowFilter]   = useState(false);
@@ -313,12 +320,22 @@ export default function SalespersonCollections() {
               {pendingCount} pending
             </span>
           )}
-          <button
-            onClick={() => setTopUpOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-          >
-            <Wallet size={13} /> Bulk Top-up
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setTopUpOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+            >
+              <Wallet size={13} /> Bulk Top-up
+            </button>
+          )}
+          {isSuperAdmin && selectedSp && (
+            <button
+              onClick={() => setResetOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-red-200 hover:text-white border border-red-700 hover:border-red-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+            >
+              <Eraser size={13} /> Reset Ledger
+            </button>
+          )}
         </div>
       </div>
 
@@ -605,6 +622,20 @@ export default function SalespersonCollections() {
           const res = await api.post('/salesperson-payments/bulk-topup', payload);
           await refreshAllBalances();
           if (selectedSpId) await fetchDetail();
+          return res.data.data;
+        }}
+      />
+
+      {/* ── Reset ledger modal ───────────────────────────────── */}
+      <ResetLedgerModal
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        salesperson={selectedSp}
+        notify={notify}
+        onConfirm={async (confirmName) => {
+          const res = await api.post(`/salespeople/${selectedSpId}/reset-ledger`, { confirmName });
+          await refreshAllBalances();
+          await fetchDetail();
           return res.data.data;
         }}
       />

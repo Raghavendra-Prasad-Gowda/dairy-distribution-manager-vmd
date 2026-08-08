@@ -5,6 +5,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { BCRYPT_ROUNDS } = require('../utils/constants');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const logger = require('../config/logger');
 
 const SP_SELECT = { id: true, name: true, phone: true, route: true, username: true, isActive: true, displayOrder: true, createdAt: true };
 const SP_ORDER  = [{ displayOrder: 'asc' }, { name: 'asc' }];
@@ -106,4 +107,53 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Salesperson deleted' } });
 });
 
-module.exports = { getAll, getById, reorder, create, update, remove };
+/**
+ * Superadmin only — wipes a salesperson's entire financial ledger so their
+ * balance resets to ₹0, while the account itself (name, login, custom prices,
+ * product access) survives. Intended for starting a salesperson afresh, after
+ * which their real dues are loaded with a top-up.
+ *
+ * Clears, in FK-safe order: payments (incl. top-ups), dispatches — whose items
+ * cascade — and the balance ledger. Deleting the balance rows is what actually
+ * zeroes them: the cascade only ever recomputes dates that already have a row,
+ * so with none left there is nothing to recompute.
+ *
+ * Note this also removes the salesperson's dispatches from the dairy-wide
+ * Stock Balance report, which reads the same table.
+ */
+const resetLedger = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Salesperson ID');
+
+  const sp = await prisma.salesperson.findUnique({ where: { id }, select: { id: true, name: true } });
+  if (!sp) throw new AppError('Salesperson not found', 404);
+
+  // Typing the exact name is the client-side arming step; re-checked here so
+  // the guard still holds for anyone calling the API directly.
+  const { confirmName } = req.body ?? {};
+  if (typeof confirmName !== 'string' || confirmName.trim() !== sp.name) {
+    throw new AppError('Confirmation name does not match this salesperson', 400);
+  }
+
+  const counts = await prisma.$transaction(async (tx) => {
+    const payments  = await tx.salespersonPayment.deleteMany({ where: { salespersonId: id } });
+    const dispatches = await tx.stockDispatch.deleteMany({ where: { salespersonId: id } });
+    const balances  = await tx.salespersonBalance.deleteMany({ where: { salespersonId: id } });
+    return { payments: payments.count, dispatches: dispatches.count, balances: balances.count };
+  }, { isolationLevel: 'Serializable' });
+
+  logger.warn('Salesperson ledger reset', {
+    salespersonId: id,
+    name:          sp.name,
+    ...counts,
+    by:            req.user?.adminUserId,
+  });
+  void notifySlack(SLACK_EVENTS.SALESPERSON_UPDATED, {
+    salespersonId: id,
+    name:          sp.name,
+    note: `Ledger reset — removed ${counts.payments} payment(s), ${counts.dispatches} dispatch(es), ${counts.balances} balance row(s)`,
+  });
+
+  res.json({ success: true, data: { message: `Ledger cleared for ${sp.name}`, ...counts } });
+});
+
+module.exports = { getAll, getById, reorder, create, update, remove, resetLedger };
