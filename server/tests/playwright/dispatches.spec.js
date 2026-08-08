@@ -6,8 +6,9 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
+const { getIndiaDateStr } = require('../../utils/dateUtils');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -574,5 +575,437 @@ test.describe('GET /api/v1/dispatches with query filters', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
+  });
+});
+
+// ─── POST /api/v1/dispatches — salesman price integrity ─────────────────────
+//
+// A salesman's request body must never dictate what they're billed.
+// resolveSalespersonItemPricing() in dispatches.controller.js re-derives
+// each item's unitPrice server-side from SalespersonPrice (effective on
+// dispatchDate) or the product's salespersonDefaultPrice, and rejects any
+// product that isn't enabled for them.
+
+test.describe('POST /api/v1/dispatches — salesman price integrity', () => {
+  const salesmanAuth = () => ({ Authorization: `Bearer ${makeSalesmanToken(7)}` });
+  const TODAY = getIndiaDateStr();
+
+  test('overrides a manipulated unitPrice with the real salespersonDefaultPrice', async ({ request }) => {
+    let createArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { id: 1, salespersonId: 7, dispatchDate: args.data.dispatchDate, totalAmount: args.data.totalAmount, items: [] };
+    });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      // Attempted fraud: bill 100 units at ₹0.01 instead of the real ₹30.
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 100, unitPrice: 0.01 }] },
+    });
+
+    expect(res.status()).toBe(201);
+    expect(createArgs.data.items.create[0].unitPrice).toBe(30);
+    expect(createArgs.data.totalAmount).toBe(3000); // 100 * 30, not 100 * 0.01
+  });
+
+  test('uses a custom SalespersonPrice row over the global default when one is effective', async ({ request }) => {
+    let createArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { id: 1, salespersonId: 7, dispatchDate: args.data.dispatchDate, totalAmount: args.data.totalAmount, items: [] };
+    });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { productId: 1, sellingPrice: 22, effectiveFrom: new Date('2020-01-01') },
+    ]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 999 }] },
+    });
+
+    expect(res.status()).toBe(201);
+    expect(createArgs.data.items.create[0].unitPrice).toBe(22);
+    expect(createArgs.data.totalAmount).toBe(220);
+  });
+
+  test('falls back to salespersonDefaultPrice when no SalespersonPrice row is effective yet', async ({ request }) => {
+    // The resolver's own query filters effectiveFrom: { lte: dispatchDate },
+    // so a future-scheduled price row would never appear in what it sees —
+    // simulated here by an empty result set.
+    let createArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { id: 1, salespersonId: 7, dispatchDate: args.data.dispatchDate, totalAmount: args.data.totalAmount, items: [] };
+    });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 999 }] },
+    });
+
+    expect(res.status()).toBe(201);
+    expect(createArgs.data.items.create[0].unitPrice).toBe(30);
+  });
+
+  test('the price-resolution query scopes SalespersonPrice by salespersonId, productId and effectiveFrom<=dispatchDate', async ({ request }) => {
+    let priceFindManyArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue({ id: 1, salespersonId: 7, dispatchDate: TODAY, totalAmount: 300, items: [] });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockImplementation(async (args) => {
+      priceFindManyArgs = args;
+      return [];
+    });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(priceFindManyArgs.where.salespersonId).toBe(7);
+    expect(priceFindManyArgs.where.productId).toEqual({ in: [1] });
+    expect(priceFindManyArgs.where.effectiveFrom).toEqual({ lte: new Date(TODAY) });
+  });
+
+  test('rejects a product that is not globally enabled for salespeople', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: false, salespersonDefaultPrice: 30 },
+    ]);
+    // A per-salesperson "enabled" row can never override the global gate.
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: true }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('rejects a product explicitly disabled for this salesperson', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: false }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('allows a product with no per-salesperson override row (defaults to enabled)', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue({ id: 1, salespersonId: 7, dispatchDate: TODAY, totalAmount: 300, items: [] });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]); // no row at all
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(201);
+  });
+
+  test('rejects an inactive product', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: false, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('rejects a productId that does not exist', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([]); // nothing matches that id
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 999, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('re-resolves price on the UPDATE path too, not just create', async ({ request }) => {
+    const EXISTING = { id: 9, salespersonId: 7, dispatchDate: new Date(TODAY), totalAmount: 100, isSubmitted: false, isAdminUnlocked: false };
+    let findUniqueCallCount = 0;
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockImplementation(async () => {
+      findUniqueCallCount++;
+      return findUniqueCallCount === 1 ? EXISTING : { ...EXISTING, totalAmount: 750, items: [] };
+    });
+    ctx.mockPrisma.stockDispatchItem.deleteMany.mockResolvedValue({ count: 1 });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...EXISTING, totalAmount: args.data.totalAmount };
+    });
+    ctx.mockPrisma.stockDispatchItem.createMany.mockResolvedValue({ count: 1 });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 25 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      // Attempted fraud on an edit: bill 30 units at ₹1 instead of ₹25.
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 30, unitPrice: 1 }] },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data.totalAmount).toBe(750); // 30 * 25, not 30 * 1
+  });
+
+  test('admin-supplied unitPrice is NOT overridden (admin flexibility preserved)', async ({ request }) => {
+    let createArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { id: 1, salespersonId: 2, dispatchDate: args.data.dispatchDate, totalAmount: args.data.totalAmount, items: [] };
+    });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      // No product/salespersonProduct/salespersonPrice mocks needed at all —
+      // an admin request never calls resolveSalespersonItemPricing.
+      data: { salespersonId: 2, dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 99 }] },
+    });
+
+    expect(res.status()).toBe(201);
+    expect(createArgs.data.items.create[0].unitPrice).toBe(99);
+    expect(createArgs.data.totalAmount).toBe(990);
+  });
+});
+
+// ─── POST /api/v1/dispatches — salesman lock enforcement ────────────────────
+//
+// A salesman can never edit a finalized (submitted) entry, and a draft
+// auto-locks once its date passes into the past — even if it was never
+// submitted. A past date with NO existing record at all must be treated the
+// same way: openForEntry (admin) always creates the row first when opening a
+// date, so "no record" + "past date" together can only mean admin hasn't
+// touched it.
+
+test.describe('POST /api/v1/dispatches — salesman lock enforcement', () => {
+  const salesmanAuth = () => ({ Authorization: `Bearer ${makeSalesmanToken(7)}` });
+  const TODAY = getIndiaDateStr();
+  const PAST_DATE = '2020-01-01';
+
+  function mockUnlockedSave(existingBase) {
+    let findUniqueCallCount = 0;
+    ctx.mockPrisma.stockDispatch.findUnique.mockImplementation(async () => {
+      findUniqueCallCount++;
+      return findUniqueCallCount === 1 ? existingBase : { ...existingBase, items: [] };
+    });
+    ctx.mockPrisma.stockDispatchItem.deleteMany.mockResolvedValue({ count: 0 });
+    ctx.mockPrisma.stockDispatch.update.mockResolvedValue({ ...existingBase, totalAmount: 300 });
+    ctx.mockPrisma.stockDispatchItem.createMany.mockResolvedValue({ count: 1 });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+  }
+
+  test('blocked when the existing entry has been submitted', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({
+      id: 1, salespersonId: 7, dispatchDate: new Date(TODAY), isSubmitted: true, isAdminUnlocked: false,
+    });
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 1, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('allowed when submitted but admin has unlocked it', async ({ request }) => {
+    mockUnlockedSave({ id: 1, salespersonId: 7, dispatchDate: new Date(TODAY), isSubmitted: true, isAdminUnlocked: true, totalAmount: 100 });
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('blocked when an un-submitted draft has aged into a past date', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({
+      id: 1, salespersonId: 7, dispatchDate: new Date(PAST_DATE), isSubmitted: false, isAdminUnlocked: false,
+    });
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: PAST_DATE, items: [{ productId: 1, quantity: 1, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('allowed when a past-date draft has been admin-unlocked', async ({ request }) => {
+    mockUnlockedSave({ id: 1, salespersonId: 7, dispatchDate: new Date(PAST_DATE), isSubmitted: false, isAdminUnlocked: true, totalAmount: 0 });
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: PAST_DATE, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('blocked when NO existing record and the date is in the past (never opened by admin)', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: PAST_DATE, items: [{ productId: 1, quantity: 1, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('allowed when NO existing record and the date is today', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue({ id: 1, salespersonId: 7, dispatchDate: TODAY, totalAmount: 300, items: [] });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(201);
+  });
+
+  test('admin bypasses the past-date lock entirely, even with no existing record', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue({ id: 1, salespersonId: 2, dispatchDate: PAST_DATE, totalAmount: 250, items: [] });
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 2, dispatchDate: PAST_DATE, items: [{ productId: 1, quantity: 10, unitPrice: 25 }] },
+    });
+
+    expect(res.status()).toBe(201);
+  });
+
+  test('empty items (clear) is also blocked on a past date with no existing record — nothing to clear anyway', async ({ request }) => {
+    // Empty items against a past date with no row already short-circuits to
+    // "Nothing to save" for lack of an existing record — the lock check
+    // (which now runs first) blocks it before that branch is even reached.
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: PAST_DATE, items: [] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+});
+
+// ─── DELETE /api/v1/dispatches/:id — salesman ownership + lock ──────────────
+
+test.describe('DELETE /api/v1/dispatches/:id — salesman', () => {
+  const salesmanAuth = () => ({ Authorization: `Bearer ${makeSalesmanToken(7)}` });
+  const TODAY = getIndiaDateStr();
+
+  test('returns 403 when deleting another salesperson\'s dispatch', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({
+      id: 1, salespersonId: 999, dispatchDate: new Date(TODAY), isSubmitted: false, isAdminUnlocked: false, totalAmount: 100,
+    });
+
+    const res = await request.delete('/api/v1/dispatches/1', { headers: salesmanAuth() });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when own dispatch has been submitted', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({
+      id: 1, salespersonId: 7, dispatchDate: new Date(TODAY), isSubmitted: true, isAdminUnlocked: false, totalAmount: 100,
+    });
+
+    const res = await request.delete('/api/v1/dispatches/1', { headers: salesmanAuth() });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when own draft has aged into a past date', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({
+      id: 1, salespersonId: 7, dispatchDate: new Date('2020-01-01'), isSubmitted: false, isAdminUnlocked: false, totalAmount: 100,
+    });
+
+    const res = await request.delete('/api/v1/dispatches/1', { headers: salesmanAuth() });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 when own dispatch is an editable draft (today, unsubmitted)', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({
+      id: 1, salespersonId: 7, dispatchDate: new Date(TODAY), isSubmitted: false, isAdminUnlocked: false, totalAmount: 100,
+    });
+    ctx.mockPrisma.stockDispatch.delete.mockResolvedValue({});
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.delete('/api/v1/dispatches/1', { headers: salesmanAuth() });
+
+    expect(res.status()).toBe(200);
   });
 });

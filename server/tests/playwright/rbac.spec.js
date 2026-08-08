@@ -59,6 +59,28 @@ const ADMIN_ONLY = [
   { method: 'delete', path: '/api/v1/routes/1' },
   { method: 'get',  path: '/api/v1/salespeople/1/products' },
   { method: 'post', path: '/api/v1/salespeople/1/products/bulk', body: { products: [{ productId: 1, isEnabled: true }] } },
+
+  // products/categories: moved from shared to admin-only — the base CRUD
+  // (create/update/delete/reorder) previously had no route-level gate at
+  // all. No salesman-facing page calls either endpoint; the salesman
+  // product/price screen goes through /salespeople/:id/prices instead.
+  { method: 'get',    path: '/api/v1/products' },
+  { method: 'post',   path: '/api/v1/products', body: { name: 'Test', brandId: 1, category: 'Milk', unitType: 'ml', unitSize: 500, costPrice: 20, sellingPrice: 25 } },
+  { method: 'put',    path: '/api/v1/products/1', body: { name: 'Updated' } },
+  { method: 'delete', path: '/api/v1/products/1' },
+  { method: 'patch',  path: '/api/v1/products/reorder', body: [{ id: 1, displayOrder: 0 }] },
+  { method: 'get',    path: '/api/v1/products/salesperson-global' },
+  { method: 'patch',  path: '/api/v1/products/salesperson-global', body: { products: [{ productId: 1, isEnabled: true, defaultPrice: 10 }] } },
+  { method: 'delete', path: '/api/v1/products/1/salesperson-prices' },
+  { method: 'get',    path: '/api/v1/categories' },
+  { method: 'post',   path: '/api/v1/categories', body: { name: 'Test', brandId: 1 } },
+  { method: 'put',    path: '/api/v1/categories/1', body: { name: 'Updated' } },
+  { method: 'delete', path: '/api/v1/categories/1' },
+  { method: 'patch',  path: '/api/v1/categories/reorder', body: [{ id: 1, displayOrder: 0 }] },
+
+  // GET /dispatches/summary: cross-salesperson report, admin-only.
+  // Salesmen have their own scoped view via GET /dispatches (?date=).
+  { method: 'get',    path: '/api/v1/dispatches/summary?date=2026-04-30' },
 ];
 
 test.describe('RBAC — admin-only endpoints', () => {
