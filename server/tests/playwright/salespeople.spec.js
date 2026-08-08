@@ -126,6 +126,49 @@ test.describe('POST /api/v1/salespeople', () => {
 
     expect(res.status()).toBe(201);
   });
+
+  // ── Case-insensitive username uniqueness ─────────────────────────────────
+  // Login matches usernames case-insensitively, so "Raju" and "RAJU" must not
+  // both be allowed to exist. See salespeople.controller.js create().
+
+  test('returns 409 when username collides case-insensitively with an existing salesperson', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue({ id: 2, username: 'Raju' });
+
+    const res = await request.post('/api/v1/salespeople', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { name: 'New Guy', username: 'RAJU', password: 'password123' },
+    });
+
+    expect(res.status()).toBe(409);
+  });
+
+  test('uniqueness check queries the username case-insensitively', async ({ request }) => {
+    let findFirstArgs = null;
+    ctx.mockPrisma.salesperson.findFirst.mockImplementation(async (args) => {
+      findFirstArgs = args;
+      return null;
+    });
+    ctx.mockPrisma.salesperson.create.mockResolvedValue(SALESPERSON);
+
+    await request.post('/api/v1/salespeople', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { name: 'New Guy', username: 'newguy', password: 'password123' },
+    });
+
+    expect(findFirstArgs.where.username).toEqual({ equals: 'newguy', mode: 'insensitive' });
+  });
+
+  test('returns 201 when username has no case-insensitive collision', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.create.mockResolvedValue(SALESPERSON);
+
+    const res = await request.post('/api/v1/salespeople', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { name: 'New Guy', username: 'newguy', password: 'password123' },
+    });
+
+    expect(res.status()).toBe(201);
+  });
 });
 
 // ─── PUT /api/v1/salespeople/:id ─────────────────────────────────────────────
@@ -178,6 +221,50 @@ test.describe('PUT /api/v1/salespeople/:id', () => {
       data: { name: 'Updated' },
     });
     expect(res.status()).toBe(400);
+  });
+
+  // ── Case-insensitive username uniqueness ─────────────────────────────────
+
+  test('returns 409 when updated username collides case-insensitively with another salesperson', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue({ id: 2, username: 'Raju' });
+
+    const res = await request.put('/api/v1/salespeople/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { username: 'RAJU' },
+    });
+
+    expect(res.status()).toBe(409);
+  });
+
+  test('uniqueness check excludes the record being updated (id: { not: id })', async ({ request }) => {
+    let findFirstArgs = null;
+    ctx.mockPrisma.salesperson.findFirst.mockImplementation(async (args) => {
+      findFirstArgs = args;
+      return null;
+    });
+    ctx.mockPrisma.salesperson.update.mockResolvedValue(SALESPERSON);
+
+    await request.put('/api/v1/salespeople/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { username: 'raju' },
+    });
+
+    expect(findFirstArgs.where).toMatchObject({
+      username: { equals: 'raju', mode: 'insensitive' },
+      id: { not: 1 },
+    });
+  });
+
+  test('returns 200 when updated username has no case-insensitive collision', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.update.mockResolvedValue({ ...SALESPERSON, username: 'newname' });
+
+    const res = await request.put('/api/v1/salespeople/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { username: 'newname' },
+    });
+
+    expect(res.status()).toBe(200);
   });
 
   test('GET excludes inactive salespeople by default', async ({ request }) => {

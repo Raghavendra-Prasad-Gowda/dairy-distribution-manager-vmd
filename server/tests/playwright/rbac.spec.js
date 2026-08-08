@@ -17,6 +17,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
+const { getIndiaDateStr } = require('../../utils/dateUtils');
 const jwt = require('jsonwebtoken');
 
 const { test, ctx } = setupSuite();
@@ -58,6 +59,28 @@ const ADMIN_ONLY = [
   { method: 'delete', path: '/api/v1/routes/1' },
   { method: 'get',  path: '/api/v1/salespeople/1/products' },
   { method: 'post', path: '/api/v1/salespeople/1/products/bulk', body: { products: [{ productId: 1, isEnabled: true }] } },
+
+  // products/categories: moved from shared to admin-only — the base CRUD
+  // (create/update/delete/reorder) previously had no route-level gate at
+  // all. No salesman-facing page calls either endpoint; the salesman
+  // product/price screen goes through /salespeople/:id/prices instead.
+  { method: 'get',    path: '/api/v1/products' },
+  { method: 'post',   path: '/api/v1/products', body: { name: 'Test', brandId: 1, category: 'Milk', unitType: 'ml', unitSize: 500, costPrice: 20, sellingPrice: 25 } },
+  { method: 'put',    path: '/api/v1/products/1', body: { name: 'Updated' } },
+  { method: 'delete', path: '/api/v1/products/1' },
+  { method: 'patch',  path: '/api/v1/products/reorder', body: [{ id: 1, displayOrder: 0 }] },
+  { method: 'get',    path: '/api/v1/products/salesperson-global' },
+  { method: 'patch',  path: '/api/v1/products/salesperson-global', body: { products: [{ productId: 1, isEnabled: true, defaultPrice: 10 }] } },
+  { method: 'delete', path: '/api/v1/products/1/salesperson-prices' },
+  { method: 'get',    path: '/api/v1/categories' },
+  { method: 'post',   path: '/api/v1/categories', body: { name: 'Test', brandId: 1 } },
+  { method: 'put',    path: '/api/v1/categories/1', body: { name: 'Updated' } },
+  { method: 'delete', path: '/api/v1/categories/1' },
+  { method: 'patch',  path: '/api/v1/categories/reorder', body: [{ id: 1, displayOrder: 0 }] },
+
+  // GET /dispatches/summary: cross-salesperson report, admin-only.
+  // Salesmen have their own scoped view via GET /dispatches (?date=).
+  { method: 'get',    path: '/api/v1/dispatches/summary?date=2026-04-30' },
 ];
 
 test.describe('RBAC — admin-only endpoints', () => {
@@ -144,15 +167,41 @@ test.describe('RBAC — shared endpoints scoping', () => {
       createArgs = args;
       return { id: 1, salespersonId: args.data.salespersonId, dispatchDate: args.data.dispatchDate, totalAmount: 0, items: [] };
     });
+    // Salesman requests re-derive each item's price server-side (see
+    // resolveSalespersonItemPricing in dispatches.controller.js) — product
+    // must be active + salesperson-enabled, with no per-salesperson override
+    // rows or custom price rows, so it falls back to salespersonDefaultPrice.
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: true, salespersonDefaultPrice: 10 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
     mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${salesmanToken(7)}` },
-      data: { salespersonId: 999, dispatchDate: '2026-04-30', items: [{ productId: 1, quantity: 1, unitPrice: 10 }] },
+      // Must be today (IST) — a salesman posting to a past date with no
+      // existing record is blocked by the past-date lock (see
+      // "past date with no existing record → locked" below), which is
+      // unrelated to what this test is checking.
+      data: { salespersonId: 999, dispatchDate: getIndiaDateStr(), items: [{ productId: 1, quantity: 1, unitPrice: 10 }] },
     });
     expect(res.status()).toBe(201);
     // Server must use salesperson 7 from JWT, not 999 from payload
     expect(createArgs.data.salespersonId).toBe(7);
+  });
+
+  // POST /dispatches — a salesman can never create a fresh dispatch on a past
+  // date that admin never opened (openForEntry always creates the row first,
+  // so "no existing row" + "past date" together mean admin hasn't touched it).
+  test('POST /dispatches → past date with no existing record → locked', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${salesmanToken(7)}` },
+      data: { dispatchDate: '2020-01-01', items: [{ productId: 1, quantity: 1, unitPrice: 10 }] },
+    });
+    expect(res.status()).toBe(403);
   });
 
   // GET /salesperson-balance/:id — salesman accessing own = OK

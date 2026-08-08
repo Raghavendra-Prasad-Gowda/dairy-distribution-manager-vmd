@@ -176,6 +176,49 @@ test.describe('POST /api/v1/admin-users', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  // ── Case-insensitive username uniqueness ─────────────────────────────────
+  // Login matches usernames case-insensitively, so "manager" and "MANAGER"
+  // must not both be allowed to exist. See adminUsers.controller.js create().
+
+  test('returns 409 when username collides case-insensitively with an existing admin', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(ADMIN_USER); // stored username: 'manager'
+
+    const res = await request.post('/api/v1/admin-users', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { username: 'MANAGER', password: 'securepass', role: 'admin' },
+    });
+
+    expect(res.status()).toBe(409);
+  });
+
+  test('uniqueness check queries the username case-insensitively', async ({ request }) => {
+    let findFirstArgs = null;
+    ctx.mockPrisma.adminUser.findFirst.mockImplementation(async (args) => {
+      findFirstArgs = args;
+      return null;
+    });
+    ctx.mockPrisma.adminUser.create.mockResolvedValue(ADMIN_USER);
+
+    await request.post('/api/v1/admin-users', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { username: 'newmanager', password: 'securepass', role: 'admin' },
+    });
+
+    expect(findFirstArgs.where.username).toEqual({ equals: 'newmanager', mode: 'insensitive' });
+  });
+
+  test('returns 201 when username has no case-insensitive collision', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.adminUser.create.mockResolvedValue(ADMIN_USER);
+
+    const res = await request.post('/api/v1/admin-users', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { username: 'newmanager', password: 'securepass', role: 'admin' },
+    });
+
+    expect(res.status()).toBe(201);
+  });
 });
 
 // ─── PUT /api/v1/admin-users/:id ─────────────────────────────────────────────
@@ -210,6 +253,38 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
       data: { username: 'updatedname' },
     });
     expect(res.status()).toBe(400);
+  });
+
+  // ── Case-insensitive username uniqueness ─────────────────────────────────
+
+  test('returns 409 when updated username collides case-insensitively with another admin', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({ id: 3, username: 'other' });
+
+    const res = await request.put('/api/v1/admin-users/2', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { username: 'OTHER' },
+    });
+
+    expect(res.status()).toBe(409);
+  });
+
+  test('uniqueness check excludes the record being updated (id: { not: id })', async ({ request }) => {
+    let findFirstArgs = null;
+    ctx.mockPrisma.adminUser.findFirst.mockImplementation(async (args) => {
+      findFirstArgs = args;
+      return null;
+    });
+    ctx.mockPrisma.adminUser.update.mockResolvedValue({ ...ADMIN_USER, username: 'manager' });
+
+    await request.put('/api/v1/admin-users/2', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { username: 'manager' },
+    });
+
+    expect(findFirstArgs.where).toMatchObject({
+      username: { equals: 'manager', mode: 'insensitive' },
+      id: { not: 2 },
+    });
   });
 
   test('returns 200 when username is updated', async ({ request }) => {

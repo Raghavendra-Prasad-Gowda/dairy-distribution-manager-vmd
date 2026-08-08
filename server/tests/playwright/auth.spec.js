@@ -113,6 +113,66 @@ test.describe('POST /api/v1/auth/login', () => {
 
     expect(res.status()).toBe(401);
   });
+
+  // ── Case-insensitive username matching ──────────────────────────────────
+  // Login now matches usernames case-insensitively for both AdminUser and
+  // Salesperson lookups (mode: 'insensitive'). See auth.controller.js.
+
+  test('matches admin username regardless of case ("ADMIN" vs stored "admin")', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(ADMIN_USER);
+    ctx.mockBcrypt.compare = async () => true;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'ADMIN', password: 'correctpass' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.role).toBe('admin');
+  });
+
+  test('admin lookup uses a case-insensitive Prisma filter (mode: insensitive)', async ({ request }) => {
+    let findFirstArgs = null;
+    ctx.mockPrisma.adminUser.findFirst.mockImplementation(async (args) => {
+      findFirstArgs = args;
+      return null;
+    });
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(null);
+
+    await request.post('/api/v1/auth/login', { data: { username: 'Admin', password: 'x' } });
+
+    expect(findFirstArgs.where.username).toEqual({ equals: 'Admin', mode: 'insensitive' });
+  });
+
+  test('matches salesperson username regardless of case ("RAJU" vs stored "raju")', async ({ request }) => {
+    const SALESPERSON = { id: 5, username: 'raju', name: 'Raju', passwordHash: 'hashed', isActive: true };
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.findFirst.mockResolvedValue(SALESPERSON);
+    ctx.mockBcrypt.compare = async () => true;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'RAJU', password: 'correctpass' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.role).toBe('salesman');
+    expect(body.data.salespersonId).toBe(5);
+  });
+
+  test('salesperson lookup uses a case-insensitive Prisma filter (mode: insensitive)', async ({ request }) => {
+    let findFirstArgs = null;
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(null);
+    ctx.mockPrisma.salesperson.findFirst.mockImplementation(async (args) => {
+      findFirstArgs = args;
+      return null;
+    });
+
+    await request.post('/api/v1/auth/login', { data: { username: 'Raju', password: 'x' } });
+
+    expect(findFirstArgs.where.username).toEqual({ equals: 'Raju', mode: 'insensitive' });
+    expect(findFirstArgs.where.isActive).toBe(true);
+  });
 });
 
 // ─── POST /api/v1/auth/change-password ───────────────────────────────────────
