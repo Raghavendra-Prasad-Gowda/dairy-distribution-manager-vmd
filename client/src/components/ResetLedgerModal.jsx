@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { AlertTriangle, Search, X, Check } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -20,6 +20,13 @@ export default function ResetLedgerModal({ open, onClose, salespeople, onConfirm
   const [search, setSearch]       = useState('');
   const [picked, setPicked]       = useState([]);
   const [busy, setBusy]           = useState(false);
+  // PinModal calls onSuccess() then onClose() synchronously on a correct PIN
+  // (it dismisses itself once verified). A ref survives that same tick, unlike
+  // state, so the wrapped onClose below can tell "just succeeded, ignore this"
+  // apart from a real cancel (X / backdrop) — otherwise the auto-close would
+  // fire the parent's onClose and dismiss the whole reset flow before the
+  // picker ever renders.
+  const justPassedRef = useRef(false);
 
   // Re-arm the PIN gate and clear any prior selection each time it reopens.
   useEffect(() => {
@@ -83,8 +90,11 @@ export default function ResetLedgerModal({ open, onClose, salespeople, onConfirm
     return (
       <PinModal
         isOpen
-        onClose={onClose}
-        onSuccess={() => setPinPassed(true)}
+        onClose={() => {
+          if (justPassedRef.current) { justPassedRef.current = false; return; }
+          onClose();
+        }}
+        onSuccess={() => { justPassedRef.current = true; setPinPassed(true); }}
         title="Enter PIN to reset salesman ledgers"
       />
     );

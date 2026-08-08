@@ -11,14 +11,18 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ResetLedgerModal from './ResetLedgerModal';
 
-// Stand-in for the shared PIN gate: exposes a button that "passes" it, so the
-// tests can assert the picker is unreachable until that happens.
+// Stand-in for the shared PIN gate. Mirrors the real PinModal's on-success
+// behavior of calling onSuccess() then onClose() in the same tick (it
+// dismisses itself once verified) — a bug shipped once where the consumer
+// wired its own onClose straight into PinModal's, and that auto-close
+// silently closed the whole reset flow before the picker ever rendered.
 vi.mock('./PinModal', () => ({
-  default: ({ isOpen, onSuccess, title }) =>
+  default: ({ isOpen, onSuccess, onClose, title }) =>
     isOpen ? (
       <div data-testid="pin-modal">
         <span>{title}</span>
-        <button onClick={onSuccess}>pass-pin</button>
+        <button onClick={() => { onSuccess(); onClose(); }}>pass-pin</button>
+        <button onClick={onClose}>cancel-pin</button>
       </div>
     ) : null,
 }));
@@ -73,6 +77,24 @@ describe('ResetLedgerModal — PIN gate', () => {
   it('renders nothing when closed', () => {
     setup({ open: false });
     expect(screen.queryByTestId('pin-modal')).toBeNull();
+  });
+
+  it('does not close the whole flow when PinModal auto-closes after a correct PIN', () => {
+    // Regression: PinModal calls onSuccess() then onClose() synchronously on
+    // success. If that onClose reached the parent, the picker would never
+    // render — the modal would just vanish right after entering the PIN.
+    const { onClose } = setup();
+    passPin();
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText('K Pandu')).toBeInTheDocument();
+  });
+
+  it('still closes the whole flow when the PIN entry is actually cancelled', () => {
+    const { onClose } = setup();
+    fireEvent.click(screen.getByText('cancel-pin'));
+
+    expect(onClose).toHaveBeenCalled();
   });
 });
 
