@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { markRequestStart, markRequestEnd, nextRequestId } from './coldStart';
+import { isLocalSessionExpired, expireSessionAndRedirect } from '../utils/session';
 
 if (!import.meta.env.VITE_API_BASE_URL && !import.meta.env.DEV) {
   console.error('[API] VITE_API_BASE_URL is not set. API calls will fail in production.');
@@ -27,6 +28,13 @@ api.interceptors.request.use(
 
 // Handle 401 — token expired → redirect to login
 // Exception: PIN verification errors must never trigger logout
+//
+// A second case is also handled here: a request that times out or fails
+// with no HTTP response at all (e.g. a Render cold start that ate the
+// whole 60s timeout budget) never gets a 401 to key off of. When that
+// happens and the locally-recorded session is already past its 2h window,
+// treat it the same as an expired session — otherwise the user is left
+// stuck with a dead token and no way to know why nothing works.
 api.interceptors.response.use(
   (response) => {
     if (response.config?.__reqId != null) markRequestEnd(response.config.__reqId);
@@ -36,10 +44,16 @@ api.interceptors.response.use(
     if (error.config?.__reqId != null) markRequestEnd(error.config.__reqId);
     const url = error.config?.url ?? '';
     const isPinEndpoint = url.includes('/pin/');
-    if (error.response?.status === 401 && !isPinEndpoint) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+
+    if (!isPinEndpoint) {
+      if (error.response?.status === 401) {
+        expireSessionAndRedirect('Your session expired. Please log in again.');
+      } else if (!error.response && isLocalSessionExpired()) {
+        // No HTTP response (timeout/network error) and the local session
+        // clock is already past its 2h window — almost certainly an
+        // expired token that never made it back as a clean 401.
+        expireSessionAndRedirect('Your session expired. Please log in again.');
+      }
     }
     return Promise.reject(error);
   }
