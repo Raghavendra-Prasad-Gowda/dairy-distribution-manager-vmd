@@ -556,3 +556,116 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     expect(res.status()).toBe(400);
   });
 });
+
+// ─── Balance formula: closing = opening + stockGiven + topUp − amountPaid ────
+
+test.describe('Salesperson balance formula — top-ups vs payments', () => {
+  /** Drives a bulk top-up and returns what the cascade wrote. */
+  async function runTopUp(request, cascadeOpts, amount = 50000) {
+    const upsertCalls = [];
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
+    ctx.mockPrisma.salespersonPayment.create.mockImplementation(async ({ data }) => ({ id: 1, ...data }));
+    mockSalespersonCascade(ctx.mockPrisma, cascadeOpts);
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
+
+    const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount }] },
+    });
+    return { res, upsertCalls };
+  }
+
+  test('a top-up is ADDED to the balance, a payment is subtracted', async ({ request }) => {
+    const { res, upsertCalls } = await runTopUp(request, {
+      onTopUpAggregate:  async () => ({ _sum: { amount: 50000 } }),
+      onPaymentAggregate: async () => ({ _sum: { amount: 9000 } }),
+    });
+
+    expect(res.status()).toBe(201);
+    // opening 0 + stock 0 + topUp 50000 − paid 9000 = 41000
+    expect(upsertCalls[0].create).toMatchObject({
+      topUpAmount:    50000,
+      amountPaid:     9000,
+      closingBalance: 41000,
+    });
+  });
+
+  test('a top-up stacks on top of an existing opening balance', async ({ request }) => {
+    const upsertCalls = [];
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
+    ctx.mockPrisma.salespersonPayment.create.mockImplementation(async ({ data }) => ({ id: 1, ...data }));
+    mockSalespersonCascade(ctx.mockPrisma, {
+      onTopUpAggregate: async () => ({ _sum: { amount: 10000 } }),
+    });
+    // Prior day closed at ₹2,000 owed — the cascade's "previous balance" lookup
+    // is the one carrying a balanceDate filter.
+    ctx.mockPrisma.salespersonBalance.findFirst.mockImplementation(async ({ where }) =>
+      where?.balanceDate ? { closingBalance: 2000 } : null
+    );
+    ctx.mockPrisma.salespersonBalance.upsert.mockImplementation(async (args) => {
+      upsertCalls.push(args);
+      return {};
+    });
+
+    await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 10000 }] },
+    });
+
+    // opening 2000 + stock 0 + topUp 10000 − paid 0 = 12000
+    expect(upsertCalls[0].create.openingBalance).toBe(2000);
+    expect(upsertCalls[0].create.closingBalance).toBe(12000);
+  });
+
+  test('payments and top-ups are aggregated separately, not lumped together', async ({ request }) => {
+    const seen = [];
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
+    ctx.mockPrisma.salespersonPayment.create.mockImplementation(async ({ data }) => ({ id: 1, ...data }));
+    mockSalespersonCascade(ctx.mockPrisma);
+    ctx.mockPrisma.salespersonPayment.aggregate.mockImplementation(async (args) => {
+      seen.push(args.where.isTopUp);
+      return { _sum: { amount: null } };
+    });
+
+    await request.post('/api/v1/salesperson-payments/bulk-topup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
+    });
+
+    // One aggregate filtered to real payments, one to top-ups — never a single
+    // unfiltered sum, which would let a top-up cancel a payment out.
+    expect(seen).toContain(false);
+    expect(seen).toContain(true);
+  });
+
+  test('a back-dated top-up cascades forward to later dates', async ({ request }) => {
+    const { upsertCalls } = await runTopUp(request, {
+      subsequentDates:  ['2026-05-01', '2026-05-02'],
+      onTopUpAggregate: async () => ({ _sum: { amount: 50000 } }),
+    });
+
+    // The dated row plus every later balance row gets recomputed.
+    expect(upsertCalls).toHaveLength(3);
+    expect(upsertCalls.every(c => c.create.salespersonId === 1)).toBe(true);
+  });
+
+  test('topUpAmount is persisted on the balance row', async ({ request }) => {
+    const { upsertCalls } = await runTopUp(request, {
+      onTopUpAggregate: async () => ({ _sum: { amount: 1234 } }),
+    });
+
+    expect(upsertCalls[0].create.topUpAmount).toBe(1234);
+    expect(upsertCalls[0].update.topUpAmount).toBe(1234);
+  });
+
+  test('topUpAmount is 0 when the salesperson has no top-ups that date', async ({ request }) => {
+    const { upsertCalls } = await runTopUp(request, {});
+    expect(upsertCalls[0].create.topUpAmount).toBe(0);
+  });
+});
