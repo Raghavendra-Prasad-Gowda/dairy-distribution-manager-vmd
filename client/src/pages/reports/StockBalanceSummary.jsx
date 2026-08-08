@@ -53,7 +53,15 @@ export default function StockBalanceSummary() {
     return dispatchData.rows
       .map(row => {
         const brandQty = products.reduce((s, p) => s + (row.items[p.productId]?.qty ?? 0), 0);
-        return { salespersonId: row.salespersonId, salespersonName: row.salespersonName, items: row.items, brandQty };
+        // Crates taken — summed per-product (each product's own crate size),
+        // same product scope as brandQty so "Total" and "Crates" always
+        // reflect the same underlying data.
+        const crates = products.reduce((s, p) => {
+          const qty = row.items[p.productId]?.qty ?? 0;
+          const unitsPerContainer = p.unitsPerContainer ?? 1;
+          return s + Math.floor(qty / unitsPerContainer);
+        }, 0);
+        return { salespersonId: row.salespersonId, salespersonName: row.salespersonName, items: row.items, brandQty, crates };
       })
       .filter(r => r.brandQty > 0);
   }, [dispatchData, products]);
@@ -117,13 +125,18 @@ export default function StockBalanceSummary() {
     });
   }, [visibleColTotals, visibleProducts]);
 
-  const grandTotals = useMemo(() => ({
-    dispatched: colTotals.reduce((s, c) => s + c.dispatched, 0),
-    received:   colTotals.reduce((s, c) => s + c.received,   0),
-    remaining:  colTotals.reduce((s, c) => s + c.remaining,  0),
-    cratesReceived: crateData.reduce((s, c) => s + c.cratesReceived, 0),
-    cratesDispatched: crateData.reduce((s, c) => s + c.cratesDispatched, 0),
-  }), [colTotals, crateData]);
+  const grandTotals = useMemo(() => {
+    const cratesReceived   = crateData.reduce((s, c) => s + c.cratesReceived, 0);
+    const cratesDispatched = crateData.reduce((s, c) => s + c.cratesDispatched, 0);
+    return {
+      dispatched: colTotals.reduce((s, c) => s + c.dispatched, 0),
+      received:   colTotals.reduce((s, c) => s + c.received,   0),
+      remaining:  colTotals.reduce((s, c) => s + c.remaining,  0),
+      cratesReceived,
+      cratesDispatched,
+      crateShortage: cratesReceived - cratesDispatched,
+    };
+  }, [colTotals, crateData]);
 
   const remColor = (v) => v > 0 ? 'text-emerald-300' : v < 0 ? 'text-red-300' : 'text-slate-400';
   const remBg    = (v) => v > 0 ? 'bg-emerald-800'   : v < 0 ? 'bg-red-900'   : 'bg-slate-700';
@@ -220,7 +233,7 @@ export default function StockBalanceSummary() {
               <div className="h-full overflow-auto">
                 <table
                   className="text-sm border-separate border-spacing-0"
-                  style={{ minWidth: `${160 + visibleProducts.length * 68 + 64}px` }}
+                  style={{ minWidth: `${160 + visibleProducts.length * 68 + 64 + 64}px` }}
                 >
                   {/* Two-row header: category row + product name row */}
                   <thead>
@@ -248,6 +261,13 @@ export default function StockBalanceSummary() {
                         style={{ minWidth: 60 }}
                       >
                         Total
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="bg-violet-700 px-2 py-2.5 text-center text-xs font-bold text-white uppercase align-middle"
+                        style={{ minWidth: 60 }}
+                      >
+                        Crates
                       </th>
                     </tr>
                     {/* Row 2 — product names */}
@@ -294,6 +314,12 @@ export default function StockBalanceSummary() {
                         >
                           {row.brandQty}
                         </td>
+                        <td
+                          className="px-2 py-2 text-center text-sm tabular-nums font-bold text-violet-700 border-b border-slate-100 bg-violet-50/40"
+                          style={{ minWidth: 60 }}
+                        >
+                          {row.crates > 0 ? row.crates : <span className="text-violet-200">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -310,8 +336,11 @@ export default function StockBalanceSummary() {
                           {c.dispatched > 0 ? c.dispatched : <span className="text-slate-400">—</span>}
                         </td>
                       ))}
-                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
+                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2 border-r border-slate-500">
                         {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
+                      </td>
+                      <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
+                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
                       </td>
                     </tr>
 
@@ -325,8 +354,11 @@ export default function StockBalanceSummary() {
                           {c.remaining !== 0 ? c.remaining : <span className="text-slate-500">0</span>}
                         </td>
                       ))}
-                      <td className={`px-2 py-2.5 text-center text-sm font-bold ${remBg(grandTotals.remaining)} ${remColor(grandTotals.remaining)}`}>
+                      <td className={`px-2 py-2.5 text-center text-sm font-bold border-r border-emerald-700 ${remBg(grandTotals.remaining)} ${remColor(grandTotals.remaining)}`}>
                         {grandTotals.remaining !== 0 ? grandTotals.remaining : '0'}
+                      </td>
+                      <td className={`px-2 py-2.5 text-center text-sm font-bold ${remBg(grandTotals.crateShortage)} ${remColor(grandTotals.crateShortage)}`}>
+                        {grandTotals.crateShortage !== 0 ? grandTotals.crateShortage : '0'}
                       </td>
                     </tr>
 
@@ -340,8 +372,11 @@ export default function StockBalanceSummary() {
                           {c.received > 0 ? c.received : <span className="text-blue-400">—</span>}
                         </td>
                       ))}
-                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white">
+                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white border-r border-blue-600">
                         {grandTotals.received > 0 ? grandTotals.received : '—'}
+                      </td>
+                      <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white">
+                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
                       </td>
                     </tr>
 
@@ -355,6 +390,9 @@ export default function StockBalanceSummary() {
                           {c.cratesReceived > 0 ? c.cratesReceived : <span className="text-violet-400">—</span>}
                         </td>
                       ))}
+                      <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white border-r border-violet-600">
+                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
+                      </td>
                       <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white">
                         {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
                       </td>
@@ -370,6 +408,9 @@ export default function StockBalanceSummary() {
                           {c.cratesDispatched > 0 ? c.cratesDispatched : <span className="text-violet-300">—</span>}
                         </td>
                       ))}
+                      <td className="bg-violet-600 px-2 py-2.5 text-center text-sm font-bold text-white border-r border-violet-500">
+                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
+                      </td>
                       <td className="bg-violet-600 px-2 py-2.5 text-center text-sm font-bold text-white">
                         {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
                       </td>
