@@ -55,11 +55,16 @@ export default function StockBalanceSummary() {
         const brandQty = products.reduce((s, p) => s + (row.items[p.productId]?.qty ?? 0), 0);
         // Crates taken — summed per-product (each product's own crate size),
         // same product scope as brandQty so "Total" and "Crates" always
-        // reflect the same underlying data.
+        // reflect the same underlying data. The API sends unitsPerContainer
+        // as 0 (not null) for products with no crate concept — dividing by
+        // that would produce Infinity/NaN, so skip those products entirely
+        // rather than falling back to 1 (which would also be wrong: it'd
+        // count every loose unit as its own "crate"). Same convention as
+        // DailyDispatchSummary.jsx.
         const crates = products.reduce((s, p) => {
+          if (!(p.unitsPerContainer > 0)) return s;
           const qty = row.items[p.productId]?.qty ?? 0;
-          const unitsPerContainer = p.unitsPerContainer ?? 1;
-          return s + Math.floor(qty / unitsPerContainer);
+          return s + Math.floor(qty / p.unitsPerContainer);
         }, 0);
         return { salespersonId: row.salespersonId, salespersonName: row.salespersonName, items: row.items, brandQty, crates };
       })
@@ -116,11 +121,14 @@ export default function StockBalanceSummary() {
   const crateData = useMemo(() => {
     return visibleColTotals.map(c => {
       const product = visibleProducts.find(p => p.productId === c.productId);
-      const unitsPerContainer = product?.unitsPerContainer ?? 1;
+      // Same guard as spRows above — unitsPerContainer is 0 (not null) for
+      // non-containerized products, so treat 0/unset as "no crate concept"
+      // (0 crates) instead of dividing by it.
+      const unitsPerContainer = product?.unitsPerContainer > 0 ? product.unitsPerContainer : null;
       return {
         productId: c.productId,
-        cratesReceived: Math.floor(c.received / unitsPerContainer),
-        cratesDispatched: Math.floor(c.dispatched / unitsPerContainer),
+        cratesReceived: unitsPerContainer ? Math.floor(c.received / unitsPerContainer) : 0,
+        cratesDispatched: unitsPerContainer ? Math.floor(c.dispatched / unitsPerContainer) : 0,
       };
     });
   }, [visibleColTotals, visibleProducts]);
