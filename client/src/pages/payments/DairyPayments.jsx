@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet, Landmark } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -31,6 +31,10 @@ const MODE_COLORS = {
   NEFT:   'bg-violet-100 text-violet-700',
   RTGS:   'bg-amber-100  text-amber-700',
   Cheque: 'bg-orange-100 text-orange-700',
+  // Not a payment — admin-loaded dues/deposit, which ADD to what the dairy
+  // owes. Distinct from a real payment mode so it's never mistaken for one.
+  'Top-up':         'bg-amber-100 text-amber-800',
+  'Deposit Top-up': 'bg-teal-100  text-teal-800',
 };
 
 /** Premium brand balance card — matches Dashboard DairyPayableCard style */
@@ -92,6 +96,7 @@ export default function DairyPayments() {
   // only, mirroring the requireSuperAdmin guard on the API route.
   const isSuperAdmin = user?.role === 'superadmin';
   const [topUpOpen, setTopUpOpen] = useState(false);
+  const [depositTopUpOpen, setDepositTopUpOpen] = useState(false);
   const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
@@ -305,16 +310,24 @@ export default function DairyPayments() {
           </div>
         </div>
         {isSuperAdmin && (
-          <button
-            onClick={() => setTopUpOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap flex-shrink-0"
-          >
-            <Wallet size={13} /> Bulk Top-up
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setTopUpOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+            >
+              <Wallet size={13} /> Bulk Top-up
+            </button>
+            <button
+              onClick={() => setDepositTopUpOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-amber-200 hover:text-white border border-amber-600 hover:border-amber-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+            >
+              <Landmark size={13} /> Deposit Top-up
+            </button>
+          </div>
         )}
       </div>
 
-      {/* ── Bulk top-up modal ────────────────────────────────── */}
+      {/* ── Bulk top-up modal (dues) ─────────────────────────── */}
       <BulkTopUpModal
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
@@ -328,6 +341,40 @@ export default function DairyPayments() {
           <>
             A top-up <strong>increases</strong> what the dairy owes this brand — use it
             to load dues from before the app. It is not a payment.
+          </>
+        }
+        onSaved={async (payload) => {
+          const res = await api.post('/dairy-payments/bulk-topup', payload);
+          await fetchAll();
+          return res.data.data;
+        }}
+      />
+
+      {/* ── Deposit top-up modal ─────────────────────────────── */}
+      {/*
+        Same mechanism as the dues top-up above (adds to the same running
+        balance, via the same endpoint) — this only sets a distinct
+        paymentMode so it shows up in payment history as "Deposit Top-up"
+        instead of "Top-up", for a client whose existing crate/container
+        deposit with a brand predates the app.
+      */}
+      <BulkTopUpModal
+        open={depositTopUpOpen}
+        onClose={() => setDepositTopUpOpen(false)}
+        entities={brands}
+        notify={notify}
+        entryKey="brandId"
+        nounSingular="brand"
+        nounPlural="brands"
+        searchPlaceholder="Search brand…"
+        titlePrefix="Deposit Top-up"
+        paymentMode="Deposit Top-up"
+        warning={
+          <>
+            A deposit top-up <strong>increases</strong> what the dairy owes this brand,
+            for an existing crate/container deposit already held with them from
+            before the app. It is not a payment, and it adds to the same overall
+            balance as a regular top-up — only the label differs.
           </>
         }
         onSaved={async (payload) => {

@@ -253,10 +253,13 @@ const schemas = {
       .min(1, 'At least one salesperson is required'),
   }),
 
-  // Bulk top-up — admin loads dues already owed to several brands at once
+  // Bulk top-up — admin loads dues already owed to several brands at once.
+  // paymentMode distinguishes plain dues from a deposit top-up in the ledger
+  // and reports; both add to the same topUpAmount, just labelled differently.
   bulkDairyTopUp: z.object({
     paymentDate: dateString(),
     notes:       shortText,
+    paymentMode: z.enum(['Top-up', 'Deposit Top-up']).default('Top-up'),
     entries: z.array(z.object({
       brandId: z.number().int().positive(),
       amount:  z.number().positive('Amount must be positive'),

@@ -27,6 +27,11 @@ export default function BulkTopUpModal({
   nounPlural     = 'salespeople',
   searchPlaceholder = 'Search name or route…',
   warning,
+  titlePrefix    = 'Bulk Top-up',
+  // Forwarded into the onSaved payload as-is (e.g. 'Deposit Top-up' vs the
+  // server's own 'Top-up' default) — lets one endpoint serve two differently
+  // labelled top-up flows without the modal needing to know what they mean.
+  paymentMode,
 }) {
   const [step, setStep]       = useState('pick'); // 'pick' | 'amounts'
   const [search, setSearch]   = useState('');
@@ -99,7 +104,12 @@ export default function BulkTopUpModal({
     // cascades each balance, so the whole screen should be blocked meanwhile.
     notify?.('Adding top-up…', 'loading');
     try {
-      const res = await onSaved({ paymentDate: date, notes: notes.trim() || undefined, entries });
+      const res = await onSaved({
+        paymentDate: date,
+        notes:       notes.trim() || undefined,
+        ...(paymentMode ? { paymentMode } : {}),
+        entries,
+      });
       notify?.(
         `Top-up added for ${res.count} ${res.count === 1 ? nounSingular : nounPlural}`,
         'success'
@@ -117,7 +127,7 @@ export default function BulkTopUpModal({
       open={open}
       onClose={onClose}
       size="xl"
-      title={step === 'pick' ? `Bulk Top-up — select ${nounPlural}` : 'Bulk Top-up — enter amounts'}
+      title={step === 'pick' ? `${titlePrefix} — select ${nounPlural}` : `${titlePrefix} — enter amounts`}
       footer={
         <div className="flex items-center justify-between gap-3 w-full">
           <p className="text-xs text-slate-500">

@@ -332,3 +332,54 @@ describe('BulkTopUpModal — dairy (brands) mode', () => {
     );
   });
 });
+
+// ─── paymentMode / titlePrefix — one endpoint, two labelled flows ────────────
+
+describe('BulkTopUpModal — paymentMode override', () => {
+  it('omits paymentMode from the payload when not provided (server default applies)', async () => {
+    const { onSaved } = setup();
+    pickAndContinue(['K Pandu']);
+
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '5000' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add top-up/i }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(onSaved.mock.calls[0][0]).not.toHaveProperty('paymentMode');
+  });
+
+  it('forwards a custom paymentMode into the payload', async () => {
+    const onSaved = vi.fn().mockResolvedValue({ count: 1, total: 20000 });
+    const onClose = vi.fn();
+    const notify  = vi.fn();
+    render(
+      <BulkTopUpModal
+        open
+        onClose={onClose}
+        entities={SALESPEOPLE}
+        onSaved={onSaved}
+        notify={notify}
+        paymentMode="Deposit Top-up"
+      />
+    );
+    pickAndContinue(['K Pandu']);
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '20000' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add top-up/i }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(onSaved.mock.calls[0][0].paymentMode).toBe('Deposit Top-up');
+  });
+
+  it('uses titlePrefix in the modal heading instead of the generic default', () => {
+    render(
+      <BulkTopUpModal
+        open
+        onClose={vi.fn()}
+        entities={SALESPEOPLE}
+        onSaved={vi.fn()}
+        notify={vi.fn()}
+        titlePrefix="Deposit Top-up"
+      />
+    );
+    expect(screen.getByText(/Deposit Top-up — select salespeople/i)).toBeInTheDocument();
+  });
+});
