@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
@@ -225,6 +225,22 @@ export default function SalespersonBalance() {
                                   </p>
                                 </div>
                               </div>
+
+                              {/* Old dues loaded by an admin — shown so the salesman
+                                  knows where a jump in balance came from. */}
+                              {(entry.topUps ?? []).map((t, ti) => (
+                                <div key={ti} className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                  <Wallet size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-bold text-amber-800 tabular-nums">
+                                      Old balance added: {formatCurrency(t.amount)}
+                                    </p>
+                                    <p className="text-[10px] text-amber-700 leading-tight">
+                                      by {t.createdBy ?? 'admin'}{t.notes ? ` · ${t.notes}` : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         );
@@ -269,8 +285,10 @@ export default function SalespersonBalance() {
                           {history.map((entry, idx) => {
                             const entryOwing  = entry.closingBalance > 0;
                             const entryCredit = entry.closingBalance < 0;
+                            const topUps = entry.topUps ?? [];
                             return (
-                              <tr key={idx} className="hover:bg-slate-50 transition">
+                              <React.Fragment key={idx}>
+                              <tr className="hover:bg-slate-50 transition">
                                 <td className="px-4 py-3 text-left text-sm font-semibold text-slate-700 whitespace-nowrap">
                                   {formatDateShort(entry.balanceDate)}
                                 </td>
@@ -295,6 +313,22 @@ export default function SalespersonBalance() {
                                   </span>
                                 </td>
                               </tr>
+                              {topUps.map((t, ti) => (
+                                <tr key={`${idx}-topup-${ti}`} className="bg-amber-50">
+                                  <td colSpan={5} className="px-4 py-2">
+                                    <span className="inline-flex items-center gap-1.5 text-xs text-amber-800">
+                                      <Wallet size={12} className="text-amber-600 flex-shrink-0" />
+                                      <span className="font-bold tabular-nums">
+                                        Old balance added: {formatCurrency(t.amount)}
+                                      </span>
+                                      <span className="text-amber-700">
+                                        by {t.createdBy ?? 'admin'}{t.notes ? ` · ${t.notes}` : ''}
+                                      </span>
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>

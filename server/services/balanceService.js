@@ -63,7 +63,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
  * Accepts an optional transaction client (tx).
  */
 async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) {
-  const [prev, dispatchAgg, paymentAgg] = await Promise.all([
+  const [prev, dispatchAgg, paymentAgg, topUpAgg] = await Promise.all([
     tx.salespersonBalance.findFirst({
       where: { salespersonId, balanceDate: { lt: balanceDate } },
       orderBy: { balanceDate: 'desc' },
@@ -73,7 +73,13 @@ async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) 
       _sum: { totalAmount: true },
     }),
     tx.salespersonPayment.aggregate({
-      where: { salespersonId, paymentDate: balanceDate },
+      where: { salespersonId, paymentDate: balanceDate, isTopUp: false },
+      _sum: { amount: true },
+    }),
+    // Top-ups are pre-existing dues loaded by an admin — they ADD to what the
+    // salesman owes, so they are summed separately and added, not subtracted.
+    tx.salespersonPayment.aggregate({
+      where: { salespersonId, paymentDate: balanceDate, isTopUp: true },
       _sum: { amount: true },
     }),
   ]);
@@ -81,12 +87,13 @@ async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) 
   const openingBalance = Number(prev?.closingBalance ?? 0);
   const stockGiven     = Number(dispatchAgg._sum.totalAmount ?? 0);
   const amountPaid     = Number(paymentAgg._sum.amount ?? 0);
-  const closingBalance = openingBalance + stockGiven - amountPaid;
+  const topUpAmount    = Number(topUpAgg._sum.amount ?? 0);
+  const closingBalance = openingBalance + stockGiven + topUpAmount - amountPaid;
 
   return tx.salespersonBalance.upsert({
     where: { salespersonId_balanceDate: { salespersonId, balanceDate } },
-    update: { openingBalance, stockGiven, amountPaid, closingBalance },
-    create: { salespersonId, balanceDate, openingBalance, stockGiven, amountPaid, closingBalance },
+    update: { openingBalance, stockGiven, topUpAmount, amountPaid, closingBalance },
+    create: { salespersonId, balanceDate, openingBalance, stockGiven, topUpAmount, amountPaid, closingBalance },
   });
 }
 
@@ -144,7 +151,7 @@ async function recalculateDairyBalance(brandId, date, tx = null) {
  * Accepts an optional `tx` so callers can roll the cascade into their own
  * transaction. If omitted, runs in its own serializable transaction.
  *
- * Formula: closing = opening + stockGiven − amountPaid
+ * Formula: closing = opening + stockGiven + topUpAmount − amountPaid
  */
 async function recalculateSalespersonBalance(salespersonId, date, tx = null) {
   const balanceDate = new Date(date);

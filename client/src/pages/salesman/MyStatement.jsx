@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -115,6 +115,37 @@ function BreakdownPanel({ row }) {
         </div>
       )}
 
+      {row.topUps?.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between px-4 py-2.5 bg-amber-600">
+            <div className="flex items-center gap-2">
+              <Wallet size={13} className="text-amber-200 flex-shrink-0" />
+              <span className="text-[10px] font-bold text-white uppercase tracking-widest">Old Balance Added</span>
+            </div>
+            <span className="text-sm font-bold text-white tabular-nums">
+              {formatCurrency(row.topUps.reduce((s, t) => s + t.amount, 0))}
+            </span>
+          </div>
+          <div className="bg-white divide-y divide-slate-50">
+            {row.topUps.map((t, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-slate-800 leading-tight">
+                    Added by {t.createdBy ?? 'admin'}
+                  </p>
+                  {t.notes && (
+                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5 truncate">{t.notes}</p>
+                  )}
+                </div>
+                <span className="text-xs font-bold text-amber-700 tabular-nums whitespace-nowrap flex-shrink-0">
+                  {formatCurrency(t.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {row.payments?.length > 0 && (
         <div>
           <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-600">
@@ -180,7 +211,7 @@ function ExpandableRow({ row, open, onToggle }) {
         </td>
       </tr>
 
-      {open && (row.items?.length > 0 || row.payments?.length > 0) && (
+      {open && (row.items?.length > 0 || row.payments?.length > 0 || row.topUps?.length > 0) && (
         <tr>
           <td colSpan={6} className="border-b border-slate-100 bg-slate-50 px-3 py-3">
             <BreakdownPanel row={row} />
@@ -202,7 +233,7 @@ export default function MyStatement() {
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   const expandableIndices = rows.reduce((acc, r, i) => {
-    if (r.items?.length > 0 || r.payments?.length > 0) acc.push(i);
+    if (r.items?.length > 0 || r.payments?.length > 0 || r.topUps?.length > 0) acc.push(i);
     return acc;
   }, []);
   const allExpanded =
@@ -387,7 +418,7 @@ export default function MyStatement() {
                 {rows.map((row, i) => {
                   const rowOwing  = row.closingBalance > 0;
                   const rowCredit = row.closingBalance < 0;
-                  const hasDetail = row.items?.length > 0 || row.payments?.length > 0;
+                  const hasDetail = row.items?.length > 0 || row.payments?.length > 0 || row.topUps?.length > 0;
                   return (
                     <React.Fragment key={i}>
                       <button
