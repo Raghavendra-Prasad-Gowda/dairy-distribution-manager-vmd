@@ -168,7 +168,17 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
         }
         onSaved={async ({ paymentDate, notes, entries }) => {
           const res = await api.post('/dairy-deposit-topups/bulk', { topUpDate: paymentDate, notes, entries });
-          await fetchDeposit();
+          // The modal defaults to today, but this report defaults to
+          // yesterday — a same-day top-up would otherwise land outside the
+          // visible window and look like it silently did nothing. Widen the
+          // range to include it (string comparison is safe: both are
+          // "YYYY-MM-DD", which sorts chronologically) instead of leaving
+          // the user to notice and fix the date pickers themselves.
+          const widerFrom = paymentDate < from;
+          const widerTo   = paymentDate > to;
+          if (widerFrom) setFrom(paymentDate);
+          if (widerTo)   setTo(paymentDate);
+          if (!widerFrom && !widerTo) await fetchDeposit();
           return res.data.data;
         }}
       />
