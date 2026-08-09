@@ -198,3 +198,85 @@ describe('SalesmanPricesSetup', () => {
     });
   });
 });
+
+// ─── Layout order ─────────────────────────────────────────────────────────────
+// `filteredGrouped` sorts products by category display order, then each
+// product's own display order, then name — the exact layout the Profit &
+// Loss report and the salesman's Stock Entry page were built to mirror. This
+// was previously untested, so a regression here would have silently
+// desynced this page's own reference ordering from everywhere else.
+
+describe('SalesmanPricesSetup — layout order', () => {
+  // Deliberately scrambled: Curd (the higher categoryDisplayOrder) is listed
+  // FIRST in the raw API response — a plain-object group-by would insert its
+  // key first too, so this decouples the assertion from insertion order and
+  // actually exercises the sort. Toned Milk (the higher displayOrder) is
+  // likewise listed before Special Milk within Milk.
+  const PRICES = [
+    { productId: 4, productName: 'Curd 200g', brandId: 1, category: 'Curd', categoryDisplayOrder: 1, displayOrder: 0,
+      isEnabled: true, salespersonEnabled: true, sellingPrice: 12, dairyCostPrice: 10, dairySellingPrice: 11,
+      effectiveFrom: null, upcomingSellingPrice: null, upcomingEffectiveFrom: null },
+    { productId: 3, productName: 'Toned Milk', brandId: 1, category: 'Milk', categoryDisplayOrder: 0, displayOrder: 1,
+      isEnabled: true, salespersonEnabled: true, sellingPrice: 25, dairyCostPrice: 20, dairySellingPrice: 22,
+      effectiveFrom: null, upcomingSellingPrice: null, upcomingEffectiveFrom: null },
+    { productId: 5, productName: 'Special Milk', brandId: 1, category: 'Milk', categoryDisplayOrder: 0, displayOrder: 0,
+      isEnabled: true, salespersonEnabled: true, sellingPrice: 30, dairyCostPrice: 25, dairySellingPrice: 27,
+      effectiveFrom: null, upcomingSellingPrice: null, upcomingEffectiveFrom: null },
+  ];
+
+  function mockApiWithPrices() {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/salespeople?all=true')) return Promise.resolve({ data: { data: SALESPEOPLE } });
+      if (url.includes('/brands'))               return Promise.resolve({ data: { data: BRANDS } });
+      if (url.includes('/prices'))                return Promise.resolve({ data: { data: PRICES } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('groups products by category, ordered by categoryDisplayOrder, not the API order', async () => {
+    mockApiWithPrices();
+    render(<SalesmanPricesSetup />);
+    await screen.findByText('Toned Milk');
+
+    const milkHeader = screen.getByText('Milk').closest('tr');
+    const curdHeader = screen.getByText('Curd').closest('tr');
+    expect(!!(milkHeader.compareDocumentPosition(curdHeader) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('orders products within a category by their own displayOrder, not the API order', async () => {
+    mockApiWithPrices();
+    render(<SalesmanPricesSetup />);
+    await screen.findByText('Toned Milk');
+
+    const specialMilk = screen.getByText('Special Milk').closest('tr'); // displayOrder 0
+    const tonedMilk    = screen.getByText('Toned Milk').closest('tr');   // displayOrder 1
+    expect(!!(specialMilk.compareDocumentPosition(tonedMilk) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('falls back to alphabetical order when categoryDisplayOrder ties', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/salespeople?all=true')) return Promise.resolve({ data: { data: SALESPEOPLE } });
+      if (url.includes('/brands'))               return Promise.resolve({ data: { data: BRANDS } });
+      if (url.includes('/prices')) return Promise.resolve({
+        data: {
+          data: [
+            { productId: 1, productName: 'Zed Product',  brandId: 1, category: 'Zed',  categoryDisplayOrder: 999,
+              displayOrder: 0, isEnabled: true, salespersonEnabled: true, sellingPrice: 10,
+              dairyCostPrice: 8, dairySellingPrice: 9, effectiveFrom: null, upcomingSellingPrice: null, upcomingEffectiveFrom: null },
+            { productId: 2, productName: 'Amul Product', brandId: 1, category: 'Amul', categoryDisplayOrder: 999,
+              displayOrder: 0, isEnabled: true, salespersonEnabled: true, sellingPrice: 10,
+              dairyCostPrice: 8, dairySellingPrice: 9, effectiveFrom: null, upcomingSellingPrice: null, upcomingEffectiveFrom: null },
+          ],
+        },
+      });
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    render(<SalesmanPricesSetup />);
+    await screen.findByText('Zed Product');
+
+    const amulHeader = screen.getByText('Amul').closest('tr');
+    const zedHeader   = screen.getByText('Zed').closest('tr');
+    expect(!!(amulHeader.compareDocumentPosition(zedHeader) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+});

@@ -40,6 +40,17 @@ vi.mock('../../components/DateSelector', () => ({
 
 const BRAND = { id: 1, name: 'Nandini', depositEnabled: false, depositPerLitre: '0' };
 
+function makeProduct(overrides) {
+  return {
+    id: 0, name: '', brandId: 1, costPrice: '20', sellingPrice: '25',
+    category: 'General', unitType: 'ml', unitSize: 500, isActive: true,
+    showInStockReceipt: true, displayOrder: 0, depositEnabled: false,
+    containerType: 'crate', unitsPerContainer: 20,
+    brand: { id: 1, name: 'Nandini' }, costPrices: [], sellingPrices: [],
+    ...overrides,
+  };
+}
+
 function makeApiResponses({ brands = [BRAND], products = [], receipts = [], routes = [], balance = null } = {}) {
   vi.mocked(api.get).mockImplementation((url) => {
     if (url.includes('/brands'))         return Promise.resolve({ data: { data: brands } });
@@ -155,5 +166,70 @@ describe('StockReceipt', () => {
 
     expect(await screen.findByText('Milk 500ml')).toBeInTheDocument();
     expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
+  });
+});
+
+// ─── Layout order ─────────────────────────────────────────────────────────────
+// `filteredGrouped()` sorts category groups by Category.displayOrder — the
+// same field Layout Settings lets you drag-reorder — with an alphabetical
+// tiebreak. This was previously untested, so a regression here (e.g. losing
+// the tiebreak, or grouping by API/insertion order instead) would have
+// shipped silently.
+
+describe('StockReceipt — category layout order', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+
+  it('orders category groups by displayOrder, not the order products arrived from the API', async () => {
+    // Curd appears first in the raw products array, but Milk has the lower
+    // displayOrder (0 vs 1) and must be grouped first.
+    const products = [
+      makeProduct({ id: 2, name: 'Curd 200g', category: 'Curd' }),
+      makeProduct({ id: 1, name: 'Milk 500ml', category: 'Milk' }),
+    ];
+    const categories = [
+      { name: 'Curd', displayOrder: 1 },
+      { name: 'Milk', displayOrder: 0 },
+    ];
+    makeApiResponses({ brands: [BRAND], routes: [route], products, receipts: [] });
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } });
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [BRAND] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: products } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml'); // first group starts expanded
+
+    const milkHeader = screen.getByText('Milk').closest('tr');
+    const curdHeader = screen.getByText('Curd').closest('tr');
+    expect(!!(milkHeader.compareDocumentPosition(curdHeader) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('falls back to alphabetical order when categories have no configured displayOrder', async () => {
+    const products = [
+      makeProduct({ id: 2, name: 'Zed Product', category: 'Zed' }),
+      makeProduct({ id: 1, name: 'Amul Product', category: 'Amul' }),
+    ];
+    makeApiResponses({ brands: [BRAND], routes: [route], products, receipts: [] });
+    // No '/categories' rows at all — every group falls back to the same
+    // default order value, so the tiebreak alone decides.
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [BRAND] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: products } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    render(<StockReceipt />);
+    await screen.findByText('Amul Product'); // first group starts expanded
+
+    const amulHeader = screen.getByText('Amul').closest('tr');
+    const zedHeader   = screen.getByText('Zed').closest('tr');
+    expect(!!(amulHeader.compareDocumentPosition(zedHeader) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 });
