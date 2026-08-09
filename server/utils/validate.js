@@ -212,6 +212,12 @@ const schemas = {
       unitPrice: z.number().min(0),
     })).default([]),
     notes: shortText,
+    // Set by StockEntry.jsx's Save-and-Submit flow, which re-saves
+    // unconditionally right before locking the entry — the Submitted card
+    // that follows already reports the same item count and total, so this
+    // save's own Slack notification would be a redundant middle card. A
+    // plain Save (this flag omitted) still notifies as always.
+    submitting: z.boolean().optional().default(false),
   }),
 
   // Admin opens a blank past-date entry for a salesperson (no existing dispatch yet)

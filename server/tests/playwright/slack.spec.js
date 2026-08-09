@@ -200,6 +200,33 @@ test.describe('PIN_FAILED card', () => {
   });
 });
 
+test.describe('SALESPERSON_BALANCE_VIEWED card', () => {
+  test('shows the salesperson name and requested range', () => {
+    const c = buildCard(SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED, {
+      salespersonName: 'K Pandu', from: '2026-05-01', to: '2026-05-31',
+    });
+    expect(headerText(c)).toBe('👀 My Balance Viewed');
+    expect(allText(c)).toContain('K Pandu');
+    expect(allText(c)).toContain('May, 2026');
+  });
+
+  test('falls back to "Last 90 days" when no range given', () => {
+    const c = buildCard(SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED, { salespersonName: 'K Pandu' });
+    expect(allText(c)).toContain('Last 90 days');
+  });
+});
+
+test.describe('SALESPERSON_STATEMENT_VIEWED card', () => {
+  test('shows the salesperson name and requested range', () => {
+    const c = buildCard(SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED, {
+      salespersonName: 'K Pandu', from: '2026-05-01', to: '2026-05-31',
+    });
+    expect(headerText(c)).toBe('👀 My Statement Viewed');
+    expect(allText(c)).toContain('K Pandu');
+    expect(allText(c)).toContain('May, 2026');
+  });
+});
+
 test.describe('Dispatch actor attribution', () => {
   test('DISPATCH_SAVED shows who did it — admin', () => {
     const c = buildCard(SLACK_EVENTS.DISPATCH_SAVED, {

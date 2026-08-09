@@ -3,6 +3,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const AppError     = require('../utils/AppError');
 const prisma       = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 /**
  * GET /api/v1/salesperson-statement/me?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -99,6 +100,11 @@ const myStatement = asyncHandler(async (req, res) => {
         })),
     };
   });
+
+  // This handler already 403s for anyone but a salesman above, and is called
+  // from exactly one place client-side (MyStatement.jsx) — safe to notify
+  // unconditionally, no extra role gate needed.
+  void notifySlack(SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED, { salespersonId: spId, from, to });
 
   res.json({ success: true, data: rows });
 });

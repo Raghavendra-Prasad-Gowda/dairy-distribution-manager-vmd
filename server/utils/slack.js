@@ -21,6 +21,11 @@ const SLACK_EVENTS = {
   FAILED_LOGIN:     'FAILED_LOGIN',
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
   PIN_FAILED:       'PIN_FAILED',
+  // Salesman self-service "view" actions — informational only, fired from
+  // endpoints that are exclusively reachable by the salesman's own pages
+  // (see the controllers for why each specific handler was chosen).
+  SALESPERSON_BALANCE_VIEWED:   'SALESPERSON_BALANCE_VIEWED',
+  SALESPERSON_STATEMENT_VIEWED: 'SALESPERSON_STATEMENT_VIEWED',
   // Stock receipts
   STOCK_RECEIPT_SAVED: 'STOCK_RECEIPT_SAVED',
   // Dairy payments
@@ -126,6 +131,8 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.PROCESS_CRASH]:      COLORS.RED,
   [SLACK_EVENTS.PASSWORD_CHANGED]:   COLORS.AMBER,
   [SLACK_EVENTS.PIN_FAILED]:         COLORS.RED,
+  [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
+  [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.DISPATCH_SUBMITTED]:    COLORS.GREEN,
   [SLACK_EVENTS.DISPATCH_LOCK_CHANGED]: COLORS.AMBER, // overridden per action (locked/unlocked/opened)
   [SLACK_EVENTS.SALESPERSON_PRICES_UPDATED]:      COLORS.AMBER,
@@ -354,6 +361,25 @@ function buildCard(event, data) {
           ['🌐 IP Address',   data.ip       || 'unknown'],
         ]),
       ], `Wrong PIN — ${data.username}`);
+
+    // ── Salesman "view" actions (informational) ────────────────────────────
+    case SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED:
+      return card(event, [
+        headerBlock('👀 My Balance Viewed'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Range',       data.from && data.to ? `${formatDate(data.from)} – ${formatDate(data.to)}` : 'Last 90 days'],
+        ]),
+      ], `My Balance Viewed — ${data.salespersonName}`);
+
+    case SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED:
+      return card(event, [
+        headerBlock('👀 My Statement Viewed'),
+        fieldsBlock([
+          ['👤 Salesperson', data.salespersonName],
+          ['📅 Range',       data.from && data.to ? `${formatDate(data.from)} – ${formatDate(data.to)}` : null],
+        ]),
+      ], `My Statement Viewed — ${data.salespersonName}`);
 
     // ── Stock Receipts ─────────────────────────────────────────────────────
     case SLACK_EVENTS.STOCK_RECEIPT_SAVED: {
