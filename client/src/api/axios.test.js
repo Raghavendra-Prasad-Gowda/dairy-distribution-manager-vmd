@@ -98,6 +98,61 @@ describe('401 handling', () => {
   });
 });
 
+// A 401 from a credential check means "what you just typed is wrong", not
+// "your session died". Redirecting used to hard-navigate the login page,
+// destroying the error banner before anyone could read it — the reported
+// "message flashes then the page refreshes" bug.
+describe('401 handling — credential checks are not session expiry', () => {
+  it('does not redirect when login rejects a wrong password', async () => {
+    await fireError({ config: { url: '/auth/login' }, response: { status: 401 } });
+
+    expect(window.location.href).toBe('');
+  });
+
+  it('leaves no "session expired" notice behind after a failed login', async () => {
+    // Otherwise the login page reads the notice and shows a misleading
+    // "Your session expired" instead of "Invalid username or password".
+    await fireError({ config: { url: '/auth/login' }, response: { status: 401 } });
+
+    expect(sessionStorage.getItem('authNotice')).toBeNull();
+  });
+
+  it('still rejects a failed login so the page can show its own message', async () => {
+    const err = { config: { url: '/auth/login' }, response: { status: 401 } };
+    await expect(handlers.responseError(err)).rejects.toBe(err);
+  });
+
+  it('keeps the user signed in when change-password rejects a wrong current password', async () => {
+    localStorage.setItem('token', 'jwt-abc');
+
+    await fireError({ config: { url: '/auth/change-password' }, response: { status: 401 } });
+
+    expect(localStorage.getItem('token')).toBe('jwt-abc');
+    expect(window.location.href).toBe('');
+  });
+
+  it('still logs out on a 401 from an ordinary endpoint', async () => {
+    // Guards against widening the exemption too far — a genuinely expired
+    // token must keep bouncing the user to login.
+    localStorage.setItem('token', 'jwt-abc');
+
+    await fireError({ config: { url: '/dispatches' }, response: { status: 401 } });
+
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(window.location.href).toBe('/login');
+  });
+
+  it('does not log out when a login attempt times out with no response', async () => {
+    // A cold-start timeout on the login request itself must not be mistaken
+    // for an expired session — there is no session to expire yet.
+    localStorage.setItem('loginTime', String(Date.now() - SESSION_MS - 1000));
+
+    await fireError({ config: { url: '/auth/login' } });
+
+    expect(window.location.href).toBe('');
+  });
+});
+
 describe('timeout / network errors with no HTTP response', () => {
   it('logs out when the local session is already past its 2h window', async () => {
     // The Render cold-start case: the request burned the whole 60s budget and
