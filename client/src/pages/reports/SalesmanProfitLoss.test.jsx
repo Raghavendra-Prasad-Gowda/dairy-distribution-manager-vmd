@@ -78,16 +78,18 @@ describe('SalesmanProfitLoss — summary + range', () => {
 
   it('shows the overall totals from the API', async () => {
     const { container } = await renderPage();
-    expect(screen.getByText('Net Profit')).toBeInTheDocument();
+    expect(screen.getByText('Cost (Dairy Paid)')).toBeInTheDocument();
+    expect(screen.getByText('Revenue (Dairy Earned)')).toBeInTheDocument();
+    expect(screen.getByText('Profit/Loss')).toBeInTheDocument();
     expect(within(container).getByText('21.67%')).toBeInTheDocument();
   });
 
-  it('labels the card "Net Loss" and colours it red when overall profit is negative', async () => {
+  it('colours the Profit/Loss card red when overall profit is negative', async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: { data: { ...REPORT, totals: { revenue: 100, cost: 300, profit: -200, marginPct: -200 } } },
     });
     await renderPage();
-    const label = screen.getByText('Net Loss');
+    const label = screen.getByText('Profit/Loss');
     expect(label).toBeInTheDocument();
     // The figure next to it carries the loss colour.
     const card = label.closest('div');
