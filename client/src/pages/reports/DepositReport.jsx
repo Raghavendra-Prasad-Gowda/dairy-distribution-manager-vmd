@@ -155,6 +155,7 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
         nounPlural="brands"
         searchPlaceholder="Search brand…"
         titlePrefix="Deposit Top-up"
+        actionNoun="deposit top-up"
         accent="teal"
         icon={Landmark}
         warning={
@@ -359,12 +360,13 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
                                             <button
                                               onClick={async () => {
                                                 if (!window.confirm('Delete this deposit top-up?')) return;
+                                                notify('Deleting deposit top-up…', 'loading');
                                                 try {
                                                   await api.delete(`/dairy-deposit-topups/${it.id}`);
                                                   notify('Deposit top-up deleted', 'success');
                                                   fetchDeposit();
                                                 } catch (e) {
-                                                  notify(e.response?.data?.error ?? 'Failed to delete', 'error');
+                                                  notify(e.response?.data?.error ?? 'Failed to delete deposit top-up', 'error');
                                                 }
                                               }}
                                               className="text-[10px] font-semibold text-red-500 hover:text-red-700"

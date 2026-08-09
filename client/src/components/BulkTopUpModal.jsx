@@ -28,10 +28,16 @@ export default function BulkTopUpModal({
   searchPlaceholder = 'Search name or route…',
   warning,
   titlePrefix    = 'Bulk Top-up',
-  // Forwarded into the onSaved payload as-is (e.g. 'Deposit Top-up' vs the
-  // server's own 'Top-up' default) — lets one endpoint serve two differently
-  // labelled top-up flows without the modal needing to know what they mean.
+  // Forwarded into the onSaved payload as-is, for a caller whose endpoint
+  // still branches on a paymentMode string. No current caller uses this —
+  // deposit top-up (the original reason it was added) now posts to its own
+  // endpoint instead — but it's kept as a generic escape hatch.
   paymentMode,
+  // Drives the loading/success/error toast text ("Adding {actionNoun}…" etc.)
+  // so a caller with a more specific flow (e.g. "deposit top-up") doesn't
+  // show the generic "Adding top-up…" wording while it's actually doing
+  // something conceptually different.
+  actionNoun     = 'top-up',
   // Header band color + icon — matches the "bulk action" dialogs elsewhere
   // in the app (Bulk Update Prices etc.). Deposit top-up passes 'teal' /
   // Landmark to stay visually distinct from the amber dues top-up.
@@ -101,13 +107,17 @@ export default function BulkTopUpModal({
         : [...new Set([...prev, ...ids])];
     });
 
+  // Capitalized once for the success toast ("Top-up added…" / "Deposit
+  // top-up added…"); the loading/error text stays lowercase mid-sentence.
+  const actionLabel = actionNoun.charAt(0).toUpperCase() + actionNoun.slice(1);
+
   async function handleSave() {
     if (entries.length === 0 || saving) return;
     setSaving(true);
     // Global loading modal (same as bulk price update) rather than a spinner
     // inside the button — the save fans out across several records and
     // cascades each balance, so the whole screen should be blocked meanwhile.
-    notify?.('Adding top-up…', 'loading');
+    notify?.(`Adding ${actionNoun}…`, 'loading');
     try {
       const res = await onSaved({
         paymentDate: date,
@@ -116,12 +126,12 @@ export default function BulkTopUpModal({
         entries,
       });
       notify?.(
-        `Top-up added for ${res.count} ${res.count === 1 ? nounSingular : nounPlural}`,
+        `${actionLabel} added for ${res.count} ${res.count === 1 ? nounSingular : nounPlural}`,
         'success'
       );
       onClose();
     } catch (e) {
-      notify?.(e.response?.data?.error ?? 'Failed to add top-up', 'error');
+      notify?.(e.response?.data?.error ?? `Failed to add ${actionNoun}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -156,7 +166,7 @@ export default function BulkTopUpModal({
               </Button>
             ) : (
               <Button size="sm" onClick={handleSave} disabled={saving || entries.length === 0}>
-                Add top-up
+                Add {actionNoun}
               </Button>
             )}
           </div>

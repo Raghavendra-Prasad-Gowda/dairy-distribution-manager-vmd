@@ -384,3 +384,73 @@ describe('BulkTopUpModal — paymentMode override', () => {
     expect(screen.getByText(/select salespeople/i)).toBeInTheDocument();
   });
 });
+
+// ─── actionNoun — spinner/toast text matches what's actually happening ───────
+// A caller with a more specific flow (e.g. deposit top-up, which is a
+// standalone ledger, not a dues top-up) shouldn't show the generic
+// "Adding top-up…" wording on the global loading overlay while doing
+// something conceptually different — see BulkTopUpModal.jsx.
+describe('BulkTopUpModal — actionNoun override', () => {
+  it('defaults every message to "top-up" when actionNoun is not provided', async () => {
+    const onSaved = vi.fn().mockResolvedValue({ count: 1, total: 500 });
+    const notify  = vi.fn();
+    render(
+      <BulkTopUpModal open onClose={vi.fn()} entities={SALESPEOPLE} onSaved={onSaved} notify={notify} />
+    );
+    pickAndContinue(['K Pandu']);
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add top-up/i }));
+
+    expect(notify).toHaveBeenCalledWith('Adding top-up…', 'loading');
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Top-up added for 1 salesperson', 'success'));
+  });
+
+  it('carries a custom actionNoun through the button, loading and success text', async () => {
+    const onSaved = vi.fn().mockResolvedValue({ count: 2, total: 40000 });
+    const notify  = vi.fn();
+    render(
+      <BulkTopUpModal
+        open
+        onClose={vi.fn()}
+        entities={SALESPEOPLE}
+        onSaved={onSaved}
+        notify={notify}
+        actionNoun="deposit top-up"
+      />
+    );
+    pickAndContinue(['K Pandu', 'Mahesh']);
+    const inputs = screen.getAllByPlaceholderText('0.00');
+    fireEvent.change(inputs[0], { target: { value: '20000' } });
+    fireEvent.change(inputs[1], { target: { value: '20000' } });
+
+    const submit = screen.getByRole('button', { name: /Add deposit top-up/i });
+    fireEvent.click(submit);
+
+    expect(notify).toHaveBeenCalledWith('Adding deposit top-up…', 'loading');
+    await waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('Deposit top-up added for 2 salespeople', 'success')
+    );
+  });
+
+  it('carries a custom actionNoun into the error toast on failure', async () => {
+    const onSaved = vi.fn().mockRejectedValue(new Error('boom'));
+    const notify  = vi.fn();
+    render(
+      <BulkTopUpModal
+        open
+        onClose={vi.fn()}
+        entities={SALESPEOPLE}
+        onSaved={onSaved}
+        notify={notify}
+        actionNoun="deposit top-up"
+      />
+    );
+    pickAndContinue(['K Pandu']);
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add deposit top-up/i }));
+
+    await waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('Failed to add deposit top-up', 'error')
+    );
+  });
+});
