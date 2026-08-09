@@ -316,7 +316,7 @@ function SalespersonPanel({ sp }) {
               {['Product', 'Cost Price', 'Selling Price', 'Qty', 'Total', 'Profit/Loss'].map(h => (
                 <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                   {h}
-                  {h === 'Total' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Price)</span>}
+                  {h === 'Total' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Selling Price)</span>}
                 </th>
               ))}
             </tr>

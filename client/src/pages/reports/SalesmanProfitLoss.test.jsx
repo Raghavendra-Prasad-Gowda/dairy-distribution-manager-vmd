@@ -155,7 +155,7 @@ describe('SalesmanProfitLoss — detail panel', () => {
 
     const headerRow = screen.getByText('Product').closest('tr');
     expect(within(headerRow).getAllByRole('columnheader').map(h => h.textContent)).toEqual([
-      'Product', 'Cost Price', 'Selling Price', 'Qty', 'Total(Qty × Price)', 'Profit/Loss',
+      'Product', 'Cost Price', 'Selling Price', 'Qty', 'Total(Qty × Selling Price)', 'Profit/Loss',
     ]);
   });
 
