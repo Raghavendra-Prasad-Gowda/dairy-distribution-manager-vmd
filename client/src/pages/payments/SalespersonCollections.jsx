@@ -89,9 +89,13 @@ export default function SalespersonCollections() {
   const { notify } = useNotification();
   const { user } = useAuth();
   const today = getIndiaDate();
-  // Top-up and ledger reset both rewrite balances irreversibly — superadmin
-  // only, mirroring the requireSuperAdmin guard on the API routes.
+  // Ledger reset wipes history irreversibly — superadmin only, mirroring the
+  // requireSuperAdmin guard on that API route. Bulk top-up is less
+  // destructive (it's additive, and every other payment action here is
+  // already admin-accessible) — any admin can use it, matching requireAdmin
+  // on POST /salesperson-payments/bulk-topup.
   const isSuperAdmin = user?.role === 'superadmin';
+  const isAdmin       = user?.role === 'admin' || isSuperAdmin;
 
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
@@ -323,18 +327,21 @@ export default function SalespersonCollections() {
         </div>
       </div>
 
-      {/* Superadmin action toolbar — kept off the dark header band; the soft
-          pill buttons read poorly against emerald-800, and this matches the
-          light toolbar convention used for bulk actions elsewhere (e.g.
-          Bulk Update Prices on the salesman pricing page). */}
-      {isSuperAdmin && (
+      {/* Action toolbar — kept off the dark header band; the soft pill
+          buttons read poorly against emerald-800, and this matches the light
+          toolbar convention used for bulk actions elsewhere (e.g. Bulk
+          Update Prices on the salesman pricing page). Bulk Top-up is
+          admin-accessible; Reset Ledger stays superadmin-only. */}
+      {isAdmin && (
         <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
           <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
             Bulk Top-up
           </Button>
-          <Button variant="soft-danger" size="sm" icon={Eraser} onClick={() => setResetOpen(true)}>
-            Reset Ledger
-          </Button>
+          {isSuperAdmin && (
+            <Button variant="soft-danger" size="sm" icon={Eraser} onClick={() => setResetOpen(true)}>
+              Reset Ledger
+            </Button>
+          )}
         </div>
       )}
 

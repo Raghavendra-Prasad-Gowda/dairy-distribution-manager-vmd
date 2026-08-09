@@ -408,12 +408,16 @@ test.describe('POST /api/v1/salesperson-payments/bulk-topup', () => {
     expect(res.status()).toBe(403);
   });
 
-  test('returns 403 when caller is a plain admin — superadmin only', async ({ request }) => {
+  test('returns 201 when caller is a plain admin — not superadmin-only, unlike dairy/deposit top-ups and ledger reset', async ({ request }) => {
+    const { createCalls } = mockTopUpDeps([1], 'raghav');
+
     const res = await request.post('/api/v1/salesperson-payments/bulk-topup', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { paymentDate: '2026-04-30', entries: [{ salespersonId: 1, amount: 500 }] },
     });
-    expect(res.status()).toBe(403);
+
+    expect(res.status()).toBe(201);
+    expect(createCalls).toHaveLength(1);
   });
 
   test('returns 201 and creates one top-up row per entry', async ({ request }) => {

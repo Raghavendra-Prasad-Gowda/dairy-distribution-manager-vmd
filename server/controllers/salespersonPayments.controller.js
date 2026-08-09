@@ -31,13 +31,15 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: payment });
 });
 
-// Admin only — bulk "top-up": loads each salesman's pre-existing dues so they
-// carry forward as opening balance. A top-up ADDS to what the salesman owes
-// (unlike a normal payment, which reduces it) — see balanceService.
+// Admin (or superadmin) — bulk "top-up": loads each salesman's pre-existing
+// dues so they carry forward as opening balance. A top-up ADDS to what the
+// salesman owes (unlike a normal payment, which reduces it) — see
+// balanceService. Unlike the dairy/deposit top-ups and ledger reset (which
+// stay superadmin-only), a plain admin can run this one.
 const bulkTopUp = asyncHandler(async (req, res) => {
-  // Route already gates this with requireSuperAdmin; repeated here so the
-  // guard survives the handler being remounted somewhere less strict.
-  if (req.user.role !== 'superadmin') throw new AppError('Super admin access required', 403);
+  // Route already gates this with requireAdmin; repeated here so the guard
+  // survives the handler being remounted somewhere less strict.
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const data = validate(schemas.bulkSalespersonTopUp, req, res);
   if (!data) return;
