@@ -310,13 +310,13 @@ function SalespersonPanel({ sp }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: 760 }}>
+        <table className="w-full text-sm" style={{ minWidth: 620 }}>
           <thead>
             <tr>
-              {['Product', 'Dairy Cost Price', 'Salesman Selling Price', 'Quantity', 'Total Cost', 'Profit / Loss'].map((h, i) => (
-                <th key={h} className={`bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>
+              {['Product', 'Cost Price', 'Selling Price', 'Qty', 'Total', 'Profit/Loss'].map(h => (
+                <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                   {h}
-                  {h === 'Total Cost' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Selling Price)</span>}
+                  {h === 'Total' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Price)</span>}
                 </th>
               ))}
             </tr>
@@ -341,14 +341,14 @@ function SalespersonPanel({ sp }) {
                     const pTone = toneFor(p.profit);
                     return (
                       <tr key={p.productId} className={`border-b border-slate-100 ${p.profit < 0 ? 'bg-red-50/40' : ''}`}>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2.5 text-center">
                           <span className="text-xs font-semibold text-slate-800">{p.productName}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
-                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
-                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{p.quantity}</td>
-                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
-                        <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{p.quantity}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
+                        <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
                       </tr>
                     );
                   })}
@@ -358,9 +358,9 @@ function SalespersonPanel({ sp }) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4} className="bg-emerald-800 px-3 py-2.5 text-xs font-bold text-white">TOTAL</td>
-              <td className="bg-emerald-800 px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(sp.revenue)}</td>
-              <td className="bg-emerald-800 px-3 py-2.5 text-right text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(sp.profit)}</td>
+              <td colSpan={4} className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white">TOTAL</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(sp.revenue)}</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(sp.profit)}</td>
             </tr>
           </tfoot>
         </table>

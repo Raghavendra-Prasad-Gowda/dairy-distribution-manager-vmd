@@ -148,19 +148,33 @@ describe('SalesmanProfitLoss — detail panel', () => {
     expect(screen.getByText(/margin 37.5%/)).toBeInTheDocument();
   });
 
-  it('shows only Product, Dairy Cost Price, Salesman Selling Price, Quantity, Total Cost and Profit / Loss columns, in that order', async () => {
+  it('shows only Product, Cost Price, Selling Price, Qty, Total and Profit/Loss columns, in that order', async () => {
     await renderPage();
     fireEvent.click(screen.getByText('K Pandu'));
     await screen.findByText('Toned Milk');
 
     const headerRow = screen.getByText('Product').closest('tr');
     expect(within(headerRow).getAllByRole('columnheader').map(h => h.textContent)).toEqual([
-      'Product', 'Dairy Cost Price', 'Salesman Selling Price', 'Quantity',
-      'Total Cost(Qty × Selling Price)', 'Profit / Loss',
+      'Product', 'Cost Price', 'Selling Price', 'Qty', 'Total(Qty × Price)', 'Profit/Loss',
     ]);
   });
 
-  it('computes Total Cost as quantity × the exact billed revenue, not a re-derived average', async () => {
+  it('centers every column, header and body cells alike', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('K Pandu'));
+    await screen.findByText('Toned Milk');
+
+    const headerRow = screen.getByText('Product').closest('tr');
+    for (const th of within(headerRow).getAllByRole('columnheader')) {
+      expect(th.className).toContain('text-center');
+    }
+    const dataRow = screen.getByText('Toned Milk').closest('tr');
+    for (const td of dataRow.querySelectorAll('td')) {
+      expect(td.className).toContain('text-center');
+    }
+  });
+
+  it('computes Total as quantity × the exact billed revenue, not a re-derived average', async () => {
     await renderPage();
     fireEvent.click(screen.getByText('K Pandu'));
     await screen.findByText('Toned Milk');
