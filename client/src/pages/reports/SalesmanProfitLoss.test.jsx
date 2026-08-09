@@ -148,6 +148,17 @@ describe('SalesmanProfitLoss — detail panel', () => {
     expect(screen.getByText(/margin 37.5%/)).toBeInTheDocument();
   });
 
+  it('shows only Product, Qty, Dairy Cost Price, Selling Price For Salesman and Profit / Loss columns', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('K Pandu'));
+    await screen.findByText('Toned Milk');
+
+    const headerRow = screen.getByText('Product').closest('tr');
+    expect(within(headerRow).getAllByRole('columnheader').map(h => h.textContent)).toEqual([
+      'Product', 'Qty', 'Dairy Cost Price', 'Selling Price For Salesman', 'Profit / Loss',
+    ]);
+  });
+
   it('tints a loss-making product row red', async () => {
     await renderPage();
     fireEvent.click(screen.getByText('Mahesh'));
