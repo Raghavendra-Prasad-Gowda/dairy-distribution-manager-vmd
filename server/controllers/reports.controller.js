@@ -481,7 +481,7 @@ const profitLoss = asyncHandler(async (req, res) => {
   const fromDate = new Date(from);
   const toDate   = new Date(to);
 
-  const [salespeople, dispatches] = await Promise.all([
+  const [salespeople, dispatches, allCategories] = await Promise.all([
     prisma.salesperson.findMany({
       where:   { isActive: true },
       select:  { id: true, name: true, route: true, displayOrder: true },
@@ -494,8 +494,8 @@ const profitLoss = asyncHandler(async (req, res) => {
           include: {
             product: {
               select: {
-                id: true, name: true, category: true, costPrice: true,
-                brand: { select: { name: true } },
+                id: true, name: true, category: true, costPrice: true, displayOrder: true,
+                brand: { select: { id: true, name: true, displayOrder: true } },
               },
             },
           },
@@ -503,7 +503,9 @@ const profitLoss = asyncHandler(async (req, res) => {
       },
       orderBy: { dispatchDate: 'asc' },
     }),
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
+  const catOrderMap = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
 
   // Cost-price history for just the products actually dispatched in range.
   const productIds = [...new Set(
@@ -552,10 +554,13 @@ const profitLoss = asyncHandler(async (req, res) => {
 
       if (!sp.products.has(item.productId)) {
         sp.products.set(item.productId, {
-          productId:   item.productId,
-          productName: item.product.name,
-          brandName:   item.product.brand?.name ?? null,
-          category:    item.product.category ?? 'Other',
+          productId:            item.productId,
+          productName:          item.product.name,
+          brandName:            item.product.brand?.name ?? null,
+          brandDisplayOrder:    item.product.brand?.displayOrder ?? 0,
+          category:             item.product.category ?? 'Other',
+          categoryDisplayOrder: catOrderMap.get(`${item.product.brand?.id}::${item.product.category}`) ?? 999,
+          displayOrder:         item.product.displayOrder ?? 0,
           quantity: 0, revenue: 0, cost: 0,
         });
       }
@@ -587,8 +592,16 @@ const profitLoss = asyncHandler(async (req, res) => {
         cost:            round2(p.cost),
         profit:          round2(p.revenue - p.cost),
       }))
-      // Biggest contributors first; losses therefore surface at the bottom.
-      .sort((a, b) => b.profit - a.profit);
+      // Same layout order as the salesman pricing tab and stock-receipt entry
+      // (brand → category → product display order → name), so a product sits
+      // in the same place here as everywhere else, rather than jumping around
+      // by profit rank on every date-range change.
+      .sort((a, b) =>
+        a.brandDisplayOrder - b.brandDisplayOrder ||
+        a.categoryDisplayOrder - b.categoryDisplayOrder ||
+        a.displayOrder - b.displayOrder ||
+        a.productName.localeCompare(b.productName)
+      );
 
     return {
       salespersonId: s.id,

@@ -170,4 +170,42 @@ describe('SalesmanProfitLoss — detail panel', () => {
     fireEvent.click(screen.getByText('All Salespeople'));
     await waitFor(() => expect(screen.getByText('Daily Profit & Loss')).toBeInTheDocument());
   });
+
+  it('groups products under a brand header, in the order the server already sorted them', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        data: {
+          ...REPORT,
+          salespeople: [{
+            salespersonId: 1, name: 'K Pandu', route: 'Route 1',
+            revenue: 100, cost: 80, profit: 20, marginPct: 20,
+            products: [
+              { productId: 1, productName: 'Toned Milk', brandName: 'Nandini', category: 'Milk',
+                quantity: 10, avgBilledPrice: 10, avgCostPrice: 8, revenue: 100, cost: 80, profit: 20 },
+              { productId: 2, productName: 'HTM 210ml', brandName: 'Jersey', category: 'Milk',
+                quantity: 10, avgBilledPrice: 10, avgCostPrice: 8, revenue: 100, cost: 80, profit: 20 },
+            ],
+          }],
+        },
+      },
+    });
+    await renderPage();
+    fireEvent.click(screen.getByText('K Pandu'));
+
+    await screen.findByText('Toned Milk');
+    // Two brand header rows, one per brand present in this salesman's list.
+    expect(screen.getByText('Nandini')).toBeInTheDocument();
+    expect(screen.getByText('Jersey')).toBeInTheDocument();
+
+    // The header for a brand appears before that brand's own product rows —
+    // Nandini's header, then Toned Milk, then Jersey's header, then HTM 210ml.
+    const rows = screen.getAllByRole('row').map(r => r.textContent);
+    const nandiniHeaderIdx = rows.findIndex(r => r === 'Nandini');
+    const tonedMilkIdx     = rows.findIndex(r => r.includes('Toned Milk'));
+    const jerseyHeaderIdx  = rows.findIndex(r => r === 'Jersey');
+    const htmIdx           = rows.findIndex(r => r.includes('HTM 210ml'));
+    expect(nandiniHeaderIdx).toBeLessThan(tonedMilkIdx);
+    expect(tonedMilkIdx).toBeLessThan(jerseyHeaderIdx);
+    expect(jerseyHeaderIdx).toBeLessThan(htmIdx);
+  });
 });

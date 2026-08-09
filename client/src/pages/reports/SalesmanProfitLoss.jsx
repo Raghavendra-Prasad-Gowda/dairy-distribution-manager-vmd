@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { TrendingUp, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
@@ -21,6 +21,22 @@ function toneFor(profit) {
 }
 
 const ALL = 'all';
+
+/**
+ * Groups an already display-order-sorted product list by brand, so the
+ * detail table can show a brand header the same way the pricing tab shows a
+ * category header — without re-sorting (the server already ordered these by
+ * brand → category → product display order).
+ */
+function groupByBrand(products) {
+  const map = new Map();
+  for (const p of products) {
+    const key = p.brandName ?? 'Other';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(p);
+  }
+  return [...map.entries()];
+}
 
 export default function SalesmanProfitLoss() {
   const { notify } = useNotification();
@@ -305,23 +321,31 @@ function SalespersonPanel({ sp }) {
             </tr>
           </thead>
           <tbody>
-            {sp.products.map(p => {
-              const pTone = toneFor(p.profit);
-              return (
-                <tr key={p.productId} className={`border-b border-slate-100 ${p.profit < 0 ? 'bg-red-50/40' : ''}`}>
-                  <td className="px-3 py-2.5">
-                    <span className="text-xs font-semibold text-slate-800">{p.productName}</span>
-                    {p.brandName && <span className="ml-1.5 text-[10px] text-slate-400">{p.brandName}</span>}
+            {groupByBrand(sp.products).map(([brandName, items]) => (
+              <Fragment key={brandName}>
+                <tr className="bg-slate-100 border-l-4 border-emerald-500">
+                  <td colSpan={7} className="px-3 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest">
+                    {brandName}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{p.quantity}</td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.cost)}</td>
-                  <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
                 </tr>
-              );
-            })}
+                {items.map(p => {
+                  const pTone = toneFor(p.profit);
+                  return (
+                    <tr key={p.productId} className={`border-b border-slate-100 ${p.profit < 0 ? 'bg-red-50/40' : ''}`}>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs font-semibold text-slate-800">{p.productName}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{p.quantity}</td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.cost)}</td>
+                      <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
           </tbody>
           <tfoot>
             <tr>

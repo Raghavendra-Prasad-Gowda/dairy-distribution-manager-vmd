@@ -20,14 +20,15 @@ const SALESPEOPLE = [
 ];
 
 /** A dispatch line: billed at `unitPrice`, product has denormalised `costPrice`. */
-function item(productId, quantity, unitPrice, costPrice, name = `Product ${productId}`) {
+function item(productId, quantity, unitPrice, costPrice, name = `Product ${productId}`, product = {}) {
   return {
     productId,
     quantity,
     unitPrice,
     product: {
-      id: productId, name, category: 'Milk', costPrice,
-      brand: { name: 'Nandini' },
+      id: productId, name, category: 'Milk', costPrice, displayOrder: 0,
+      brand: { id: 1, name: 'Nandini', displayOrder: 0 },
+      ...product,
     },
   };
 }
@@ -36,11 +37,12 @@ function dispatch(salespersonId, dateStr, items) {
   return { salespersonId, dispatchDate: new Date(dateStr), items };
 }
 
-/** Wires the three queries profitLoss makes. */
-function mockDeps({ dispatches = [], costRows = [], salespeople = SALESPEOPLE } = {}) {
+/** Wires the four queries profitLoss makes. */
+function mockDeps({ dispatches = [], costRows = [], salespeople = SALESPEOPLE, categories = [] } = {}) {
   ctx.mockPrisma.salesperson.findMany.mockResolvedValue(salespeople);
   ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue(dispatches);
   ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue(costRows);
+  ctx.mockPrisma.category.findMany.mockResolvedValue(categories);
 }
 
 async function get(request, qs = 'from=2026-04-01&to=2026-04-30', token = makeAuthToken()) {
@@ -212,17 +214,43 @@ test.describe('GET /api/v1/reports/profit-loss — response shape', () => {
     });
   });
 
-  test('sorts a salesman\'s products by profit, so losses sink to the bottom', async ({ request }) => {
+  test('sorts a salesman\'s products by display order, not profit', async ({ request }) => {
+    // "Loss Maker" is a loss but sits earlier in the layout (displayOrder 0)
+    // than "Star Product" (displayOrder 1) — the list must follow the fixed
+    // layout order, not rank the biggest earner first.
     mockDeps({
       dispatches: [dispatch(1, '2026-04-10', [
-        item(1, 100, 18, 20, 'Loss Maker'),   // −200
-        item(2, 100, 30, 20, 'Star Product'), // +1000
+        item(1, 100, 18, 20, 'Loss Maker',   { displayOrder: 0 }),  // −200
+        item(2, 100, 30, 20, 'Star Product', { displayOrder: 1 }), // +1000
       ])],
     });
 
     const { data } = await (await get(request)).json();
     const products = data.salespeople.find(s => s.salespersonId === 1).products;
-    expect(products.map(p => p.productName)).toEqual(['Star Product', 'Loss Maker']);
+    expect(products.map(p => p.productName)).toEqual(['Loss Maker', 'Star Product']);
+  });
+
+  test('orders products by brand, then category, then product display order — same layout as the pricing tab', async ({ request }) => {
+    mockDeps({
+      categories: [
+        { brandId: 1, name: 'Curd', displayOrder: 1 },
+        { brandId: 1, name: 'Milk', displayOrder: 0 },
+      ],
+      dispatches: [dispatch(1, '2026-04-10', [
+        // Second brand (Jersey, displayOrder 1) dispatched first — must still
+        // sort after brand 1 (Nandini, displayOrder 0) in the response.
+        item(3, 10, 20, 15, 'HTM 210ml',    { displayOrder: 0, category: 'Milk', brand: { id: 2, name: 'Jersey', displayOrder: 1 } }),
+        item(1, 10, 20, 15, 'Curd 200g',    { displayOrder: 0, category: 'Curd', brand: { id: 1, name: 'Nandini', displayOrder: 0 } }),
+        item(2, 10, 20, 15, 'Toned Milk',   { displayOrder: 0, category: 'Milk', brand: { id: 1, name: 'Nandini', displayOrder: 0 } }),
+      ])],
+    });
+
+    const { data } = await (await get(request)).json();
+    const products = data.salespeople.find(s => s.salespersonId === 1).products;
+    // Nandini's Milk category (order 0) before its Curd category (order 1),
+    // and both before Jersey (brand order 1).
+    expect(products.map(p => p.productName)).toEqual(['Toned Milk', 'Curd 200g', 'HTM 210ml']);
+    expect(products.map(p => p.brandName)).toEqual(['Nandini', 'Nandini', 'Jersey']);
   });
 
   test('returns a per-date series for the range view', async ({ request }) => {
