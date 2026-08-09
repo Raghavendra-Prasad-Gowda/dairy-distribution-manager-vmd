@@ -73,7 +73,7 @@ function mockApi({ salespeople = SALESPEOPLE, allBalances = [BALANCE], balance =
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks(); // clearAllMocks alone would leak a mockRejectedValue set by an earlier test
   mockRole = 'admin';
   mockApi();
 });
