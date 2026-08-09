@@ -148,15 +148,26 @@ describe('SalesmanProfitLoss — detail panel', () => {
     expect(screen.getByText(/margin 37.5%/)).toBeInTheDocument();
   });
 
-  it('shows only Product, Qty, Dairy Cost Price, Selling Price For Salesman and Profit / Loss columns', async () => {
+  it('shows only Product, Dairy Cost Price, Salesman Selling Price, Quantity, Total Cost and Profit / Loss columns, in that order', async () => {
     await renderPage();
     fireEvent.click(screen.getByText('K Pandu'));
     await screen.findByText('Toned Milk');
 
     const headerRow = screen.getByText('Product').closest('tr');
     expect(within(headerRow).getAllByRole('columnheader').map(h => h.textContent)).toEqual([
-      'Product', 'Qty', 'Dairy Cost Price', 'Selling Price For Salesman', 'Profit / Loss',
+      'Product', 'Dairy Cost Price', 'Salesman Selling Price', 'Quantity',
+      'Total Cost(Qty × Selling Price)', 'Profit / Loss',
     ]);
+  });
+
+  it('computes Total Cost as quantity × the exact billed revenue, not a re-derived average', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('K Pandu'));
+    await screen.findByText('Toned Milk');
+
+    // Toned Milk: quantity 100, revenue 2500 (from REPORT fixture).
+    const row = screen.getByText('Toned Milk').closest('tr');
+    expect(within(row).getByText('₹2,500.00')).toBeInTheDocument();
   });
 
   it('tints a loss-making product row red', async () => {

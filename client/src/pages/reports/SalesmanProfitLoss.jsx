@@ -310,12 +310,13 @@ function SalespersonPanel({ sp }) {
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: 620 }}>
+        <table className="w-full text-sm" style={{ minWidth: 760 }}>
           <thead>
             <tr>
-              {['Product', 'Qty', 'Dairy Cost Price', 'Selling Price For Salesman', 'Profit / Loss'].map((h, i) => (
+              {['Product', 'Dairy Cost Price', 'Salesman Selling Price', 'Quantity', 'Total Cost', 'Profit / Loss'].map((h, i) => (
                 <th key={h} className={`bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>
                   {h}
+                  {h === 'Total Cost' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Selling Price)</span>}
                 </th>
               ))}
             </tr>
@@ -327,7 +328,7 @@ function SalespersonPanel({ sp }) {
               return (
                 <Fragment key={brandName}>
                   <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                    <td colSpan={5} className="px-3 py-2">
+                    <td colSpan={6} className="px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{brandName}</span>
                         <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded-full border ${brandTone.bg} ${brandTone.text}`}>
@@ -343,9 +344,10 @@ function SalespersonPanel({ sp }) {
                         <td className="px-3 py-2.5">
                           <span className="text-xs font-semibold text-slate-800">{p.productName}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{p.quantity}</td>
                         <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
                         <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
+                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{p.quantity}</td>
+                        <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
                         <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
                       </tr>
                     );
@@ -357,6 +359,7 @@ function SalespersonPanel({ sp }) {
           <tfoot>
             <tr>
               <td colSpan={4} className="bg-emerald-800 px-3 py-2.5 text-xs font-bold text-white">TOTAL</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(sp.revenue)}</td>
               <td className="bg-emerald-800 px-3 py-2.5 text-right text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(sp.profit)}</td>
             </tr>
           </tfoot>
