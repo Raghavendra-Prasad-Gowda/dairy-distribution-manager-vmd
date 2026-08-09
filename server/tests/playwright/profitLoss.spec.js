@@ -268,6 +268,15 @@ test.describe('GET /api/v1/reports/profit-loss — response shape', () => {
     expect(dates).toEqual(['2026-04-10', '2026-04-11']);
   });
 
+  test('each daily row carries its own margin percentage', async ({ request }) => {
+    // 100 × (25 − 20) = 500 profit on 2500 revenue → 20%
+    mockDeps({ dispatches: [dispatch(1, '2026-04-10', [item(1, 100, 25, 20)])] });
+
+    const { data } = await (await get(request)).json();
+    expect(data.daily).toHaveLength(1);
+    expect(data.daily[0].marginPct).toBeCloseTo(20, 2);
+  });
+
   test('echoes the requested range back', async ({ request }) => {
     mockDeps();
     const { data } = await (await get(request, 'from=2026-04-01&to=2026-04-30')).json();

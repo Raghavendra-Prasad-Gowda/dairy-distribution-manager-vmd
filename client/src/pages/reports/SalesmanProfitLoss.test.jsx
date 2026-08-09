@@ -29,7 +29,7 @@ const REPORT = {
   from: '2026-08-09', to: '2026-08-09',
   totals: { revenue: 6000, cost: 4700, profit: 1300, marginPct: 21.67 },
   daily: [
-    { date: '2026-08-09T00:00:00.000Z', revenue: 6000, cost: 4700, profit: 1300 },
+    { date: '2026-08-09T00:00:00.000Z', revenue: 6000, cost: 4700, profit: 1300, marginPct: 21.67 },
   ],
   salespeople: [
     {
@@ -78,10 +78,13 @@ describe('SalesmanProfitLoss — summary + range', () => {
 
   it('shows the overall totals from the API', async () => {
     const { container } = await renderPage();
-    expect(screen.getByText('Cost (Dairy Paid)')).toBeInTheDocument();
-    expect(screen.getByText('Revenue (Dairy Earned)')).toBeInTheDocument();
-    expect(screen.getByText('Profit/Loss')).toBeInTheDocument();
-    expect(within(container).getByText('21.67%')).toBeInTheDocument();
+    // These labels are shared with the daily table's own column headers
+    // (deliberately, so the two read as the same table family) — the
+    // summary card is always the first match.
+    expect(screen.getAllByText('Cost (Dairy Paid)')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Revenue (Dairy Earned)')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Profit/Loss')[0]).toBeInTheDocument();
+    expect(within(container).getAllByText('21.67%')[0]).toBeInTheDocument();
   });
 
   it('colours the Profit/Loss card red when overall profit is negative', async () => {
@@ -89,7 +92,7 @@ describe('SalesmanProfitLoss — summary + range', () => {
       data: { data: { ...REPORT, totals: { revenue: 100, cost: 300, profit: -200, marginPct: -200 } } },
     });
     await renderPage();
-    const label = screen.getByText('Profit/Loss');
+    const label = screen.getAllByText('Profit/Loss')[0];
     expect(label).toBeInTheDocument();
     // The figure next to it carries the loss colour.
     const card = label.closest('div');
@@ -136,6 +139,21 @@ describe('SalesmanProfitLoss — sidebar', () => {
   it('defaults to the All Salespeople roll-up showing the daily series', async () => {
     await renderPage();
     expect(screen.getByText('Daily Profit & Loss')).toBeInTheDocument();
+  });
+
+  it('labels the daily table columns the same as the summary cards, plus Margin, and centers them', async () => {
+    await renderPage();
+
+    const headerRow = screen.getByText('Date').closest('tr');
+    const headers = within(headerRow).getAllByRole('columnheader');
+    expect(headers.map(h => h.textContent)).toEqual([
+      'Date', 'Cost (Dairy Paid)', 'Revenue (Dairy Earned)', 'Profit/Loss', 'Margin',
+    ]);
+    for (const th of headers) expect(th.className).toContain('text-center');
+
+    const dataRow = screen.getByText('Sun, 09 Aug').closest('tr');
+    for (const td of dataRow.querySelectorAll('td')) expect(td.className).toContain('text-center');
+    expect(within(dataRow).getByText('21.67%')).toBeInTheDocument();
   });
 });
 

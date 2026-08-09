@@ -251,11 +251,11 @@ function OverallPanel({ daily }) {
         <p className="text-xs text-slate-400">{daily.length} day{daily.length !== 1 ? 's' : ''} with dispatches</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: 460 }}>
+        <table className="w-full text-sm" style={{ minWidth: 560 }}>
           <thead>
             <tr>
-              {['Date', 'Revenue', 'Cost', 'Profit / Loss'].map((h, i) => (
-                <th key={h} className={`bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>
+              {['Date', 'Cost (Dairy Paid)', 'Revenue (Dairy Earned)', 'Profit/Loss', 'Margin'].map(h => (
+                <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                   {h}
                 </th>
               ))}
@@ -266,12 +266,13 @@ function OverallPanel({ daily }) {
               const tone = toneFor(d.profit);
               return (
                 <tr key={d.date} className={`border-b border-slate-100 ${d.profit < 0 ? 'bg-red-50/40' : ''}`}>
-                  <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                  <td className="px-3 py-2.5 text-center text-xs font-semibold text-slate-700 whitespace-nowrap">
                     {new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' })}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(d.revenue)}</td>
-                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(d.cost)}</td>
-                  <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${tone.text}`}>{formatCurrency(d.profit)}</td>
+                  <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(d.cost)}</td>
+                  <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(d.revenue)}</td>
+                  <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${tone.text}`}>{formatCurrency(d.profit)}</td>
+                  <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${tone.text}`}>{d.marginPct}%</td>
                 </tr>
               );
             })}

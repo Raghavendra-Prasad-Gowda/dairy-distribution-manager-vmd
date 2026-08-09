@@ -622,10 +622,11 @@ const profitLoss = asyncHandler(async (req, res) => {
   const daily = [...byDate.values()]
     .sort((a, b) => a.date - b.date)
     .map(d => ({
-      date:    d.date,
-      revenue: round2(d.revenue),
-      cost:    round2(d.cost),
-      profit:  round2(d.revenue - d.cost),
+      date:      d.date,
+      revenue:   round2(d.revenue),
+      cost:      round2(d.cost),
+      profit:    round2(d.revenue - d.cost),
+      marginPct: marginPct(d.revenue - d.cost, d.revenue),
     }));
 
   res.json({
