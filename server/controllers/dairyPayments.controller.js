@@ -65,7 +65,7 @@ const bulkTopUp = asyncHandler(async (req, res) => {
           brandId:     entry.brandId,
           paymentDate: new Date(data.paymentDate),
           amount:      entry.amount,
-          paymentMode: data.paymentMode,
+          paymentMode: 'Top-up',
           notes:       data.notes ?? null,
           isTopUp:     true,
           createdBy,
@@ -78,7 +78,7 @@ const bulkTopUp = asyncHandler(async (req, res) => {
 
   const total = data.entries.reduce((s, e) => s + e.amount, 0);
   logger.info('Dairy bulk top-up recorded', {
-    count: created.length, total, date: data.paymentDate, paymentMode: data.paymentMode, createdBy,
+    count: created.length, total, date: data.paymentDate, createdBy,
   });
   void notifySlack(SLACK_EVENTS.DAIRY_TOPUP_RECORDED, {
     date:        data.paymentDate,
@@ -86,7 +86,6 @@ const bulkTopUp = asyncHandler(async (req, res) => {
     total,
     createdBy,
     notes:       data.notes,
-    paymentMode: data.paymentMode,
     brandNames:  found.map(b => b.name),
   });
 

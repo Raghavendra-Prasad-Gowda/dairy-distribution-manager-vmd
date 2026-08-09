@@ -75,6 +75,14 @@ function createMockPrisma() {
       delete:     mockFn(),
       aggregate:  mockFn(),
     },
+    dairyDepositTopUp: {
+      findMany:   mockFn(),
+      findUnique: mockFn(),
+      create:     mockFn(),
+      update:     mockFn(),
+      delete:     mockFn(),
+      aggregate:  mockFn(),
+    },
     salesperson: {
       findMany:   mockFn(),
       findUnique: mockFn(),

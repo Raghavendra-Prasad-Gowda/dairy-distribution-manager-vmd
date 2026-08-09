@@ -78,20 +78,13 @@ test.describe('SALESPERSON_TOPUP_RECORDED card', () => {
 test.describe('DAIRY_TOPUP_RECORDED card', () => {
   const DUES = {
     date: '2026-04-30', count: 2, total: 9000, createdBy: 'raghav',
-    paymentMode: 'Top-up', brandNames: ['Nandini', 'Jersey'],
+    brandNames: ['Nandini', 'Jersey'],
   };
-  const DEPOSIT = { ...DUES, total: 20000, paymentMode: 'Deposit Top-up', brandNames: ['Nandini'], count: 1 };
 
-  test('a dues top-up gets the plain header and amber color', () => {
+  test('gets the plain header and amber color', () => {
     const c = buildCard(SLACK_EVENTS.DAIRY_TOPUP_RECORDED, DUES);
     expect(headerText(c)).toBe('💰 Dairy Top-up Recorded');
     expect(c.attachments[0].color).toBe('#e8a838'); // AMBER
-  });
-
-  test('a deposit top-up gets its own header and a distinct color', () => {
-    const c = buildCard(SLACK_EVENTS.DAIRY_TOPUP_RECORDED, DEPOSIT);
-    expect(headerText(c)).toBe('🏦 Dairy Deposit Top-up Recorded');
-    expect(c.attachments[0].color).toBe('#0f9488'); // TEAL — distinct from dues' amber
   });
 
   test('lists the actual brand names, not "undefined"', () => {
@@ -106,6 +99,32 @@ test.describe('DAIRY_TOPUP_RECORDED card', () => {
     // was received — misleading for a top-up, which is the opposite.
     const c = buildCard(SLACK_EVENTS.DAIRY_TOPUP_RECORDED, DUES);
     expect(headerText(c)).not.toBe('✅ Dairy Payment Recorded');
+  });
+});
+
+// A deposit top-up is a standalone ledger entry (DairyDepositTopUp), not a
+// DairyPayment — it gets its own event/card rather than reusing
+// DAIRY_TOPUP_RECORDED, so it's never mistaken for a change to what the
+// dairy is owed for stock.
+test.describe('DAIRY_DEPOSIT_TOPUP_RECORDED card', () => {
+  const DATA = {
+    date: '2026-04-30', count: 1, total: 20000, createdBy: 'raghav',
+    brandNames: ['Nandini'],
+  };
+
+  test('gets its own header and a teal color, distinct from the dues top-up', () => {
+    const c = buildCard(SLACK_EVENTS.DAIRY_DEPOSIT_TOPUP_RECORDED, DATA);
+    expect(headerText(c)).toBe('🏦 Dairy Deposit Top-up Recorded');
+    expect(c.attachments[0].color).toBe('#0f9488'); // TEAL
+  });
+
+  test('lists the actual brand names and total, not "undefined"', () => {
+    const c = buildCard(SLACK_EVENTS.DAIRY_DEPOSIT_TOPUP_RECORDED, DATA);
+    const text = allText(c);
+    expect(text).toContain('Nandini');
+    expect(text).toContain('₹20,000.00');
+    expect(text).toContain('raghav');
+    expect(text).not.toContain('undefined');
   });
 });
 

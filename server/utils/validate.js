@@ -254,12 +254,25 @@ const schemas = {
   }),
 
   // Bulk top-up — admin loads dues already owed to several brands at once.
-  // paymentMode distinguishes plain dues from a deposit top-up in the ledger
-  // and reports; both add to the same topUpAmount, just labelled differently.
+  // Adds to DairyBalance.topUpAmount (money owed for stock). Deliberately
+  // separate from bulkDairyDepositTopUp below — a deposit top-up must never
+  // touch this balance.
   bulkDairyTopUp: z.object({
     paymentDate: dateString(),
     notes:       shortText,
-    paymentMode: z.enum(['Top-up', 'Deposit Top-up']).default('Top-up'),
+    entries: z.array(z.object({
+      brandId: z.number().int().positive(),
+      amount:  z.number().positive('Amount must be positive'),
+    })).min(1, 'At least one brand is required'),
+  }),
+
+  // Bulk deposit top-up — loads a crate/container deposit already held with
+  // several brands from before the app. Writes to the standalone
+  // DairyDepositTopUp ledger only — never DairyBalance/topUpAmount, which
+  // tracks money owed for stock, a separate concern from deposit held.
+  bulkDairyDepositTopUp: z.object({
+    topUpDate: dateString(),
+    notes:     shortText,
     entries: z.array(z.object({
       brandId: z.number().int().positive(),
       amount:  z.number().positive('Amount must be positive'),

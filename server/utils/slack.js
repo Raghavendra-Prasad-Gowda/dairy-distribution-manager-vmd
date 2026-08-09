@@ -41,9 +41,12 @@ const SLACK_EVENTS = {
   // Bulk top-ups + ledger reset — distinct from the single-record events
   // above: these touch several salespeople/brands at once and are admin-
   // loaded balance adjustments, not a real collection/payment.
-  SALESPERSON_TOPUP_RECORDED: 'SALESPERSON_TOPUP_RECORDED',
-  DAIRY_TOPUP_RECORDED:       'DAIRY_TOPUP_RECORDED',
-  SALESPERSON_LEDGER_RESET:   'SALESPERSON_LEDGER_RESET',
+  SALESPERSON_TOPUP_RECORDED:    'SALESPERSON_TOPUP_RECORDED',
+  DAIRY_TOPUP_RECORDED:          'DAIRY_TOPUP_RECORDED',
+  // Deposit top-up — a standalone ledger entry (DairyDepositTopUp), never a
+  // DairyPayment. Only ever feeds the Deposit report's running total.
+  DAIRY_DEPOSIT_TOPUP_RECORDED:  'DAIRY_DEPOSIT_TOPUP_RECORDED',
+  SALESPERSON_LEDGER_RESET:      'SALESPERSON_LEDGER_RESET',
   // Setup — salespeople
   SALESPERSON_CREATED: 'SALESPERSON_CREATED',
   SALESPERSON_UPDATED: 'SALESPERSON_UPDATED',
@@ -104,7 +107,8 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED]:  COLORS.AMBER,
   [SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED]:  COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED]:   COLORS.AMBER,
-  [SLACK_EVENTS.DAIRY_TOPUP_RECORDED]:         COLORS.AMBER, // overridden to TEAL for a deposit top-up
+  [SLACK_EVENTS.DAIRY_TOPUP_RECORDED]:         COLORS.AMBER,
+  [SLACK_EVENTS.DAIRY_DEPOSIT_TOPUP_RECORDED]: COLORS.TEAL,
   [SLACK_EVENTS.SALESPERSON_LEDGER_RESET]:     COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_UPDATED]: COLORS.AMBER,
@@ -521,10 +525,9 @@ function buildCard(event, data) {
     }
 
     case SLACK_EVENTS.DAIRY_TOPUP_RECORDED: {
-      const isDeposit = data.paymentMode === 'Deposit Top-up';
-      const names     = joinNames(data.brandNames, data.count, 'brand(s)');
+      const names = joinNames(data.brandNames, data.count, 'brand(s)');
       return card(event, [
-        headerBlock(isDeposit ? '🏦 Dairy Deposit Top-up Recorded' : '💰 Dairy Top-up Recorded'),
+        headerBlock('💰 Dairy Top-up Recorded'),
         fieldsBlock([
           ['🏷️ Brands',   names],
           ['📅 Date',     formatDate(data.date)],
@@ -533,8 +536,25 @@ function buildCard(event, data) {
           ['🖊️ Added By', data.createdBy],
           ['📝 Note',     data.notes || null],
         ]),
-      ], `${isDeposit ? 'Dairy Deposit Top-up' : 'Dairy Top-up'} — ${names} — ${formatINR(data.total)}`,
-         isDeposit ? COLORS.TEAL : COLORS.AMBER);
+      ], `Dairy Top-up — ${names} — ${formatINR(data.total)}`);
+    }
+
+    // Separate from DAIRY_TOPUP_RECORDED — a deposit top-up only feeds the
+    // Deposit report's ledger and never touches what the brand is owed for
+    // stock, so it gets its own card rather than reusing that one.
+    case SLACK_EVENTS.DAIRY_DEPOSIT_TOPUP_RECORDED: {
+      const names = joinNames(data.brandNames, data.count, 'brand(s)');
+      return card(event, [
+        headerBlock('🏦 Dairy Deposit Top-up Recorded'),
+        fieldsBlock([
+          ['🏷️ Brands',   names],
+          ['📅 Date',     formatDate(data.date)],
+          ['🔢 Count',    String(data.count)],
+          ['💰 Total',    formatINR(data.total)],
+          ['🖊️ Added By', data.createdBy],
+          ['📝 Note',     data.notes || null],
+        ]),
+      ], `Dairy Deposit Top-up — ${names} — ${formatINR(data.total)}`, COLORS.TEAL);
     }
 
     // ── Ledger reset (irreversible wipe) ───────────────────────────────────
