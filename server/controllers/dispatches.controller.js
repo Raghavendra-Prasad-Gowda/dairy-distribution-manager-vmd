@@ -209,12 +209,14 @@ const createOrUpdate = asyncHandler(async (req, res) => {
       await recalculateSalespersonBalance(salespersonId, data.dispatchDate, tx);
     }, { isolationLevel: 'Serializable' });
     logger.info('Stock entry cleared', { id: existing.id, salespersonId, date: data.dispatchDate });
-    void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
-      salespersonId,
-      date:        data.dispatchDate,
-      totalAmount: Number(existing.totalAmount),
-      by,
-    });
+    if (!data.submitting) {
+      void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
+        salespersonId,
+        date:        data.dispatchDate,
+        totalAmount: Number(existing.totalAmount),
+        by,
+      });
+    }
     return res.json({ success: true, data: { message: 'Stock entry cleared' } });
   }
 
@@ -272,21 +274,30 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   }, { isolationLevel: 'Serializable' });
 
   logger.info('Stock entry saved', { id: dispatch.id, salespersonId, date: data.dispatchDate, total: totalAmount, action: existing ? 'update' : 'create' });
-  void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
-    salespersonId,
-    date:      data.dispatchDate,
-    itemCount: data.items.length,
-    totalAmount,
-    isUpdate:  !!existing,
-    by,
-  });
+  // Skipped when this save is the internal re-save inside Save-and-Submit —
+  // the DISPATCH_SUBMITTED card that follows immediately already reports the
+  // same item count and total, so this card would just be redundant noise.
+  if (!data.submitting) {
+    void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
+      salespersonId,
+      date:      data.dispatchDate,
+      itemCount: data.items.length,
+      totalAmount,
+      isUpdate:  !!existing,
+      by,
+    });
+  }
   res.status(existing ? 200 : 201).json({ success: true, data: { ...dispatch, totalAmount: Number(dispatch.totalAmount), isLocked: false } });
 });
 
 // Salesman submits their entry — locks it
 const submit = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Dispatch ID');
-  const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
+  // items included so the card can report itemCount — this is now the only
+  // notification on the common Save-then-Submit path (the intermediate save's
+  // own card is suppressed via `submitting`), so it needs to carry what that
+  // card used to show.
+  const dispatch = await prisma.stockDispatch.findUnique({ where: { id }, include: { items: true } });
   if (!dispatch) throw new AppError('Stock entry not found', 404);
 
   if (req.user.role === 'salesman' && dispatch.salespersonId !== req.user.salespersonId) {
@@ -303,6 +314,7 @@ const submit = asyncHandler(async (req, res) => {
   void notifySlack(SLACK_EVENTS.DISPATCH_SUBMITTED, {
     salespersonId: dispatch.salespersonId,
     date:          dateStr,
+    itemCount:     dispatch.items.length,
     totalAmount:   Number(dispatch.totalAmount),
   });
   res.json({ success: true, data: { message: 'Stock entry submitted and locked' } });

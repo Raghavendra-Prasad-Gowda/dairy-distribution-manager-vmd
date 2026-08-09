@@ -27,7 +27,14 @@ api.interceptors.request.use(
 );
 
 // Handle 401 — token expired → redirect to login
-// Exception: PIN verification errors must never trigger logout
+//
+// Exceptions: not every 401 means "your session died". The server also returns
+// 401 for "what you just typed is wrong" — a wrong PIN, wrong login
+// credentials, or a wrong current password on the change-password screen.
+// Redirecting on those is actively harmful: the hard navigation in
+// expireSessionAndRedirect() wipes the very error message the user needs to
+// read, and on change-password it logs someone out over a typo. Those cases
+// are left to reject normally so the calling page can show its own message.
 //
 // A second case is also handled here: a request that times out or fails
 // with no HTTP response at all (e.g. a Render cold start that ate the
@@ -44,8 +51,13 @@ api.interceptors.response.use(
     if (error.config?.__reqId != null) markRequestEnd(error.config.__reqId);
     const url = error.config?.url ?? '';
     const isPinEndpoint = url.includes('/pin/');
+    // The user either has no session yet (login) or is re-entering their own
+    // current password — in both cases a 401 is a validation result, not an
+    // expiry, so it must never bounce them to the login screen.
+    const isCredentialCheck =
+      url.includes('/auth/login') || url.includes('/auth/change-password');
 
-    if (!isPinEndpoint) {
+    if (!isPinEndpoint && !isCredentialCheck) {
       if (error.response?.status === 401) {
         expireSessionAndRedirect('Your session expired. Please log in again.');
       } else if (!error.response && isLocalSessionExpired()) {

@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { parseId } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
 async function buildSalespersonBalance(salespersonId, date) {
   const balanceDate = new Date(date);
@@ -147,6 +148,14 @@ const getHistory = asyncHandler(async (req, res) => {
     closingBalance: Number(b.closingBalance),
     topUps: topUpsByDate.get(b.balanceDate.toISOString()) ?? [],
   }));
+
+  // This endpoint is only ever called from the salesman's own "My Balance"
+  // page (StockEntry.jsx and the admin Collections page both use the plain
+  // getById balance lookup instead) — gated on role for symmetry with the
+  // access check above, even though nothing else reaches this handler.
+  if (req.user.role === 'salesman') {
+    void notifySlack(SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED, { salespersonId: id, from, to });
+  }
 
   res.json({
     success: true,

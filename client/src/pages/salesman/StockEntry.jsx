@@ -380,7 +380,10 @@ export default function SalespersonStockEntry() {
     setSubmitting(true);
     notify('Submitting stock entry…', 'loading');
     try {
-      const saveRes = await api.post('/dispatches', { dispatchDate: date, items });
+      // submitting:true tells the server to skip this save's own Slack card —
+      // the submit call right after it reports the same item count and total,
+      // so notifying on both would just double up for one logical action.
+      const saveRes = await api.post('/dispatches', { dispatchDate: date, items, submitting: true });
       const savedId = saveRes.data.data?.id ?? dispatch?.id;
       if (savedId) await api.patch(`/dispatches/${savedId}/submit`);
       notify('Stock entry submitted and locked.', 'success');

@@ -271,6 +271,41 @@ test.describe('POST /api/v1/dispatches', () => {
     expect(recalcDates).toContain('2026-05-01');
     expect(recalcDates).toContain('2026-05-02');
   });
+
+  // `submitting` tells the controller to skip this save's own Slack
+  // notification (the Submit call right after it reports the same total) —
+  // it must not affect the actual save: the DB write, balance cascade, and
+  // response all stay identical to an ordinary Save.
+  test('submitting:true still creates the dispatch and cascades balance normally', async ({ request }) => {
+    mockStockAvailable(ctx.mockPrisma);
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue(DISPATCH);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { ...validPayload, submitting: true },
+    });
+
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('submitting:true on an empty-items clear still deletes the dispatch', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH);
+    ctx.mockPrisma.stockDispatch.delete.mockResolvedValue(DISPATCH);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [], submitting: true },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/cleared/i);
+  });
 });
 
 // ─── DELETE /api/v1/dispatches/:id ───────────────────────────────────────────
@@ -383,6 +418,25 @@ test.describe('PATCH /api/v1/dispatches/:id/submit', () => {
     expect(body.success).toBe(true);
     expect(updateArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
     expect(updateArgs.where).toEqual({ id: 1 });
+  });
+
+  // itemCount used to only be reported by the (now-suppressed) intermediate
+  // save's own card, so the Submitted card needs the dispatch's items included
+  // to report it itself and not lose that information.
+  test('includes items on the dispatch lookup so the card can report itemCount', async ({ request }) => {
+    let findUniqueArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockImplementation(async (args) => {
+      findUniqueArgs = args;
+      return { ...DISPATCH, items: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+    });
+    ctx.mockPrisma.stockDispatch.update.mockResolvedValue({ ...DISPATCH, isSubmitted: true, isAdminUnlocked: false });
+
+    const res = await request.patch('/api/v1/dispatches/1/submit', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(findUniqueArgs.include).toEqual({ items: true });
   });
 });
 
