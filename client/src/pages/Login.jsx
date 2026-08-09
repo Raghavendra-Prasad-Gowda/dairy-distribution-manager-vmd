@@ -56,7 +56,13 @@ export default function Login() {
     armForLogin();
     const result = await login(username, password);
     setLoading(false);
-    if (!result.success) setError(result.message);
+    if (!result.success) {
+      setError(result.message);
+      // Wrong credentials — clear the password so the user isn't staring at
+      // (and re-submitting) the same rejected value; the username is kept
+      // since that part wasn't necessarily the problem.
+      setPassword('');
+    }
   };
 
   return (
