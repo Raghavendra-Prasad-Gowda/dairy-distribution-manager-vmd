@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   Milk, LayoutDashboard, CreditCard,
   LogOut, Menu, Package, ShoppingCart,
-  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock, ScrollText
+  FileText, Warehouse, Layers, LayoutGrid, Navigation, Store, Droplets, Users, IndianRupee, ShieldCheck, Wallet, Lock, ScrollText, TrendingUp
 } from 'lucide-react';
 import { getBrandColors } from '../utils/constants';
 import api from '../api/axios';
@@ -72,6 +72,7 @@ const ADMIN_NAV_STATIC = [
         label: 'REPORTS',
         items: [
           { to: '/reports/salespeople', icon: FileText, label: 'Statements' },
+          { to: '/salesman/profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
         ],
       },
     ],
