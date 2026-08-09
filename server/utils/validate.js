@@ -247,6 +247,38 @@ const schemas = {
     })).min(1, 'At least one salesperson is required'),
   }),
 
+  // Bulk ledger reset — wipes the financial history of several salesmen
+  bulkResetLedger: z.object({
+    salespersonIds: z.array(z.number().int().positive())
+      .min(1, 'At least one salesperson is required'),
+  }),
+
+  // Bulk top-up — admin loads dues already owed to several brands at once.
+  // Adds to DairyBalance.topUpAmount (money owed for stock). Deliberately
+  // separate from bulkDairyDepositTopUp below — a deposit top-up must never
+  // touch this balance.
+  bulkDairyTopUp: z.object({
+    paymentDate: dateString(),
+    notes:       shortText,
+    entries: z.array(z.object({
+      brandId: z.number().int().positive(),
+      amount:  z.number().positive('Amount must be positive'),
+    })).min(1, 'At least one brand is required'),
+  }),
+
+  // Bulk deposit top-up — loads a crate/container deposit already held with
+  // several brands from before the app. Writes to the standalone
+  // DairyDepositTopUp ledger only — never DairyBalance/topUpAmount, which
+  // tracks money owed for stock, a separate concern from deposit held.
+  bulkDairyDepositTopUp: z.object({
+    topUpDate: dateString(),
+    notes:     shortText,
+    entries: z.array(z.object({
+      brandId: z.number().int().positive(),
+      amount:  z.number().positive('Amount must be positive'),
+    })).min(1, 'At least one brand is required'),
+  }),
+
   // Admin Users (superadmin-only)
   createAdminUser: z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),

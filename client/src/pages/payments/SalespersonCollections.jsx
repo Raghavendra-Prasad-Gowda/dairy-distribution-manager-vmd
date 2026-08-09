@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet } from 'lucide-react';
+import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import BulkTopUpModal from '../../components/BulkTopUpModal';
+import ResetLedgerModal from '../../components/ResetLedgerModal';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
@@ -85,7 +87,15 @@ function SpBalanceCard({ sp, balance }) {
 
 export default function SalespersonCollections() {
   const { notify } = useNotification();
+  const { user } = useAuth();
   const today = getIndiaDate();
+  // Ledger reset wipes history irreversibly — superadmin only, mirroring the
+  // requireSuperAdmin guard on that API route. Bulk top-up is less
+  // destructive (it's additive, and every other payment action here is
+  // already admin-accessible) — any admin can use it, matching requireAdmin
+  // on POST /salesperson-payments/bulk-topup.
+  const isSuperAdmin = user?.role === 'superadmin';
+  const isAdmin       = user?.role === 'admin' || isSuperAdmin;
 
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
@@ -106,6 +116,7 @@ export default function SalespersonCollections() {
   const [pinOpen, setPinOpen]             = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
   const [topUpOpen, setTopUpOpen]         = useState(false);
+  const [resetOpen, setResetOpen]         = useState(false);
 
   // History filter state
   const [showFilter, setShowFilter]   = useState(false);
@@ -313,14 +324,26 @@ export default function SalespersonCollections() {
               {pendingCount} pending
             </span>
           )}
-          <button
-            onClick={() => setTopUpOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-          >
-            <Wallet size={13} /> Bulk Top-up
-          </button>
         </div>
       </div>
+
+      {/* Action toolbar — kept off the dark header band; the soft pill
+          buttons read poorly against emerald-800, and this matches the light
+          toolbar convention used for bulk actions elsewhere (e.g. Bulk
+          Update Prices on the salesman pricing page). Bulk Top-up is
+          admin-accessible; Reset Ledger stays superadmin-only. */}
+      {isAdmin && (
+        <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
+          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
+            Bulk Top-up
+          </Button>
+          {isSuperAdmin && (
+            <Button variant="soft-danger" size="sm" icon={Eraser} onClick={() => setResetOpen(true)}>
+              Reset Ledger
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Split panel */}
       <div className="flex flex-1 overflow-hidden">
@@ -599,10 +622,24 @@ export default function SalespersonCollections() {
       <BulkTopUpModal
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
-        salespeople={salespeople}
+        entities={salespeople}
         notify={notify}
         onSaved={async (payload) => {
           const res = await api.post('/salesperson-payments/bulk-topup', payload);
+          await refreshAllBalances();
+          if (selectedSpId) await fetchDetail();
+          return res.data.data;
+        }}
+      />
+
+      {/* ── Reset ledger modal ───────────────────────────────── */}
+      <ResetLedgerModal
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        salespeople={salespeople}
+        notify={notify}
+        onConfirm={async (salespersonIds) => {
+          const res = await api.post('/salespeople/reset-ledger', { salespersonIds });
           await refreshAllBalances();
           if (selectedSpId) await fetchDetail();
           return res.data.data;

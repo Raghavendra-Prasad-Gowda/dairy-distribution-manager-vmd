@@ -3,6 +3,15 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { getIndiaDateStr } = require('../utils/dateUtils');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+
+async function resolveActingUsername(req) {
+  const actor = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  return actor?.username ?? 'admin';
+}
 
 // GET /salespeople/:id/prices
 // - Salesman: only enabled products with their allocated prices
@@ -147,6 +156,12 @@ const bulkSave = asyncHandler(async (req, res) => {
   });
 
   await prisma.$transaction(ops);
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PRICES_UPDATED, {
+    salespersonId,
+    count: data.prices.length,
+    by,
+  });
   res.json({ success: true, data: { message: `${data.prices.length} prices saved` } });
 });
 
@@ -208,6 +223,17 @@ const copyFromSalesman = asyncHandler(async (req, res) => {
   );
 
   await prisma.$transaction(upsertOps);
+  const [sourceSp, targetSp, by] = await Promise.all([
+    prisma.salesperson.findUnique({ where: { id: sourceSpId }, select: { name: true } }),
+    prisma.salesperson.findUnique({ where: { id: targetSpId }, select: { name: true } }),
+    resolveActingUsername(req),
+  ]);
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PRICES_COPIED, {
+    fromName: sourceSp?.name ?? `Salesperson #${sourceSpId}`,
+    toName:   targetSp?.name ?? `Salesperson #${targetSpId}`,
+    count:    sourcePrices.length,
+    by,
+  });
   res.json({ success: true, data: { message: `${sourcePrices.length} prices copied` } });
 });
 
@@ -248,6 +274,23 @@ const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
 
   await prisma.$transaction(ops);
   const totalUpdates = salespersonIds.length * productPrices.length;
+
+  const by = await resolveActingUsername(req);
+  let productName = null;
+  let price = null;
+  if (productPrices.length === 1) {
+    const product = await prisma.product.findUnique({ where: { id: productPrices[0].productId }, select: { name: true } });
+    productName = product?.name ?? `Product #${productPrices[0].productId}`;
+    price = productPrices[0].sellingPrice;
+  } else {
+    productName = `${productPrices.length} products`;
+  }
+  void notifySlack(SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED, {
+    count: salespersonIds.length,
+    productName,
+    price,
+    by,
+  });
   res.json({ success: true, data: { message: `Price updated for ${salespersonIds.length} salesmen and ${productPrices.length} products (${totalUpdates} records)` } });
 });
 

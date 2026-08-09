@@ -8,6 +8,18 @@ const { getIndiaDateStr } = require('../utils/dateUtils');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
+// createOrUpdate/remove are shared by an admin dispatching stock to a
+// salesperson and the salesperson self-entering their own day's stock — the
+// Slack card needs to say which one actually happened.
+async function resolveActor(req) {
+  if (req.user.role === 'salesman') return 'Salesperson (self)';
+  const admin = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  return `Admin (${admin?.username ?? 'admin'})`;
+}
+
 // Returns true when the dispatch cannot be edited by the salesman
 function isEffectivelyLocked(dispatch, todayStr) {
   const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
@@ -133,6 +145,7 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     salespersonId = data.salespersonId;
   }
 
+  const by = await resolveActor(req);
   const dispatchDate = new Date(data.dispatchDate);
   const today = getIndiaDateStr();
 
@@ -200,6 +213,7 @@ const createOrUpdate = asyncHandler(async (req, res) => {
       salespersonId,
       date:        data.dispatchDate,
       totalAmount: Number(existing.totalAmount),
+      by,
     });
     return res.json({ success: true, data: { message: 'Stock entry cleared' } });
   }
@@ -264,6 +278,7 @@ const createOrUpdate = asyncHandler(async (req, res) => {
     itemCount: data.items.length,
     totalAmount,
     isUpdate:  !!existing,
+    by,
   });
   res.status(existing ? 200 : 201).json({ success: true, data: { ...dispatch, totalAmount: Number(dispatch.totalAmount), isLocked: false } });
 });
@@ -284,6 +299,12 @@ const submit = asyncHandler(async (req, res) => {
   });
 
   logger.info('Stock entry submitted', { id, salespersonId: dispatch.salespersonId });
+  const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
+  void notifySlack(SLACK_EVENTS.DISPATCH_SUBMITTED, {
+    salespersonId: dispatch.salespersonId,
+    date:          dateStr,
+    totalAmount:   Number(dispatch.totalAmount),
+  });
   res.json({ success: true, data: { message: 'Stock entry submitted and locked' } });
 });
 
@@ -301,6 +322,13 @@ const lock = asyncHandler(async (req, res) => {
   });
 
   logger.info('Stock entry locked by admin', { id, salespersonId: dispatch.salespersonId });
+  const by = await resolveActor(req);
+  void notifySlack(SLACK_EVENTS.DISPATCH_LOCK_CHANGED, {
+    action:        'locked',
+    salespersonId: dispatch.salespersonId,
+    date:          dispatch.dispatchDate.toISOString().slice(0, 10),
+    by,
+  });
   res.json({ success: true, data: { message: 'Stock entry locked' } });
 });
 
@@ -318,6 +346,13 @@ const unlock = asyncHandler(async (req, res) => {
   });
 
   logger.info('Stock entry unlocked by admin', { id, salespersonId: dispatch.salespersonId });
+  const by = await resolveActor(req);
+  void notifySlack(SLACK_EVENTS.DISPATCH_LOCK_CHANGED, {
+    action:        'unlocked',
+    salespersonId: dispatch.salespersonId,
+    date:          dispatch.dispatchDate.toISOString().slice(0, 10),
+    by,
+  });
   res.json({ success: true, data: { message: 'Stock entry unlocked' } });
 });
 
@@ -357,6 +392,13 @@ const openForEntry = asyncHandler(async (req, res) => {
   }, { isolationLevel: 'Serializable' });
 
   logger.info('Stock entry opened for entry by admin', { id: dispatch.id, salespersonId: data.salespersonId, date: data.dispatchDate });
+  const by = await resolveActor(req);
+  void notifySlack(SLACK_EVENTS.DISPATCH_LOCK_CHANGED, {
+    action:        'opened',
+    salespersonId: data.salespersonId,
+    date:          data.dispatchDate,
+    by,
+  });
   res.json({ success: true, data: { message: 'Entry opened', dispatchId: dispatch.id } });
 });
 
@@ -380,10 +422,12 @@ const remove = asyncHandler(async (req, res) => {
     await recalculateSalespersonBalance(dispatch.salespersonId, dateStr, tx);
   }, { isolationLevel: 'Serializable' });
   logger.info('Stock entry deleted', { id, salespersonId: dispatch.salespersonId, date: dateStr });
+  const by = await resolveActor(req);
   void notifySlack(SLACK_EVENTS.DISPATCH_DELETED, {
     salespersonId: dispatch.salespersonId,
     date:          dateStr,
     totalAmount:   Number(dispatch.totalAmount),
+    by,
   });
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });

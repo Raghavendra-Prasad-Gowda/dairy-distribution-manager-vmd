@@ -15,7 +15,7 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
   });
   const openingBalance = Number(prev?.closingBalance ?? 0);
 
-  const [brand, receipts, categories, paymentAgg] = await Promise.all([
+  const [brand, receipts, categories, paymentAgg, topUpAgg] = await Promise.all([
     tx.brand.findUnique({
       where: { id: brandId },
       select: { depositEnabled: true, depositPerLitre: true },
@@ -29,7 +29,13 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
       select: { name: true, depositEnabled: true },
     }),
     tx.dairyPayment.aggregate({
-      where: { brandId, paymentDate: balanceDate },
+      where: { brandId, paymentDate: balanceDate, isTopUp: false },
+      _sum: { amount: true },
+    }),
+    // Top-ups are dues owed to the brand from before the app — they ADD to
+    // what the dairy owes, so they are summed separately and added.
+    tx.dairyPayment.aggregate({
+      where: { brandId, paymentDate: balanceDate, isTopUp: true },
       _sum: { amount: true },
     }),
   ]);
@@ -48,13 +54,14 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
     return sum + calculateLineDeposit(r.quantity, r.product.unitSize, brand.depositPerLitre);
   }, 0);
 
-  const amountPaid = Number(paymentAgg._sum.amount ?? 0);
-  const closingBalance = openingBalance + stockValue + depositValue - amountPaid;
+  const amountPaid  = Number(paymentAgg._sum.amount ?? 0);
+  const topUpAmount = Number(topUpAgg._sum.amount ?? 0);
+  const closingBalance = openingBalance + stockValue + depositValue + topUpAmount - amountPaid;
 
   return tx.dairyBalance.upsert({
     where: { brandId_balanceDate: { brandId, balanceDate } },
-    update: { openingBalance, stockValue, depositValue, amountPaid, closingBalance },
-    create: { brandId, balanceDate, openingBalance, stockValue, depositValue, amountPaid, closingBalance },
+    update: { openingBalance, stockValue, depositValue, topUpAmount, amountPaid, closingBalance },
+    create: { brandId, balanceDate, openingBalance, stockValue, depositValue, topUpAmount, amountPaid, closingBalance },
   });
 }
 
@@ -131,7 +138,7 @@ async function _cascadeSalesperson(salespersonId, balanceDate, tx) {
  * Accepts an optional `tx` so callers can roll the cascade into their own
  * transaction. If omitted, runs in its own serializable transaction.
  *
- * Formula: closing = opening + stockValue + depositValue − amountPaid
+ * Formula: closing = opening + stockValue + depositValue + topUpAmount − amountPaid
  */
 async function recalculateDairyBalance(brandId, date, tx = null) {
   const balanceDate = new Date(date);

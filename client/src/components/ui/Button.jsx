@@ -13,6 +13,7 @@ const VARIANT_CLASSES = {
   'soft-warning': 'bg-amber-50   hover:bg-amber-100   text-amber-700   border border-amber-100',
   'soft-success': 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100',
   'soft-slate':   'bg-slate-100  hover:bg-slate-200   text-slate-600   border border-slate-200',
+  'soft-teal':    'bg-teal-50    hover:bg-teal-100    text-teal-700    border border-teal-100',
 };
 
 const SIZE_CLASSES = {

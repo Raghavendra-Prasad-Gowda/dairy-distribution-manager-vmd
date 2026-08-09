@@ -193,3 +193,108 @@ test.describe('GET /api/v1/salesperson-balance/:id/history — salesman RBAC', (
     expect(res.status()).toBe(403);
   });
 });
+
+// ─── Admin top-ups attached to history rows ──────────────────────────────────
+
+test.describe('GET /api/v1/salesperson-balance/:id/history — admin top-ups', () => {
+  const ROW_WITH_TOPUP = {
+    ...BALANCE_ROWS[0],
+    topUpAmount: 50000,
+  };
+  const TOP_UP = {
+    paymentDate: BALANCE_ROWS[0].balanceDate,
+    amount:      50000,
+    notes:       'Opening dues',
+    createdBy:   'raghav',
+  };
+
+  test('exposes topUpAmount on each row', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([ROW_WITH_TOPUP]);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(1);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([TOP_UP]);
+
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect((await res.json()).data.items[0].topUpAmount).toBe(50000);
+  });
+
+  test('attaches the top-up detail with the admin who recorded it', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([ROW_WITH_TOPUP]);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(1);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([TOP_UP]);
+
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    const item = (await res.json()).data.items[0];
+    expect(item.topUps).toHaveLength(1);
+    expect(item.topUps[0]).toMatchObject({ amount: 50000, createdBy: 'raghav', notes: 'Opening dues' });
+  });
+
+  test('queries only top-up rows, scoped to this salesperson', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([ROW_WITH_TOPUP]);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(1);
+    let args;
+    ctx.mockPrisma.salespersonPayment.findMany.mockImplementation(async (a) => { args = a; return [TOP_UP]; });
+
+    await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(args.where.isTopUp).toBe(true);
+    expect(args.where.salespersonId).toBe(1);
+  });
+
+  test('skips the top-up lookup entirely when no row has one', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    // BALANCE_ROWS carry no topUpAmount at all — the common case.
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue(BALANCE_ROWS);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(2);
+    let queried = false;
+    ctx.mockPrisma.salespersonPayment.findMany.mockImplementation(async () => { queried = true; return []; });
+
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(queried).toBe(false);
+  });
+
+  test('rows without a top-up get topUpAmount 0 and an empty topUps array', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([ROW_WITH_TOPUP, BALANCE_ROWS[1]]);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(2);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([TOP_UP]);
+
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    const [withTopUp, without] = (await res.json()).data.items;
+    expect(withTopUp.topUps).toHaveLength(1);
+    expect(without.topUpAmount).toBe(0);
+    expect(without.topUps).toEqual([]);
+  });
+
+  test('a salesman sees the top-up attribution on their own history', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([ROW_WITH_TOPUP]);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(1);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([TOP_UP]);
+
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect((await res.json()).data.items[0].topUps[0].createdBy).toBe('raghav');
+  });
+});

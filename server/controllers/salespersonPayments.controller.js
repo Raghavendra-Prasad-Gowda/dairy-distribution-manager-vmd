@@ -31,10 +31,14 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: payment });
 });
 
-// Admin only — bulk "top-up": loads each salesman's pre-existing dues so they
-// carry forward as opening balance. A top-up ADDS to what the salesman owes
-// (unlike a normal payment, which reduces it) — see balanceService.
+// Admin (or superadmin) — bulk "top-up": loads each salesman's pre-existing
+// dues so they carry forward as opening balance. A top-up ADDS to what the
+// salesman owes (unlike a normal payment, which reduces it) — see
+// balanceService. Unlike the dairy/deposit top-ups and ledger reset (which
+// stay superadmin-only), a plain admin can run this one.
 const bulkTopUp = asyncHandler(async (req, res) => {
+  // Route already gates this with requireAdmin; repeated here so the guard
+  // survives the handler being remounted somewhere less strict.
   if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
 
   const data = validate(schemas.bulkSalespersonTopUp, req, res);
@@ -47,7 +51,7 @@ const bulkTopUp = asyncHandler(async (req, res) => {
 
   const found = await prisma.salesperson.findMany({
     where:  { id: { in: ids } },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (found.length !== ids.length) {
     const missing = ids.filter(id => !found.some(s => s.id === id));
@@ -84,10 +88,13 @@ const bulkTopUp = asyncHandler(async (req, res) => {
   logger.info('Salesperson bulk top-up recorded', {
     count: created.length, total, date: data.paymentDate, createdBy,
   });
-  void notifySlack(SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED, {
-    date:   data.paymentDate,
-    amount: total,
-    note:   `Bulk top-up for ${created.length} salesperson(s) by ${createdBy}`,
+  void notifySlack(SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED, {
+    date:              data.paymentDate,
+    count:             created.length,
+    total,
+    createdBy,
+    notes:             data.notes,
+    salespersonNames:  found.map(s => s.name),
   });
 
   res.status(201).json({

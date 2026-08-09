@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Plus, Pencil, X, EyeOff, Eye, Archive } from 'lucide-react';
+import { Store, Plus, Pencil, X, EyeOff, Eye, Archive, Droplet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -8,12 +8,33 @@ import { useAuth } from '../../context/AuthContext';
 import { getBrandColors } from '../../utils/constants';
 import api from '../../api/axios';
 
+// ── Small deposit toggle pill ─────────────────────────────────────────────────
+function DepositToggle({ enabled, onToggle }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={onToggle}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none flex-shrink-0 cursor-pointer ${
+        enabled ? 'bg-emerald-500' : 'bg-slate-300'
+      }`}
+    >
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
+    </button>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'superadmin';
+  // Deposit config (unlike rename/enable-disable/archive) is not superadmin-
+  // gated server-side — see brands.controller.js's update() — so any admin
+  // reaching this page (it's not superAdminOnly-routed) can use it.
+  const isAdmin      = user?.role === 'admin' || isSuperAdmin;
 
   const [brands, setBrands]       = useState([]);
   const [loading, setLoading]     = useState(false);
@@ -27,6 +48,11 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [copyFromId, setCopyFromId]     = useState(null);
   const [confirmToggle, setConfirmToggle] = useState(null); // brand pending enable/disable
   const [confirmArchive, setConfirmArchive] = useState(null); // brand pending archive
+
+  // Deposit modal state
+  const [depositBrand, setDepositBrand]     = useState(null); // brand pending deposit edit
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositRate, setDepositRate]       = useState('');
 
   useEffect(() => {
     setLoading(true);
@@ -136,6 +162,44 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     }
   };
 
+  // ── Deposit config (per litre/kg — see depositRules.js) ───────────────────
+  const openDepositEdit = (b) => {
+    setDepositBrand(b);
+    setDepositEnabled(!!b.depositEnabled);
+    setDepositRate(b.depositPerLitre != null ? String(b.depositPerLitre) : '');
+  };
+
+  const closeDepositModal = () => {
+    setDepositBrand(null);
+    setDepositEnabled(false);
+    setDepositRate('');
+  };
+
+  const handleSaveDeposit = async () => {
+    if (!depositBrand) return;
+    const rate = parseFloat(depositRate) || 0;
+    if (depositEnabled && rate <= 0) {
+      notify('Enter a deposit rate greater than 0 to enable deposit', 'warning');
+      return;
+    }
+    setBusyMsg('Saving deposit settings…');
+    setSubmitting(true);
+    try {
+      const res = await api.put(`/brands/${depositBrand.id}`, {
+        depositEnabled,
+        depositPerLitre: rate,
+      });
+      const updated = res.data.data;
+      setBrands(prev => prev.map(b => b.id === depositBrand.id ? { ...b, ...updated } : b));
+      notify(`Deposit settings saved for "${depositBrand.name}"`, 'success');
+      closeDepositModal();
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to save deposit settings', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
 
@@ -148,7 +212,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
           <Store size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Brands</h1>
-            <p className="text-emerald-300 text-xs">Add and rename dairy brands</p>
+            <p className="text-emerald-300 text-xs">Add, rename and configure deposit for dairy brands</p>
           </div>
         </div>
       )}
@@ -189,6 +253,15 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                           Disabled
                         </span>
                       )}
+                      {b.depositEnabled && (
+                        <span
+                          className="flex items-center gap-1 text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5 whitespace-nowrap"
+                          title="Deposit is enabled for this brand"
+                        >
+                          <Droplet size={10} />
+                          ₹{Number(b.depositPerLitre).toFixed(2)}/L
+                        </span>
+                      )}
                       {isSuperAdmin && !disabled && (
                         <button
                           type="button"
@@ -197,6 +270,20 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                           title="Rename brand"
                         >
                           <Pencil size={13} />
+                        </button>
+                      )}
+                      {isAdmin && !disabled && (
+                        <button
+                          type="button"
+                          onClick={() => openDepositEdit(b)}
+                          className={`p-1.5 rounded-lg transition ${
+                            b.depositEnabled
+                              ? 'text-teal-500 hover:text-teal-700 hover:bg-teal-50'
+                              : 'text-slate-400 hover:text-teal-600 hover:bg-teal-50'
+                          }`}
+                          title="Deposit settings"
+                        >
+                          <Droplet size={13} />
                         </button>
                       )}
                       {isSuperAdmin && (
@@ -325,6 +412,86 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Deposit settings modal ──────────────────────────────────────────────
+          Brand-level deposit config: whether this brand charges a per-litre/kg
+          crate deposit at all, and the rate. See depositRules.js — this is one
+          of three flags (brand, category, product) that must ALL be enabled
+          for a product's stock receipt to actually accrue deposit; category
+          and product overrides aren't managed here.
+      */}
+      {depositBrand && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
+
+            <div className="flex items-center justify-between px-5 py-4 bg-teal-800 rounded-t-2xl">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-teal-700 flex items-center justify-center">
+                  <Droplet size={15} className="text-teal-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white leading-tight">Deposit Settings</p>
+                  <p className="text-teal-300 text-[11px]">{depositBrand.name}</p>
+                </div>
+              </div>
+              <button onClick={closeDepositModal} className="p-1.5 text-teal-300 hover:text-white hover:bg-teal-700 rounded-lg transition">
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Deposit Enabled</p>
+                  <p className="text-[11px] text-slate-400">Charges a crate/container deposit on qualifying stock receipts</p>
+                </div>
+                <DepositToggle enabled={depositEnabled} onToggle={() => setDepositEnabled(v => !v)} />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Deposit per Litre / Kg (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  disabled={!depositEnabled}
+                  value={depositRate}
+                  onChange={e => setDepositRate(e.target.value)}
+                  placeholder="0.00"
+                  className="ddm-input disabled:bg-slate-50 disabled:text-slate-400"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                A qualifying product also needs its own category and product-level
+                deposit flags enabled — set those from Setup → Categories / Products.
+                See the Deposit report for what's currently accruing.
+              </p>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={closeDepositModal}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDeposit}
+                  disabled={submitting}
+                  className="flex-1 justify-center px-4 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-xl transition disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

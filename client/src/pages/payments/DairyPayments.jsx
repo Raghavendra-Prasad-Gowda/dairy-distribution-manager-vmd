@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
+import BulkTopUpModal from '../../components/BulkTopUpModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
 import { getBrandColors, PAYMENT_MODES } from '../../utils/constants';
@@ -29,6 +31,10 @@ const MODE_COLORS = {
   NEFT:   'bg-violet-100 text-violet-700',
   RTGS:   'bg-amber-100  text-amber-700',
   Cheque: 'bg-orange-100 text-orange-700',
+  // Not a payment — admin-loaded dues, which ADD to what the dairy owes.
+  // Distinct from a real payment mode so it's never mistaken for one.
+  // (Deposit top-ups are a separate ledger now — see the Deposit report tab.)
+  'Top-up': 'bg-amber-100 text-amber-800',
 };
 
 /** Premium brand balance card — matches Dashboard DairyPayableCard style */
@@ -85,6 +91,11 @@ function BrandBalanceCard({ brandName, opening, stockValue, depositValue, paid, 
 
 export default function DairyPayments() {
   const { notify } = useNotification();
+  const { user } = useAuth();
+  // Loading pre-existing dues rewrites brand balances irreversibly — superadmin
+  // only, mirroring the requireSuperAdmin guard on the API route.
+  const isSuperAdmin = user?.role === 'superadmin';
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
@@ -289,13 +300,56 @@ export default function DairyPayments() {
       <LoadingOverlay open={saving} message="Recording payment…" />
 
       {/* Page header */}
-      <div className="flex items-center gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
-        <CreditCard size={17} className="text-emerald-300 flex-shrink-0" />
-        <div>
-          <h1 className="text-sm font-bold text-white leading-tight">Dairy Payments</h1>
-          <p className="text-emerald-300 text-xs">Record payments to dairy suppliers</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <CreditCard size={17} className="text-emerald-300 flex-shrink-0" />
+          <div>
+            <h1 className="text-sm font-bold text-white leading-tight">Dairy Payments</h1>
+            <p className="text-emerald-300 text-xs">Record payments to dairy suppliers</p>
+          </div>
         </div>
       </div>
+
+      {/* Superadmin action toolbar — kept off the dark header band; the soft
+          pill buttons read poorly against emerald-800, and this matches the
+          light toolbar convention used for bulk actions elsewhere (e.g.
+          Bulk Update Prices on the salesman pricing page). */}
+      {isSuperAdmin && (
+        <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
+          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
+            Bulk Top-up
+          </Button>
+        </div>
+      )}
+
+      {/* ── Bulk top-up modal (dues) ─────────────────────────── */}
+      {/*
+        Deposit top-up used to live here as a second variant of this same
+        modal/endpoint, but a deposit top-up is a separate ledger that must
+        never touch this dairy's owed-for-stock balance — it now lives on the
+        Deposit report tab instead, backed by its own endpoint/table.
+      */}
+      <BulkTopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        entities={brands}
+        notify={notify}
+        entryKey="brandId"
+        nounSingular="brand"
+        nounPlural="brands"
+        searchPlaceholder="Search brand…"
+        warning={
+          <>
+            A top-up <strong>increases</strong> what the dairy owes this brand — use it
+            to load dues from before the app. It is not a payment.
+          </>
+        }
+        onSaved={async (payload) => {
+          const res = await api.post('/dairy-payments/bulk-topup', payload);
+          await fetchAll();
+          return res.data.data;
+        }}
+      />
 
       {/* Brand tabs */}
       {brands.length > 0 && (

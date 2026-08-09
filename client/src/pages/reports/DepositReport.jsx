@@ -1,13 +1,22 @@
-import { useEffect, useState } from 'react';
-import { AlertCircle, Droplets, ChevronDown, ChevronRight, Printer } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { AlertCircle, Droplets, ChevronDown, ChevronRight, Printer, Landmark } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
+import Button from '../../components/ui/Button';
+import BulkTopUpModal from '../../components/BulkTopUpModal';
+import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import { getYesterday, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
 
 export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
+  const { user } = useAuth();
+  const { notify } = useNotification();
+  // Loading a pre-existing deposit balance is superadmin-only, mirroring the
+  // requireSuperAdmin guard on the API route.
+  const isSuperAdmin = user?.role === 'superadmin';
   const [brands, setBrands]               = useState(shellBrands ?? []);
   const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
   const [from, setFrom]                   = useState(getYesterday());
@@ -15,6 +24,15 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
   const [data, setData]                   = useState(null);
   const [loading, setLoading]             = useState(false);
   const [collapsed, setCollapsed]         = useState(new Set());
+  const [topUpOpen, setTopUpOpen]         = useState(false);
+
+  // A deposit top-up only makes sense for a brand that actually has deposit
+  // configured — the picker only offers those. The button itself is gated on
+  // the currently active/viewed brand specifically (not "any brand
+  // somewhere"), so it disappears on a tab like Jersey or Gowardhan that has
+  // no deposit configured, even while Nandini elsewhere does.
+  const depositEnabledBrands = brands.filter(b => b.depositEnabled);
+  const activeBrand           = brands.find(b => b.id === activeBrandId);
 
   useEffect(() => {
     if (inShell) return;
@@ -29,12 +47,12 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
     if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId]);
 
-  useEffect(() => {
+  const fetchDeposit = useCallback(() => {
     if (!activeBrandId) return;
     setData(null);
     setCollapsed(new Set());
     setLoading(true);
-    api.get(`/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}`)
+    return api.get(`/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}`)
       .then(r => {
         const d = r.data.data;
         setData(d);
@@ -47,8 +65,13 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
       .finally(() => setLoading(false));
   }, [activeBrandId, from, to]);
 
+  useEffect(() => { fetchDeposit(); }, [fetchDeposit]);
+
   const daysWithDeposit = data?.rows.filter(r => r.dailyDeposit > 0).length ?? 0;
-  const avgPerDay       = daysWithDeposit > 0 ? (data.totalDeposit / daysWithDeposit) : 0;
+  // Excludes any carried-forward opening balance — this is an average of
+  // what accrued/was added within the selected window, not the all-time total.
+  const windowDeposit   = (data?.totalDeposit ?? 0) - (data?.openingDeposit ?? 0);
+  const avgPerDay       = daysWithDeposit > 0 ? (windowDeposit / daysWithDeposit) : 0;
 
   const depositRows     = data?.rows.filter(r => r.dailyDeposit > 0) ?? [];
   const allCollapsed    = depositRows.length > 0 && depositRows.every(r => collapsed.has(r.date));
@@ -105,15 +128,63 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
             Rate: <span className="font-semibold text-slate-600">₹{data.depositPerLitre}/L</span>
           </span>
         )}
-        {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
-          <button
-            onClick={() => window.open(`/print/deposit?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
-            className="ml-auto flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
-          >
-            <Printer size={15} /> Print
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {isSuperAdmin && activeBrand?.depositEnabled && (
+            <Button variant="soft-teal" size="sm" icon={Landmark} onClick={() => setTopUpOpen(true)}>
+              Deposit Top-up
+            </Button>
+          )}
+          {data && data.depositEnabled && data.rows.some(r => r.dailyDeposit > 0) && (
+            <button
+              onClick={() => window.open(`/print/deposit?brandId=${activeBrandId}&from=${from}&to=${to}`, '_blank')}
+              className="flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-4 py-2 transition"
+            >
+              <Printer size={15} /> Print
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Deposit top-up modal — a standalone ledger entry, NOT a payment. It
+          only ever feeds this report's running total and never touches the
+          dairy's main owed-for-stock balance on the Statement tab. */}
+      <BulkTopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        entities={depositEnabledBrands}
+        notify={notify}
+        entryKey="brandId"
+        nounSingular="brand"
+        nounPlural="brands"
+        searchPlaceholder="Search brand…"
+        titlePrefix="Deposit Top-up"
+        actionNoun="deposit top-up"
+        accent="teal"
+        icon={Landmark}
+        warning={
+          <>
+            A deposit top-up records a crate/container deposit already held with
+            this brand from before the app. It only adds to this Deposit report's
+            running total — it does <strong>not</strong> affect what you owe the
+            dairy for stock on the Statement tab.
+          </>
+        }
+        onSaved={async ({ paymentDate, notes, entries }) => {
+          const res = await api.post('/dairy-deposit-topups/bulk', { topUpDate: paymentDate, notes, entries });
+          // The modal defaults to today, but this report defaults to
+          // yesterday — a same-day top-up would otherwise land outside the
+          // visible window and look like it silently did nothing. Widen the
+          // range to include it (string comparison is safe: both are
+          // "YYYY-MM-DD", which sorts chronologically) instead of leaving
+          // the user to notice and fix the date pickers themselves.
+          const widerFrom = paymentDate < from;
+          const widerTo   = paymentDate > to;
+          if (widerFrom) setFrom(paymentDate);
+          if (widerTo)   setTo(paymentDate);
+          if (!widerFrom && !widerTo) await fetchDeposit();
+          return res.data.data;
+        }}
+      />
 
       {/* Deposit not enabled */}
       {!loading && data && !data.depositEnabled && (
@@ -148,7 +219,7 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
           </div>
 
           {/* Table */}
-          {data.rows.length === 0 ? (
+          {data.rows.length === 0 && !(data.openingDeposit > 0) ? (
             <div className="mx-4 mt-4 bg-white rounded-2xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
               No stock receipts found for this period.
             </div>
@@ -186,6 +257,16 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
                         </tr>
                       </thead>
                       <tbody className="bg-white">
+                        {data.openingDeposit > 0 && (
+                          <tr className="border-b border-slate-100 bg-slate-50">
+                            <td colSpan={5} className="px-3 py-2 text-xs font-semibold text-slate-500 border-r border-slate-100">
+                              Opening deposit carried forward (before {new Date(from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <span className="text-xs tabular-nums font-bold text-slate-600">{formatCurrency(data.openingDeposit)}</span>
+                            </td>
+                          </tr>
+                        )}
                         {data.rows.map((row) => {
                           const dateKey    = row.date;
                           const dateStr    = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
@@ -266,6 +347,51 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
                                 </tr>,
                                 ...catItems.map((it) => {
                                   const localIdx = globalIdx++;
+
+                                  // Manual top-up rows have no product/qty/volume — just an
+                                  // amount and who added it.
+                                  if (it.isTopUp) {
+                                    return (
+                                      <tr key={`${dateKey}-${localIdx}`} className="border-b border-slate-50 bg-teal-50/40 hover:bg-teal-50/70 transition-colors">
+                                        <td className="px-3 py-2 border-r border-slate-100 whitespace-nowrap" />
+                                        <td className="px-3 py-2 border-r border-slate-100" colSpan={2}>
+                                          <span className="text-xs font-semibold text-teal-800">{it.productName}</span>
+                                          {(it.notes || it.createdBy) && (
+                                            <span className="ml-1.5 text-[10px] text-slate-400">
+                                              {[it.notes, it.createdBy && `by ${it.createdBy}`].filter(Boolean).join(' · ')}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2 text-right border-r border-slate-100">
+                                          <span className="text-xs text-slate-300">—</span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right border-r border-slate-100">
+                                          <span className="text-xs tabular-nums font-bold text-teal-700">{formatCurrency(it.depositAmount)}</span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                          {isSuperAdmin && it.id != null && (
+                                            <button
+                                              onClick={async () => {
+                                                if (!window.confirm('Delete this deposit top-up?')) return;
+                                                notify('Deleting deposit top-up…', 'loading');
+                                                try {
+                                                  await api.delete(`/dairy-deposit-topups/${it.id}`);
+                                                  notify('Deposit top-up deleted', 'success');
+                                                  fetchDeposit();
+                                                } catch (e) {
+                                                  notify(e.response?.data?.error ?? 'Failed to delete deposit top-up', 'error');
+                                                }
+                                              }}
+                                              className="text-[10px] font-semibold text-red-500 hover:text-red-700"
+                                            >
+                                              Delete
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
+
                                   const unit    = it.unitType === 'gram' ? 'kg' : 'L';
                                   const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
                                   const volCell = <span className="text-xs tabular-nums font-medium text-slate-700">{it.volumeOrWeight.toFixed(2)} {unit}</span>;

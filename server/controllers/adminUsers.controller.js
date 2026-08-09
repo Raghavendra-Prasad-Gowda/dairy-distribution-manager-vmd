@@ -4,6 +4,18 @@ const { validate, schemas, parseId } = require('../utils/validate');
 const { BCRYPT_ROUNDS } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+
+// Stamped on every card so the affected/superadmin roster knows who made the
+// change — this endpoint is superadmin-only, so req.user.adminUserId is
+// always the acting superadmin's own id.
+async function resolveActingUsername(req) {
+  const actor = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  return actor?.username ?? 'superadmin';
+}
 
 const SAFE_SELECT = {
   id: true, username: true, role: true, isActive: true, createdAt: true,
@@ -34,6 +46,8 @@ const create = asyncHandler(async (req, res) => {
     data: { username: data.username, passwordHash, role: data.role },
     select: SAFE_SELECT,
   });
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.ADMIN_USER_CREATED, { username: user.username, role: user.role, by });
   res.status(201).json({ success: true, data: user });
 });
 
@@ -71,6 +85,8 @@ const update = asyncHandler(async (req, res) => {
     data:  updateData,
     select: SAFE_SELECT,
   });
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.ADMIN_USER_UPDATED, { username: user.username, role: user.role, isActive: user.isActive, by });
   res.json({ success: true, data: user });
 });
 
@@ -93,6 +109,8 @@ const remove = asyncHandler(async (req, res) => {
   }
 
   await prisma.adminUser.delete({ where: { id } });
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.ADMIN_USER_DELETED, { username: target.username, role: target.role, by });
   res.json({ success: true, data: { message: 'Admin user deleted' } });
 });
 

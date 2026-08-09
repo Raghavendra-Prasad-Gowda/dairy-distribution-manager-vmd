@@ -102,6 +102,14 @@ export default function DepositPrint() {
               </tr>
             </thead>
             <tbody>
+              {data.openingDeposit > 0 && (
+                <tr>
+                  <td colSpan={5} style={{ fontStyle: 'italic', color: '#6b7280' }}>
+                    Opening deposit carried forward (before {from})
+                  </td>
+                  <td className="right">{formatCurrency(data.openingDeposit)}</td>
+                </tr>
+              )}
               {data.rows.map(row => {
                 const dateStr    = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
                 const hasDeposit = row.dailyDeposit > 0;
@@ -143,6 +151,24 @@ export default function DepositPrint() {
                       </tr>
                     ),
                     ...catItems.map((it, idx) => {
+                      if (it.isTopUp) {
+                        return (
+                          <tr key={`${row.date}-${category}-${idx}`}>
+                            <td />
+                            <td colSpan={2}>
+                              {it.productName}
+                              {(it.notes || it.createdBy) && (
+                                <span style={{ fontSize: 9, color: '#9ca3af' }}>
+                                  {' '}({[it.notes, it.createdBy && `by ${it.createdBy}`].filter(Boolean).join(' · ')})
+                                </span>
+                              )}
+                            </td>
+                            <td className="right">—</td>
+                            <td className="right">{formatCurrency(it.depositAmount)}</td>
+                            <td />
+                          </tr>
+                        );
+                      }
                       const unit    = it.unitType === 'gram' ? 'kg' : 'L';
                       const sizeStr = it.unitType === 'gram' ? `${it.unitSize}g` : `${it.unitSize}ml`;
                       return (

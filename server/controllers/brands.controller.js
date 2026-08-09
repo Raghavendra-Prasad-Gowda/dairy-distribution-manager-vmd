@@ -2,6 +2,15 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/AppError');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+
+async function resolveActingUsername(req) {
+  const actor = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { username: true },
+  });
+  return actor?.username ?? 'admin';
+}
 
 const getAll = asyncHandler(async (req, res) => {
   // Disabled brands are hidden everywhere; only the Brands setup page
@@ -31,6 +40,13 @@ const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createBrand, req, res);
   if (!data) return;
   const brand = await prisma.brand.create({ data });
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.BRAND_CREATED, {
+    name:            brand.name,
+    depositEnabled:  brand.depositEnabled,
+    depositPerLitre: brand.depositPerLitre,
+    by,
+  });
   res.status(201).json({ success: true, data: brand });
 });
 
@@ -55,6 +71,15 @@ const update = asyncHandler(async (req, res) => {
     data.isActive = false;
   }
   const brand = await prisma.brand.update({ where: { id }, data });
+  const by = await resolveActingUsername(req);
+  void notifySlack(SLACK_EVENTS.BRAND_UPDATED, {
+    name:            brand.name,
+    depositEnabled:  brand.depositEnabled,
+    depositPerLitre: brand.depositPerLitre,
+    isActive:        brand.isActive,
+    isArchived:      brand.isArchived,
+    by,
+  });
   res.json({ success: true, data: brand });
 });
 
