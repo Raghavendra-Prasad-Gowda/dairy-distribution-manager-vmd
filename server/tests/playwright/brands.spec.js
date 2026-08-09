@@ -334,6 +334,14 @@ test.describe('PATCH /api/v1/brands/reorder', () => {
     expect(res.status()).toBe(403);
   });
 
+  test('returns 403 when salesman token provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/brands/reorder', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+      data: [{ id: 1, displayOrder: 0 }],
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 400 when payload is not an array', async ({ request }) => {
     const res = await request.patch('/api/v1/brands/reorder', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

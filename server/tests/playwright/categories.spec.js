@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -102,6 +102,14 @@ test.describe('POST /api/v1/categories', () => {
 test.describe('PATCH /api/v1/categories/reorder', () => {
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.patch('/api/v1/categories/reorder', {
+      data: [{ id: 1, displayOrder: 0 }],
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when salesman token provided', async ({ request }) => {
+    const res = await request.patch('/api/v1/categories/reorder', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
       data: [{ id: 1, displayOrder: 0 }],
     });
     expect(res.status()).toBe(403);

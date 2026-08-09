@@ -9,7 +9,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -113,6 +113,14 @@ test.describe('GET /api/v1/salespeople/:id/products', () => {
 test.describe('POST /api/v1/salespeople/:id/products/bulk', () => {
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.post('/api/v1/salespeople/1/products/bulk', {
+      data: { products: [{ productId: 1, isEnabled: true }] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when salesman token provided — even for their own id', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/1/products/bulk', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
       data: { products: [{ productId: 1, isEnabled: true }] },
     });
     expect(res.status()).toBe(403);
