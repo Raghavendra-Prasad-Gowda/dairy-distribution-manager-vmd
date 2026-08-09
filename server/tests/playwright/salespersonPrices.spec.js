@@ -137,6 +137,17 @@ test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {
     expect(res.status()).toBe(403);
   });
 
+  // A salesman must never rewrite what they're billed. This router is mounted
+  // without a router-level requireAdmin (GET /:id/prices has to stay open to
+  // them), so this asserts the per-route guard actually holds.
+  test('returns 403 when salesman token provided — even for their own id', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/1/prices/bulk', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+      data: validPayload(),
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 200 when prices are saved', async ({ request }) => {
     ctx.mockPrisma.$transaction.mockResolvedValue([PRICE_ROW]);
 

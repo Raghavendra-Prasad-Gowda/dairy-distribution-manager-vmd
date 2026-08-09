@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockDairyCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
@@ -133,6 +133,14 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
 
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.post('/api/v1/stock-receipts/bulk', { data: validPayload });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when salesman token provided', async ({ request }) => {
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+      data: validPayload,
+    });
     expect(res.status()).toBe(403);
   });
 
