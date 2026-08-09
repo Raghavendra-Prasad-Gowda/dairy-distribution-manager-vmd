@@ -56,6 +56,15 @@ const REPORT = {
       revenue: 0, cost: 0, profit: 0, marginPct: 0, products: [],
     },
   ],
+  // Combined across every salesman: Toned Milk merges K Pandu's + Mahesh's
+  // lines into one row (200 units, 4500 revenue, 4200 cost, 300 profit),
+  // Curd 200g is K Pandu's alone.
+  products: [
+    { productId: 1, productName: 'Toned Milk', brandName: 'Nandini', category: 'Milk',
+      quantity: 200, avgBilledPrice: 22.5, avgCostPrice: 21, revenue: 4500, cost: 4200, profit: 300 },
+    { productId: 2, productName: 'Curd 200g', brandName: 'Nandini', category: 'Curd',
+      quantity: 50, avgBilledPrice: 30, avgCostPrice: 10, revenue: 1500, cost: 500, profit: 1000 },
+  ],
 };
 
 beforeEach(() => {
@@ -80,16 +89,18 @@ describe('SalesmanProfitLoss — summary + range', () => {
     const { container } = await renderPage();
     expect(screen.getByText('Cost (Dairy Paid)')).toBeInTheDocument();
     expect(screen.getByText('Revenue (Dairy Earned)')).toBeInTheDocument();
-    expect(screen.getByText('Profit/Loss')).toBeInTheDocument();
+    // "Profit/Loss" also labels the product table's column header, so this
+    // page always has at least one match — the summary card is the first.
+    expect(screen.getAllByText('Profit/Loss')[0]).toBeInTheDocument();
     expect(within(container).getByText('21.67%')).toBeInTheDocument();
   });
 
-  it('colours the Profit/Loss card red when overall profit is negative', async () => {
+  it('colours the Profit/Loss summary card red when overall profit is negative', async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: { data: { ...REPORT, totals: { revenue: 100, cost: 300, profit: -200, marginPct: -200 } } },
     });
     await renderPage();
-    const label = screen.getByText('Profit/Loss');
+    const label = screen.getAllByText('Profit/Loss')[0];
     expect(label).toBeInTheDocument();
     // The figure next to it carries the loss colour.
     const card = label.closest('div');
@@ -136,6 +147,42 @@ describe('SalesmanProfitLoss — sidebar', () => {
   it('defaults to the All Salespeople roll-up showing the daily series', async () => {
     await renderPage();
     expect(screen.getByText('Daily Profit & Loss')).toBeInTheDocument();
+  });
+});
+
+describe('SalesmanProfitLoss — All Salespeople combined product breakdown', () => {
+  it('shows the same Product/Cost Price/Selling Price/Qty/Total/Profit-Loss columns as an individual salesman', async () => {
+    await renderPage();
+    expect(screen.getByText('Product Breakdown — All Salespeople')).toBeInTheDocument();
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(screen.getByText('Curd 200g')).toBeInTheDocument();
+
+    const headerRow = screen.getAllByText('Product')[0].closest('tr');
+    expect(within(headerRow).getAllByRole('columnheader').map(h => h.textContent)).toEqual([
+      'Product', 'Cost Price', 'Selling Price', 'Qty', 'Total(Qty × Selling Price)', 'Profit/Loss',
+    ]);
+  });
+
+  it('merges the same product across every salesman into one combined row', async () => {
+    await renderPage();
+    // Toned Milk: 200 units combined (100 from K Pandu + 100 from Mahesh).
+    const row = screen.getByText('Toned Milk').closest('tr');
+    expect(within(row).getByText('200')).toBeInTheDocument();
+  });
+
+  it('is not shown when nothing was dispatched to anyone in the period', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: { ...REPORT, products: [] } },
+    });
+    await renderPage();
+    expect(screen.queryByText('Product Breakdown — All Salespeople')).toBeNull();
+  });
+
+  it('does not appear on an individual salesman panel', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('K Pandu'));
+    await waitFor(() => expect(screen.queryByText('Daily Profit & Loss')).toBeNull());
+    expect(screen.queryByText('Product Breakdown — All Salespeople')).toBeNull();
   });
 });
 
