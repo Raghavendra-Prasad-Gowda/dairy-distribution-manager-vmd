@@ -36,7 +36,8 @@ vi.mock('../../utils/dateUtils', async () => {
   };
 });
 
-const BRAND = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.1 };
+const BRAND  = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: 0.1 };
+const JERSEY = { id: 2, name: 'Jersey',  depositEnabled: false, depositPerLitre: 0 };
 
 function emptyReport(overrides = {}) {
   return {
@@ -150,5 +151,49 @@ describe('DepositReport — deposit top-up outside the visible range', () => {
     const [finalFrom, finalTo] = getPageDateInputs(container);
     expect(finalFrom.value).toBe('2026-08-01');
     expect(finalTo.value).toBe('2026-08-08');
+  });
+});
+
+describe('DepositReport — Deposit Top-up button visibility', () => {
+  it('hides the button on a brand tab that does not have deposit enabled', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [JERSEY, BRAND] } });
+      return Promise.resolve({ data: { data: emptyReport({ depositEnabled: false }) } });
+    });
+
+    await renderPage();
+    // Jersey (no deposit) is first in the list, so it's the active tab by default.
+    expect(screen.queryByRole('button', { name: /Deposit Top-up/i })).toBeNull();
+  });
+
+  it('shows the button once you switch to a brand tab that does have deposit enabled', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [JERSEY, BRAND] } });
+      return Promise.resolve({ data: { data: emptyReport() } });
+    });
+
+    await renderPage();
+    expect(screen.queryByRole('button', { name: /Deposit Top-up/i })).toBeNull();
+
+    fireEvent.click(screen.getByText('Nandini'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Deposit Top-up/i })).toBeInTheDocument());
+  });
+
+  it('still offers every deposit-enabled brand in the picker, even when viewing one that has none', async () => {
+    // The button itself is scoped to the active tab, but once you do reach a
+    // deposit-enabled tab, the modal's picker still offers every
+    // deposit-enabled brand — not just the one you happened to open it from.
+    const OTHER_ENABLED = { id: 3, name: 'Gowardhan', depositEnabled: true, depositPerLitre: 0.15 };
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND, OTHER_ENABLED, JERSEY] } });
+      return Promise.resolve({ data: { data: emptyReport() } });
+    });
+
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Deposit Top-up/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Nandini')).toBeInTheDocument();
+    expect(within(dialog).getByText('Gowardhan')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Jersey')).toBeNull();
   });
 });

@@ -209,7 +209,7 @@ export default function BulkTopUpModal({
             <p className="text-[11px] text-slate-400 font-medium">
               {search
                 ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}`
-                : `${list.length} ${nounPlural}`}
+                : `${list.length} ${list.length === 1 ? nounSingular : nounPlural}`}
             </p>
             <button
               type="button"

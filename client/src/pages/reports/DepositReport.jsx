@@ -27,9 +27,12 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
   const [topUpOpen, setTopUpOpen]         = useState(false);
 
   // A deposit top-up only makes sense for a brand that actually has deposit
-  // configured — the picker only offers those, and the button hides entirely
-  // when none qualify.
+  // configured — the picker only offers those. The button itself is gated on
+  // the currently active/viewed brand specifically (not "any brand
+  // somewhere"), so it disappears on a tab like Jersey or Gowardhan that has
+  // no deposit configured, even while Nandini elsewhere does.
   const depositEnabledBrands = brands.filter(b => b.depositEnabled);
+  const activeBrand           = brands.find(b => b.id === activeBrandId);
 
   useEffect(() => {
     if (inShell) return;
@@ -126,7 +129,7 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {isSuperAdmin && depositEnabledBrands.length > 0 && (
+          {isSuperAdmin && activeBrand?.depositEnabled && (
             <Button variant="soft-teal" size="sm" icon={Landmark} onClick={() => setTopUpOpen(true)}>
               Deposit Top-up
             </Button>

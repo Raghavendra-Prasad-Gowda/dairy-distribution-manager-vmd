@@ -88,6 +88,28 @@ describe('BulkTopUpModal — selection step', () => {
     expect(screen.getByText('Ravi')).toBeInTheDocument();
     expect(screen.queryByText('Mahesh')).toBeNull();
   });
+
+  it('uses the plural noun for the list count when there is more than one entity', () => {
+    setup();
+    expect(screen.getByText('3 salespeople')).toBeInTheDocument();
+  });
+
+  it('uses the singular noun for the list count when there is exactly one entity', () => {
+    render(
+      <BulkTopUpModal
+        open
+        onClose={vi.fn()}
+        entities={[{ id: 1, name: 'Nandini' }]}
+        onSaved={vi.fn()}
+        notify={vi.fn()}
+        entryKey="brandId"
+        nounSingular="brand"
+        nounPlural="brands"
+      />
+    );
+    expect(screen.getByText('1 brand')).toBeInTheDocument();
+    expect(screen.queryByText('1 brands')).toBeNull();
+  });
 });
 
 describe('BulkTopUpModal — Select All', () => {
