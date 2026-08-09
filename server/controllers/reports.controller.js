@@ -532,12 +532,10 @@ const profitLoss = asyncHandler(async (req, res) => {
     return Number(hit ? hit.costPrice : product.costPrice);
   };
 
-  // Accumulate per salesperson (and per product within), an overall per-date
-  // series for the range view, and an overall per-product total across every
-  // salesperson combined — for the "All Salespeople" product breakdown.
+  // Accumulate per salesperson (and per product within), plus an overall
+  // per-date series for the range view.
   const bySalesperson = new Map();
   const byDate        = new Map();
-  const byProduct     = new Map();
 
   for (const dispatch of dispatches) {
     for (const item of dispatch.items) {
@@ -571,23 +569,6 @@ const profitLoss = asyncHandler(async (req, res) => {
       prod.revenue  += revenue;
       prod.cost     += cost;
 
-      if (!byProduct.has(item.productId)) {
-        byProduct.set(item.productId, {
-          productId:            item.productId,
-          productName:          item.product.name,
-          brandName:            item.product.brand?.name ?? null,
-          brandDisplayOrder:    item.product.brand?.displayOrder ?? 0,
-          category:             item.product.category ?? 'Other',
-          categoryDisplayOrder: catOrderMap.get(`${item.product.brand?.id}::${item.product.category}`) ?? 999,
-          displayOrder:         item.product.displayOrder ?? 0,
-          quantity: 0, revenue: 0, cost: 0,
-        });
-      }
-      const overallProd = byProduct.get(item.productId);
-      overallProd.quantity += qty;
-      overallProd.revenue  += revenue;
-      overallProd.cost     += cost;
-
       const key = dispatch.dispatchDate.toISOString();
       if (!byDate.has(key)) byDate.set(key, { date: dispatch.dispatchDate, revenue: 0, cost: 0 });
       const day = byDate.get(key);
@@ -596,14 +577,12 @@ const profitLoss = asyncHandler(async (req, res) => {
     }
   }
 
-  // Rounds each accumulated product row and sorts it into the same layout
-  // order as the salesman pricing tab and stock-receipt entry (brand →
-  // category → product display order → name), so a product sits in the same
-  // place here as everywhere else, rather than jumping around by profit rank
-  // on every date-range change. Shared by both the per-salesperson breakdown
-  // and the "All Salespeople" combined breakdown below.
-  const finalizeProducts = (productMap) =>
-    [...productMap.values()]
+  // Every active salesperson is listed, dispatches or not, so the sidebar shows
+  // the full roster the way Collections does.
+  const rows = salespeople.map((s) => {
+    const agg     = bySalesperson.get(s.id) ?? { revenue: 0, cost: 0, products: new Map() };
+    const profit  = agg.revenue - agg.cost;
+    const products = [...agg.products.values()]
       .map(p => ({
         ...p,
         quantity:        round2(p.quantity),
@@ -613,18 +592,16 @@ const profitLoss = asyncHandler(async (req, res) => {
         cost:            round2(p.cost),
         profit:          round2(p.revenue - p.cost),
       }))
+      // Same layout order as the salesman pricing tab and stock-receipt entry
+      // (brand → category → product display order → name), so a product sits
+      // in the same place here as everywhere else, rather than jumping around
+      // by profit rank on every date-range change.
       .sort((a, b) =>
         a.brandDisplayOrder - b.brandDisplayOrder ||
         a.categoryDisplayOrder - b.categoryDisplayOrder ||
         a.displayOrder - b.displayOrder ||
         a.productName.localeCompare(b.productName)
       );
-
-  // Every active salesperson is listed, dispatches or not, so the sidebar shows
-  // the full roster the way Collections does.
-  const rows = salespeople.map((s) => {
-    const agg    = bySalesperson.get(s.id) ?? { revenue: 0, cost: 0, products: new Map() };
-    const profit = agg.revenue - agg.cost;
 
     return {
       salespersonId: s.id,
@@ -634,7 +611,7 @@ const profitLoss = asyncHandler(async (req, res) => {
       cost:      round2(agg.cost),
       profit:    round2(profit),
       marginPct: marginPct(profit, agg.revenue),
-      products:  finalizeProducts(agg.products),
+      products,
     };
   });
 
@@ -663,9 +640,6 @@ const profitLoss = asyncHandler(async (req, res) => {
         marginPct: marginPct(totalProfit, totalRevenue),
       },
       daily,
-      // Product breakdown across every salesperson combined — same shape as
-      // each salesperson's own `products`, for the "All Salespeople" view.
-      products: finalizeProducts(byProduct),
       salespeople: rows,
     },
   });

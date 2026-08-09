@@ -223,9 +223,9 @@ export default function SalesmanProfitLoss() {
           </div>
 
           {/* ── Right detail panel ─────────────────────────────────────── */}
-          <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-6">
             {selected === ALL
-              ? <OverallPanel daily={data?.daily ?? []} products={data?.products ?? []} totals={totals} />
+              ? <OverallPanel daily={data?.daily ?? []} />
               : <SalespersonPanel sp={selectedSp} />}
           </div>
         </div>
@@ -234,75 +234,8 @@ export default function SalesmanProfitLoss() {
   );
 }
 
-/**
- * Product, Cost Price, Selling Price, Qty, Total, Profit/Loss — grouped
- * under brand headers, in the same layout order used everywhere else. Shared
- * by the "All Salespeople" combined view and each individual salesperson's
- * panel so both read as the same table.
- */
-function ProductBreakdownTable({ products, totalRevenue, totalProfit }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm" style={{ minWidth: 620 }}>
-        <thead>
-          <tr>
-            {['Product', 'Cost Price', 'Selling Price', 'Qty', 'Total', 'Profit/Loss'].map(h => (
-              <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
-                {h}
-                {h === 'Total' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Selling Price)</span>}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {groupByBrand(products).map(([brandName, items]) => {
-            const brandProfit = items.reduce((s, p) => s + p.profit, 0);
-            const brandTone   = toneFor(brandProfit);
-            return (
-              <Fragment key={brandName}>
-                <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                  <td colSpan={6} className="px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{brandName}</span>
-                      <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded-full border ${brandTone.bg} ${brandTone.text}`}>
-                        {formatCurrency(brandProfit)}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-                {items.map(p => {
-                  const pTone = toneFor(p.profit);
-                  return (
-                    <tr key={p.productId} className={`border-b border-slate-100 ${p.profit < 0 ? 'bg-red-50/40' : ''}`}>
-                      <td className="px-3 py-2.5 text-center">
-                        <span className="text-xs font-semibold text-slate-800">{p.productName}</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
-                      <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
-                      <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{p.quantity}</td>
-                      <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
-                      <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
-                    </tr>
-                  );
-                })}
-              </Fragment>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan={4} className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white">TOTAL</td>
-            <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(totalRevenue)}</td>
-            <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(totalProfit)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
-/** Day-by-day movement, plus the same product breakdown across every salesman combined. */
-function OverallPanel({ daily, products, totals }) {
+/** Day-by-day movement across every salesman. */
+function OverallPanel({ daily }) {
   if (daily.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
@@ -312,54 +245,40 @@ function OverallPanel({ daily, products, totals }) {
   }
 
   return (
-    <>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 bg-slate-700">
-          <h2 className="text-sm font-bold text-white">Daily Profit &amp; Loss</h2>
-          <p className="text-xs text-slate-400">{daily.length} day{daily.length !== 1 ? 's' : ''} with dispatches</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: 460 }}>
-            <thead>
-              <tr>
-                {['Date', 'Revenue', 'Cost', 'Profit / Loss'].map((h, i) => (
-                  <th key={h} className={`bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {daily.map(d => {
-                const tone = toneFor(d.profit);
-                return (
-                  <tr key={d.date} className={`border-b border-slate-100 ${d.profit < 0 ? 'bg-red-50/40' : ''}`}>
-                    <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
-                      {new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' })}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(d.revenue)}</td>
-                    <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(d.cost)}</td>
-                    <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${tone.text}`}>{formatCurrency(d.profit)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 bg-slate-700">
+        <h2 className="text-sm font-bold text-white">Daily Profit &amp; Loss</h2>
+        <p className="text-xs text-slate-400">{daily.length} day{daily.length !== 1 ? 's' : ''} with dispatches</p>
       </div>
-
-      {products.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 bg-slate-700">
-            <h2 className="text-sm font-bold text-white">Product Breakdown — All Salespeople</h2>
-            <p className="text-xs text-slate-400">
-              {products.length} product{products.length !== 1 ? 's' : ''} · margin {totals.marginPct}%
-            </p>
-          </div>
-          <ProductBreakdownTable products={products} totalRevenue={totals.revenue} totalProfit={totals.profit} />
-        </div>
-      )}
-    </>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: 460 }}>
+          <thead>
+            <tr>
+              {['Date', 'Revenue', 'Cost', 'Profit / Loss'].map((h, i) => (
+                <th key={h} className={`bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {daily.map(d => {
+              const tone = toneFor(d.profit);
+              return (
+                <tr key={d.date} className={`border-b border-slate-100 ${d.profit < 0 ? 'bg-red-50/40' : ''}`}>
+                  <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                    {new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' })}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(d.revenue)}</td>
+                  <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">{formatCurrency(d.cost)}</td>
+                  <td className={`px-3 py-2.5 text-right text-xs tabular-nums font-bold ${tone.text}`}>{formatCurrency(d.profit)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -390,7 +309,62 @@ function SalespersonPanel({ sp }) {
           {formatCurrency(sp.profit)}
         </span>
       </div>
-      <ProductBreakdownTable products={sp.products} totalRevenue={sp.revenue} totalProfit={sp.profit} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: 620 }}>
+          <thead>
+            <tr>
+              {['Product', 'Cost Price', 'Selling Price', 'Qty', 'Total', 'Profit/Loss'].map(h => (
+                <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                  {h}
+                  {h === 'Total' && <span className="block text-[9px] font-normal normal-case text-emerald-200 tracking-normal">(Qty × Selling Price)</span>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groupByBrand(sp.products).map(([brandName, items]) => {
+              const brandProfit = items.reduce((s, p) => s + p.profit, 0);
+              const brandTone   = toneFor(brandProfit);
+              return (
+                <Fragment key={brandName}>
+                  <tr className="bg-slate-100 border-l-4 border-emerald-500">
+                    <td colSpan={6} className="px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{brandName}</span>
+                        <span className={`text-xs font-bold tabular-nums px-2 py-0.5 rounded-full border ${brandTone.bg} ${brandTone.text}`}>
+                          {formatCurrency(brandProfit)}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {items.map(p => {
+                    const pTone = toneFor(p.profit);
+                    return (
+                      <tr key={p.productId} className={`border-b border-slate-100 ${p.profit < 0 ? 'bg-red-50/40' : ''}`}>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-xs font-semibold text-slate-800">{p.productName}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.avgCostPrice)}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.avgBilledPrice)}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{p.quantity}</td>
+                        <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(p.revenue)}</td>
+                        <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${pTone.text}`}>{formatCurrency(p.profit)}</td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={4} className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white">TOTAL</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(sp.revenue)}</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(sp.profit)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }
