@@ -200,12 +200,50 @@ describe('SalesmanProfitLoss — detail panel', () => {
     // The header for a brand appears before that brand's own product rows —
     // Nandini's header, then Toned Milk, then Jersey's header, then HTM 210ml.
     const rows = screen.getAllByRole('row').map(r => r.textContent);
-    const nandiniHeaderIdx = rows.findIndex(r => r === 'Nandini');
+    const nandiniHeaderIdx = rows.findIndex(r => r.includes('Nandini'));
     const tonedMilkIdx     = rows.findIndex(r => r.includes('Toned Milk'));
-    const jerseyHeaderIdx  = rows.findIndex(r => r === 'Jersey');
+    const jerseyHeaderIdx  = rows.findIndex(r => r.includes('Jersey'));
     const htmIdx           = rows.findIndex(r => r.includes('HTM 210ml'));
     expect(nandiniHeaderIdx).toBeLessThan(tonedMilkIdx);
     expect(tonedMilkIdx).toBeLessThan(jerseyHeaderIdx);
     expect(jerseyHeaderIdx).toBeLessThan(htmIdx);
+  });
+
+  it('shows a chip on the brand line with that brand\'s own total profit or loss', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        data: {
+          ...REPORT,
+          salespeople: [{
+            salespersonId: 1, name: 'K Pandu', route: 'Route 1',
+            revenue: 900, cost: 1000, profit: -100, marginPct: -11.11,
+            products: [
+              // Nandini: 500 + 300 = 800 profit
+              { productId: 1, productName: 'Toned Milk', brandName: 'Nandini', category: 'Milk',
+                quantity: 10, avgBilledPrice: 10, avgCostPrice: 8, revenue: 500, cost: 300, profit: 200 },
+              { productId: 2, productName: 'Curd 200g', brandName: 'Nandini', category: 'Curd',
+                quantity: 10, avgBilledPrice: 10, avgCostPrice: 4, revenue: 400, cost: 100, profit: 300 },
+              // Jersey: a standalone loss, so the two brand chips must differ.
+              { productId: 3, productName: 'HTM 210ml', brandName: 'Jersey', category: 'Milk',
+                quantity: 10, avgBilledPrice: 10, avgCostPrice: 16, revenue: 0, cost: 600, profit: -600 },
+            ],
+          }],
+        },
+      },
+    });
+    await renderPage();
+    fireEvent.click(screen.getByText('K Pandu'));
+    await screen.findByText('Toned Milk');
+
+    const nandiniHeader = screen.getByText('Nandini').closest('tr');
+    const jerseyHeader  = screen.getByText('Jersey').closest('tr');
+
+    // Nandini nets to +500 (200 + 300) — a profit chip.
+    const nandiniChip = within(nandiniHeader).getByText(/500/);
+    expect(nandiniChip.className).toContain('text-emerald-600');
+
+    // Jersey has just the one loss-making line — a loss chip.
+    const jerseyChip = within(jerseyHeader).getByText(/600/);
+    expect(jerseyChip.className).toContain('text-red-600');
   });
 });
