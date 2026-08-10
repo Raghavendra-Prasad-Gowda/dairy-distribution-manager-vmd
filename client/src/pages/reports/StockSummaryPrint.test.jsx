@@ -124,6 +124,10 @@ describe('StockSummaryPrint — printing', () => {
   it('the manual Print button calls window.print() immediately', async () => {
     renderWithParams('from=2026-08-05&to=2026-08-05');
     await screen.findByText('GRAND TOTAL');
+    // A real (non-fake-timer) setTimeout from an earlier test's auto-print
+    // can still be pending and fire mid-suite — clear the count right before
+    // the assertion so this test only measures its own click.
+    vi.mocked(window.print).mockClear();
     screen.getByText('Print / Save PDF').click();
     expect(window.print).toHaveBeenCalledTimes(1);
   });
