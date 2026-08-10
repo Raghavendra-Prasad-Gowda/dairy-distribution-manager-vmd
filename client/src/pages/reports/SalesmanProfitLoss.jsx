@@ -225,7 +225,7 @@ export default function SalesmanProfitLoss() {
           {/* ── Right detail panel ─────────────────────────────────────── */}
           <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-6">
             {selected === ALL
-              ? <OverallPanel daily={data?.daily ?? []} />
+              ? <OverallPanel daily={data?.daily ?? []} totals={totals} />
               : <SalespersonPanel sp={selectedSp} />}
           </div>
         </div>
@@ -235,7 +235,7 @@ export default function SalesmanProfitLoss() {
 }
 
 /** Day-by-day movement across every salesman. */
-function OverallPanel({ daily }) {
+function OverallPanel({ daily, totals }) {
   if (daily.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
@@ -277,6 +277,15 @@ function OverallPanel({ daily }) {
               );
             })}
           </tbody>
+          <tfoot>
+            <tr>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white">TOTAL</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(totals.cost)}</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(totals.revenue)}</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(totals.profit)}</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{totals.marginPct}%</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

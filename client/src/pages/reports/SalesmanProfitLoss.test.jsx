@@ -155,6 +155,20 @@ describe('SalesmanProfitLoss — sidebar', () => {
     for (const td of dataRow.querySelectorAll('td')) expect(td.className).toContain('text-center');
     expect(within(dataRow).getByText('21.67%')).toBeInTheDocument();
   });
+
+  it('shows a TOTAL footer row with the overall cost/revenue/profit/margin', async () => {
+    await renderPage();
+
+    const footerRow = screen.getByText('TOTAL').closest('tr');
+    const cells = within(footerRow).getAllByRole('cell').map(c => c.textContent);
+    expect(cells).toEqual(['TOTAL', '₹4,700.00', '₹6,000.00', '₹1,300.00', '21.67%']);
+  });
+
+  it('omits the footer when there are no daily rows', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: { ...REPORT, daily: [] } } });
+    await renderPage();
+    expect(screen.queryByText('TOTAL')).toBeNull();
+  });
 });
 
 describe('SalesmanProfitLoss — detail panel', () => {
