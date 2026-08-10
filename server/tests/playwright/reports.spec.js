@@ -630,6 +630,80 @@ test.describe('GET /api/v1/reports/deposit-summary', () => {
     expect(body.data.rows[1].runningTotal).toBeCloseTo(150, 2);
     expect(body.data.totalDeposit).toBeCloseTo(150, 2);
   });
+
+  // A manual top-up (DairyDepositTopUp) represents a deposit balance carried
+  // over from before the app was used — it must count toward the running
+  // total even when it predates the requested `from`, and every test above
+  // this point never mocks dairyDepositTopUp at all, so this path (and the
+  // two below) were previously exercised only by the mock's silent "no
+  // top-up" default, never by an actual carry-forward value.
+  test('carries a top-up recorded before "from" forward into openingDeposit and every running total', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([{
+      receiptDate: new Date('2026-04-15'), quantity: 1000, unitPrice: 22,
+      product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true },
+    }]);
+    ctx.mockPrisma.dairyDepositTopUp.findMany.mockResolvedValue([]); // none inside the range itself
+    ctx.mockPrisma.dairyDepositTopUp.aggregate.mockResolvedValue({ _sum: { amount: 500 } }); // recorded before `from`
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.openingDeposit).toBe(500);
+    // Running total starts from the carried-forward 500, plus this day's 100.
+    expect(body.data.rows[0].runningTotal).toBeCloseTo(600, 2);
+    expect(body.data.totalDeposit).toBeCloseTo(600, 2);
+  });
+
+  test('a top-up on a day with no receipts still appears as its own dated row', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dairyDepositTopUp.findMany.mockResolvedValue([
+      { id: 1, topUpDate: new Date('2026-04-10'), amount: 250, notes: 'legacy crate deposit', createdBy: 'admin' },
+    ]);
+    ctx.mockPrisma.dairyDepositTopUp.aggregate.mockResolvedValue({ _sum: { amount: null } });
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.rows).toHaveLength(1);
+    expect(body.data.rows[0].dailyDeposit).toBe(250);
+    expect(body.data.rows[0].items).toHaveLength(1);
+    expect(body.data.rows[0].items[0]).toMatchObject({ isTopUp: true, depositAmount: 250, notes: 'legacy crate deposit', createdBy: 'admin' });
+    expect(body.data.totalDeposit).toBe(250);
+  });
+
+  test('a top-up on the same day as receipts merges into that day\'s row instead of a duplicate date', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ name: 'Milk', depositEnabled: true }]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([{
+      receiptDate: new Date('2026-04-15'), quantity: 1000, unitPrice: 22,
+      product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true },
+    }]);
+    ctx.mockPrisma.dairyDepositTopUp.findMany.mockResolvedValue([
+      { id: 1, topUpDate: new Date('2026-04-15'), amount: 50, notes: null, createdBy: 'admin' },
+    ]);
+    ctx.mockPrisma.dairyDepositTopUp.aggregate.mockResolvedValue({ _sum: { amount: null } });
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // Receipt deposit (100) + top-up (50) on the SAME date → one row, not two.
+    expect(body.data.rows).toHaveLength(1);
+    expect(body.data.rows[0].items).toHaveLength(2); // top-up line + the receipt line
+    expect(body.data.rows[0].dailyDeposit).toBeCloseTo(150, 2);
+  });
 });
 
 // ─── GET /api/v1/reports/daily-dispatch ──────────────────────────────────────
