@@ -54,7 +54,9 @@ export default function SalespersonBalance() {
   // History totals
   const histTotalBill    = history.reduce((s, e) => s + e.stockGiven, 0);
   const histTotalPaid    = history.reduce((s, e) => s + e.amountPaid, 0);
-  const histLastBalance  = history[history.length - 1]?.closingBalance ?? 0;
+  // The API returns history newest-first (balanceDate desc), so the most
+  // recent day's balance is the FIRST entry, not the last.
+  const histLastBalance  = history[0]?.closingBalance ?? 0;
   const histBalOwing     = histLastBalance > 0;
   const histBalCredit    = histLastBalance < 0;
 
