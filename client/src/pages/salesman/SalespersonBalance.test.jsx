@@ -174,6 +174,24 @@ describe('SalespersonBalance — history', () => {
     expect(within(mobileFooter).queryByText('₹50.00')).toBeNull();
   });
 
+  it('renders rows oldest-first (ascending), even though the API returns them newest-first', async () => {
+    mockApi({ items: [
+      historyEntry({ balanceDate: '2026-08-11T00:00:00.000Z', stockGiven: 111, amountPaid: 11 }),
+      historyEntry({ balanceDate: '2026-08-10T00:00:00.000Z', stockGiven: 222, amountPaid: 22 }),
+      historyEntry({ balanceDate: '2026-08-08T00:00:00.000Z', stockGiven: 333, amountPaid: 33 }),
+    ] });
+    const { container } = await renderPage();
+
+    const desktopTable = container.querySelector('.hidden.md\\:block');
+    const desktopDates = within(desktopTable).getAllByText(/\d{1,2} Aug 2026/).map(el => el.textContent);
+    expect(desktopDates).toEqual(['8 Aug 2026', '10 Aug 2026', '11 Aug 2026']);
+
+    const mobileList = container.querySelector('.md\\:hidden');
+    // Mobile splits day/month into separate <p> tags — read the day pill order instead.
+    const mobileDays = within(mobileList).getAllByText(/^(08|10|11)$/).map(el => el.textContent);
+    expect(mobileDays).toEqual(['08', '10', '11']);
+  });
+
   it('paginates when there is more than one page', async () => {
     mockApi({
       items: [historyEntry()],
