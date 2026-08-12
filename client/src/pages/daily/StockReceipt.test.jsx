@@ -233,3 +233,33 @@ describe('StockReceipt — category layout order', () => {
     expect(!!(amulHeader.compareDocumentPosition(zedHeader) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 });
+
+// ─── Crate display precision ──────────────────────────────────────────────
+// Regression: several crate figures on this page (line, category badge,
+// route summary card, footer total) previously rounded to 1 decimal place
+// via .toFixed(1), while the line-level calcContainerDisplay() helper was
+// already .toFixed(2) — producing "1.5" next to "1.46" for the same data.
+// All of them must now agree at 2 decimals.
+
+describe('StockReceipt — crate display precision', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+
+  it('shows the same 2-decimal crate figure at the line, category, route-card, and footer levels', async () => {
+    // 35 units / 24 per crate = 1.4583... -> must render as "1.46" everywhere,
+    // not "1.5" (old 1-decimal rounding) and not "1" (old flooring).
+    const product = makeProduct({ id: 1, name: 'Milk 500ml', category: 'Milk', unitsPerContainer: 24 });
+    const receipts = [{ routeId: 1, productId: 1, quantity: 35 }];
+
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts });
+    render(<StockReceipt />);
+
+    await screen.findByText('Milk 500ml');
+
+    const matches = await screen.findAllByText((content) => content.includes('1.46') && content.includes('Crate'));
+    expect(matches.length).toBeGreaterThanOrEqual(4); // line + category badge + route card + footer
+
+    // None of the old rounding artifacts should be present.
+    expect(screen.queryByText((content) => content.includes('1.5 Crate'))).not.toBeInTheDocument();
+    expect(screen.queryByText((content) => /^1 Crate/.test(content))).not.toBeInTheDocument();
+  });
+});

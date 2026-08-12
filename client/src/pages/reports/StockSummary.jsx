@@ -6,7 +6,7 @@ import api from '../../api/axios';
 
 function fmtCrates(qty, upc) {
   const c = upc ? qty / upc : qty;
-  return Number.isInteger(c) ? String(c) : c.toFixed(1);
+  return Number.isInteger(c) ? String(c) : c.toFixed(2);
 }
 
 function fmtPrice(p) {
@@ -360,7 +360,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                 </td>
                                 <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
                                   {brand.hasCrates
-                                    ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1))
+                                    ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(2))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
                                 <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
@@ -480,7 +480,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                           <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider border-r border-slate-600">Grand Total</td>
                           <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                             {grandHasCrates
-                              ? (Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1))
+                              ? (Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(2))
                               : <span className="text-slate-500">—</span>}
                           </td>
                           <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">

@@ -8,6 +8,12 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import ConfirmationModal from '../../components/ConfirmationModal';
 
+// Whole crate counts render plain; a partial crate shows to 2 decimal
+// places — the same precision level as every other crate figure in the app.
+function formatCrates(crates) {
+  return Number.isInteger(crates) ? String(crates) : crates.toFixed(2);
+}
+
 export default function DailyDispatchSummary() {
   const [date, setDate]                       = useState(getIndiaDate());
   const [data, setData]                       = useState(null);
@@ -102,7 +108,7 @@ export default function DailyDispatchSummary() {
             const entry     = selectedRow.items[p.productId];
             const qty       = entry?.qty ?? 0;
             const unitPrice = entry?.unitPrice ?? null;
-            const crates    = (p.unitsPerContainer > 0) ? Math.floor(qty / p.unitsPerContainer) : null;
+            const crates    = (p.unitsPerContainer > 0) ? qty / p.unitsPerContainer : null;
             return {
               productId:   p.productId,
               productName: p.productName,
@@ -395,7 +401,7 @@ export default function DailyDispatchSummary() {
                                           </span>
                                           {brand.brandCratesTotal > 0 && (
                                             <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">
-                                              {brand.brandCratesTotal} crates
+                                              {formatCrates(brand.brandCratesTotal)} crates
                                             </span>
                                           )}
                                           {brand.brandAmountTotal > 0 && (
@@ -417,7 +423,7 @@ export default function DailyDispatchSummary() {
                                       {p.qty > 0 ? p.qty : <span className="text-slate-300 font-normal">—</span>}
                                     </td>
                                     <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
-                                      {(p.crates != null && p.qty > 0) ? p.crates : <span className="text-slate-300">—</span>}
+                                      {(p.crates != null && p.qty > 0) ? formatCrates(p.crates) : <span className="text-slate-300">—</span>}
                                     </td>
                                     <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-500">
                                       {(p.unitPrice != null && p.qty > 0) ? formatCurrency(p.unitPrice) : <span className="text-slate-300">—</span>}
@@ -436,7 +442,7 @@ export default function DailyDispatchSummary() {
                                       {brand.brandQtyTotal > 0 ? brand.brandQtyTotal : '—'}
                                     </td>
                                     <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
-                                      {brand.brandCratesTotal > 0 ? brand.brandCratesTotal : '—'}
+                                      {brand.brandCratesTotal > 0 ? formatCrates(brand.brandCratesTotal) : '—'}
                                     </td>
                                     <td className="px-3 py-2.5" />
                                     <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700 tabular-nums">
@@ -460,7 +466,7 @@ export default function DailyDispatchSummary() {
                             </td>
                             <td className="bg-slate-700 px-3 py-2.5 text-right border-t-2 border-slate-600 whitespace-nowrap">
                               {tableTotals.crates > 0
-                                ? <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{tableTotals.crates} crates</span>
+                                ? <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold tabular-nums">{formatCrates(tableTotals.crates)} crates</span>
                                 : <span className="text-sm font-bold text-amber-300">—</span>}
                             </td>
                             <td className="bg-slate-700 px-3 py-2.5 border-t-2 border-slate-600" />
@@ -482,7 +488,7 @@ export default function DailyDispatchSummary() {
                   <p className="text-xs text-slate-500 mt-0.5 truncate">
                     {selectedRow.salespersonName}
                     {tableTotals.qty > 0 && <span className="font-semibold text-emerald-600"> · {tableTotals.qty} units</span>}
-                    {tableTotals.crates > 0 && <span className="font-semibold text-amber-600"> · {tableTotals.crates} crates</span>}
+                    {tableTotals.crates > 0 && <span className="font-semibold text-amber-600"> · {formatCrates(tableTotals.crates)} crates</span>}
                   </p>
                 </div>
                 <p className="text-lg font-extrabold text-emerald-700 tabular-nums flex-shrink-0">

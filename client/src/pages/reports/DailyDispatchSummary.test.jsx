@@ -180,6 +180,30 @@ describe('DailyDispatchSummary — product table', () => {
   });
 });
 
+describe('DailyDispatchSummary — crate display precision', () => {
+  it('shows the same 2-decimal crate figure at the product, brand, and grand-total levels', async () => {
+    // 35 units / 24 per crate = 1.4583... -> must render as "1.46" everywhere,
+    // not "1" (old flooring).
+    mockApi({
+      brands: [brand({ products: [{ productId: 10, productName: 'Toned Milk', unitsPerContainer: 24 }] })],
+      rows: [row({ items: { 10: { qty: 35, unitPrice: 20 } }, totalAmount: 700 })],
+    });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    // Collapsed brand header badge (single product, brand collapsed by default)
+    const brandRow = screen.getByText('Nandini').closest('tr');
+    expect(within(brandRow).getByText('1.46 crates')).toBeInTheDocument();
+
+    expandBrand('Nandini');
+    const productRow = screen.getByText('Toned Milk').closest('tr');
+    expect(within(productRow).getByText('1.46')).toBeInTheDocument();
+
+    // No floored "1" crate figure anywhere.
+    expect(screen.queryByText('1 crates')).not.toBeInTheDocument();
+  });
+});
+
 describe('DailyDispatchSummary — lock / unlock', () => {
   it('confirms before locking a submitted dispatch', async () => {
     render(<DailyDispatchSummary />);

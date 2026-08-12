@@ -6,6 +6,12 @@ import DateSelector from '../../components/DateSelector';
 import { getIndiaDate } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
+// Whole crate counts render plain; a partial crate shows to 2 decimal
+// places — the same precision level as every other crate figure in the app.
+function formatCrates(crates) {
+  return Number.isInteger(crates) ? String(crates) : crates.toFixed(2);
+}
+
 export default function StockBalanceSummary() {
   const [date, setDate]                   = useState(getIndiaDate());
   const [brands, setBrands]               = useState([]);
@@ -64,7 +70,7 @@ export default function StockBalanceSummary() {
         const crates = products.reduce((s, p) => {
           if (!(p.unitsPerContainer > 0)) return s;
           const qty = row.items[p.productId]?.qty ?? 0;
-          return s + Math.floor(qty / p.unitsPerContainer);
+          return s + qty / p.unitsPerContainer;
         }, 0);
         return { salespersonId: row.salespersonId, salespersonName: row.salespersonName, items: row.items, brandQty, crates };
       })
@@ -127,8 +133,8 @@ export default function StockBalanceSummary() {
       const unitsPerContainer = product?.unitsPerContainer > 0 ? product.unitsPerContainer : null;
       return {
         productId: c.productId,
-        cratesReceived: unitsPerContainer ? Math.floor(c.received / unitsPerContainer) : 0,
-        cratesDispatched: unitsPerContainer ? Math.floor(c.dispatched / unitsPerContainer) : 0,
+        cratesReceived: unitsPerContainer ? c.received / unitsPerContainer : 0,
+        cratesDispatched: unitsPerContainer ? c.dispatched / unitsPerContainer : 0,
       };
     });
   }, [visibleColTotals, visibleProducts]);
@@ -205,11 +211,11 @@ export default function StockBalanceSummary() {
             </div>
             <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
               <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wide">Crates Received</span>
-              <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesReceived || '—'}</span>
+              <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesReceived ? formatCrates(grandTotals.cratesReceived) : '—'}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-lg px-3 py-1.5">
               <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wide">Crates Dispatched</span>
-              <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesDispatched || '—'}</span>
+              <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesDispatched ? formatCrates(grandTotals.cratesDispatched) : '—'}</span>
             </div>
             {(showEmptyProducts || visibleProducts.length < products.length) && (
               <button
@@ -326,7 +332,7 @@ export default function StockBalanceSummary() {
                           className="px-2 py-2 text-center text-sm tabular-nums font-bold text-violet-700 border-b border-slate-100 bg-violet-50/40"
                           style={{ minWidth: 60 }}
                         >
-                          {row.crates > 0 ? row.crates : <span className="text-violet-200">—</span>}
+                          {row.crates > 0 ? formatCrates(row.crates) : <span className="text-violet-200">—</span>}
                         </td>
                       </tr>
                     ))}
@@ -348,7 +354,7 @@ export default function StockBalanceSummary() {
                         {grandTotals.dispatched > 0 ? grandTotals.dispatched : '—'}
                       </td>
                       <td className="bg-slate-600 px-2 py-2.5 text-center text-sm font-bold text-white border-t-2">
-                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
+                        {grandTotals.cratesDispatched > 0 ? formatCrates(grandTotals.cratesDispatched) : '—'}
                       </td>
                     </tr>
 
@@ -366,7 +372,7 @@ export default function StockBalanceSummary() {
                         {grandTotals.remaining !== 0 ? grandTotals.remaining : '0'}
                       </td>
                       <td className={`px-2 py-2.5 text-center text-sm font-bold ${remBg(grandTotals.crateShortage)} ${remColor(grandTotals.crateShortage)}`}>
-                        {grandTotals.crateShortage !== 0 ? grandTotals.crateShortage : '0'}
+                        {grandTotals.crateShortage !== 0 ? formatCrates(grandTotals.crateShortage) : '0'}
                       </td>
                     </tr>
 
@@ -384,7 +390,7 @@ export default function StockBalanceSummary() {
                         {grandTotals.received > 0 ? grandTotals.received : '—'}
                       </td>
                       <td className="bg-blue-700 px-2 py-2.5 text-center text-sm font-bold text-white">
-                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
+                        {grandTotals.cratesReceived > 0 ? formatCrates(grandTotals.cratesReceived) : '—'}
                       </td>
                     </tr>
 
@@ -395,14 +401,14 @@ export default function StockBalanceSummary() {
                       </td>
                       {crateData.map(c => (
                         <td key={c.productId} className="bg-violet-700 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-600">
-                          {c.cratesReceived > 0 ? c.cratesReceived : <span className="text-violet-400">—</span>}
+                          {c.cratesReceived > 0 ? formatCrates(c.cratesReceived) : <span className="text-violet-400">—</span>}
                         </td>
                       ))}
                       <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white border-r border-violet-600">
-                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
+                        {grandTotals.cratesReceived > 0 ? formatCrates(grandTotals.cratesReceived) : '—'}
                       </td>
                       <td className="bg-violet-700 px-2 py-2.5 text-center text-sm font-bold text-white">
-                        {grandTotals.cratesReceived > 0 ? grandTotals.cratesReceived : '—'}
+                        {grandTotals.cratesReceived > 0 ? formatCrates(grandTotals.cratesReceived) : '—'}
                       </td>
                     </tr>
 
@@ -413,14 +419,14 @@ export default function StockBalanceSummary() {
                       </td>
                       {crateData.map(c => (
                         <td key={c.productId} className="bg-violet-600 px-2 py-2.5 text-center text-sm tabular-nums font-bold text-white border-r border-violet-500">
-                          {c.cratesDispatched > 0 ? c.cratesDispatched : <span className="text-violet-300">—</span>}
+                          {c.cratesDispatched > 0 ? formatCrates(c.cratesDispatched) : <span className="text-violet-300">—</span>}
                         </td>
                       ))}
                       <td className="bg-violet-600 px-2 py-2.5 text-center text-sm font-bold text-white border-r border-violet-500">
-                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
+                        {grandTotals.cratesDispatched > 0 ? formatCrates(grandTotals.cratesDispatched) : '—'}
                       </td>
                       <td className="bg-violet-600 px-2 py-2.5 text-center text-sm font-bold text-white">
-                        {grandTotals.cratesDispatched > 0 ? grandTotals.cratesDispatched : '—'}
+                        {grandTotals.cratesDispatched > 0 ? formatCrates(grandTotals.cratesDispatched) : '—'}
                       </td>
                     </tr>
                   </tfoot>
