@@ -87,7 +87,7 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
           <p className="text-[11px] tabular-nums leading-tight">
             {totalCrates > 0 && (
               <span className="font-bold text-emerald-300">
-                {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} {crateLabel}{totalCrates !== 1 ? 's' : ''}
+                {Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} {crateLabel}{totalCrates !== 1 ? 's' : ''}
               </span>
             )}
             {totalCrates > 0 && totalUnits > 0 && <span className="text-emerald-300"> · </span>}
@@ -101,7 +101,7 @@ function BrandHeader({ brand, collapsed, totalValue, totalCrates, crateLabel, to
 
 function CategoryHeader({ name, collapsed, totalUnits, totalAmount, totalCrates = 0, crateLabel = 'Crate', onClick }) {
   const cratesLabel = totalCrates > 0
-    ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(1)} ${crateLabel}${totalCrates !== 1 ? 's' : ''}`
+    ? `${Number.isInteger(totalCrates) ? totalCrates : totalCrates.toFixed(2)} ${crateLabel}${totalCrates !== 1 ? 's' : ''}`
     : null;
 
   return (
@@ -470,7 +470,7 @@ export default function SalespersonStockEntry() {
                       <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(b.value)}</p>
                       {b.crates > 0 && (
                         <p className="text-xs font-bold text-amber-800 tabular-nums">
-                          {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(1)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
+                          {Number.isInteger(b.crates) ? b.crates : b.crates.toFixed(2)} {b.crateLabel}{b.crates !== 1 ? 's' : ''}
                         </p>
                       )}
                     </div>
@@ -485,7 +485,7 @@ export default function SalespersonStockEntry() {
                     <p className="text-sm font-bold text-amber-900 tabular-nums">{formatCurrency(grandTotal.value)}</p>
                     {grandTotal.crates > 0 && (
                       <p className="text-xs font-bold text-amber-800 tabular-nums">
-                        ({Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates)
+                        ({Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(2)} Crates)
                       </p>
                     )}
                   </div>
@@ -711,7 +711,7 @@ export default function SalespersonStockEntry() {
                   <p className="text-xs text-emerald-400 mt-0.5">
                     {filledCount} product{filledCount !== 1 ? 's' : ''} · {totalUnits} units
                     {grandTotal.crates > 0 && (
-                      <span className="font-bold"> · {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(1)} Crates</span>
+                      <span className="font-bold"> · {Number.isInteger(grandTotal.crates) ? grandTotal.crates : grandTotal.crates.toFixed(2)} Crates</span>
                     )}
                     {grandTotal.litres > 0 && (
                       <span className="font-bold text-blue-300"> · {formatLitres(grandTotal.litres)}</span>

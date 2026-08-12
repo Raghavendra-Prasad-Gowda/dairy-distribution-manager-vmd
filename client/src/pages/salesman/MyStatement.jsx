@@ -5,12 +5,14 @@ import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/da
 import api from '../../api/axios';
 
 // ─── Item-level crates/litres, computed once when the statement loads ─────────
-// Crates: floor(quantity / unitsPerContainer) — same convention as the admin
-// Daily Dispatch Summary. Litres: only 'ml' products count (quantity × ml ÷ 1000);
-// gram-measured items (ghee, butter etc.) don't contribute litres.
+// Crates: quantity ÷ unitsPerContainer, kept at full precision here (not
+// floored/rounded) so summing across items/days never drifts — matches the
+// same "keep precision, only round at render" convention Stock Entry uses.
+// Litres: only 'ml' products count (quantity × ml ÷ 1000); gram-measured
+// items (ghee, butter etc.) don't contribute litres.
 function withComputedFields(items) {
   return (items ?? []).map((item) => {
-    const crates = item.unitsPerContainer > 0 ? Math.floor(item.quantity / item.unitsPerContainer) : 0;
+    const crates = item.unitsPerContainer > 0 ? item.quantity / item.unitsPerContainer : 0;
     const litres = item.unitType === 'ml' && item.unitSize > 0 ? (item.quantity * item.unitSize) / 1000 : 0;
     return { ...item, crates, litres };
   });
@@ -18,6 +20,12 @@ function withComputedFields(items) {
 
 function formatLitres(litres) {
   return `${litres.toLocaleString('en-IN', { maximumFractionDigits: 1 })} L`;
+}
+
+// Whole crate counts render plain; a partial crate shows to 2 decimal places
+// — the salesman-facing precision level, same as Stock Entry's own display.
+function formatCrates(crates) {
+  return Number.isInteger(crates) ? String(crates) : crates.toFixed(2);
 }
 
 // ─── Shared breakdown panel (mobile cards + desktop expanded rows) ─────────────
@@ -66,7 +74,7 @@ function BreakdownPanel({ row }) {
                   <div className="flex items-center gap-1.5">
                     {group.crates > 0 && (
                       <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full tabular-nums">
-                        {group.crates} crates
+                        {formatCrates(group.crates)} crates
                       </span>
                     )}
                     {group.litres > 0 && (
@@ -102,7 +110,7 @@ function BreakdownPanel({ row }) {
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-auto">Total</span>
               {rowTotals.crates > 0 && (
                 <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full tabular-nums">
-                  {rowTotals.crates} crates
+                  {formatCrates(rowTotals.crates)} crates
                 </span>
               )}
               {rowTotals.litres > 0 && (
@@ -365,7 +373,7 @@ export default function MyStatement() {
                   <Box size={11} /> Total Crates
                 </p>
                 <p className="text-sm font-bold text-amber-700 tabular-nums leading-tight">
-                  {totalCrates.toLocaleString('en-IN')}
+                  {formatCrates(totalCrates)}
                 </p>
               </div>
               <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl shadow-sm p-3 text-center">

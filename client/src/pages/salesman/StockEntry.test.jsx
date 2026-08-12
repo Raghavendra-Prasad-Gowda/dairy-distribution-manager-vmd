@@ -158,3 +158,33 @@ describe('StockEntry — brand → category → product layout order', () => {
     expect(isBefore(amul, zed)).toBe(true);
   });
 });
+
+describe('StockEntry — crate display precision', () => {
+  // 35 units / 24 per crate = 1.4583... — the line, category, brand, and
+  // grand-total crate figures must all agree at 2 decimal places (they
+  // previously drifted: the line showed 2 decimals, the totals rounded to 1).
+  const PARTIAL_CRATE_PRODUCT = product({
+    productId: 1, productName: 'HTM 490ml', brandId: 1, brandName: 'Jersey',
+    category: 'Milk', unitType: 'ml', unitSize: 490,
+    containerType: 'crate', unitsPerContainer: 24,
+  });
+
+  function mockApiWithDispatch(products, quantity) {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))             return Promise.resolve({ data: { data: products } });
+      if (url.includes('/dispatches'))         return Promise.resolve({ data: { data: [{ id: 1, items: [{ productId: 1, quantity, unitPrice: 0 }] }] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: null } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('shows the same 2-decimal crate figure at the line, category, brand, and grand-total levels', async () => {
+    mockApiWithDispatch([PARTIAL_CRATE_PRODUCT], 35);
+    await renderExpanded();
+
+    // With a single product, the line/category/brand/grand-total figures are
+    // all numerically identical — every one of them must read "1.46 Crates".
+    expect(screen.getAllByText('1.46 Crates').length).toBeGreaterThanOrEqual(4);
+    expect(screen.queryByText(/^1\.5 /)).toBeNull(); // the old 1-decimal rounding must not reappear
+  });
+});
