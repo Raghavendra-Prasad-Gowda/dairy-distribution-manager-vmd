@@ -18,7 +18,7 @@ const todayOrLaterDateString = (msg = 'Effective date must be today or later') =
 // for the day about to start still goes through). The client's DateSelector
 // enforces the same today+1 ceiling — this is the server-side backstop so it
 // can't be bypassed by calling the API directly.
-const notBeyondTomorrowDateString = (msg = 'Date cannot be more than one day in the future') =>
+const notBeyondTomorrowDateString = (msg = 'You can only enter stock for today or tomorrow. Please pick an earlier date.') =>
   z.string()
     .regex(DATE_REGEX, 'Date must be YYYY-MM-DD')
     .refine((v) => v <= getIndiaTomorrowStr(), { message: msg });

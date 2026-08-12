@@ -136,11 +136,11 @@ test.describe('notBeyondTomorrowDateString — used by stock receipts / dispatch
     expect(validate(schemas.bulkStockReceipt, req, makeRes())).not.toBeNull();
   });
 
-  test('rejects a date more than one day in the future, with a range-specific message', () => {
+  test('rejects a date more than one day in the future, with an actionable message', () => {
     const req = { body: { brandId: 1, date: '2099-01-01', items: [] } };
     const res = makeRes();
     expect(validate(schemas.bulkStockReceipt, req, res)).toBeNull();
-    expect(res.body.error).toMatch(/more than one day in the future/);
+    expect(res.body.error).toMatch(/only enter stock for today or tomorrow/);
   });
 
   test('rejects an invalid date format, including the format-specific message', () => {
@@ -158,6 +158,6 @@ test.describe('notBeyondTomorrowDateString — used by stock receipts / dispatch
     const req = { body: { dispatchDate: '2099-01-01', items: [] } };
     const res = makeRes();
     expect(validate(schemas.createDispatch, req, res)).toBeNull();
-    expect(res.body.error).toMatch(/more than one day in the future/);
+    expect(res.body.error).toMatch(/only enter stock for today or tomorrow/);
   });
 });
