@@ -8,6 +8,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockDairyCascade } = require('../helpers/mock-cascade');
+const { getIndiaTomorrowStr } = require('../../utils/dateUtils');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -179,6 +180,28 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     const res = await request.post('/api/v1/stock-receipts/bulk', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { brandId: 1, date: '30-04-2026', items: [{ productId: 1, quantity: 100, unitPrice: 22 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('accepts date = tomorrow — one day ahead is allowed', async ({ request }) => {
+    ctx.mockPrisma.$transaction.mockResolvedValue([RECEIPT]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1, unitsPerContainer: 24 }]);
+
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { ...validPayload, date: getIndiaTomorrowStr() },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('returns 400 when date is more than one day in the future', async ({ request }) => {
+    // A stock guard against physically impossible entries — nobody can
+    // receive stock for a date further out than tomorrow.
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, date: '2099-01-01', items: [{ productId: 1, quantity: 100, unitPrice: 22 }] },
     });
     expect(res.status()).toBe(400);
   });

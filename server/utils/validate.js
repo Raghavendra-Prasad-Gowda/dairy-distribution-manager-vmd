@@ -1,6 +1,6 @@
 const { z } = require('zod');
 const AppError = require('./AppError');
-const { getIndiaDateStr } = require('./dateUtils');
+const { getIndiaDateStr, getIndiaTomorrowStr } = require('./dateUtils');
 
 // ─── Shared building blocks ──────────────────────────────────────────────────
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,6 +12,16 @@ const todayOrLaterDateString = (msg = 'Effective date must be today or later') =
   z.string()
     .regex(DATE_REGEX, 'Date must be YYYY-MM-DD')
     .refine((v) => v >= getIndiaDateStr(), { message: msg });
+// For stock receipts and dispatches: no one can physically receive or hand
+// out stock they don't have yet, so a date can't run ahead of "today or
+// tomorrow" (tomorrow stays allowed so an entry made just after IST midnight
+// for the day about to start still goes through). The client's DateSelector
+// enforces the same today+1 ceiling — this is the server-side backstop so it
+// can't be bypassed by calling the API directly.
+const notBeyondTomorrowDateString = (msg = 'You can only enter stock for today or tomorrow. Please pick an earlier date.') =>
+  z.string()
+    .regex(DATE_REGEX, 'Date must be YYYY-MM-DD')
+    .refine((v) => v <= getIndiaTomorrowStr(), { message: msg });
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Online'];
 const paymentMode  = z.enum(PAYMENT_MODES).optional();
 const shortText    = z.string().max(500).optional();
@@ -100,7 +110,7 @@ const schemas = {
   // on this day", and the controller filters those out before insert)
   bulkStockReceipt: z.object({
     brandId: z.number().int().positive(),
-    date:    dateString(),
+    date:    notBeyondTomorrowDateString(),
     routeId: z.number().int().nonnegative().optional().default(0),
     items: z.array(z.object({
       productId: z.number().int().positive(),
@@ -203,7 +213,7 @@ const schemas = {
   // Dispatch (salespersonId optional — server injects it for salesman role)
   createDispatch: z.object({
     salespersonId: z.number().int().positive().optional(),
-    dispatchDate:  dateString(),
+    dispatchDate:  notBeyondTomorrowDateString(),
     // Empty items means "clear my draft for this date" — the controller
     // deletes the existing dispatch (if any) and cascades the balance.
     items: z.array(z.object({

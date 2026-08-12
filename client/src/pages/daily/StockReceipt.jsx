@@ -366,7 +366,7 @@ export default function StockReceipt() {
                   const isActive = ri === activeRouteIdx;
                   const hasData  = s.units > 0;
                   const crateVal = s.crateType && s.crates > 0
-                    ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(1)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
+                    ? `${Number.isInteger(s.crates) ? s.crates : s.crates.toFixed(2)} ${s.crateType.charAt(0).toUpperCase() + s.crateType.slice(1)}${s.crates !== 1 ? 's' : ''}`
                     : null;
                   return (
                     <button
@@ -523,7 +523,7 @@ export default function StockReceipt() {
                     const catCrateCount = catCrateItems.reduce((s, p) => s + getDisplayQty(p.id) / p.unitsPerContainer, 0);
                     const catCrateType  = catCrateItems[0]?.containerType;
                     const catCrateLabel = catCrateType
-                      ? `${Number.isInteger(catCrateCount) ? catCrateCount : catCrateCount.toFixed(1)} ${catCrateType.charAt(0).toUpperCase() + catCrateType.slice(1)}${catCrateCount !== 1 ? 's' : ''}`
+                      ? `${Number.isInteger(catCrateCount) ? catCrateCount : catCrateCount.toFixed(2)} ${catCrateType.charAt(0).toUpperCase() + catCrateType.slice(1)}${catCrateCount !== 1 ? 's' : ''}`
                       : null;
 
                     return (

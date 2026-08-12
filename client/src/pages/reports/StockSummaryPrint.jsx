@@ -7,7 +7,7 @@ const BUSINESS = 'Vikas Milk Dairy';
 
 function fmtCrates(qty, upc) {
   const c = upc ? qty / upc : qty;
-  return Number.isInteger(c) ? String(c) : c.toFixed(1);
+  return Number.isInteger(c) ? String(c) : c.toFixed(2);
 }
 
 function fmtPrice(p) {
@@ -210,7 +210,7 @@ export default function StockSummaryPrint() {
                     </td>
                     <td className="right">{brand.totalLiters != null ? (Number.isInteger(brand.totalLiters) ? brand.totalLiters : brand.totalLiters.toFixed(2)) : '—'}</td>
                     <td className="right">{brand.totalKgs != null ? (Number.isInteger(brand.totalKgs) ? brand.totalKgs : brand.totalKgs.toFixed(2)) : '—'}</td>
-                    <td className="right">{Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(1)}</td>
+                    <td className="right">{Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(2)}</td>
                     <td />
                     <td className="right">{formatCurrency(brand.totalValue)}</td>
                   </tr>,
@@ -251,7 +251,7 @@ export default function StockSummaryPrint() {
                 <td className="right">
                   {grandTotalKgs != null ? (Number.isInteger(grandTotalKgs) ? grandTotalKgs : grandTotalKgs.toFixed(2)) : '—'}
                 </td>
-                <td className="right">{Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(1)}</td>
+                <td className="right">{Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(2)}</td>
                 <td />
                 <td className="right">{formatCurrency(data.grandTotalReceived)}</td>
               </tr>

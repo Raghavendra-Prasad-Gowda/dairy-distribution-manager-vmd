@@ -1,9 +1,11 @@
 /**
  * DateSelector tests.
  *
- * Covers the compact date label, Prev/Next day navigation (Next disabled on
- * today), the "Today" shortcut (hidden when already on today), the native
- * date-input fallback, and hiding the nav arrows via showNavigation=false.
+ * Covers the compact date label, Prev/Next day navigation (Next disabled at
+ * the today+1 ceiling, not on today itself — stock entry is allowed one day
+ * ahead), the "Today" shortcut (hidden when already on today), the native
+ * date-input fallback (max = tomorrow), and hiding the nav arrows via
+ * showNavigation=false.
  */
 
 import React from 'react';
@@ -13,7 +15,7 @@ import DateSelector from './DateSelector';
 
 vi.mock('../utils/dateUtils', async () => {
   const actual = await vi.importActual('../utils/dateUtils');
-  return { ...actual, getIndiaDate: () => '2026-08-09' };
+  return { ...actual, getIndiaDate: () => '2026-08-09', getTomorrow: () => '2026-08-10' };
 });
 
 describe('DateSelector — label', () => {
@@ -34,8 +36,13 @@ describe('DateSelector — navigation', () => {
     expect(onChange).toHaveBeenCalledWith('2026-08-06');
   });
 
-  it('disables Next day when already on today', () => {
+  it('allows stepping Next day past today, into tomorrow', () => {
     render(<DateSelector date="2026-08-09" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('Next day')).not.toBeDisabled();
+  });
+
+  it('disables Next day once already on tomorrow, the last allowed date', () => {
+    render(<DateSelector date="2026-08-10" onChange={vi.fn()} />);
     expect(screen.getByLabelText('Next day')).toBeDisabled();
   });
 
@@ -64,7 +71,7 @@ describe('DateSelector — native date input', () => {
     const { container } = render(<DateSelector date="2026-08-05" onChange={onChange} />);
     const input = container.querySelector('input[type="date"]');
     expect(input).toHaveValue('2026-08-05');
-    expect(input).toHaveAttribute('max', '2026-08-09');
+    expect(input).toHaveAttribute('max', '2026-08-10'); // today+1
 
     fireEvent.change(input, { target: { value: '2026-08-07' } });
     expect(onChange).toHaveBeenCalledWith('2026-08-07');

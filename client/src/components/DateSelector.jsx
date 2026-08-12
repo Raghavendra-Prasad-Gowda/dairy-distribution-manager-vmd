@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { getPrevDate, getNextDate, getIndiaDate } from '../utils/dateUtils';
+import { getPrevDate, getNextDate, getIndiaDate, getTomorrow } from '../utils/dateUtils';
 
 function fmtCompact(dateStr) {
   if (!dateStr) return '';
@@ -11,7 +11,9 @@ function fmtCompact(dateStr) {
 
 export default function DateSelector({ date, onChange, showNavigation = true, dark = false }) {
   const today   = getIndiaDate();
+  const maxDate = getTomorrow(); // stock entry allowed for today or tomorrow, never further out
   const isToday = date === today;
+  const isAtMax = date === maxDate;
 
   const navBtn  = dark
     ? 'p-2 rounded-lg text-white/70 hover:bg-emerald-700 hover:text-white transition'
@@ -41,7 +43,7 @@ export default function DateSelector({ date, onChange, showNavigation = true, da
           type="date"
           value={date}
           onChange={e => e.target.value && onChange(e.target.value)}
-          max={today}
+          max={maxDate}
           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
           tabIndex={-1}
         />
@@ -50,7 +52,7 @@ export default function DateSelector({ date, onChange, showNavigation = true, da
       {showNavigation && (
         <button
           onClick={() => onChange(getNextDate(date))}
-          disabled={isToday}
+          disabled={isAtMax}
           className={`${navBtn} disabled:opacity-30 disabled:cursor-not-allowed`}
           title="Next day"
           aria-label="Next day"

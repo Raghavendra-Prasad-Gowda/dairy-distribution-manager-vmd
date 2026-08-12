@@ -35,6 +35,11 @@ export function getYesterday() {
   return getPrevDate(getIndiaDate());
 }
 
+/** Returns tomorrow's date in India timezone as YYYY-MM-DD */
+export function getTomorrow() {
+  return getNextDate(getIndiaDate());
+}
+
 /** Returns first day of current month as YYYY-MM-DD */
 export function getFirstDayOfMonth() {
   const d = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });

@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import StockBalanceSummary from './StockBalanceSummary';
 import api from '../../api/axios';
@@ -109,5 +109,49 @@ describe('StockBalanceSummary', () => {
     mockApi({ availability: [], dispatch: { date: '2026-07-09', brands: [], rows: [], totals: {} } });
     render(<StockBalanceSummary />);
     expect(await screen.findByText(/No dispatch data for this date/i)).toBeInTheDocument();
+  });
+});
+
+describe('StockBalanceSummary — crate display precision', () => {
+  // 24 per crate, not a divisor of either quantity, so every crate figure on
+  // this page must agree at 2 decimals rather than flooring or 1-decimal
+  // rounding: 35 received -> 1.46, 15 dispatched -> 0.63, shortage -> 0.83.
+  const FRACTIONAL_DISPATCH = {
+    date: '2026-07-09',
+    brands: [{
+      brandId: 1,
+      brandName: 'Nandini',
+      products: [{ productId: 10, productName: 'Milk 500ml', category: 'Milk', unitsPerContainer: 24 }],
+    }],
+    rows: [{
+      salespersonId: 1,
+      salespersonName: 'Ramesh',
+      items: { 10: { qty: 15 } },
+      totalAmount: 330,
+    }],
+    totals: { 10: 15 },
+  };
+
+  it('shows the same 2-decimal crate figures at the row, column, and grand-total levels', async () => {
+    mockApi({
+      availability: [{ brandId: 1, productId: 10, received: 35, unitsPerContainer: 24 }],
+      dispatch: FRACTIONAL_DISPATCH,
+    });
+    const { container } = render(<StockBalanceSummary />);
+
+    await screen.findByText('Ramesh');
+
+    // Per-salesperson row: 15 / 24 = 0.625 -> "0.63"
+    const ramesRow = screen.getByText('Ramesh').closest('tr');
+    expect(within(ramesRow).getByText('0.63')).toBeInTheDocument();
+
+    // Chips + footer: cratesReceived 35/24=1.46, cratesDispatched 15/24=0.63, shortage 0.83
+    expect(screen.getAllByText('1.46').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('0.63').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('0.83').length).toBeGreaterThan(0);
+
+    // No stray 1-decimal or floored artifacts anywhere on the page.
+    expect(container.textContent).not.toMatch(/\b1\.5\b/);
+    expect(screen.queryByText('0.6')).not.toBeInTheDocument();
   });
 });

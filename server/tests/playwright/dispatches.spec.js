@@ -8,7 +8,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
-const { getIndiaDateStr } = require('../../utils/dateUtils');
+const { getIndiaDateStr, getIndiaTomorrowStr } = require('../../utils/dateUtils');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -203,6 +203,30 @@ test.describe('POST /api/v1/dispatches', () => {
     const res = await request.post('/api/v1/dispatches', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
       data: { salespersonId: 1, dispatchDate: '30-04-2026', items: [{ productId: 1, quantity: 5, unitPrice: 40 }] },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('accepts dispatchDate = tomorrow — one day ahead is allowed for both roles', async ({ request }) => {
+    mockStockAvailable(ctx.mockPrisma);
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null); // new dispatch
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue(DISPATCH);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { ...validPayload, dispatchDate: getIndiaTomorrowStr() },
+    });
+
+    expect(res.status()).toBe(201);
+  });
+
+  test('returns 400 when dispatchDate is more than one day in the future', async ({ request }) => {
+    // A stock guard against physically impossible entries — nobody can
+    // dispatch stock for a date further out than tomorrow.
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2099-01-01', items: [{ productId: 1, quantity: 5, unitPrice: 40 }] },
     });
     expect(res.status()).toBe(400);
   });

@@ -111,6 +111,20 @@ describe('StockSummaryPrint — aggregation', () => {
   });
 });
 
+describe('StockSummaryPrint — crate display precision', () => {
+  it('shows the same 2-decimal crate figure at the product, brand, and grand-total levels', async () => {
+    // 35 units / 24 per crate = 1.4583... -> must render as "1.46" everywhere,
+    // not "1.5" (old 1-decimal rounding).
+    mockApi(summaryData({ receipts: [receipt({ unitsPerContainer: 24, quantity: 35, amount: 700 })] }));
+    renderWithParams('from=2026-08-05&to=2026-08-05');
+    await screen.findByText('Toned Milk');
+
+    expect(screen.queryByText('1.5')).not.toBeInTheDocument();
+    // Single product, so the product, brand, and grand-total figures are identical.
+    expect(screen.getAllByText('1.46').length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('StockSummaryPrint — printing', () => {
   it('auto-triggers window.print() once data has loaded', async () => {
     vi.useFakeTimers();

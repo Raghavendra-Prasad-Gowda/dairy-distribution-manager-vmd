@@ -181,6 +181,26 @@ describe('StockSummary — aggregation', () => {
   });
 });
 
+describe('StockSummary — crate display precision', () => {
+  it('shows the same 2-decimal crate figure at the product, brand, and grand-total levels', async () => {
+    // 35 units / 24 per crate = 1.4583... -> must render as "1.46" everywhere,
+    // not "1.5" (old 1-decimal rounding).
+    mockApi({ data: summaryData({
+      receipts: [receipt({ unitsPerContainer: 24, quantity: 35, amount: 700 })],
+      grandTotalReceived: 700,
+    }) });
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+
+    const row = screen.getByText('Toned Milk').closest('tr');
+    expect(within(row).getByText('1.46')).toBeInTheDocument(); // product-row crates
+
+    expect(screen.queryByText('1.5')).not.toBeInTheDocument();
+    // Single product, so brand and grand totals share the same 1.46 figure.
+    expect(screen.getAllByText('1.46').length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('StockSummary — route filter', () => {
   it('refetches with the routeId param when a route is selected', async () => {
     render(<StockSummary />);

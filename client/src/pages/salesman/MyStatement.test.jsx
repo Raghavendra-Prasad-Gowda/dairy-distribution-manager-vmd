@@ -177,6 +177,24 @@ describe('MyStatement — brand grouping', () => {
     expect(panel.getByText('DTM Curd 1000g')).toBeInTheDocument();
     expect(panel.getAllByText('Jersey')).toHaveLength(1);
   });
+
+  it('shows a partial crate to 2 decimal places rather than flooring to a whole number', async () => {
+    // 35 units / 24 per crate = 1.4583... — matches Stock Entry's own
+    // 2-decimal display for the identical figure, not the old floor(1) behaviour.
+    const panel = await renderExpanded([{
+      ...ROW,
+      items: [{
+        brandName: 'Jersey', productName: 'HTM 490ml',
+        quantity: 35, unitPrice: 0, totalAmount: 0,
+        unitType: 'ml', unitSize: 490, unitsPerContainer: 24,
+      }],
+      payments: [],
+    }]);
+    // Appears twice: once as the brand group's own badge, once as the
+    // day-level Total (the single item makes both figures identical).
+    expect(panel.getAllByText('1.46 crates').length).toBeGreaterThan(0);
+    expect(panel.queryByText('1 crates')).toBeNull();
+  });
 });
 
 describe('MyStatement — admin top-ups', () => {
