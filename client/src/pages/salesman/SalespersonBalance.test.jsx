@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalespersonBalance from './SalespersonBalance';
 import api from '../../api/axios';
@@ -150,6 +150,46 @@ describe('SalespersonBalance — history', () => {
     // Total bill 1200, total paid 400 — each rendered once per layout.
     expect(screen.getAllByText('₹1,200.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('₹400.00').length).toBeGreaterThan(0);
+  });
+
+  it('the totals-row balance is the most recent day\'s closing balance, not the oldest', async () => {
+    // The API returns history newest-first (balanceDate desc) — index 0 is
+    // "today", the last index is the oldest day in range. Regression test
+    // for a bug where the footer read history[history.length - 1] (the
+    // oldest day) instead of history[0] (the most recent). Each entry's OWN
+    // row also legitimately shows its own balance, so the assertion is
+    // scoped to just the totals row/bar rather than the whole page.
+    mockApi({ items: [
+      historyEntry({ balanceDate: '2026-08-11T00:00:00.000Z', closingBalance: 550 }),  // newest — index 0
+      historyEntry({ balanceDate: '2026-08-08T00:00:00.000Z', closingBalance: 50 }),   // oldest — last index
+    ] });
+    const { container } = await renderPage();
+
+    const desktopFooter = screen.getByText('Totals').closest('tr');
+    expect(within(desktopFooter).getByText('₹550.00')).toBeInTheDocument();
+    expect(within(desktopFooter).queryByText('₹50.00')).toBeNull();
+
+    const mobileFooter = container.querySelector('.bg-slate-700');
+    expect(within(mobileFooter).getByText('₹550.00')).toBeInTheDocument();
+    expect(within(mobileFooter).queryByText('₹50.00')).toBeNull();
+  });
+
+  it('renders rows oldest-first (ascending), even though the API returns them newest-first', async () => {
+    mockApi({ items: [
+      historyEntry({ balanceDate: '2026-08-11T00:00:00.000Z', stockGiven: 111, amountPaid: 11 }),
+      historyEntry({ balanceDate: '2026-08-10T00:00:00.000Z', stockGiven: 222, amountPaid: 22 }),
+      historyEntry({ balanceDate: '2026-08-08T00:00:00.000Z', stockGiven: 333, amountPaid: 33 }),
+    ] });
+    const { container } = await renderPage();
+
+    const desktopTable = container.querySelector('.hidden.md\\:block');
+    const desktopDates = within(desktopTable).getAllByText(/\d{1,2} Aug 2026/).map(el => el.textContent);
+    expect(desktopDates).toEqual(['8 Aug 2026', '10 Aug 2026', '11 Aug 2026']);
+
+    const mobileList = container.querySelector('.md\\:hidden');
+    // Mobile splits day/month into separate <p> tags — read the day pill order instead.
+    const mobileDays = within(mobileList).getAllByText(/^(08|10|11)$/).map(el => el.textContent);
+    expect(mobileDays).toEqual(['08', '10', '11']);
   });
 
   it('paginates when there is more than one page', async () => {

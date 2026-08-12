@@ -54,9 +54,17 @@ export default function SalespersonBalance() {
   // History totals
   const histTotalBill    = history.reduce((s, e) => s + e.stockGiven, 0);
   const histTotalPaid    = history.reduce((s, e) => s + e.amountPaid, 0);
-  const histLastBalance  = history[history.length - 1]?.closingBalance ?? 0;
+  // The API returns history newest-first (balanceDate desc) so pagination
+  // keeps "page 1 = most recent" — the most recent day's balance is the
+  // FIRST entry, not the last.
+  const histLastBalance  = history[0]?.closingBalance ?? 0;
   const histBalOwing     = histLastBalance > 0;
   const histBalCredit    = histLastBalance < 0;
+  // The table itself, though, should read chronologically top-to-bottom
+  // like a statement — oldest first — so only the render order is flipped;
+  // history/histTotalBill/histTotalPaid/histLastBalance above stay in the
+  // API's newest-first order.
+  const displayHistory = [...history].reverse();
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -177,7 +185,7 @@ export default function SalespersonBalance() {
                   <>
                     {/* ── MOBILE: card list ── */}
                     <div className="md:hidden divide-y-2 divide-slate-100">
-                      {history.map((entry, idx) => {
+                      {displayHistory.map((entry, idx) => {
                         const entryOwing  = entry.closingBalance > 0;
                         const entryCredit = entry.closingBalance < 0;
                         return (
@@ -282,7 +290,7 @@ export default function SalespersonBalance() {
                           </tr>
                         </thead>
                         <tbody className="divide-y-2 divide-slate-100">
-                          {history.map((entry, idx) => {
+                          {displayHistory.map((entry, idx) => {
                             const entryOwing  = entry.closingBalance > 0;
                             const entryCredit = entry.closingBalance < 0;
                             const topUps = entry.topUps ?? [];

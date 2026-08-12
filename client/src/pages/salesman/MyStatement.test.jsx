@@ -221,3 +221,22 @@ describe('MyStatement — admin top-ups', () => {
     expect(panel.getByText('Old Balance Added')).toBeInTheDocument();
   });
 });
+
+describe('MyStatement — row order', () => {
+  it('renders rows in ascending date order, exactly as the API returns them', async () => {
+    // /salesperson-statement/me is ordered balanceDate asc server-side; this
+    // pins that the page renders that order as-is rather than reversing it —
+    // the same requirement My Balance's history table now also follows.
+    mockStatement([
+      { ...ROW, date: '2026-08-05', items: [], payments: [], topUps: [] },
+      { ...ROW, date: '2026-08-06', items: [], payments: [], topUps: [] },
+      { ...ROW, date: '2026-08-07', items: [], payments: [], topUps: [] },
+    ]);
+    const { container } = render(<MyStatement />);
+    await screen.findByText('Account Statement');
+
+    const desktopTable = container.querySelector('.hidden.md\\:block');
+    const dateCells = within(desktopTable).getAllByText(/^\d{2} Aug$/);
+    expect(dateCells.map(c => c.textContent)).toEqual(['05 Aug', '06 Aug', '07 Aug']);
+  });
+});
