@@ -15,6 +15,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
 const { parseId, validate, schemas } = require('../../utils/validate');
+const { getIndiaDateStr, getIndiaTomorrowStr } = require('../../utils/dateUtils');
 
 const { test } = setupSuite();
 
@@ -119,5 +120,44 @@ test.describe('todayOrLaterDateString — used by product/price effective-from f
     validate(schemas.bulkSalespersonPrices, req, res);
     expect(res.body.error).toMatch(/YYYY-MM-DD/);
     expect(res.body.error).not.toMatch(/today or later/);
+  });
+});
+
+test.describe('notBeyondTomorrowDateString — used by stock receipts / dispatches', () => {
+  const makeRes = () => ({ statusCode: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
+
+  test('accepts today', () => {
+    const req = { body: { brandId: 1, date: getIndiaDateStr(), items: [] } };
+    expect(validate(schemas.bulkStockReceipt, req, makeRes())).not.toBeNull();
+  });
+
+  test('accepts tomorrow — one day ahead is allowed', () => {
+    const req = { body: { brandId: 1, date: getIndiaTomorrowStr(), items: [] } };
+    expect(validate(schemas.bulkStockReceipt, req, makeRes())).not.toBeNull();
+  });
+
+  test('rejects a date more than one day in the future, with a range-specific message', () => {
+    const req = { body: { brandId: 1, date: '2099-01-01', items: [] } };
+    const res = makeRes();
+    expect(validate(schemas.bulkStockReceipt, req, res)).toBeNull();
+    expect(res.body.error).toMatch(/more than one day in the future/);
+  });
+
+  test('rejects an invalid date format, including the format-specific message', () => {
+    // Zod runs both string checks (regex + refine) and joins every failure,
+    // so a non-date string like this also fails the range check by pure
+    // lexical comparison ('n' > '2') — the format message is still present
+    // either way, which is what actually matters to the caller.
+    const req = { body: { brandId: 1, date: 'not-a-date', items: [] } };
+    const res = makeRes();
+    expect(validate(schemas.bulkStockReceipt, req, res)).toBeNull();
+    expect(res.body.error).toMatch(/YYYY-MM-DD/);
+  });
+
+  test('applies the same today+1 ceiling to salesman dispatches', () => {
+    const req = { body: { dispatchDate: '2099-01-01', items: [] } };
+    const res = makeRes();
+    expect(validate(schemas.createDispatch, req, res)).toBeNull();
+    expect(res.body.error).toMatch(/more than one day in the future/);
   });
 });
