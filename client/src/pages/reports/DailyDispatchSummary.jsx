@@ -292,23 +292,32 @@ export default function DailyDispatchSummary() {
 
       {/* ── Admin info bar: shown when dispatcher has finalized the day ── */}
       {!isDispatcher && dayFinalized && data && isToday && (
-        <div className="flex items-center justify-between gap-3 bg-blue-50 border-b border-blue-200 px-4 py-2 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Lock size={13} className="text-blue-500 flex-shrink-0" />
-            <p className="text-xs text-blue-700 leading-snug">
-              <span className="font-semibold">Day finalized by dispatcher.</span>
-              {' '}Use <span className="font-semibold">Unlock</span> per salesperson, or <span className="font-semibold">Undo Finalization</span> to restore dispatcher access.
-            </p>
+        <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            {/* Lock icon in amber circle */}
+            <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center flex-shrink-0">
+              <Lock size={14} className="text-amber-600" />
+            </div>
+
+            {/* Status + hint text */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-extrabold text-amber-900 leading-tight">Day Finalized by Dispatcher</p>
+              <p className="text-[10px] text-amber-700 leading-snug mt-0.5">
+                Use <span className="font-semibold">Unlock</span> per salesperson above · or undo to restore dispatcher access
+              </p>
+            </div>
+
+            {/* Undo button — solid amber, clearly visible */}
+            <button
+              type="button"
+              onClick={() => setUnfinalizeConfirm(true)}
+              disabled={unfinalizeLoading}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-[11px] font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              <RotateCcw size={11} />
+              Undo Finalization
+            </button>
           </div>
-          <Button
-            size="sm"
-            variant="soft-info"
-            icon={RotateCcw}
-            disabled={unfinalizeLoading}
-            onClick={() => setUnfinalizeConfirm(true)}
-          >
-            Undo Finalization
-          </Button>
         </div>
       )}
 
