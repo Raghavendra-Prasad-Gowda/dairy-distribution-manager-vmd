@@ -155,7 +155,9 @@ describe('MyStatement — brand grouping', () => {
     expect(panel.getByText('12 crates')).toBeInTheDocument();
     expect(panel.getByText('₹6,492.00')).toBeInTheDocument();
     // Nandini: floor(240/24) = 10 crates, no litres badge (grams only).
-    expect(panel.getByText('10 crates')).toBeInTheDocument();
+    // Now that per-product chips are also shown, '10 crates' appears both in
+    // the brand header and in the Curd 200g product row — getAllByText is fine.
+    expect(panel.getAllByText('10 crates').length).toBeGreaterThanOrEqual(1);
     // Its ₹2,976 total matches its one product line, so it appears twice —
     // once as the header badge, once as the line amount.
     expect(panel.getAllByText('₹2,976.00')).toHaveLength(2);
@@ -237,6 +239,58 @@ describe('MyStatement — admin top-ups', () => {
     }]);
 
     expect(panel.getByText('Old Balance Added')).toBeInTheDocument();
+  });
+});
+
+// ─── Per-product crates and litres chips ──────────────────────────────────────
+
+describe('MyStatement — per-product crates and litres chips', () => {
+  it('shows crates chip for an ml product (HTM 1000ml: 120 qty ÷ 12 per crate = 10 crates)', async () => {
+    const panel = await renderExpanded();
+    // Jersey brand header = 12 crates (10 + 2). Expanding Jersey reveals product
+    // chips: HTM 1000ml = 10 crates. Nandini brand header also = 10 crates.
+    // So '10 crates' appears twice — brand header (Nandini) + product chip (HTM).
+    // Confirm the product-level chip exists by verifying at least 2 occurrences.
+    fireEvent.click(panel.getByText('Jersey'));
+    expect(panel.getAllByText('10 crates').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows litres chip for an ml product (HTM 1000ml: 120 × 1000ml ÷ 1000 = 120 L)', async () => {
+    const panel = await renderExpanded();
+    // Jersey brand header = 120 L; HTM 1000ml item chip = 120 L → 2 occurrences.
+    fireEvent.click(panel.getByText('Jersey'));
+    expect(panel.getAllByText('120 L').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows crates chip but no litres chip for a gram product (DTM Curd 1000g: crates > 0, litres = 0)', async () => {
+    const panel = await renderExpanded();
+    fireEvent.click(panel.getByText('Jersey'));
+
+    // DTM Curd 1000g: 24 ÷ 12 = 2 crates — unique across the whole page.
+    expect(panel.getByText('2 crates')).toBeInTheDocument();
+    // litres = 0 for gram products — '0 L' chip must never appear.
+    expect(panel.queryByText('0 L')).not.toBeInTheDocument();
+  });
+
+  it('crates chip is absent when unitsPerContainer is 0 (guard against division by zero)', async () => {
+    const rowWithZeroCrates = {
+      ...ROW,
+      items: [{
+        brandName: 'Jersey', productName: 'Loose Milk',
+        quantity: 10, unitPrice: 30, totalAmount: 300,
+        unitType: 'ml', unitSize: 1000, unitsPerContainer: 0,
+      }],
+      payments: [],
+      topUps: [],
+    };
+    const panel = await renderExpanded([rowWithZeroCrates]);
+    fireEvent.click(panel.getByText('Jersey'));
+
+    // crates = 0 when unitsPerContainer is 0 — chip must not render.
+    expect(panel.queryByText(/0 crates/i)).not.toBeInTheDocument();
+    // litres chip: 10 × 1000ml ÷ 1000 = 10 L. Appears in both brand header
+    // and product chip, so use getAllByText.
+    expect(panel.getAllByText('10 L').length).toBeGreaterThanOrEqual(1);
   });
 });
 

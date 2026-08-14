@@ -10,7 +10,7 @@ const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 const { getIndiaDateStr, getIndiaTomorrowStr } = require('../../utils/dateUtils');
 
-const { test, ctx, makeAuthToken, makeDispatcherToken } = setupSuite();
+const { test, ctx, makeAuthToken, makeDispatcherToken, makeSuperAdminToken } = setupSuite();
 
 const DISPATCH = {
   id:            1,
@@ -1261,6 +1261,76 @@ test.describe('DELETE /api/v1/dispatches/:id — salesman', () => {
     mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.delete('/api/v1/dispatches/1', { headers: salesmanAuth() });
+
+    expect(res.status()).toBe(200);
+  });
+});
+
+// ─── DELETE /api/v1/dispatches/finalize-day ───────────────────────────────────
+
+test.describe('DELETE /api/v1/dispatches/finalize-day', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a dispatcher token — only admin/superadmin can undo finalization', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when there is no explicit finalization row for today', async ({ request }) => {
+    // No DB row → today was never explicitly finalized (or is auto-finalized via date)
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/not been explicitly finalized/i);
+  });
+
+  test('admin deletes finalization row and returns 200', async ({ request }) => {
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({
+      id: 1, date: new Date(getIndiaDateStr()), finalizedByAdminUserId: 2, isAuto: false,
+    });
+    let deleteCalled = false;
+    ctx.mockPrisma.dispatchDayFinalization.delete.mockImplementation(async () => {
+      deleteCalled = true;
+      return { id: 1 };
+    });
+
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.message).toMatch(/reversed/i);
+    expect(deleteCalled).toBe(true);
+  });
+
+  test('superadmin can also undo finalization', async ({ request }) => {
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({
+      id: 1, date: new Date(getIndiaDateStr()), finalizedByAdminUserId: null, isAuto: false,
+    });
+    ctx.mockPrisma.dispatchDayFinalization.delete.mockResolvedValue({ id: 1 });
+
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+    });
 
     expect(res.status()).toBe(200);
   });

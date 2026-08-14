@@ -127,6 +127,7 @@ function createMockPrisma() {
     dispatchDayFinalization: {
       findUnique: mockFn(),
       create:     mockFn(),
+      delete:     mockFn(),
     },
     stockDispatchItem: {
       findMany:   mockFn(),
