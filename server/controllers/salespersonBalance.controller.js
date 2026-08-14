@@ -63,6 +63,7 @@ const getById = asyncHandler(async (req, res) => {
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
+  if (req.user.role === 'dispatcher') throw new AppError('Access denied.', 403);
   if (req.user.role === 'salesman' && req.user.salespersonId !== id) {
     throw new AppError('Access denied', 403);
   }
@@ -79,6 +80,7 @@ const getHistory = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Salesperson ID');
   const { page = '1', limit = '20', from, to } = req.query;
 
+  if (req.user.role === 'dispatcher') throw new AppError('Access denied.', 403);
   if (req.user.role === 'salesman' && req.user.salespersonId !== id) {
     throw new AppError('Access denied', 403);
   }

@@ -103,8 +103,10 @@ const bulkTopUp = asyncHandler(async (req, res) => {
   });
 });
 
-// Salesman sees only their own payments; admin sees all
+// Salesman sees only their own payments; admin sees all; dispatcher blocked
 const getAll = asyncHandler(async (req, res) => {
+  if (req.user.role === 'dispatcher') throw new AppError('Access denied.', 403);
+
   const { salespersonId, from, to } = req.query;
   const where = {};
 

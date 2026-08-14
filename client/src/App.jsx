@@ -67,18 +67,20 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
 
       {/* Print / PDF routes — full-page, no Layout */}
+      {/* Admin print routes: require admin/superadmin — salesman and dispatcher are excluded */}
       <Route path="/print/stock-summary" element={
-        <ProtectedRoute>{S(StockSummaryPrint)}</ProtectedRoute>
+        <ProtectedRoute adminOnly>{S(StockSummaryPrint)}</ProtectedRoute>
       } />
       <Route path="/print/deposit" element={
-        <ProtectedRoute>{S(DepositPrint)}</ProtectedRoute>
+        <ProtectedRoute adminOnly>{S(DepositPrint)}</ProtectedRoute>
       } />
       <Route path="/print/dairy-statement" element={
-        <ProtectedRoute>{S(DairyStatementPrint)}</ProtectedRoute>
+        <ProtectedRoute adminOnly>{S(DairyStatementPrint)}</ProtectedRoute>
       } />
       <Route path="/print/salesperson-statement" element={
-        <ProtectedRoute>{S(SalespersonStatementPrint)}</ProtectedRoute>
+        <ProtectedRoute adminOnly>{S(SalespersonStatementPrint)}</ProtectedRoute>
       } />
+      {/* Salesman print route: API-gated (403 for non-salesman), accessible from any auth'd session */}
       <Route path="/print/salesman-my-statement" element={
         <ProtectedRoute>{S(MyStatementPrint)}</ProtectedRoute>
       } />

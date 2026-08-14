@@ -97,6 +97,10 @@ async function resolveSalespersonItemPricing(salespersonId, items, dispatchDate)
 }
 
 const getAll = asyncHandler(async (req, res) => {
+  // Dispatcher accesses dispatch data through /reports/daily-dispatch (formatted
+  // matrix view), not the raw list. Blocking here closes an unneeded surface.
+  if (req.user.role === 'dispatcher') throw new AppError('Access denied.', 403);
+
   const { date, salespersonId } = req.query;
   const where = {};
   if (date) where.dispatchDate = new Date(date);
@@ -156,6 +160,10 @@ const getSummary = asyncHandler(async (req, res) => {
 const createOrUpdate = asyncHandler(async (req, res) => {
   const data = validate(schemas.createDispatch, req, res);
   if (!data) return;
+
+  // Dispatcher is a viewer/finalizer — they never create or edit stock entries.
+  // Salesman enter their own; admin enters on behalf of a salesman.
+  if (req.user.role === 'dispatcher') throw new AppError('Dispatchers cannot modify stock entries.', 403);
 
   let salespersonId;
   if (req.user.role === 'salesman') {
@@ -310,8 +318,11 @@ const createOrUpdate = asyncHandler(async (req, res) => {
   res.status(existing ? 200 : 201).json({ success: true, data: { ...dispatch, totalAmount: Number(dispatch.totalAmount), isLocked: false } });
 });
 
-// Salesman submits their entry — locks it
+// Salesman submits their entry — locks it. Admin may also call this as a
+// convenience, but dispatcher is excluded (they use lock/unlock, not submit).
 const submit = asyncHandler(async (req, res) => {
+  if (req.user.role === 'dispatcher') throw new AppError('Access denied.', 403);
+
   const id = parseId(req.params.id, 'Dispatch ID');
   // items included so the card can report itemCount — this is now the only
   // notification on the common Save-then-Submit path (the intermediate save's
@@ -497,6 +508,10 @@ const unfinalizeDay = asyncHandler(async (req, res) => {
 });
 
 const remove = asyncHandler(async (req, res) => {
+  // Dispatcher has no delete capability — they may only lock/unlock entries
+  // or finalize the day. Deletion is an admin-tier action.
+  if (req.user.role === 'dispatcher') throw new AppError('Dispatchers cannot delete stock entries.', 403);
+
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
   if (!dispatch) throw new AppError('Stock entry not found', 404);

@@ -16,9 +16,11 @@ async function resolveActingUsername(req) {
 // GET /salespeople/:id/prices
 // - Salesman: only enabled products with their allocated prices
 // - Admin: all active products with prices + isEnabled status (for price management)
+// - Dispatcher: blocked — pricing data is not needed for dispatch operations
 const getPrices = asyncHandler(async (req, res) => {
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
 
+  if (req.user.role === 'dispatcher') throw new AppError('Access denied.', 403);
   if (req.user.role === 'salesman' && req.user.salespersonId !== salespersonId) {
     throw new AppError('Access denied', 403);
   }

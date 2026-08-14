@@ -168,6 +168,70 @@ test.describe('RBAC — dispatcher access', () => {
     });
     expect(res.status()).toBe(403);
   });
+
+  // ── Shared-route loophole closure — dispatcher blocked from non-report endpoints ──
+  //
+  // The routes below sit on shared routers (no blanket requireAdmin at the mount
+  // point) designed for salesman + admin. Without explicit controller guards a
+  // dispatcher token could reach these endpoints. The guards were added; these
+  // tests pin them so a removal can't go unnoticed.
+
+  test('GET /api/v1/dispatches → dispatcher = 403 (raw list; use /reports/daily-dispatch instead)', async ({ request }) => {
+    const res = await request.get('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('POST /api/v1/dispatches → dispatcher = 403 (cannot create/modify stock entries)', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+      data: { salespersonId: 1, dispatchDate: '2026-04-30', items: [] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('PATCH /api/v1/dispatches/1/submit → dispatcher = 403 (submit is for salesman/admin, not dispatcher)', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/submit', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('DELETE /api/v1/dispatches/1 → dispatcher = 403 (cannot delete stock entries)', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/1', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('GET /api/v1/salesperson-balance/1 → dispatcher = 403 (financial balance data, admin/salesman only)', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('GET /api/v1/salesperson-balance/1/history → dispatcher = 403', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('GET /api/v1/salesperson-payments → dispatcher = 403 (payment records, admin/salesman only)', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-payments', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('GET /api/v1/salespeople/1/prices → dispatcher = 403 (pricing data, admin/salesman only)', async ({ request }) => {
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
 });
 
 // ─── Shared endpoints (admin + salesman) — scoping rules ─────────────────────
