@@ -49,27 +49,31 @@ export default function DailyDispatchSummary() {
     setLoading(true); setError('');
     setSelectedSpId(null);
     try {
+      // Dispatchers can't open blank rows for entry, so skip the /salespeople
+      // call — it's admin-only and would return 403 for a dispatcher.
       const [dispatchRes, spRes] = await Promise.all([
         api.get(`/reports/daily-dispatch?date=${date}`),
-        api.get('/salespeople'),
+        isDispatcher ? Promise.resolve(null) : api.get('/salespeople'),
       ]);
       const d = dispatchRes.data.data;
       // Salespeople with no dispatch row for this date don't appear in d.rows
       // at all — surface them as blank rows so an admin can still select them
-      // and open the date for entry.
-      const existingIds = new Set(d.rows.map(r => r.salespersonId));
-      const blankRows = (spRes.data.data ?? [])
-        .filter(sp => !existingIds.has(sp.id))
-        .map(sp => ({
-          salespersonId:   sp.id,
-          salespersonName: sp.name,
-          items:           {},
-          totalAmount:     0,
-          dispatchId:      null,
-          isSubmitted:     false,
-          isAdminUnlocked: false,
-          isLocked:        date < getIndiaDate(),
-        }));
+      // and open the date for entry. Dispatchers don't get this: they can't
+      // open dates for entry, and they don't have access to /salespeople.
+      const blankRows = spRes
+        ? (spRes.data.data ?? [])
+            .filter(sp => !new Set(d.rows.map(r => r.salespersonId)).has(sp.id))
+            .map(sp => ({
+              salespersonId:   sp.id,
+              salespersonName: sp.name,
+              items:           {},
+              totalAmount:     0,
+              dispatchId:      null,
+              isSubmitted:     false,
+              isAdminUnlocked: false,
+              isLocked:        date < getIndiaDate(),
+            }))
+        : [];
       const merged = { ...d, rows: [...d.rows, ...blankRows] };
       setData(merged);
       const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
