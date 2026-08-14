@@ -254,11 +254,14 @@ export default function SalesmanPricesSetup() {
   }
 
   const handleToggle = (productId, currentEnabled, isGloballyDisabled) => {
-    if (isGloballyDisabled && !currentEnabled) {
-      notify('This product is disabled globally. Enable it in Global Settings first.', 'warning');
-      return;
-    }
+    // Globally-disabled products can still be individually enabled for a specific
+    // salesperson — this is how you opt in 3 salespeople without enabling globally.
+    // Toggling ON for a globally-disabled product creates an exception row; the
+    // "Global off" badge stays visible to remind the admin of the exception.
     const newValue = !currentEnabled;
+    if (isGloballyDisabled && newValue) {
+      notify('Enabling as exception — this product is still off globally for all other salespeople.', 'info');
+    }
     setDirtyToggles(prev => ({ ...prev, [productId]: newValue }));
     setPrices(prev => prev.map(p => p.productId === productId ? { ...p, isEnabled: newValue } : p));
   };
@@ -771,7 +774,7 @@ export default function SalesmanPricesSetup() {
                 <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
                   <Globe size={15} className="text-amber-600 flex-shrink-0" />
                   <p className="text-sm text-amber-800">
-                    Changes here apply to <span className="font-bold">all salespeople</span>. Disabled products won't appear for any salesperson regardless of their individual settings.
+                    Changes here apply to <span className="font-bold">all salespeople by default</span>. Disabled products are hidden from all salespeople, but you can still enable them individually per salesperson as exceptions.
                   </p>
                 </div>
               )}
@@ -1007,7 +1010,10 @@ export default function SalesmanPricesSetup() {
                                       {!hasPrice && p.isEnabled && (
                                         <span className="badge-amber text-[10px]">No price</span>
                                       )}
-                                      {!p.salespersonEnabled && (
+                                      {!p.salespersonEnabled && p.isEnabled && (
+                                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold" title="Globally disabled but enabled as exception for this salesperson">Exception</span>
+                                      )}
+                                      {!p.salespersonEnabled && !p.isEnabled && (
                                         <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-semibold">Global off</span>
                                       )}
                                       {isToggleDirty && (
@@ -1059,9 +1065,15 @@ export default function SalesmanPricesSetup() {
                                     </button>
                                   </td>
                                   <td className="px-6 py-3.5 text-center align-middle">
-                                    <div title={!p.salespersonEnabled ? 'This product is disabled globally' : ''}>
+                                    <div title={
+                                      !p.salespersonEnabled && p.isEnabled
+                                        ? 'Exception — globally off but enabled for this salesperson'
+                                        : !p.salespersonEnabled
+                                        ? 'Globally disabled — toggle to enable as exception for this salesperson only'
+                                        : ''
+                                    }>
                                       <TogglePill
-                                        enabled={p.isEnabled && p.salespersonEnabled}
+                                        enabled={p.isEnabled}
                                         onChange={() => handleToggle(p.productId, p.isEnabled, !p.salespersonEnabled)}
                                       />
                                     </div>

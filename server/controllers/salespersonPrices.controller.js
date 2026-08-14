@@ -85,11 +85,17 @@ const getPrices = asyncHandler(async (req, res) => {
     catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
   }
 
-  // Salesman: only show products that are globally enabled AND not explicitly disabled for them.
-  // salespersonEnabled=false acts as a kill switch regardless of per-salesman rows.
-  // Products default to enabled unless there's an explicit disabling override.
+  // Salesman: visibility is determined by both the global flag and a per-SP override.
+  //   salespersonEnabled=true  → visible by default; SP can be explicitly disabled (isEnabled=false row)
+  //   salespersonEnabled=false → hidden by default; SP can be explicitly opted in (isEnabled=true row)
+  // This lets admins enable a globally-disabled product for a small subset of salespeople
+  // without touching the global flag (which would push it to everyone).
+  const isProductVisibleForSp = (p) => p.salespersonEnabled
+    ? (enabledMap[p.id] ?? true)   // default on — off only if row says so
+    : (enabledMap[p.id] === true);  // default off — on only if row explicitly opts in
+
   const visibleProducts = isSalesman
-    ? products.filter(p => p.salespersonEnabled && (enabledMap[p.id] ?? true))
+    ? products.filter(isProductVisibleForSp)
     : products;
 
   const result = visibleProducts.map((p) => ({
@@ -107,7 +113,11 @@ const getPrices = asyncHandler(async (req, res) => {
     unitsPerContainer:       p.unitsPerContainer,
     showInStockReceipt:      p.showInStockReceipt,
     salespersonEnabled:      p.salespersonEnabled,
-    isEnabled:               p.salespersonEnabled && (enabledMap[p.id] ?? true),
+    // isEnabled reflects the effective visibility for this salesperson, respecting
+    // both the global flag and any per-SP override (see isProductVisibleForSp above).
+    isEnabled:               p.salespersonEnabled
+                               ? (enabledMap[p.id] ?? true)
+                               : (enabledMap[p.id] === true),
     dairyCostPrice:          Number(p.costPrice),
     dairySellingPrice:       Number(p.sellingPrice),
     sellingPrice:            priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : Number(p.salespersonDefaultPrice),
