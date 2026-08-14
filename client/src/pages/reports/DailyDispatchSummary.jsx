@@ -244,26 +244,34 @@ export default function DailyDispatchSummary() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {isDispatcher && isToday && data && (
-            dayFinalized ? (
-              <span className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700/50 border border-emerald-600 px-2.5 py-1.5 rounded-lg whitespace-nowrap">
-                <Lock size={12} /> Day Finalized
-              </span>
-            ) : (
-              <Button
-                size="sm"
-                variant="soft-danger"
-                icon={FlagTriangleRight}
-                loading={finalizeLoading}
-                onClick={() => setFinalizeConfirm(true)}
-              >
-                Finalize Day
-              </Button>
-            )
-          )}
           <DateSelector date={date} onChange={setDate} dark />
         </div>
       </div>
+
+      {/* ── Dispatcher action bar (today only) ── */}
+      {isDispatcher && isToday && data && (
+        dayFinalized ? (
+          <div className="flex items-center justify-center gap-2 bg-emerald-50 border-b border-emerald-200 px-4 py-2.5 flex-shrink-0">
+            <Lock size={13} className="text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-700">Day Finalized — entries are locked</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2 flex-shrink-0">
+            <p className="text-xs text-amber-700 leading-snug">
+              When all salespersons are done for today, finalize the day to lock entries.
+            </p>
+            <Button
+              size="sm"
+              variant="soft-danger"
+              icon={FlagTriangleRight}
+              loading={finalizeLoading}
+              onClick={() => setFinalizeConfirm(true)}
+            >
+              Finalize Day
+            </Button>
+          </div>
+        )
+      )}
 
       {/* ── Error banner ── */}
       {error && (
