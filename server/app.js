@@ -117,12 +117,16 @@ app.use('/api/v1/salespeople',          requireAdmin, bulkWriteLimiter, salesper
 // specific sub-routes — moved the whole router behind requireAdmin.
 app.use('/api/v1/products',             requireAdmin, productsRoutes);
 app.use('/api/v1/categories',           requireAdmin, categoriesRoutes);
-app.use('/api/v1/stock-receipts',       requireAdmin, bulkWriteLimiter, stockReceiptsRoutes);
+// stock-receipts and reports: most routes stay admin-only, but each router
+// opens exactly the one read-only GET a dispatcher needs — gated per-route
+// inside the router file instead of blanket-admin at the mount, so dispatcher
+// never gets the write endpoints that live on the same router.
+app.use('/api/v1/stock-receipts',       bulkWriteLimiter, stockReceiptsRoutes);
 app.use('/api/v1/dairy-balance',        requireAdmin, dairyBalanceRoutes);
 app.use('/api/v1/dairy-payments',       requireAdmin, dairyPaymentsRoutes);
 app.use('/api/v1/dairy-deposit-topups', requireAdmin, dairyDepositTopUpsRoutes);
 app.use('/api/v1/salespeople',          requireAdmin, salespeopleRoutes);
-app.use('/api/v1/reports',              requireAdmin, reportsRoutes);
+app.use('/api/v1/reports',              reportsRoutes);
 app.use('/api/v1/pin',                  requireAdmin, pinRoutes);
 app.use('/api/v1/routes',               requireAdmin, routesRoutes);
 

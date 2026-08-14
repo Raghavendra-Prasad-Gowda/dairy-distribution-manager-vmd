@@ -353,10 +353,32 @@ model AdminUser {
   id           Int      @id @default(autoincrement())
   username     String   @unique
   passwordHash String   @map("password_hash")
-  role         String   @default("admin") // 'admin' | 'superadmin'
+  role         String   @default("admin") // 'admin' | 'superadmin' | 'dispatcher'
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  dispatchDayFinalizations DispatchDayFinalization[]
+
   @@map("admin_users")
+}
+
+// ─── Dispatch Day Finalization ────────────────────────────────────────────────
+// One row per calendar date that has been explicitly finalized by a
+// dispatcher. Absence of a row for a PAST date does NOT mean "not finalized"
+// — see isDayFinalizedForDispatcher() in services/dispatchDayFinalization.js,
+// which treats any date before today (IST) as auto-finalized without ever
+// requiring a row to be written. A row only ever gets written for TODAY, at
+// the moment of manual finalization — for same-day immediate effect plus an
+// audit trail of who/when.
+model DispatchDayFinalization {
+  id                     Int      @id @default(autoincrement())
+  date                   DateTime @unique @db.Date
+  finalizedByAdminUserId Int?     @map("finalized_by_admin_user_id")
+  finalizedAt            DateTime @default(now()) @map("finalized_at")
+  isAuto                 Boolean  @default(false) @map("is_auto")
+
+  finalizedBy AdminUser? @relation(fields: [finalizedByAdminUserId], references: [id], onDelete: SetNull)
+
+  @@map("dispatch_day_finalizations")
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen } from 'lucide-react';
+import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight, RotateCcw } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -7,6 +7,7 @@ import api from '../../api/axios';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import { useAuth } from '../../context/AuthContext';
 
 // Whole crate counts render plain; a partial crate shows to 2 decimal
 // places — the same precision level as every other crate figure in the app.
@@ -15,6 +16,9 @@ function formatCrates(crates) {
 }
 
 export default function DailyDispatchSummary() {
+  const { user } = useAuth();
+  const isDispatcher = user?.role === 'dispatcher';
+
   const [date, setDate]                       = useState(getIndiaDate());
   const [data, setData]                       = useState(null);
   const [loading, setLoading]                 = useState(false);
@@ -27,8 +31,17 @@ export default function DailyDispatchSummary() {
   const [lockConfirm, setLockConfirm]         = useState(null); // { dispatchId, isLocked, name }
   const [openLoading, setOpenLoading]         = useState(false);
   const [openConfirm, setOpenConfirm]         = useState(null); // { salespersonId, name }
+  const [finalizeLoading, setFinalizeLoading]     = useState(false);
+  const [finalizeConfirm, setFinalizeConfirm]     = useState(false);
+  const [unfinalizeLoading, setUnfinalizeLoading] = useState(false);
+  const [unfinalizeConfirm, setUnfinalizeConfirm] = useState(false);
 
   const isPastDate = date < getIndiaDate();
+  const isToday     = date === getIndiaDate();
+  const dayFinalized = data?.isDayFinalized ?? false;
+  // Dispatcher's lock/unlock is only actionable today, before finalization —
+  // admin/superadmin are completely unrestricted, unchanged.
+  const canToggleLock = !isDispatcher || (isToday && !dayFinalized);
 
   useEffect(() => { fetchData(); }, [date]);
 
@@ -38,27 +51,31 @@ export default function DailyDispatchSummary() {
     setLoading(true); setError('');
     setSelectedSpId(null);
     try {
+      // Dispatchers can't open blank rows for entry, so skip the /salespeople
+      // call — it's admin-only and would return 403 for a dispatcher.
       const [dispatchRes, spRes] = await Promise.all([
         api.get(`/reports/daily-dispatch?date=${date}`),
-        api.get('/salespeople'),
+        isDispatcher ? Promise.resolve(null) : api.get('/salespeople'),
       ]);
       const d = dispatchRes.data.data;
       // Salespeople with no dispatch row for this date don't appear in d.rows
       // at all — surface them as blank rows so an admin can still select them
-      // and open the date for entry.
-      const existingIds = new Set(d.rows.map(r => r.salespersonId));
-      const blankRows = (spRes.data.data ?? [])
-        .filter(sp => !existingIds.has(sp.id))
-        .map(sp => ({
-          salespersonId:   sp.id,
-          salespersonName: sp.name,
-          items:           {},
-          totalAmount:     0,
-          dispatchId:      null,
-          isSubmitted:     false,
-          isAdminUnlocked: false,
-          isLocked:        date < getIndiaDate(),
-        }));
+      // and open the date for entry. Dispatchers don't get this: they can't
+      // open dates for entry, and they don't have access to /salespeople.
+      const blankRows = spRes
+        ? (spRes.data.data ?? [])
+            .filter(sp => !new Set(d.rows.map(r => r.salespersonId)).has(sp.id))
+            .map(sp => ({
+              salespersonId:   sp.id,
+              salespersonName: sp.name,
+              items:           {},
+              totalAmount:     0,
+              dispatchId:      null,
+              isSubmitted:     false,
+              isAdminUnlocked: false,
+              isLocked:        date < getIndiaDate(),
+            }))
+        : [];
       const merged = { ...d, rows: [...d.rows, ...blankRows] };
       setData(merged);
       const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
@@ -84,6 +101,32 @@ export default function DailyDispatchSummary() {
       // fetchData will reset state
     } finally {
       setOpenLoading(false);
+    }
+  }
+
+  async function confirmFinalizeDay() {
+    setFinalizeConfirm(false);
+    setFinalizeLoading(true);
+    try {
+      await api.post('/dispatches/finalize-day');
+      await fetchData();
+    } catch (e) {
+      // fetchData will reset state
+    } finally {
+      setFinalizeLoading(false);
+    }
+  }
+
+  async function confirmUnfinalizeDay() {
+    setUnfinalizeConfirm(false);
+    setUnfinalizeLoading(true);
+    try {
+      await api.delete('/dispatches/finalize-day');
+      await fetchData();
+    } catch (e) {
+      // fetchData will reset state
+    } finally {
+      setUnfinalizeLoading(false);
     }
   }
 
@@ -215,8 +258,66 @@ export default function DailyDispatchSummary() {
             )}
           </div>
         </div>
-        <DateSelector date={date} onChange={setDate} dark />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <DateSelector date={date} onChange={setDate} dark />
+        </div>
       </div>
+
+      {/* ── Dispatcher action bar (today only) ── */}
+      {isDispatcher && isToday && data && (
+        dayFinalized ? (
+          <div className="flex items-center justify-center gap-2 bg-emerald-50 border-b border-emerald-200 px-4 py-2.5 flex-shrink-0">
+            <Lock size={13} className="text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-700">Day Finalized — entries are locked</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 bg-amber-50 border-b border-amber-200 px-4 py-2 flex-shrink-0">
+            <p className="text-xs text-amber-700 leading-snug">
+              When all salespersons are done for today, finalize the day to lock entries.
+            </p>
+            <Button
+              size="sm"
+              variant="soft-danger"
+              icon={FlagTriangleRight}
+              disabled={finalizeLoading}
+              onClick={() => setFinalizeConfirm(true)}
+            >
+              Finalize Day
+            </Button>
+          </div>
+        )
+      )}
+
+      {/* ── Admin info bar: shown when dispatcher has finalized the day ── */}
+      {!isDispatcher && dayFinalized && data && isToday && (
+        <div className="flex-shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            {/* Lock icon in amber circle */}
+            <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center flex-shrink-0">
+              <Lock size={14} className="text-amber-600" />
+            </div>
+
+            {/* Status + hint text */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-extrabold text-amber-900 leading-tight">Day Finalized by Dispatcher</p>
+              <p className="text-[10px] text-amber-700 leading-snug mt-0.5">
+                Use <span className="font-semibold">Unlock</span> per salesperson above · or undo to restore dispatcher access
+              </p>
+            </div>
+
+            {/* Undo button — solid amber, clearly visible */}
+            <button
+              type="button"
+              onClick={() => setUnfinalizeConfirm(true)}
+              disabled={unfinalizeLoading}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-[11px] font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              <RotateCcw size={11} />
+              Undo Finalization
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Error banner ── */}
       {error && (
@@ -330,16 +431,18 @@ export default function DailyDispatchSummary() {
                     {showZeroQty ? 'All products' : 'Entered only'}
                   </button>
                   {selectedRow.dispatchId ? (
-                    <Button
-                      size="sm"
-                      variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
-                      icon={selectedRow.isLocked ? LockOpen : Lock}
-                      loading={lockLoading}
-                      onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
-                    >
-                      {selectedRow.isLocked ? 'Unlock' : 'Lock'}
-                    </Button>
-                  ) : isPastDate && (
+                    canToggleLock && (
+                      <Button
+                        size="sm"
+                        variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
+                        icon={selectedRow.isLocked ? LockOpen : Lock}
+                        loading={lockLoading}
+                        onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
+                      >
+                        {selectedRow.isLocked ? 'Unlock' : 'Lock'}
+                      </Button>
+                    )
+                  ) : (!isDispatcher && isPastDate) && (
                     <Button
                       size="sm"
                       variant="soft-warning"
@@ -501,6 +604,12 @@ export default function DailyDispatchSummary() {
         </div>
       </div>
 
+      {/* ── Branded action overlays — day-level actions only (per-salesperson ──
+           lock/unlock and open-for-entry use the Button's built-in loading     ──
+           spinner instead; BrandedLoader is for significant, page-blocking ops) */}
+      <BrandedLoader overlay open={finalizeLoading}   tone="transparent" size="sm" label="Finalizing day…"        hideBrand />
+      <BrandedLoader overlay open={unfinalizeLoading} tone="transparent" size="sm" label="Reversing finalization…" hideBrand />
+
       {/* Lock / Unlock confirmation modal */}
       <ConfirmationModal
         isOpen={!!lockConfirm}
@@ -535,6 +644,32 @@ export default function DailyDispatchSummary() {
         cancelText="Cancel"
         tone="warning"
         icon={LockOpen}
+      />
+
+      {/* Finalize-day confirmation modal */}
+      <ConfirmationModal
+        isOpen={finalizeConfirm}
+        onClose={() => setFinalizeConfirm(false)}
+        onConfirm={confirmFinalizeDay}
+        title="Finalize today?"
+        message="Any salesperson still unlocked today will be automatically locked. After this, only an admin can make further changes today."
+        confirmText="Yes, Finalize"
+        cancelText="Cancel"
+        tone="danger"
+        icon={FlagTriangleRight}
+      />
+
+      {/* Undo finalization confirmation modal (admin only) */}
+      <ConfirmationModal
+        isOpen={unfinalizeConfirm}
+        onClose={() => setUnfinalizeConfirm(false)}
+        onConfirm={confirmUnfinalizeDay}
+        title="Undo finalization?"
+        message="This will restore the dispatcher's ability to lock and unlock entries for today. Existing dispatch entries are not changed."
+        confirmText="Yes, Undo"
+        cancelText="Cancel"
+        tone="warning"
+        icon={RotateCcw}
       />
 
     </div>

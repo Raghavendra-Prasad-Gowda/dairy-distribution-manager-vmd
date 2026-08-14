@@ -56,8 +56,10 @@ const update = asyncHandler(async (req, res) => {
   const data = validate(schemas.updateAdminUser, req, res);
   if (!data) return;
 
-  // Prevent superadmin from demoting themselves
-  if (req.user.adminUserId === id && data.role === 'admin') {
+  // Prevent superadmin from demoting themselves (to admin OR dispatcher) —
+  // must block any role change away from superadmin, not just to 'admin',
+  // or a superadmin could lock themselves out of /admin/users entirely.
+  if (req.user.adminUserId === id && data.role && data.role !== 'superadmin') {
     throw new AppError('You cannot change your own role', 400);
   }
   // Prevent deactivating self

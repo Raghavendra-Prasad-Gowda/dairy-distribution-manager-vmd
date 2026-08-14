@@ -49,7 +49,8 @@ const login = asyncHandler(async (req, res) => {
     );
     setCookie(res, token);
 
-    void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminUser.role === 'superadmin' ? 'Super Admin' : 'Admin', ip });
+    const adminRoleLabel = adminUser.role === 'superadmin' ? 'Super Admin' : adminUser.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
+    void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminRoleLabel, ip });
     return res.json({
       success: true,
       data: {
@@ -105,8 +106,8 @@ const changePassword = asyncHandler(async (req, res) => {
   const { role, adminUserId, salespersonId } = req.user;
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
 
-  if (role === 'admin' || role === 'superadmin') {
-    // Admin changing their own password
+  if (role === 'admin' || role === 'superadmin' || role === 'dispatcher') {
+    // Admin/dispatcher changing their own password
     const adminUser = await prisma.adminUser.findUnique({ where: { id: adminUserId } });
     if (!adminUser) throw new AppError('Admin user not found', 404);
 
@@ -118,7 +119,7 @@ const changePassword = asyncHandler(async (req, res) => {
 
     void notifySlack(SLACK_EVENTS.PASSWORD_CHANGED, {
       username: adminUser.username,
-      role:     adminUser.role === 'superadmin' ? 'Super Admin' : 'Admin',
+      role:     adminUser.role === 'superadmin' ? 'Super Admin' : adminUser.role === 'dispatcher' ? 'Dispatcher' : 'Admin',
       ip,
     });
     res.json({ success: true, data: { message: 'Password changed successfully' } });
@@ -152,7 +153,7 @@ const logout = asyncHandler(async (req, res) => {
   if (req.user?.adminUserId) {
     const au = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId }, select: { username: true, role: true } });
     username = au?.username ?? 'unknown';
-    role = au?.role === 'superadmin' ? 'Super Admin' : 'Admin';
+    role = au?.role === 'superadmin' ? 'Super Admin' : au?.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
   } else if (req.user?.role === 'salesman') {
     const sp = await prisma.salesperson.findUnique({ where: { id: req.user.salespersonId }, select: { username: true, name: true } });
     username = sp?.username ?? sp?.name ?? 'unknown';

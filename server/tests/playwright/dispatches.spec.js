@@ -10,7 +10,7 @@ const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 const { getIndiaDateStr, getIndiaTomorrowStr } = require('../../utils/dateUtils');
 
-const { test, ctx, makeAuthToken } = setupSuite();
+const { test, ctx, makeAuthToken, makeDispatcherToken, makeSuperAdminToken } = setupSuite();
 
 const DISPATCH = {
   id:            1,
@@ -502,6 +502,61 @@ test.describe('PATCH /api/v1/dispatches/:id/lock', () => {
     expect(res.status()).toBe(200);
     expect(updateArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
   });
+
+  test('dispatcher locks a dispatch dated today', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date(getIndiaDateStr()), isSubmitted: false, isAdminUnlocked: true });
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: true, isAdminUnlocked: false };
+    });
+
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
+  });
+
+  test('dispatcher is blocked from locking a dispatch dated in the past', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date('2020-01-01') });
+
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('dispatcher is blocked from locking a dispatch dated in the future', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date(getIndiaTomorrowStr()) });
+
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('dispatcher is blocked from locking today once today has been finalized', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date(getIndiaDateStr()) });
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({ id: 1, date: new Date(getIndiaDateStr()) });
+
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('salesman is blocked from locking (dispatcher/admin only)', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
+  });
 });
 
 // ─── PATCH /api/v1/dispatches/:id/unlock ─────────────────────────────────────
@@ -544,6 +599,71 @@ test.describe('PATCH /api/v1/dispatches/:id/unlock', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(200);
+  });
+
+  test('dispatcher unlocks a dispatch dated today', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date(getIndiaDateStr()), isSubmitted: true, isAdminUnlocked: false });
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: false, isAdminUnlocked: true };
+    });
+
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: false, isAdminUnlocked: true });
+  });
+
+  test('dispatcher is blocked from unlocking a dispatch dated yesterday', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date('2020-01-01') });
+
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  test('dispatcher is blocked from unlocking today once today has been finalized', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date(getIndiaDateStr()) });
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({ id: 1, date: new Date(getIndiaDateStr()) });
+
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
+  // Regression guard: admin/superadmin's unlock must stay completely
+  // unrestricted regardless of finalization — the dispatcher-only check in
+  // assertDispatcherCanToggleLock must never run for the admin/superadmin path.
+  test('admin can still unlock a dispatch on a day that has been finalized', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, dispatchDate: new Date(getIndiaDateStr()), isSubmitted: true, isAdminUnlocked: false });
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({ id: 1, date: new Date(getIndiaDateStr()) });
+    ctx.mockPrisma.stockDispatch.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...DISPATCH, isSubmitted: false, isAdminUnlocked: true };
+    });
+
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toMatchObject({ isSubmitted: false, isAdminUnlocked: true });
+  });
+
+  test('salesman is blocked from unlocking (dispatcher/admin only)', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/unlock', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
   });
 });
 
@@ -604,6 +724,64 @@ test.describe('POST /api/v1/dispatches/open-for-entry', () => {
 
     expect(res.status()).toBe(200);
     expect(updateArgs.data).toMatchObject({ isSubmitted: false, isAdminUnlocked: true });
+  });
+});
+
+// ─── POST /api/v1/dispatches/finalize-day ────────────────────────────────────
+
+test.describe('POST /api/v1/dispatches/finalize-day', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches/finalize-day');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for an admin token — finalize-day is dispatcher-only, no escape hatch', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('dispatcher finalizes today: force-locks stragglers and creates a finalization row', async ({ request }) => {
+    let updateManyArgs = null;
+    let createArgs = null;
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.updateMany.mockImplementation(async (args) => {
+      updateManyArgs = args;
+      return { count: 2 };
+    });
+    ctx.mockPrisma.dispatchDayFinalization.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { id: 1, date: args.data.date, finalizedByAdminUserId: args.data.finalizedByAdminUserId, isAuto: false };
+    });
+
+    const res = await request.post('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateManyArgs.where).toMatchObject({ isSubmitted: false });
+    expect(updateManyArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
+    expect(createArgs.data).toMatchObject({ finalizedByAdminUserId: 2, isAuto: false });
+  });
+
+  test('returns 400 when today has already been finalized', async ({ request }) => {
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({ id: 1, date: new Date(getIndiaDateStr()) });
+
+    const res = await request.post('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/already been finalized/i);
   });
 });
 
@@ -1083,6 +1261,76 @@ test.describe('DELETE /api/v1/dispatches/:id — salesman', () => {
     mockSalespersonCascade(ctx.mockPrisma);
 
     const res = await request.delete('/api/v1/dispatches/1', { headers: salesmanAuth() });
+
+    expect(res.status()).toBe(200);
+  });
+});
+
+// ─── DELETE /api/v1/dispatches/finalize-day ───────────────────────────────────
+
+test.describe('DELETE /api/v1/dispatches/finalize-day', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a dispatcher token — only admin/superadmin can undo finalization', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when there is no explicit finalization row for today', async ({ request }) => {
+    // No DB row → today was never explicitly finalized (or is auto-finalized via date)
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/not been explicitly finalized/i);
+  });
+
+  test('admin deletes finalization row and returns 200', async ({ request }) => {
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({
+      id: 1, date: new Date(getIndiaDateStr()), finalizedByAdminUserId: 2, isAuto: false,
+    });
+    let deleteCalled = false;
+    ctx.mockPrisma.dispatchDayFinalization.delete.mockImplementation(async () => {
+      deleteCalled = true;
+      return { id: 1 };
+    });
+
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.message).toMatch(/reversed/i);
+    expect(deleteCalled).toBe(true);
+  });
+
+  test('superadmin can also undo finalization', async ({ request }) => {
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({
+      id: 1, date: new Date(getIndiaDateStr()), finalizedByAdminUserId: null, isAuto: false,
+    });
+    ctx.mockPrisma.dispatchDayFinalization.delete.mockResolvedValue({ id: 1 });
+
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+    });
 
     expect(res.status()).toBe(200);
   });

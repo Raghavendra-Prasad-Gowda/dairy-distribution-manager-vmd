@@ -169,6 +169,19 @@ test.describe('POST /api/v1/admin-users', () => {
     expect(res.status()).toBe(400);
   });
 
+  test('returns 201 when role is dispatcher', async ({ request }) => {
+    ctx.mockPrisma.adminUser.create.mockResolvedValue({ ...ADMIN_USER, id: 3, username: 'dispatcher1', role: 'dispatcher' });
+
+    const res = await request.post('/api/v1/admin-users', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { username: 'dispatcher1', password: 'securepass', role: 'dispatcher' },
+    });
+
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.data.role).toBe('dispatcher');
+  });
+
   test('returns 400 when role is invalid', async ({ request }) => {
     const res = await request.post('/api/v1/admin-users', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
@@ -330,6 +343,20 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
     const res = await request.put('/api/v1/admin-users/1', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { role: 'admin' },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/cannot change your own role/i);
+  });
+
+  test('returns 400 when superadmin tries to change their own role to dispatcher', async ({ request }) => {
+    // Widened guard: blocks ANY self-role-change away from superadmin, not
+    // just to 'admin' — otherwise a superadmin could demote themselves to
+    // dispatcher and lock themselves out of /admin/users.
+    const res = await request.put('/api/v1/admin-users/1', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { role: 'dispatcher' },
     });
 
     expect(res.status()).toBe(400);

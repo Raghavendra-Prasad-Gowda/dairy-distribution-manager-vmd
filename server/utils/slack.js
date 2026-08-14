@@ -39,6 +39,12 @@ const SLACK_EVENTS = {
   DISPATCH_DELETED:     'DISPATCH_DELETED',
   DISPATCH_SUBMITTED:   'DISPATCH_SUBMITTED',
   DISPATCH_LOCK_CHANGED: 'DISPATCH_LOCK_CHANGED',
+  // Dispatcher finalizes the day — force-locks any straggler entries and, from
+  // that point on, only admin/superadmin can unlock a salesperson for it.
+  DISPATCH_DAY_FINALIZED:   'DISPATCH_DAY_FINALIZED',
+  // Admin reverses a dispatcher finalization — restores dispatcher lock/unlock
+  // access for today without touching the actual dispatch entries.
+  DISPATCH_DAY_UNFINALIZED: 'DISPATCH_DAY_UNFINALIZED',
   // Salesperson payments
   SALESPERSON_PAYMENT_RECORDED: 'SALESPERSON_PAYMENT_RECORDED',
   SALESPERSON_PAYMENT_UPDATED:  'SALESPERSON_PAYMENT_UPDATED',
@@ -133,8 +139,10 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.PIN_FAILED]:         COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
-  [SLACK_EVENTS.DISPATCH_SUBMITTED]:    COLORS.GREEN,
-  [SLACK_EVENTS.DISPATCH_LOCK_CHANGED]: COLORS.AMBER, // overridden per action (locked/unlocked/opened)
+  [SLACK_EVENTS.DISPATCH_SUBMITTED]:      COLORS.GREEN,
+  [SLACK_EVENTS.DISPATCH_LOCK_CHANGED]:   COLORS.AMBER, // overridden per action (locked/unlocked/opened)
+  [SLACK_EVENTS.DISPATCH_DAY_FINALIZED]:   COLORS.AMBER,
+  [SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED]: COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_PRICES_UPDATED]:      COLORS.AMBER,
   [SLACK_EVENTS.SALESPERSON_PRICES_COPIED]:       COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED]: COLORS.AMBER,
@@ -498,6 +506,24 @@ function buildCard(event, data) {
         ]),
       ], `${lockCopy.fallback} — ${data.salespersonName} on ${data.date}`, lockColor);
     }
+
+    case SLACK_EVENTS.DISPATCH_DAY_FINALIZED:
+      return card(event, [
+        headerBlock('🏁 Dispatch Day Finalized'),
+        fieldsBlock([
+          ['📅 Date', formatDate(data.date)],
+          ['🖊️ By',   data.by || null],
+        ]),
+      ], `Dispatch Day Finalized — ${data.date}`);
+
+    case SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED:
+      return card(event, [
+        headerBlock('↩️ Dispatch Day Finalization Reversed'),
+        fieldsBlock([
+          ['📅 Date', formatDate(data.date)],
+          ['🖊️ By',   data.by || null],
+        ]),
+      ], `Dispatch Day Finalization Reversed — ${data.date}`);
 
     // ── Salesperson Payments ───────────────────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED:

@@ -4,9 +4,15 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
 const { validateDispatchStock } = require('../services/stockGuard');
+const { isDayFinalizedForDispatcher } = require('../services/dispatchDayFinalization');
 const { getIndiaDateStr } = require('../utils/dateUtils');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+
+// Admin/superadmin/dispatcher all get lock/unlock in some form — dispatcher's
+// is further restricted to today + not-yet-finalized by
+// assertDispatcherCanToggleLock below.
+const ADMIN_TIER = new Set(['admin', 'superadmin', 'dispatcher']);
 
 // createOrUpdate/remove are shared by an admin dispatching stock to a
 // salesperson and the salesperson self-entering their own day's stock — the
@@ -15,9 +21,23 @@ async function resolveActor(req) {
   if (req.user.role === 'salesman') return 'Salesperson (self)';
   const admin = await prisma.adminUser.findUnique({
     where:  { id: req.user.adminUserId },
-    select: { username: true },
+    select: { username: true, role: true },
   });
-  return `Admin (${admin?.username ?? 'admin'})`;
+  const roleLabel = admin?.role === 'superadmin' ? 'Super Admin' : admin?.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
+  return `${roleLabel} (${admin?.username ?? 'admin'})`;
+}
+
+// Dispatcher's lock/unlock is scoped to today, and only before today has been
+// finalized — admin/superadmin bypass this entirely (unchanged, unrestricted).
+async function assertDispatcherCanToggleLock(dispatch) {
+  const todayStr = getIndiaDateStr();
+  const dateStr = dispatch.dispatchDate.toISOString().slice(0, 10);
+  if (dateStr !== todayStr) {
+    throw new AppError("Dispatchers can only lock/unlock today's entries.", 403);
+  }
+  if (await isDayFinalizedForDispatcher(todayStr, todayStr)) {
+    throw new AppError('Today has been finalized. Contact an admin to make changes.', 403);
+  }
 }
 
 // Returns true when the dispatch cannot be edited by the salesman
@@ -320,13 +340,16 @@ const submit = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry submitted and locked' } });
 });
 
-// Admin locks an entry (regardless of whether salesman submitted)
+// Admin locks an entry (regardless of whether salesman submitted). Dispatcher
+// can too, but only for today's entries, and only before today is finalized.
 const lock = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  if (!ADMIN_TIER.has(req.user.role)) throw new AppError('Admin access required', 403);
 
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
   if (!dispatch) throw new AppError('Stock entry not found', 404);
+
+  if (req.user.role === 'dispatcher') await assertDispatcherCanToggleLock(dispatch);
 
   await prisma.stockDispatch.update({
     where: { id },
@@ -344,13 +367,17 @@ const lock = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry locked' } });
 });
 
-// Admin unlocks a submitted or past-date entry so salesman can re-edit
+// Admin unlocks a submitted or past-date entry so salesman can re-edit.
+// Dispatcher can too, but only for today's entries, and only before today is
+// finalized — once finalized, only admin/superadmin retains this.
 const unlock = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  if (!ADMIN_TIER.has(req.user.role)) throw new AppError('Admin access required', 403);
 
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
   if (!dispatch) throw new AppError('Stock entry not found', 404);
+
+  if (req.user.role === 'dispatcher') await assertDispatcherCanToggleLock(dispatch);
 
   await prisma.stockDispatch.update({
     where: { id },
@@ -414,6 +441,61 @@ const openForEntry = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Entry opened', dispatchId: dispatch.id } });
 });
 
+// Dispatcher finalizes today: force-locks any salesperson still
+// unlocked/unsubmitted, then marks the day finalized. From that point on,
+// only admin/superadmin can unlock a salesperson for this date (see
+// assertDispatcherCanToggleLock above) — dispatcher-only action, not
+// available to admin/superadmin even as a manual escape hatch.
+const finalizeDay = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'dispatcher') throw new AppError('Dispatcher access required', 403);
+
+  const todayStr = getIndiaDateStr();
+  if (await isDayFinalizedForDispatcher(todayStr, todayStr)) {
+    throw new AppError('Today has already been finalized.', 400);
+  }
+  const today = new Date(todayStr);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.stockDispatch.updateMany({
+      where: { dispatchDate: today, isSubmitted: false },
+      data:  { isSubmitted: true, isAdminUnlocked: false },
+    });
+    await tx.dispatchDayFinalization.create({
+      data: { date: today, finalizedByAdminUserId: req.user.adminUserId ?? null, isAuto: false },
+    });
+  }, { isolationLevel: 'Serializable' });
+
+  logger.info('Dispatch day finalized', { date: todayStr, adminUserId: req.user.adminUserId });
+  const by = await resolveActor(req);
+  void notifySlack(SLACK_EVENTS.DISPATCH_DAY_FINALIZED, { date: todayStr, by });
+  res.json({ success: true, data: { message: 'Day finalized', date: todayStr } });
+});
+
+// Admin/superadmin only — reverses a dispatcher finalization for today so the
+// dispatcher regains lock/unlock access. Does NOT touch the dispatch entries
+// themselves (no rows are unlocked — that's a separate admin action per row).
+const unfinalizeDay = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+    throw new AppError('Admin access required', 403);
+  }
+
+  const todayStr = getIndiaDateStr();
+  // Past dates are auto-finalized by date comparison — there is no DB row to
+  // delete, so reversing them is not supported (and would have no effect anyway
+  // since isDayFinalizedForDispatcher returns true for any date < today).
+  const row = await prisma.dispatchDayFinalization.findUnique({ where: { date: new Date(todayStr) } });
+  if (!row) {
+    throw new AppError("Today has not been explicitly finalized — nothing to reverse. Past dates are auto-finalized and cannot be reversed.", 400);
+  }
+
+  await prisma.dispatchDayFinalization.delete({ where: { date: new Date(todayStr) } });
+
+  logger.info('Dispatch day finalization reversed', { date: todayStr, adminUserId: req.user.adminUserId });
+  const by = await resolveActor(req);
+  void notifySlack(SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED, { date: todayStr, by });
+  res.json({ success: true, data: { message: 'Finalization reversed', date: todayStr } });
+});
+
 const remove = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
@@ -444,4 +526,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
-module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, openForEntry, remove };
+module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, openForEntry, finalizeDay, unfinalizeDay, remove };

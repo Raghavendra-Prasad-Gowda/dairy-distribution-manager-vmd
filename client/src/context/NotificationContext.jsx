@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react';
-import { CheckCircle, XCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
+import BrandedLoader from '../components/ui/BrandedLoader';
 
 const Ctx = createContext(null);
 
@@ -67,18 +68,6 @@ function NotificationModal({ type, message, onClose }) {
   );
 }
 
-// ── Loading overlay ────────────────────────────────────────────────────────────
-function LoadingOverlay({ message = 'Processing…' }) {
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4">
-        <span className="text-5xl" style={{ animation: 'ntBounce 0.8s ease-in-out infinite alternate' }}>🥛</span>
-        <p className="text-slate-700 font-semibold text-sm">{message}</p>
-      </div>
-    </div>
-  );
-}
-
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function NotificationProvider({ children }) {
   const [current, setCurrent] = useState(null); // { type, message }
@@ -93,16 +82,15 @@ export function NotificationProvider({ children }) {
     <Ctx.Provider value={{ notify }}>
       {children}
 
-      {/* Animations injected once */}
+      {/* Animations injected once (notification modal only) */}
       <style>{`
         @keyframes ntFadeIn  { from { opacity: 0 } to { opacity: 1 } }
         @keyframes ntPopIn   { from { opacity: 0; transform: scale(0.85) } to { opacity: 1; transform: scale(1) } }
         @keyframes ntScaleIn { from { transform: scale(0) } to { transform: scale(1) } }
-        @keyframes ntBounce  { from { transform: translateY(0) } to { transform: translateY(-10px) } }
       `}</style>
 
       {current?.type === 'loading' && (
-        <LoadingOverlay message={current.message} />
+        <BrandedLoader overlay open label={current.message} size="sm" />
       )}
 
       {current && current.type !== 'loading' && (

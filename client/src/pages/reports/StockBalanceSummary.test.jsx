@@ -155,3 +155,22 @@ describe('StockBalanceSummary — crate display precision', () => {
     expect(screen.queryByText('0.6')).not.toBeInTheDocument();
   });
 });
+
+describe('StockBalanceSummary — dispatcher access', () => {
+  // This page never reads role — it's purely a consumer of whatever the API
+  // returns, so a dispatcher (who can reach it, per the route/API gating)
+  // sees the exact same read-only page an admin does. Pinning that here
+  // guards against someone later adding role-gating logic into this
+  // component itself instead of at the route/API layer.
+  it('renders identically for a dispatcher — no role-specific branching in this component', async () => {
+    mockApi({
+      availability: [{ brandId: 1, productId: 10, received: 50 }],
+      dispatch: DISPATCH_DATA,
+    });
+    render(<StockBalanceSummary />);
+
+    await screen.findByText('Ramesh');
+    expect(screen.getAllByText('Supply').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Shortage').length).toBeGreaterThan(0);
+  });
+});

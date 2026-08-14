@@ -23,9 +23,17 @@ const jwt = require('jsonwebtoken');
 const { test, ctx } = setupSuite();
 
 const SECRET = 'test-secret-for-ci';
-const adminToken    = () => jwt.sign({ id: 1 }, SECRET, { expiresIn: '1h' });
-const salesmanToken = (sid) => jwt.sign({ id: 100, role: 'salesman', salespersonId: sid }, SECRET, { expiresIn: '1h' });
-const expiredToken  = () => jwt.sign({ id: 1 }, SECRET, { expiresIn: '-1h' });
+const adminToken      = () => jwt.sign({ id: 1 }, SECRET, { expiresIn: '1h' });
+const salesmanToken   = (sid) => jwt.sign({ id: 100, role: 'salesman', salespersonId: sid }, SECRET, { expiresIn: '1h' });
+const dispatcherToken = () => jwt.sign({ id: 2, role: 'dispatcher', adminUserId: 2 }, SECRET, { expiresIn: '1h' });
+const expiredToken    = () => jwt.sign({ id: 1 }, SECRET, { expiresIn: '-1h' });
+
+// The only two GET routes a dispatcher may reach — everything else in
+// ADMIN_ONLY (and every other admin/superadmin-gated route) must still 403.
+const DISPATCHER_ALLOWED_PATHS = new Set([
+  '/api/v1/stock-receipts/availability?date=2026-04-30',
+  '/api/v1/reports/daily-dispatch?date=2026-04-30',
+]);
 
 // ─── Admin-only endpoints ────────────────────────────────────────────────────
 //
@@ -106,6 +114,60 @@ test.describe('RBAC — admin-only endpoints', () => {
       expect(res.status()).toBe(403);
     });
   }
+});
+
+// ─── Dispatcher — narrow read-only slice of the admin surface ───────────────
+//
+// A dispatcher must be denied everything in ADMIN_ONLY except the two GET
+// routes its two report pages actually call.
+
+test.describe('RBAC — dispatcher access', () => {
+  for (const { method, path, body } of ADMIN_ONLY) {
+    if (DISPATCHER_ALLOWED_PATHS.has(path)) continue;
+    test(`${method.toUpperCase()} ${path} → dispatcher = 403`, async ({ request }) => {
+      const res = await request[method](path, {
+        headers: { Authorization: `Bearer ${dispatcherToken()}` },
+        ...(body ? { data: body } : {}),
+      });
+      expect(res.status()).toBe(403);
+    });
+  }
+
+  test('GET /api/v1/stock-receipts/availability → dispatcher = 200 (the one stock-receipts route it may read)', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.stockReceipt.groupBy.mockResolvedValue([]);
+    ctx.mockPrisma.stockDispatchItem.groupBy.mockResolvedValue([]);
+    const res = await request.get('/api/v1/stock-receipts/availability?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test('GET /api/v1/reports/daily-dispatch → dispatcher = 200 (the one report route it may read)', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test('GET /api/v1/stock-receipts (unscoped list) → dispatcher = 403 — deliberately not opened up', async ({ request }) => {
+    const res = await request.get('/api/v1/stock-receipts?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('POST /api/v1/admin-users → dispatcher = 403 (superadmin-only, unaffected)', async ({ request }) => {
+    const res = await request.post('/api/v1/admin-users', {
+      headers: { Authorization: `Bearer ${dispatcherToken()}` },
+      data: { username: 'newdispatcher', password: 'password123', role: 'dispatcher' },
+    });
+    expect(res.status()).toBe(403);
+  });
 });
 
 // ─── Shared endpoints (admin + salesman) — scoping rules ─────────────────────

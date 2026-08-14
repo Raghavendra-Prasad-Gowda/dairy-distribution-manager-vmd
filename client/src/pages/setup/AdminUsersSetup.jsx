@@ -8,10 +8,11 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 
-const ROLE_LABEL = { admin: 'Admin', superadmin: 'Super Admin' };
+const ROLE_LABEL = { admin: 'Admin', superadmin: 'Super Admin', dispatcher: 'Dispatcher' };
 const ROLE_BADGE = {
   admin:      'bg-slate-100 text-slate-700',
   superadmin: 'bg-amber-100 text-amber-700',
+  dispatcher: 'bg-blue-100 text-blue-700',
 };
 
 export default function AdminUsersSetup() {
@@ -272,6 +273,7 @@ export default function AdminUsersSetup() {
             >
               <option value="admin">Admin</option>
               <option value="superadmin">Super Admin</option>
+              <option value="dispatcher">Dispatcher</option>
             </select>
           </div>
         </form>
@@ -330,6 +332,7 @@ export default function AdminUsersSetup() {
             >
               <option value="admin">Admin</option>
               <option value="superadmin">Super Admin</option>
+              <option value="dispatcher">Dispatcher</option>
             </select>
           </div>
           <div className="flex items-center gap-3">

@@ -8,13 +8,21 @@
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
 
-const { test, ctx, makeAuthToken } = setupSuite();
+const { test, ctx, makeAuthToken, makeDispatcherToken } = setupSuite();
 
 const ADMIN_USER = {
   id:           1,
   username:     'admin',
   passwordHash: 'hashed',
   role:         'admin',
+  isActive:     true,
+};
+
+const DISPATCHER_USER = {
+  id:           2,
+  username:     'dispatcher1',
+  passwordHash: 'hashed',
+  role:         'dispatcher',
   isActive:     true,
 };
 
@@ -173,6 +181,21 @@ test.describe('POST /api/v1/auth/login', () => {
     expect(findFirstArgs.where.username).toEqual({ equals: 'Raju', mode: 'insensitive' });
     expect(findFirstArgs.where.isActive).toBe(true);
   });
+
+  test('returns 200 with role "dispatcher" for a dispatcher account (goes through the AdminUser table)', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(DISPATCHER_USER);
+    ctx.mockBcrypt.compare = async () => true;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'dispatcher1', password: 'correctpass' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.role).toBe('dispatcher');
+    expect(body.data.adminUserId).toBe(2);
+    expect(body.data).toHaveProperty('accessToken');
+  });
 });
 
 // ─── POST /api/v1/auth/change-password ───────────────────────────────────────
@@ -228,6 +251,22 @@ test.describe('POST /api/v1/auth/change-password', () => {
       data: { newPassword: 'newpass123' },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 for a dispatcher changing their own password (same AdminUser branch as admin)', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(DISPATCHER_USER);
+    ctx.mockBcrypt.compare = async () => true;
+    ctx.mockBcrypt.hash = async () => 'new_hashed_password';
+    ctx.mockPrisma.adminUser.update.mockResolvedValue({ ...DISPATCHER_USER, passwordHash: 'new_hashed_password' });
+
+    const res = await request.post('/api/v1/auth/change-password', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+      data: { currentPassword: 'correctpass', newPassword: 'newpass123' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
   });
 });
 

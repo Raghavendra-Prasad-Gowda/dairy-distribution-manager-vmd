@@ -16,7 +16,12 @@ import DailyDispatchSummary from './DailyDispatchSummary';
 import api from '../../api/axios';
 
 vi.mock('../../api/axios', () => ({
-  default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+}));
+
+let mockRole = 'admin';
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { role: mockRole } }),
 }));
 
 vi.mock('../../utils/dateUtils', () => ({
@@ -52,9 +57,9 @@ function row(overrides) {
 
 const SALESPEOPLE = [{ id: 1, name: 'Ramu K' }];
 
-function mockApi({ rows = [row()], brands = [brand()], salespeople = SALESPEOPLE } = {}) {
+function mockApi({ rows = [row()], brands = [brand()], salespeople = SALESPEOPLE, isDayFinalized = false } = {}) {
   vi.mocked(api.get).mockImplementation((url) => {
-    if (url.includes('/reports/daily-dispatch')) return Promise.resolve({ data: { data: { rows, brands } } });
+    if (url.includes('/reports/daily-dispatch')) return Promise.resolve({ data: { data: { rows, brands, isDayFinalized } } });
     if (url.includes('/salespeople'))            return Promise.resolve({ data: { data: salespeople } });
     return Promise.resolve({ data: { data: [] } });
   });
@@ -62,6 +67,7 @@ function mockApi({ rows = [row()], brands = [brand()], salespeople = SALESPEOPLE
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockRole = 'admin';
   mockApi();
 });
 
@@ -204,6 +210,69 @@ describe('DailyDispatchSummary — crate display precision', () => {
   });
 });
 
+describe('DailyDispatchSummary — dispatcher role', () => {
+  beforeEach(() => { mockRole = 'dispatcher'; });
+
+  it('shows Lock/Unlock and Finalize Day on today, before finalization', async () => {
+    mockApi({ rows: [row({ isLocked: false })], isDayFinalized: false });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    expect(screen.getByRole('button', { name: /Lock/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Finalize Day/i })).toBeInTheDocument();
+    expect(screen.queryByText('Day Finalized')).not.toBeInTheDocument();
+  });
+
+  it('hides Lock/Unlock and Finalize Day once today has been finalized, showing a badge instead', async () => {
+    mockApi({ rows: [row({ isLocked: false })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByRole('button', { name: /^Lock$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Unlock$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Finalize Day/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Day Finalized/i)).toBeInTheDocument();
+  });
+
+  it('hides Unlock on a past date (dispatcher is restricted to today)', async () => {
+    mockApi({ rows: [row({ isLocked: true })] });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('change-date'); // DateSelector stub
+    fireEvent.click(screen.getByText('change-date')); // navigates to 2026-08-05, a past date
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByRole('button', { name: /Unlock/i })).not.toBeInTheDocument();
+  });
+
+  it('never shows Open for Entry, even on a past date with no dispatch row', async () => {
+    // Blank row (no dispatchId) — the only case that would otherwise offer
+    // Open for Entry to an admin. Dispatcher never gets this action.
+    mockApi({ rows: [row({ dispatchId: null, isSubmitted: false, totalAmount: 0 })] });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('change-date');
+    fireEvent.click(screen.getByText('change-date')); // navigates to 2026-08-05, a past date
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByRole('button', { name: /Open for Entry/i })).not.toBeInTheDocument();
+  });
+
+  it('finalizing calls POST /dispatches/finalize-day and refetches', async () => {
+    mockApi({ rows: [row({ isLocked: false })], isDayFinalized: false });
+    vi.mocked(api.post).mockResolvedValue({ data: { success: true } });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    fireEvent.click(screen.getByRole('button', { name: /Finalize Day/i }));
+    expect(await screen.findByText('Finalize today?')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalledWith('/dispatches/finalize-day');
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByText('Yes, Finalize'));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/dispatches/finalize-day'));
+  });
+});
+
 describe('DailyDispatchSummary — lock / unlock', () => {
   it('confirms before locking a submitted dispatch', async () => {
     render(<DailyDispatchSummary />);
@@ -246,5 +315,166 @@ describe('DailyDispatchSummary — open for entry', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/dispatches/open-for-entry', { salespersonId: 1, dispatchDate: '2026-08-05' })
     );
+  });
+});
+
+// ─── Dispatcher: /salespeople not called ──────────────────────────────────────
+
+describe('DailyDispatchSummary — dispatcher skips /salespeople fetch', () => {
+  beforeEach(() => { mockRole = 'dispatcher'; });
+
+  it('does not call GET /salespeople when the user is a dispatcher', async () => {
+    mockApi({ rows: [row()], isDayFinalized: false });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    const salespeopleCalls = vi.mocked(api.get).mock.calls.filter(([url]) => url.includes('/salespeople'));
+    expect(salespeopleCalls).toHaveLength(0);
+  });
+
+  it('still loads dispatch data without error when user is dispatcher', async () => {
+    mockApi({ rows: [row()], isDayFinalized: false });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+    // Salesperson name appears in both the sidebar list and the right-panel
+    // sub-header — use getAllByText so both occurrences are acceptable.
+    expect(screen.getAllByText('Ramu K').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─── Finalize Day button placement ────────────────────────────────────────────
+
+describe('DailyDispatchSummary — Finalize Day action bar placement', () => {
+  beforeEach(() => { mockRole = 'dispatcher'; });
+
+  it('renders the Finalize Day button outside the header, in a dedicated action bar', async () => {
+    mockApi({ rows: [row()], isDayFinalized: false });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    const btn = screen.getByRole('button', { name: /Finalize Day/i });
+    // The action bar has the amber hint text — the button must be co-located with it
+    const hint = screen.getByText(/finalize the day to lock entries/i);
+    expect(hint.closest('div')).toBeTruthy();
+    expect(btn).toBeInTheDocument();
+  });
+
+  it('shows "Day Finalized" status bar when today is finalized', async () => {
+    mockApi({ rows: [row()], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    expect(screen.getByText(/Day Finalized/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Finalize Day/i })).not.toBeInTheDocument();
+  });
+
+  it('hides the action bar for a past date (dispatcher only acts on today)', async () => {
+    mockApi({ rows: [row()], isDayFinalized: false });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('change-date');
+    fireEvent.click(screen.getByText('change-date')); // navigate to 2026-08-05
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByRole('button', { name: /Finalize Day/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/finalize the day/i)).not.toBeInTheDocument();
+  });
+});
+
+// ─── Admin info bar after finalization ────────────────────────────────────────
+
+describe('DailyDispatchSummary — admin info bar after dispatcher finalization', () => {
+  it('shows the info bar for admin when today is finalized', async () => {
+    mockRole = 'admin';
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    expect(screen.getByText(/Day finalized by dispatcher/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Undo Finalization/i })).toBeInTheDocument();
+  });
+
+  it('does not show the info bar when day is not finalized', async () => {
+    mockRole = 'admin';
+    mockApi({ rows: [row()], isDayFinalized: false });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByText(/Day finalized by dispatcher/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Undo Finalization/i })).not.toBeInTheDocument();
+  });
+
+  it('does not show the info bar for dispatcher (only admin sees it)', async () => {
+    mockRole = 'dispatcher';
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByText(/Day finalized by dispatcher/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Undo Finalization/i })).not.toBeInTheDocument();
+  });
+
+  it('does not show the info bar on a past date (past dates are auto-finalized, no reversal possible)', async () => {
+    mockRole = 'admin';
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('change-date');
+    fireEvent.click(screen.getByText('change-date')); // navigate to past date
+    await screen.findByText('Nandini');
+
+    expect(screen.queryByRole('button', { name: /Undo Finalization/i })).not.toBeInTheDocument();
+  });
+
+  it('admin can still lock/unlock individual entries after finalization', async () => {
+    mockRole = 'admin';
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    // Unlock button is present for admin even when day is finalized
+    expect(screen.getByRole('button', { name: /Unlock/i })).toBeInTheDocument();
+  });
+});
+
+// ─── Undo Finalization ────────────────────────────────────────────────────────
+
+describe('DailyDispatchSummary — Undo Finalization (admin)', () => {
+  beforeEach(() => {
+    mockRole = 'admin';
+    vi.mocked(api.delete).mockResolvedValue({ data: { success: true } });
+  });
+
+  it('shows a confirmation modal before calling DELETE /dispatches/finalize-day', async () => {
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    fireEvent.click(screen.getByRole('button', { name: /Undo Finalization/i }));
+    expect(await screen.findByText('Undo finalization?')).toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('calls DELETE /dispatches/finalize-day on confirm and refetches', async () => {
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    fireEvent.click(screen.getByRole('button', { name: /Undo Finalization/i }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByText('Yes, Undo'));
+
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/dispatches/finalize-day'));
+  });
+
+  it('cancelling the modal does not call the API', async () => {
+    mockApi({ rows: [row({ isLocked: true })], isDayFinalized: true });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Nandini');
+
+    fireEvent.click(screen.getByRole('button', { name: /Undo Finalization/i }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByText('Cancel'));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(api.delete).not.toHaveBeenCalled();
   });
 });

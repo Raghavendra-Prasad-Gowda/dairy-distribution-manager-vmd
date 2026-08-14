@@ -96,6 +96,20 @@ function BreakdownPanel({ row }) {
                       <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
                         {item.quantity} × ₹{item.unitPrice}
                       </p>
+                      {(item.crates > 0 || item.litres > 0) && (
+                        <div className="flex items-center gap-1 mt-1">
+                          {item.crates > 0 && (
+                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full tabular-nums">
+                              {formatCrates(item.crates)} crates
+                            </span>
+                          )}
+                          {item.litres > 0 && (
+                            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full tabular-nums">
+                              {formatLitres(item.litres)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <span className="text-xs font-bold text-blue-700 tabular-nums whitespace-nowrap flex-shrink-0">
                       {formatCurrency(item.totalAmount)}

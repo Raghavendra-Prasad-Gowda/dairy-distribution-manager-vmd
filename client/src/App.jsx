@@ -103,8 +103,19 @@ function AppRoutes() {
           </>
         )}
 
+        {/* ── DISPATCHER ROUTES ── */}
+        {user?.role === 'dispatcher' && (
+          <>
+            <Route index element={<Navigate to="/salesman/dispatch-sheet" replace />} />
+            <Route path="salesman/dispatch-sheet"    element={S(DailyDispatchSummary)} />
+            <Route path="reports/stock-balance"      element={S(StockBalanceSummary)} />
+            <Route path="dispatcher/change-password" element={S(ChangePassword)} />
+            <Route path="*" element={<Navigate to="/salesman/dispatch-sheet" replace />} />
+          </>
+        )}
+
         {/* ── ADMIN ROUTES ── */}
-        {user?.role !== 'salesman' && (
+        {user?.role !== 'salesman' && user?.role !== 'dispatcher' && (
           <>
             <Route index element={S(Dashboard)} />
 

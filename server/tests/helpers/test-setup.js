@@ -42,6 +42,10 @@ const makeSuperAdminToken = () =>
 const makeSalesmanToken = (salespersonId = 1) =>
   jwt.sign({ id: 100, role: 'salesman', salespersonId }, SECRET, { expiresIn: '1h' });
 
+/** Returns a signed JWT for a dispatcher user. */
+const makeDispatcherToken = () =>
+  jwt.sign({ id: 2, role: 'dispatcher', adminUserId: 2 }, SECRET, { expiresIn: '1h' });
+
 /** Returns a JWT that expired 1 hour ago — used to test 401 path. */
 const makeExpiredToken = () =>
   jwt.sign({ id: 1 }, SECRET, { expiresIn: '-1h' });
@@ -93,7 +97,7 @@ function setupSuite(bcryptDefaults = {}) {
     ctx.mockBcrypt.compare = defaultCompare;
   });
 
-  return { test, ctx, makeAuthToken, makeSuperAdminToken };
+  return { test, ctx, makeAuthToken, makeSuperAdminToken, makeDispatcherToken };
 }
 
-module.exports = { setupSuite, makeAuthToken, makeSuperAdminToken, makeSalesmanToken, makeExpiredToken };
+module.exports = { setupSuite, makeAuthToken, makeSuperAdminToken, makeSalesmanToken, makeExpiredToken, makeDispatcherToken };
