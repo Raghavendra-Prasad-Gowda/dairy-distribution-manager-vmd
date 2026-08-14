@@ -108,6 +108,31 @@ const SALESMAN_NAV = [
   },
 ];
 
+// ─── Dispatcher nav ────────────────────────────────────────────────────────────
+// Dispatcher gets exactly two report pages plus their own password screen —
+// nothing else in the app is visible to this role.
+
+const DISPATCHER_NAV = [
+  {
+    moduleLabel: 'REPORTS',
+    sections: [
+      {
+        label: 'DISPATCH',
+        items: [
+          { to: '/salesman/dispatch-sheet', icon: LayoutGrid, label: 'Dispatch Sheet' },
+          { to: '/reports/stock-balance',   icon: Warehouse,  label: 'Stock Balance' },
+        ],
+      },
+      {
+        label: 'SECURITY',
+        items: [
+          { to: '/dispatcher/change-password', icon: Lock, label: 'Change Password' },
+        ],
+      },
+    ],
+  },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getInitials(name) {
@@ -150,7 +175,7 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
   const [sidebarBrands, setSidebarBrands] = useState([]);
 
   useEffect(() => {
-    if (user?.role === 'salesman') return;
+    if (user?.role === 'salesman' || user?.role === 'dispatcher') return;
     api.get('/brands')
       .then(r => setSidebarBrands(r.data.data ?? []))
       .catch(() => {});
@@ -171,8 +196,10 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
     ),
   }));
 
-  const navTree = user?.role === 'salesman' ? SALESMAN_NAV : adminNavTree;
-  const showDashboard = user?.role !== 'salesman';
+  const navTree = user?.role === 'salesman' ? SALESMAN_NAV
+                 : user?.role === 'dispatcher' ? DISPATCHER_NAV
+                 : adminNavTree;
+  const showDashboard = user?.role !== 'salesman' && user?.role !== 'dispatcher';
 
   return (
     <div className="flex flex-col h-full ddm-gradient">
@@ -212,7 +239,7 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
             <div>
               <p className="text-white font-bold text-sm leading-tight">{user?.businessName ?? 'Vikas Milk Dairy'}</p>
               <p className="text-emerald-300 text-xs leading-tight">
-                {user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+                {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'dispatcher' ? 'Dispatcher' : 'Admin'}
               </p>
             </div>
           </div>

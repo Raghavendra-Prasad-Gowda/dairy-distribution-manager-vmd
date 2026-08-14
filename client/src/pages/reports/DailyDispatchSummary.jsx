@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen } from 'lucide-react';
+import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -7,6 +7,7 @@ import api from '../../api/axios';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import { useAuth } from '../../context/AuthContext';
 
 // Whole crate counts render plain; a partial crate shows to 2 decimal
 // places — the same precision level as every other crate figure in the app.
@@ -15,6 +16,9 @@ function formatCrates(crates) {
 }
 
 export default function DailyDispatchSummary() {
+  const { user } = useAuth();
+  const isDispatcher = user?.role === 'dispatcher';
+
   const [date, setDate]                       = useState(getIndiaDate());
   const [data, setData]                       = useState(null);
   const [loading, setLoading]                 = useState(false);
@@ -27,8 +31,15 @@ export default function DailyDispatchSummary() {
   const [lockConfirm, setLockConfirm]         = useState(null); // { dispatchId, isLocked, name }
   const [openLoading, setOpenLoading]         = useState(false);
   const [openConfirm, setOpenConfirm]         = useState(null); // { salespersonId, name }
+  const [finalizeLoading, setFinalizeLoading] = useState(false);
+  const [finalizeConfirm, setFinalizeConfirm] = useState(false);
 
   const isPastDate = date < getIndiaDate();
+  const isToday     = date === getIndiaDate();
+  const dayFinalized = data?.isDayFinalized ?? false;
+  // Dispatcher's lock/unlock is only actionable today, before finalization —
+  // admin/superadmin are completely unrestricted, unchanged.
+  const canToggleLock = !isDispatcher || (isToday && !dayFinalized);
 
   useEffect(() => { fetchData(); }, [date]);
 
@@ -84,6 +95,19 @@ export default function DailyDispatchSummary() {
       // fetchData will reset state
     } finally {
       setOpenLoading(false);
+    }
+  }
+
+  async function confirmFinalizeDay() {
+    setFinalizeConfirm(false);
+    setFinalizeLoading(true);
+    try {
+      await api.post('/dispatches/finalize-day');
+      await fetchData();
+    } catch (e) {
+      // fetchData will reset state
+    } finally {
+      setFinalizeLoading(false);
     }
   }
 
@@ -215,7 +239,26 @@ export default function DailyDispatchSummary() {
             )}
           </div>
         </div>
-        <DateSelector date={date} onChange={setDate} dark />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isDispatcher && isToday && data && (
+            dayFinalized ? (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700/50 border border-emerald-600 px-2.5 py-1.5 rounded-lg whitespace-nowrap">
+                <Lock size={12} /> Day Finalized
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                variant="soft-danger"
+                icon={FlagTriangleRight}
+                loading={finalizeLoading}
+                onClick={() => setFinalizeConfirm(true)}
+              >
+                Finalize Day
+              </Button>
+            )
+          )}
+          <DateSelector date={date} onChange={setDate} dark />
+        </div>
       </div>
 
       {/* ── Error banner ── */}
@@ -330,16 +373,18 @@ export default function DailyDispatchSummary() {
                     {showZeroQty ? 'All products' : 'Entered only'}
                   </button>
                   {selectedRow.dispatchId ? (
-                    <Button
-                      size="sm"
-                      variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
-                      icon={selectedRow.isLocked ? LockOpen : Lock}
-                      loading={lockLoading}
-                      onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
-                    >
-                      {selectedRow.isLocked ? 'Unlock' : 'Lock'}
-                    </Button>
-                  ) : isPastDate && (
+                    canToggleLock && (
+                      <Button
+                        size="sm"
+                        variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
+                        icon={selectedRow.isLocked ? LockOpen : Lock}
+                        loading={lockLoading}
+                        onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
+                      >
+                        {selectedRow.isLocked ? 'Unlock' : 'Lock'}
+                      </Button>
+                    )
+                  ) : (!isDispatcher && isPastDate) && (
                     <Button
                       size="sm"
                       variant="soft-warning"
@@ -535,6 +580,19 @@ export default function DailyDispatchSummary() {
         cancelText="Cancel"
         tone="warning"
         icon={LockOpen}
+      />
+
+      {/* Finalize-day confirmation modal */}
+      <ConfirmationModal
+        isOpen={finalizeConfirm}
+        onClose={() => setFinalizeConfirm(false)}
+        onConfirm={confirmFinalizeDay}
+        title="Finalize today?"
+        message="Any salesperson still unlocked today will be automatically locked. After this, only an admin can make further changes today."
+        confirmText="Yes, Finalize"
+        cancelText="Cancel"
+        tone="danger"
+        icon={FlagTriangleRight}
       />
 
     </div>

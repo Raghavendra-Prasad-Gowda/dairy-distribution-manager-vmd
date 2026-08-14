@@ -97,6 +97,31 @@ describe('Layout — superadmin nav', () => {
   });
 });
 
+describe('Layout — dispatcher nav', () => {
+  beforeEach(() => { mockUser = { role: 'dispatcher', businessName: 'Vikas Milk Dairy' }; });
+
+  it('shows only Dispatch Sheet, Stock Balance, and Change Password — no Dashboard', async () => {
+    const { desktopSidebar } = renderLayout();
+    await within(desktopSidebar).findByText('Dispatch Sheet');
+    expect(within(desktopSidebar).queryByText('Dashboard')).toBeNull();
+    expect(within(desktopSidebar).getByText('Stock Balance')).toBeInTheDocument();
+    expect(within(desktopSidebar).getByText('Change Password')).toBeInTheDocument();
+    expect(within(desktopSidebar).queryByText('DAIRY')).toBeNull();
+    expect(within(desktopSidebar).queryByText('SALESMAN')).toBeNull();
+  });
+
+  it('shows the "Dispatcher" role label in the sidebar', async () => {
+    const { desktopSidebar } = renderLayout();
+    await within(desktopSidebar).findByText('Dispatcher');
+  });
+
+  it('does not fetch /brands for a dispatcher', async () => {
+    const { desktopSidebar } = renderLayout();
+    await within(desktopSidebar).findByText('Dispatch Sheet');
+    expect(api.get).not.toHaveBeenCalledWith('/brands');
+  });
+});
+
 describe('Layout — salesman nav', () => {
   beforeEach(() => { mockUser = { role: 'salesman', salespersonName: 'Ramu K', businessName: 'Vikas Milk Dairy' }; });
 

@@ -7,8 +7,9 @@
 
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
+const { getIndiaDateStr } = require('../../utils/dateUtils');
 
-const { test, ctx, makeAuthToken } = setupSuite();
+const { test, ctx, makeAuthToken, makeDispatcherToken } = setupSuite();
 
 // ─── GET /api/v1/reports/dairy-statement ─────────────────────────────────────
 
@@ -873,5 +874,63 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
     expect(capturedWhere.OR).toBeUndefined();
     expect(capturedWhere.showInStockReceipt).toBe(true);
     expect(capturedWhere.salespersonEnabled).toBe(true);
+  });
+
+  // ── Dispatcher access + isDayFinalized ──────────────────────────────────
+  // This is the one report endpoint a dispatcher may read (both Daily Stock
+  // Balance Summary and the Daily Salesman Dispatch Sheet call it) — and the
+  // only place the day-level finalization flag needs to travel to the client.
+
+  test('returns 200 for a dispatcher token', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test('isDayFinalized is true for a past date, with no finalization row needed', async ({ request }) => {
+    let called = false;
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockImplementation(async () => {
+      called = true;
+      return null;
+    });
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.isDayFinalized).toBe(true);
+    expect(called).toBe(false);
+  });
+
+  test('isDayFinalized is false for today with no finalization row', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+
+    const res = await request.get(`/api/v1/reports/daily-dispatch?date=${getIndiaDateStr()}`, {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.isDayFinalized).toBe(false);
+  });
+
+  test('isDayFinalized is true for today once a finalization row exists', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue({
+      id: 1, date: new Date(getIndiaDateStr()), finalizedByAdminUserId: 2, isAuto: false,
+    });
+
+    const res = await request.get(`/api/v1/reports/daily-dispatch?date=${getIndiaDateStr()}`, {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.isDayFinalized).toBe(true);
   });
 });

@@ -25,19 +25,18 @@ const authenticate = (req, res, next) => {
   });
 };
 
-const requireAdmin = (req, res, next) => {
-  const { role } = req.user ?? {};
-  if (role !== 'admin' && role !== 'superadmin') {
-    return next(new AppError('Admin access required.', 403));
+const requireRole = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user?.role)) {
+    return next(new AppError('Access denied.', 403));
   }
   next();
 };
 
-const requireSuperAdmin = (req, res, next) => {
-  if (req.user?.role !== 'superadmin') {
-    return next(new AppError('Super admin access required.', 403));
-  }
-  next();
-};
+const requireAdmin             = requireRole('admin', 'superadmin');
+const requireSuperAdmin        = requireRole('superadmin');
+// Read-only admin-tier access for the two reports a dispatcher may view —
+// deliberately narrower than requireAdmin so it's only ever applied to the
+// specific GET routes a dispatcher needs, never to a whole router.
+const requireAdminOrDispatcher = requireRole('admin', 'superadmin', 'dispatcher');
 
-module.exports = { authenticate, requireAdmin, requireSuperAdmin };
+module.exports = { authenticate, requireAdmin, requireSuperAdmin, requireAdminOrDispatcher };

@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { qualifiesForDeposit, calculateLineDeposit } = require('../services/depositRules');
 const { getIndiaDateStr } = require('../utils/dateUtils');
+const { isDayFinalizedForDispatcher } = require('../services/dispatchDayFinalization');
 
 // Defense-in-depth: every report endpoint mounts under requireAdmin in app.js,
 // but if that middleware is ever moved or misconfigured, the controller still
@@ -11,6 +12,15 @@ const { getIndiaDateStr } = require('../utils/dateUtils');
 function assertAdmin(req) {
   const role = req.user?.role;
   if (role !== 'admin' && role !== 'superadmin') {
+    throw new AppError('Admin access required', 403);
+  }
+}
+
+// dailyDispatch alone is also readable by dispatcher (route-level gate is
+// requireAdminOrDispatcher) — same defense-in-depth purpose as assertAdmin.
+function assertAdminOrDispatcher(req) {
+  const role = req.user?.role;
+  if (role !== 'admin' && role !== 'superadmin' && role !== 'dispatcher') {
     throw new AppError('Admin access required', 403);
   }
 }
@@ -647,7 +657,7 @@ const profitLoss = asyncHandler(async (req, res) => {
 });
 
 const dailyDispatch = asyncHandler(async (req, res) => {
-  assertAdmin(req);
+  assertAdminOrDispatcher(req);
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
@@ -759,7 +769,9 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     };
   });
 
-  res.json({ success: true, data: { date, brands, rows, totals: productTotals } });
+  const isDayFinalized = await isDayFinalizedForDispatcher(date, getIndiaDateStr());
+
+  res.json({ success: true, data: { date, brands, rows, totals: productTotals, isDayFinalized } });
 });
 
 module.exports = { dairyStatement, salespersonStatement, stockSummary, outstanding, depositSummary, dailyDispatch, profitLoss };

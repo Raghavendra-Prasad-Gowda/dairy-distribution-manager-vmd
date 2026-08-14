@@ -56,6 +56,15 @@ describe('AdminUsersSetup — list', () => {
     expect(screen.getByText('Inactive')).toBeInTheDocument();
   });
 
+  it('shows the Dispatcher badge for a dispatcher-role row', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ role: 'dispatcher', username: 'dispatcher1' })] },
+    });
+    await renderPage();
+    expect(await screen.findByText('dispatcher1')).toBeInTheDocument();
+    expect(screen.getByText('Dispatcher')).toBeInTheDocument();
+  });
+
   it('filters by username or role', async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: { data: [adminUser({ id: 2, username: 'raghav' }), adminUser({ id: 3, username: 'mahesh' })] },
@@ -103,6 +112,19 @@ describe('AdminUsersSetup — add user', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create/i }));
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Username already taken', 'error'));
+  });
+
+  it('the role select offers Dispatcher, and creating one posts role: dispatcher', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Add Admin'));
+    fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'dispatcher1' } });
+    fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
+    fireEvent.change(screen.getByDisplayValue('Admin'), { target: { value: 'dispatcher' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/admin-users', { username: 'dispatcher1', password: 'secret1', role: 'dispatcher' })
+    );
   });
 });
 
