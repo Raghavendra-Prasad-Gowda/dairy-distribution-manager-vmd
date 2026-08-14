@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight } from 'lucide-react';
+import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight, RotateCcw } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -32,8 +32,10 @@ export default function DailyDispatchSummary() {
   const [lockConfirm, setLockConfirm]         = useState(null); // { dispatchId, isLocked, name }
   const [openLoading, setOpenLoading]         = useState(false);
   const [openConfirm, setOpenConfirm]         = useState(null); // { salespersonId, name }
-  const [finalizeLoading, setFinalizeLoading] = useState(false);
-  const [finalizeConfirm, setFinalizeConfirm] = useState(false);
+  const [finalizeLoading, setFinalizeLoading]     = useState(false);
+  const [finalizeConfirm, setFinalizeConfirm]     = useState(false);
+  const [unfinalizeLoading, setUnfinalizeLoading] = useState(false);
+  const [unfinalizeConfirm, setUnfinalizeConfirm] = useState(false);
 
   const isPastDate = date < getIndiaDate();
   const isToday     = date === getIndiaDate();
@@ -113,6 +115,19 @@ export default function DailyDispatchSummary() {
       // fetchData will reset state
     } finally {
       setFinalizeLoading(false);
+    }
+  }
+
+  async function confirmUnfinalizeDay() {
+    setUnfinalizeConfirm(false);
+    setUnfinalizeLoading(true);
+    try {
+      await api.delete('/dispatches/finalize-day');
+      await fetchData();
+    } catch (e) {
+      // fetchData will reset state
+    } finally {
+      setUnfinalizeLoading(false);
     }
   }
 
@@ -276,13 +291,24 @@ export default function DailyDispatchSummary() {
       )}
 
       {/* ── Admin info bar: shown when dispatcher has finalized the day ── */}
-      {!isDispatcher && dayFinalized && data && (
-        <div className="flex items-center gap-2.5 bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex-shrink-0">
-          <Lock size={13} className="text-blue-500 flex-shrink-0" />
-          <p className="text-xs text-blue-700 leading-snug">
-            <span className="font-semibold">Day finalized by dispatcher.</span>
-            {' '}All entries are locked — use the <span className="font-semibold">Unlock</span> button on any salesperson to override.
-          </p>
+      {!isDispatcher && dayFinalized && data && isToday && (
+        <div className="flex items-center justify-between gap-3 bg-blue-50 border-b border-blue-200 px-4 py-2 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Lock size={13} className="text-blue-500 flex-shrink-0" />
+            <p className="text-xs text-blue-700 leading-snug">
+              <span className="font-semibold">Day finalized by dispatcher.</span>
+              {' '}Use <span className="font-semibold">Unlock</span> per salesperson, or <span className="font-semibold">Undo Finalization</span> to restore dispatcher access.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="soft-info"
+            icon={RotateCcw}
+            disabled={unfinalizeLoading}
+            onClick={() => setUnfinalizeConfirm(true)}
+          >
+            Undo Finalization
+          </Button>
         </div>
       )}
 
@@ -572,9 +598,10 @@ export default function DailyDispatchSummary() {
       </div>
 
       {/* ── Branded action overlays (replace in-button spinners) ── */}
-      <BrandedLoader overlay open={lockLoading}     tone="transparent" size="sm" label={lockAction === 'unlock' ? 'Unlocking…' : 'Locking…'} hideBrand />
-      <BrandedLoader overlay open={finalizeLoading} tone="transparent" size="sm" label="Finalizing day…" hideBrand />
-      <BrandedLoader overlay open={openLoading}     tone="transparent" size="sm" label="Opening for entry…" hideBrand />
+      <BrandedLoader overlay open={lockLoading}       tone="transparent" size="sm" label={lockAction === 'unlock' ? 'Unlocking…' : 'Locking…'} hideBrand />
+      <BrandedLoader overlay open={finalizeLoading}   tone="transparent" size="sm" label="Finalizing day…" hideBrand />
+      <BrandedLoader overlay open={unfinalizeLoading} tone="transparent" size="sm" label="Reversing finalization…" hideBrand />
+      <BrandedLoader overlay open={openLoading}       tone="transparent" size="sm" label="Opening for entry…" hideBrand />
 
       {/* Lock / Unlock confirmation modal */}
       <ConfirmationModal
@@ -623,6 +650,19 @@ export default function DailyDispatchSummary() {
         cancelText="Cancel"
         tone="danger"
         icon={FlagTriangleRight}
+      />
+
+      {/* Undo finalization confirmation modal (admin only) */}
+      <ConfirmationModal
+        isOpen={unfinalizeConfirm}
+        onClose={() => setUnfinalizeConfirm(false)}
+        onConfirm={confirmUnfinalizeDay}
+        title="Undo finalization?"
+        message="This will restore the dispatcher's ability to lock and unlock entries for today. Existing dispatch entries are not changed."
+        confirmText="Yes, Undo"
+        cancelText="Cancel"
+        tone="warning"
+        icon={RotateCcw}
       />
 
     </div>

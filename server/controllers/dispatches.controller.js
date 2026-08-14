@@ -471,6 +471,31 @@ const finalizeDay = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Day finalized', date: todayStr } });
 });
 
+// Admin/superadmin only — reverses a dispatcher finalization for today so the
+// dispatcher regains lock/unlock access. Does NOT touch the dispatch entries
+// themselves (no rows are unlocked — that's a separate admin action per row).
+const unfinalizeDay = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+    throw new AppError('Admin access required', 403);
+  }
+
+  const todayStr = getIndiaDateStr();
+  // Past dates are auto-finalized by date comparison — there is no DB row to
+  // delete, so reversing them is not supported (and would have no effect anyway
+  // since isDayFinalizedForDispatcher returns true for any date < today).
+  const row = await prisma.dispatchDayFinalization.findUnique({ where: { date: new Date(todayStr) } });
+  if (!row) {
+    throw new AppError("Today has not been explicitly finalized — nothing to reverse. Past dates are auto-finalized and cannot be reversed.", 400);
+  }
+
+  await prisma.dispatchDayFinalization.delete({ where: { date: new Date(todayStr) } });
+
+  logger.info('Dispatch day finalization reversed', { date: todayStr, adminUserId: req.user.adminUserId });
+  const by = await resolveActor(req);
+  void notifySlack(SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED, { date: todayStr, by });
+  res.json({ success: true, data: { message: 'Finalization reversed', date: todayStr } });
+});
+
 const remove = asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, 'Dispatch ID');
   const dispatch = await prisma.stockDispatch.findUnique({ where: { id } });
@@ -501,4 +526,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Stock entry deleted' } });
 });
 
-module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, openForEntry, finalizeDay, remove };
+module.exports = { getAll, getSummary, createOrUpdate, submit, lock, unlock, openForEntry, finalizeDay, unfinalizeDay, remove };
