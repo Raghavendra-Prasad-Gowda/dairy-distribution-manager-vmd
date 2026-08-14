@@ -275,6 +275,17 @@ export default function DailyDispatchSummary() {
         )
       )}
 
+      {/* ── Admin info bar: shown when dispatcher has finalized the day ── */}
+      {!isDispatcher && dayFinalized && data && (
+        <div className="flex items-center gap-2.5 bg-blue-50 border-b border-blue-200 px-4 py-2.5 flex-shrink-0">
+          <Lock size={13} className="text-blue-500 flex-shrink-0" />
+          <p className="text-xs text-blue-700 leading-snug">
+            <span className="font-semibold">Day finalized by dispatcher.</span>
+            {' '}All entries are locked — use the <span className="font-semibold">Unlock</span> button on any salesperson to override.
+          </p>
+        </div>
+      )}
+
       {/* ── Error banner ── */}
       {error && (
         <div className="flex items-center gap-2 bg-red-50 border-b border-red-200 text-red-700 px-4 py-2.5 text-sm flex-shrink-0">
