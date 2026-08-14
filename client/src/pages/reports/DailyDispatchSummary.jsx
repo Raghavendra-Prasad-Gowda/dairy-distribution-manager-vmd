@@ -28,7 +28,6 @@ export default function DailyDispatchSummary() {
   const [showZeroQty, setShowZeroQty]         = useState(false);
   const [collapsedBrands, setCollapsedBrands] = useState({});
   const [lockLoading, setLockLoading]         = useState(false);
-  const [lockAction, setLockAction]           = useState('lock'); // 'lock' | 'unlock' — captured before confirm clears
   const [lockConfirm, setLockConfirm]         = useState(null); // { dispatchId, isLocked, name }
   const [openLoading, setOpenLoading]         = useState(false);
   const [openConfirm, setOpenConfirm]         = useState(null); // { salespersonId, name }
@@ -197,7 +196,6 @@ export default function DailyDispatchSummary() {
   async function confirmLockToggle() {
     if (!lockConfirm) return;
     const { dispatchId, isLocked } = lockConfirm;
-    setLockAction(isLocked ? 'unlock' : 'lock');
     setLockConfirm(null);
     setLockLoading(true);
     try {
@@ -438,7 +436,7 @@ export default function DailyDispatchSummary() {
                         size="sm"
                         variant={selectedRow.isLocked ? 'soft-warning' : 'soft-info'}
                         icon={selectedRow.isLocked ? LockOpen : Lock}
-                        disabled={lockLoading}
+                        loading={lockLoading}
                         onClick={() => handleLockToggle(selectedRow.dispatchId, selectedRow.isLocked, selectedRow.salespersonName)}
                       >
                         {selectedRow.isLocked ? 'Unlock' : 'Lock'}
@@ -449,7 +447,7 @@ export default function DailyDispatchSummary() {
                       size="sm"
                       variant="soft-warning"
                       icon={LockOpen}
-                      disabled={openLoading}
+                      loading={openLoading}
                       onClick={() => setOpenConfirm({ salespersonId: selectedRow.salespersonId, name: selectedRow.salespersonName })}
                     >
                       Open for Entry
@@ -606,11 +604,11 @@ export default function DailyDispatchSummary() {
         </div>
       </div>
 
-      {/* ── Branded action overlays (replace in-button spinners) ── */}
-      <BrandedLoader overlay open={lockLoading}       tone="transparent" size="sm" label={lockAction === 'unlock' ? 'Unlocking…' : 'Locking…'} hideBrand />
-      <BrandedLoader overlay open={finalizeLoading}   tone="transparent" size="sm" label="Finalizing day…" hideBrand />
+      {/* ── Branded action overlays — day-level actions only (per-salesperson ──
+           lock/unlock and open-for-entry use the Button's built-in loading     ──
+           spinner instead; BrandedLoader is for significant, page-blocking ops) */}
+      <BrandedLoader overlay open={finalizeLoading}   tone="transparent" size="sm" label="Finalizing day…"        hideBrand />
       <BrandedLoader overlay open={unfinalizeLoading} tone="transparent" size="sm" label="Reversing finalization…" hideBrand />
-      <BrandedLoader overlay open={openLoading}       tone="transparent" size="sm" label="Opening for entry…" hideBrand />
 
       {/* Lock / Unlock confirmation modal */}
       <ConfirmationModal
