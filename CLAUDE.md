@@ -198,9 +198,22 @@ npm run dev            # http://localhost:5173
 
 ## 9. Git Standards
 
+### Default development branch
+**All new features, bug fixes, and code changes MUST be developed on `environment/test`.**
+This is the integration branch — it is always the starting point and the target for day-to-day work.
+
+```bash
+git checkout environment/test
+git pull origin environment/test
+# … make changes, commit, push …
+git push -u origin environment/test
+```
+
+Do NOT create separate `feat/` or `fix/` branches unless explicitly requested.
+Only `main` is off-limits for direct commits — everything else flows through `environment/test` first.
+
+### Other rules
 - **Never force-push `main`**
-- Feature branches: `feat/<description>`
-- Bug fixes: `fix/<description>`
 - Commit messages: imperative mood, present tense, max 72 chars
 - PRs to `main` run CI automatically (`.github/workflows/pr-checks.yml`)
 
