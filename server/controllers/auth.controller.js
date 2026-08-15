@@ -6,11 +6,12 @@ const { BCRYPT_ROUNDS, JWT_EXPIRES_IN } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const env = require('../config/env');
 
 const BUSINESS_NAME = 'Vikas Milk Dairy';
 
 function setCookie(res, token) {
-  const isDeployed = process.env.NODE_ENV !== 'development';
+  const isDeployed = !env.isDev;
   res.cookie('token', token, {
     httpOnly: true,
     secure: isDeployed,
@@ -44,7 +45,7 @@ const login = asyncHandler(async (req, res) => {
 
     const token = jwt.sign(
       { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
-      process.env.JWT_SECRET,
+      env.JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
     setCookie(res, token);
@@ -81,7 +82,7 @@ const login = asyncHandler(async (req, res) => {
 
   const token = jwt.sign(
     { id: salesperson.id, role: 'salesman', salespersonId: salesperson.id },
-    process.env.JWT_SECRET,
+    env.JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
   setCookie(res, token);

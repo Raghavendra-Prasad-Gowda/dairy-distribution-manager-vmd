@@ -38,6 +38,10 @@ const schemas = {
     currentPassword: z.string().min(1, 'Current password is required'),
     newPassword: z.string().min(6, 'New password must be at least 6 characters'),
   }),
+  verifyPin: z.object({
+    // Accept string or number from the client, coerce to string for comparison.
+    pin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'PIN is required')),
+  }),
 
   // Brands
   createBrand: z.object({

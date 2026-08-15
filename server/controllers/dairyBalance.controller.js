@@ -2,7 +2,14 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { parseId } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { computeDairyBalance } = require('../services/balanceService');
 
+/**
+ * Returns the DairyBalance snapshot for a brand+date. Uses the persisted row
+ * when one exists; otherwise computes it on the fly via balanceService — the
+ * SINGLE source of truth for the formula — so the fallback can never disagree
+ * with the cascade (top-ups add, deposit rules identical to the writer).
+ */
 async function getOrBuildBalance(brandId, date) {
   const balanceDate = new Date(date);
   const existing = await prisma.dairyBalance.findUnique({
@@ -13,58 +20,14 @@ async function getOrBuildBalance(brandId, date) {
     openingBalance: Number(existing.openingBalance),
     stockValue:     Number(existing.stockValue),
     depositValue:   Number(existing.depositValue ?? 0),
+    topUpAmount:    Number(existing.topUpAmount ?? 0),
     amountPaid:     Number(existing.amountPaid),
     closingBalance: Number(existing.closingBalance),
   };
 
-  // No saved balance — compute on the fly (same logic as balanceService)
-  const prev = await prisma.dairyBalance.findFirst({
-    where: { brandId, balanceDate: { lt: balanceDate } },
-    orderBy: { balanceDate: 'desc' },
-  });
-  const receipts = await prisma.stockReceipt.findMany({
-    where: { brandId, receiptDate: balanceDate },
-    select: { quantity: true, unitPrice: true, product: { select: { unitType: true, unitSize: true, containerType: true, category: true, depositEnabled: true } } },
-  });
-  const paymentAgg = await prisma.dairyPayment.aggregate({
-    where: { brandId, paymentDate: balanceDate },
-    _sum: { amount: true },
-  });
-
-  const openingBalance = Number(prev?.closingBalance ?? 0);
-  const stockValue = receipts.reduce((s, r) => s + Number(r.quantity) * Number(r.unitPrice), 0);
-  const amountPaid = Number(paymentAgg._sum.amount ?? 0);
-
-  // Deposit — mirrors balanceService._calcDairyBalance
-  const brand = await prisma.brand.findUnique({
-    where: { id: brandId },
-    select: { depositEnabled: true, depositPerLitre: true },
-  });
-  let depositValue = 0;
-  if (brand?.depositEnabled && Number(brand.depositPerLitre) > 0) {
-    const depositPerLitre = Number(brand.depositPerLitre);
-    const categories = await prisma.category.findMany({
-      where: { brandId },
-      select: { name: true, depositEnabled: true },
-    });
-    const enabledCategories = new Set(categories.filter(c => c.depositEnabled).map(c => c.name));
-    depositValue = receipts.reduce((sum, r) => {
-      const { unitType, unitSize, containerType, depositEnabled, category } = r.product;
-      if (
-        (unitType === 'ml' || unitType === 'gram') &&
-        containerType === 'crate' &&
-        unitSize &&
-        depositEnabled &&
-        enabledCategories.has(category ?? '')
-      ) {
-        return sum + Number(r.quantity) * (Number(unitSize) / 1000) * depositPerLitre;
-      }
-      return sum;
-    }, 0);
-  }
-
-  const closingBalance = openingBalance + stockValue + depositValue - amountPaid;
-  return { brandId, balanceDate, openingBalance, stockValue, depositValue, amountPaid, closingBalance };
+  // No saved balance — compute on the fly through the shared service so the
+  // figures match exactly what the ledger cascade would have written.
+  return computeDairyBalance(brandId, date);
 }
 
 const getAll = asyncHandler(async (req, res) => {

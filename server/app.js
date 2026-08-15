@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
+const env = require('./config/env'); // validates & freezes config at boot (fail-fast)
 const logger = require('./config/logger');
 const AppError = require('./utils/AppError');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
@@ -41,7 +42,7 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // ─── 2. CORS ─────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',');
+const allowedOrigins = env.allowedOrigins;
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);

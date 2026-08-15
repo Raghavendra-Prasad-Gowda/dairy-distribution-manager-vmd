@@ -3,7 +3,14 @@ const { parseId } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { computeSalespersonBalance } = require('../services/balanceService');
 
+/**
+ * Returns the SalespersonBalance snapshot for a salesperson+date. Uses the
+ * persisted row when one exists; otherwise computes it on the fly via
+ * balanceService — the SINGLE source of truth — so the fallback matches the
+ * cascade exactly (top-ups ADD, and only real payments subtract).
+ */
 async function buildSalespersonBalance(salespersonId, date) {
   const balanceDate = new Date(date);
   const existing = await prisma.salespersonBalance.findUnique({
@@ -13,29 +20,12 @@ async function buildSalespersonBalance(salespersonId, date) {
     ...existing,
     openingBalance: Number(existing.openingBalance),
     stockGiven:     Number(existing.stockGiven),
+    topUpAmount:    Number(existing.topUpAmount ?? 0),
     amountPaid:     Number(existing.amountPaid),
     closingBalance: Number(existing.closingBalance),
   };
 
-  const [prev, dispatchAgg, paymentAgg] = await Promise.all([
-    prisma.salespersonBalance.findFirst({
-      where: { salespersonId, balanceDate: { lt: balanceDate } },
-      orderBy: { balanceDate: 'desc' },
-    }),
-    prisma.stockDispatch.aggregate({
-      where: { salespersonId, dispatchDate: balanceDate },
-      _sum: { totalAmount: true },
-    }),
-    prisma.salespersonPayment.aggregate({
-      where: { salespersonId, paymentDate: balanceDate },
-      _sum: { amount: true },
-    }),
-  ]);
-
-  const openingBalance = Number(prev?.closingBalance ?? 0);
-  const stockGiven = Number(dispatchAgg._sum.totalAmount ?? 0);
-  const amountPaid = Number(paymentAgg._sum.amount ?? 0);
-  return { salespersonId, balanceDate, openingBalance, stockGiven, amountPaid, closingBalance: openingBalance + stockGiven - amountPaid };
+  return computeSalespersonBalance(salespersonId, date);
 }
 
 // Admin only: get all salespeople balances for a date

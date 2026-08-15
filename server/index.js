@@ -2,6 +2,7 @@
 require('dotenv').config();
 const { execSync } = require('child_process');
 const app = require('./app');
+const env = require('./config/env');
 const logger = require('./config/logger');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
 
@@ -9,7 +10,7 @@ const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
 async function resolveFailedMigrations() {
   const { Client } = require('pg');
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: env.DATABASE_URL,
     connectionTimeoutMillis: 5000,
   });
   try {
@@ -61,7 +62,7 @@ process.on('unhandledRejection', async (reason) => {
 });
 
 async function boot() {
-  const PORT = process.env.PORT || 3001;
+  const PORT = env.PORT;
 
   const server = app.listen(PORT, () => {
     logger.info(`Server listening on port ${PORT} — running startup tasks…`);
