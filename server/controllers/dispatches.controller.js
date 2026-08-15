@@ -8,6 +8,7 @@ const { isDayFinalizedForDispatcher } = require('../services/dispatchDayFinaliza
 const { getIndiaDateStr } = require('../utils/dateUtils');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { assertAdmin } = require('../utils/authz');
 
 // Admin/superadmin/dispatcher all get lock/unlock in some form — dispatcher's
 // is further restricted to today + not-yet-finalized by
@@ -142,7 +143,7 @@ const getAll = asyncHandler(async (req, res) => {
 // Admin only — cross-salesperson report. Salesmen already have their own
 // scoped view via getAll (?date=), which filters to req.user.salespersonId.
 const getSummary = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
@@ -413,7 +414,7 @@ const unlock = asyncHandler(async (req, res) => {
 // exists yet — the normal unlock action needs an existing dispatch id, but a
 // date the salesperson never touched has none, so there's nothing to unlock.
 const openForEntry = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.openDispatchForEntry, req, res);
   if (!data) return;

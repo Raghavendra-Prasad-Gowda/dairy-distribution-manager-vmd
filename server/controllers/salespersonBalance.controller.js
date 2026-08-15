@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { computeSalespersonBalance } = require('../services/balanceService');
+const { assertAdmin } = require('../utils/authz');
 
 /**
  * Returns the SalespersonBalance snapshot for a salesperson+date. Uses the
@@ -30,7 +31,7 @@ async function buildSalespersonBalance(salespersonId, date) {
 
 // Admin only: get all salespeople balances for a date
 const getAll = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 

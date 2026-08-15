@@ -2,10 +2,12 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { assertAdmin } = require('../utils/authz');
+const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
 
 // Admin only — returns all active products with isEnabled status for a salesperson
 const getProducts = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
 
@@ -24,7 +26,7 @@ const getProducts = asyncHandler(async (req, res) => {
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
 
-  const catOrderMap = new Map(categories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+  const catOrderMap = buildCategoryOrderMap(categories);
   const enabledMap = Object.fromEntries(enabledRows.map(r => [r.productId, r.isEnabled]));
 
   const result = products.map(p => ({
@@ -33,7 +35,7 @@ const getProducts = asyncHandler(async (req, res) => {
     brandId:              p.brandId,
     brandName:            p.brand.name,
     category:             p.category,
-    categoryDisplayOrder: catOrderMap.get(`${p.brandId}::${p.category}`) ?? 999,
+    categoryDisplayOrder: getCategoryOrder(catOrderMap, p.brandId, p.category),
     displayOrder:         p.displayOrder,
     unitType:             p.unitType,
     unitSize:             p.unitSize,
@@ -47,7 +49,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
 // Admin only — bulk enable/disable products for a salesperson
 const bulkUpdate = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
   const data = validate(schemas.bulkSalespersonProducts, req, res);
@@ -67,7 +69,7 @@ const bulkUpdate = asyncHandler(async (req, res) => {
 
 // Admin only — bulk enable/disable products for multiple salespeople
 const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.bulkUpdateMultipleSalespersonProducts, req, res);
   if (!data) return;

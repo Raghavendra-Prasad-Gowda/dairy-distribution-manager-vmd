@@ -4,14 +4,9 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { getIndiaDateStr } = require('../utils/dateUtils');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
-
-async function resolveActingUsername(req) {
-  const actor = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
-    select: { username: true },
-  });
-  return actor?.username ?? 'admin';
-}
+const { getActingUsername } = require('../utils/actor');
+const { assertAdmin } = require('../utils/authz');
+const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
 
 // GET /salespeople/:id/prices
 // - Salesman: only enabled products with their allocated prices
@@ -79,11 +74,8 @@ const getPrices = asyncHandler(async (req, res) => {
     }
   }
 
-  // Build category display-order lookup keyed by "brandId|categoryName"
-  const catOrderMap = {};
-  for (const cat of categories) {
-    catOrderMap[`${cat.brandId}|${cat.name}`] = cat.displayOrder;
-  }
+  // Category display-order lookup (shared util — canonical `::` key delimiter).
+  const catOrderMap = buildCategoryOrderMap(categories);
 
   // Salesman: visibility is determined by both the global flag and a per-SP override.
   //   salespersonEnabled=true  → visible by default; SP can be explicitly disabled (isEnabled=false row)
@@ -106,7 +98,7 @@ const getPrices = asyncHandler(async (req, res) => {
     brandDisplayOrder:       p.brand.displayOrder,
     displayOrder:            p.displayOrder,
     category:                p.category,
-    categoryDisplayOrder:    catOrderMap[`${p.brandId}|${p.category}`] ?? 999,
+    categoryDisplayOrder:    getCategoryOrder(catOrderMap, p.brandId, p.category),
     unitType:                p.unitType,
     unitSize:                p.unitSize,
     containerType:           p.containerType,
@@ -131,7 +123,7 @@ const getPrices = asyncHandler(async (req, res) => {
 
 // Admin only — sets prices for a salesperson
 const bulkSave = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
   const data = validate(schemas.bulkSalespersonPrices, req, res);
@@ -168,7 +160,7 @@ const bulkSave = asyncHandler(async (req, res) => {
   });
 
   await prisma.$transaction(ops);
-  const by = await resolveActingUsername(req);
+  const by = await getActingUsername(req);
   void notifySlack(SLACK_EVENTS.SALESPERSON_PRICES_UPDATED, {
     salespersonId,
     count: data.prices.length,
@@ -179,7 +171,7 @@ const bulkSave = asyncHandler(async (req, res) => {
 
 // Admin only — copy prices from one salesman to another for a specific brand
 const copyFromSalesman = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const targetSpId = parseId(req.params.id, 'Target Salesperson ID');
   const sourceSpId = parseId(req.params.sourceId, 'Source Salesperson ID');
@@ -238,7 +230,7 @@ const copyFromSalesman = asyncHandler(async (req, res) => {
   const [sourceSp, targetSp, by] = await Promise.all([
     prisma.salesperson.findUnique({ where: { id: sourceSpId }, select: { name: true } }),
     prisma.salesperson.findUnique({ where: { id: targetSpId }, select: { name: true } }),
-    resolveActingUsername(req),
+    getActingUsername(req),
   ]);
   void notifySlack(SLACK_EVENTS.SALESPERSON_PRICES_COPIED, {
     fromName: sourceSp?.name ?? `Salesperson #${sourceSpId}`,
@@ -251,7 +243,7 @@ const copyFromSalesman = asyncHandler(async (req, res) => {
 
 // Admin only — bulk update same price for multiple salesmen
 const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.bulkUpdateSalespersonPrices, req, res);
   if (!data) return;
@@ -287,7 +279,7 @@ const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
   await prisma.$transaction(ops);
   const totalUpdates = salespersonIds.length * productPrices.length;
 
-  const by = await resolveActingUsername(req);
+  const by = await getActingUsername(req);
   let productName = null;
   let price = null;
   if (productPrices.length === 1) {

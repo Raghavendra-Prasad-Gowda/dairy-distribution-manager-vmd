@@ -5,10 +5,11 @@ const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { assertAdmin } = require('../utils/authz');
 
 // Admin only — records payment received from salesperson
 const create = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.createSalespersonPayment, req, res);
   if (!data) return;
@@ -39,7 +40,7 @@ const create = asyncHandler(async (req, res) => {
 const bulkTopUp = asyncHandler(async (req, res) => {
   // Route already gates this with requireAdmin; repeated here so the guard
   // survives the handler being remounted somewhere less strict.
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.bulkSalespersonTopUp, req, res);
   if (!data) return;
@@ -132,7 +133,7 @@ const getAll = asyncHandler(async (req, res) => {
 
 // Admin only
 const update = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const id = parseId(req.params.id, 'Payment ID');
   const data = validate(schemas.updateSalespersonPayment, req, res);
@@ -169,7 +170,7 @@ const update = asyncHandler(async (req, res) => {
 
 // Admin only
 const remove = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const id = parseId(req.params.id, 'Payment ID');
   const payment = await prisma.salespersonPayment.findUnique({ where: { id } });
