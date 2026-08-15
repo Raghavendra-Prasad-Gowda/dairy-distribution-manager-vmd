@@ -203,3 +203,143 @@ npm run dev            # http://localhost:5173
 - Bug fixes: `fix/<description>`
 - Commit messages: imperative mood, present tense, max 72 chars
 - PRs to `main` run CI automatically (`.github/workflows/pr-checks.yml`)
+
+---
+
+## 10. Change Checklist — Rules for Every Code Change
+
+Every feature addition, bug fix, or refactor MUST satisfy all four rules below before being committed. These are not optional.
+
+---
+
+### 10.1 Tests are mandatory
+
+Every change ships with tests. No exceptions.
+
+**Backend — Playwright integration tests** (`server/tests/playwright/<resource>.spec.js`):
+- New endpoint → new `test.describe` block covering auth, validation, and the happy path
+- Bug fix → add a test that would have caught the bug (pin the broken behavior, show the fix)
+- New Prisma call added to an existing handler → add `test.beforeEach` mock for that call inside the affected `test.describe` so existing tests don't get unexpected 500s
+
+**Frontend — Vitest + React Testing Library** (`client/src/pages/**/*.test.jsx`):
+- New UI behaviour → new `it()` case in the matching test file
+- New component → matching `*.test.jsx` file
+- Bug fix → a test reproducing the broken render, proving the fix
+
+**Run before committing:**
+```bash
+# Backend
+cd server && npx playwright test
+
+# Frontend
+cd client && npx vitest run
+```
+
+---
+
+### 10.2 Slack notifications for every write action
+
+Every endpoint that creates, updates, or deletes business data MUST fire a Slack notification. Read-only (GET) endpoints are excluded.
+
+**Pattern:**
+```js
+// Always fire non-blocking (void, never await).
+void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
+  salespersonName: sp.name,
+  date:            data.dispatchDate,
+  totalAmount:     grandTotal,
+  by:              actingUsername,
+});
+```
+
+**Adding a new event:**
+1. Add the key to `SLACK_EVENTS` in `server/utils/slack.js`
+2. Add a color entry in `EVENT_COLOR` (GREEN = create, AMBER = update, RED = delete)
+3. Add a card-builder case in the `buildCard()` switch to define the Slack message fields
+
+**Do NOT:**
+- `await notifySlack(...)` — Slack must never slow down the API response
+- Skip the Slack call on error paths — fire it on success only (after the DB write succeeds)
+- Reuse an existing event for a semantically different action — add a new event key instead
+
+---
+
+### 10.3 Product display order must follow dairy layout settings
+
+Any list of products — in API responses, rendered tables, dropdowns, or expandable sections — MUST be ordered:
+
+> **brand.displayOrder → category.displayOrder → product.displayOrder → product.name**
+
+**Why JS sort is required:** `category` is a plain string column on the `product` table (not a Prisma relation), so Prisma cannot sort by `category.displayOrder` in a single query. Always fetch `category` rows and sort in application code.
+
+**Canonical backend pattern:**
+```js
+const [products, categories] = await Promise.all([
+  prisma.product.findMany({
+    orderBy: [{ brand: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { name: 'asc' }],
+  }),
+  prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
+]);
+
+// Build lookup: "brandId::categoryName" → displayOrder
+const catOrder = new Map(categories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+
+products.sort((a, b) =>
+  (a.brand.displayOrder  - b.brand.displayOrder) ||
+  ((catOrder.get(`${a.brandId}::${a.category}`) ?? 999) -
+   (catOrder.get(`${b.brandId}::${b.category}`) ?? 999)) ||
+  (a.displayOrder - b.displayOrder) ||
+  a.name.localeCompare(b.name)
+);
+```
+
+**API responses** that expose a product list MUST include `categoryDisplayOrder` (computed from the catOrder map) so the frontend can re-sort or group without an extra round-trip.
+
+**Frontend pattern** — when the API already returns `categoryDisplayOrder`:
+```js
+products.sort((a, b) =>
+  (a.brandDisplayOrder      - b.brandDisplayOrder)      ||
+  (a.categoryDisplayOrder   - b.categoryDisplayOrder)   ||
+  (a.displayOrder           - b.displayOrder)           ||
+  a.productName.localeCompare(b.productName)
+);
+```
+
+**When grouping into sections** (brand header → category sub-header → product rows), always sort the section arrays — never rely on insertion order or `Object.entries()` key order.
+
+---
+
+### 10.4 Use BrandedLoader for all loading states
+
+The app's branded tumbler spinner is `client/src/components/ui/BrandedLoader.jsx`. Use it for every loading state the user sees while waiting. **Do not** hand-roll a spinner with `animate-spin` or any other ad-hoc approach.
+
+**Import:**
+```jsx
+import BrandedLoader from '../../components/ui/BrandedLoader';
+```
+
+**When to use which mode:**
+
+| Situation | Usage |
+|---|---|
+| Page-level data load (content area is empty) | `<BrandedLoader />` |
+| Save / submit in progress (page stays visible) | `<BrandedLoader overlay label="Saving…" />` |
+| Full-screen gate (app booting, auth loading) | `<BrandedLoader overlay tone="brand" />` |
+| Modal action in progress | `<BrandedLoader overlay tone="transparent" label="Processing…" />` |
+| Section reload inside a loaded page | `<BrandedLoader size="sm" inlinePadY="py-8" />` |
+
+**Do NOT use `BrandedLoader` for:**
+- Tiny in-button loading indicators — use `<Loader2 className="animate-spin" />` from `lucide-react` instead
+- Skeleton screens — keep those as-is where they already exist
+
+**Props reference:**
+
+| Prop | Default | Purpose |
+|---|---|---|
+| `overlay` | `false` | Fixed full-screen overlay with backdrop |
+| `open` | `true` | When `false` on an overlay, renders nothing (use for conditional overlay) |
+| `label` | `"Loading…"` | Status text shown below the mark (uppercased automatically) |
+| `hideBrand` | `false` | Suppress "Vikas Milk Dairy" wordmark |
+| `size` | `"md"` | `"sm"` / `"md"` / `"lg"` |
+| `tone` | `"card"` | Overlay background: `"card"` (white card), `"brand"` (green), `"transparent"` (dim blur) |
+| `lively` | `false` | Adds sonar-ping ring for high-urgency states |
