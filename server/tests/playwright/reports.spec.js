@@ -719,6 +719,13 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
     { id: 10, name: 'Ghee 500ml',  brandId: 2, brand: { id: 2, name: 'Jersey',  displayOrder: 2 }, displayOrder: 1, unitsPerContainer: null, category: 'Ghee' },
   ];
 
+  // category.findMany is now always called (the category-aware sort runs for
+  // both the dispatch sheet and the includeReceipts view). Default to an empty
+  // list so existing tests that don't exercise category ordering still pass.
+  test.beforeEach(() => {
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+  });
+
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30');
     expect(res.status()).toBe(403);
@@ -833,6 +840,36 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
     const body = await res.json();
     expect(body.data.rows).toEqual([]);
     expect(body.data.brands).toHaveLength(2);
+  });
+
+  test('products within a brand are ordered by category displayOrder then product displayOrder', async ({ request }) => {
+    // Four Nandini products spanning two categories. The API returns them in
+    // arbitrary order; the response must follow: Milk (catOrder=1) before
+    // Curd (catOrder=2), and within each category by product displayOrder asc.
+    const products = [
+      { id: 3, name: 'Curd 400g',      brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, displayOrder: 1, unitsPerContainer: null, category: 'Curd',    salespersonEnabled: true, showInStockReceipt: true },
+      { id: 4, name: 'Toned 1000ml',   brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, displayOrder: 2, unitsPerContainer: 12,   category: 'Milk',    salespersonEnabled: true, showInStockReceipt: true },
+      { id: 5, name: 'Butter 100g',    brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, displayOrder: 1, unitsPerContainer: null, category: 'Curd',    salespersonEnabled: true, showInStockReceipt: true },
+      { id: 6, name: 'Toned 500ml',    brandId: 1, brand: { id: 1, name: 'Nandini', displayOrder: 1 }, displayOrder: 1, unitsPerContainer: 20,   category: 'Milk',    salespersonEnabled: true, showInStockReceipt: true },
+    ];
+    // Category table: Milk catOrder=1, Curd catOrder=2
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 1, name: 'Milk', displayOrder: 1 },
+      { brandId: 1, name: 'Curd', displayOrder: 2 },
+    ]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(products);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const nandini = body.data.brands[0];
+    const names = nandini.products.map(p => p.productName);
+
+    // Milk (catOrder 1) → Curd (catOrder 2); within Milk by displayOrder asc
+    expect(names).toEqual(['Toned 500ml', 'Toned 1000ml', 'Butter 100g', 'Curd 400g']);
   });
 
   // Stock Balance page: the column set must include every product received that
