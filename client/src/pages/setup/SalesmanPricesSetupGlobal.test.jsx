@@ -37,6 +37,10 @@ vi.mock('../../context/NotificationContext', () => ({
   useNotification: () => ({ notify: mockNotify }),
 }));
 
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { role: 'superadmin' } }),
+}));
+
 vi.mock('../../components/BrandTabs', () => ({
   default: ({ brands, activeBrandId, onChange }) => (
     <div data-testid="brand-tabs">
