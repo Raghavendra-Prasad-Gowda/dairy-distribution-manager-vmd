@@ -42,7 +42,7 @@ vi.mock('../../components/Pagination', () => ({
 }));
 
 const BRANDS = [{ id: 1, name: 'Nandini' }];
-const CATEGORIES = [{ id: 10, name: 'Milk' }];
+const CATEGORIES = [{ id: 10, name: 'Milk', displayOrder: 1 }];
 
 function product(overrides) {
   return {
@@ -70,10 +70,31 @@ beforeEach(() => {
 
 describe('ProductsSetup — listing', () => {
   it('groups products by category with a header row', async () => {
-    mockApi({ products: [product({ id: 1, name: 'Toned Milk', category: 'Milk' }), product({ id: 2, name: 'Curd 200g', category: 'Curd' })] });
+    // Milk (displayOrder: 1) should appear before Curd (displayOrder: 2)
+    mockApi({
+      products: [product({ id: 1, name: 'Toned Milk', category: 'Milk' }), product({ id: 2, name: 'Curd 200g', category: 'Curd' })],
+      categories: [{ id: 10, name: 'Milk', displayOrder: 1 }, { id: 11, name: 'Curd', displayOrder: 2 }],
+    });
     const { container } = render(<ProductsSetup />);
     await screen.findByText('Toned Milk');
     const headers = [...container.querySelectorAll('.cat-row')].map(r => r.textContent);
+    expect(headers).toEqual(['Milk', 'Curd']);
+  });
+
+  it('sorts category groups by dairy layout displayOrder, not insertion order', async () => {
+    // Products come back from the API in product displayOrder: Curd first (displayOrder: 1),
+    // Milk second (displayOrder: 5) — but category displayOrder says Milk (1) before Curd (2).
+    mockApi({
+      products: [
+        product({ id: 2, name: 'Curd 200g', category: 'Curd', displayOrder: 1 }),
+        product({ id: 1, name: 'Toned Milk', category: 'Milk', displayOrder: 5 }),
+      ],
+      categories: [{ id: 10, name: 'Milk', displayOrder: 1 }, { id: 11, name: 'Curd', displayOrder: 2 }],
+    });
+    const { container } = render(<ProductsSetup />);
+    await screen.findByText('Toned Milk');
+    const headers = [...container.querySelectorAll('.cat-row')].map(r => r.textContent);
+    // Milk (categoryDisplayOrder 1) must come before Curd (categoryDisplayOrder 2)
     expect(headers).toEqual(['Milk', 'Curd']);
   });
 

@@ -103,7 +103,7 @@ const salespersonStatement = asyncHandler(async (req, res) => {
   const fromDate = new Date(from);
   const toDate = new Date(to);
 
-  const [balances, allDispatches, allPayments] = await Promise.all([
+  const [balances, allDispatches, allPayments, allCategories] = await Promise.all([
     prisma.salespersonBalance.findMany({
       where: { salespersonId: spId, balanceDate: { gte: fromDate, lte: toDate } },
       orderBy: { balanceDate: 'asc' },
@@ -111,13 +111,24 @@ const salespersonStatement = asyncHandler(async (req, res) => {
     prisma.stockDispatch.findMany({
       where: { salespersonId: spId, dispatchDate: { gte: fromDate, lte: toDate } },
       include: {
-        items: { include: { product: { include: { brand: { select: { name: true } } } } } },
+        items: {
+          include: {
+            // Include brand.displayOrder so items can be sorted by the dairy layout
+            // order (brand → category → product displayOrder → name).
+            product: { include: { brand: { select: { name: true, displayOrder: true } } } },
+          },
+        },
       },
     }),
     prisma.salespersonPayment.findMany({
       where: { salespersonId: spId, paymentDate: { gte: fromDate, lte: toDate } },
     }),
+    // Category display orders for the item sort — category is a string column on
+    // product (not a relation), so ordering must be done in JS after the query.
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
+
+  const catOrder = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
 
   const dispatchByDate = new Map(allDispatches.map(d => [d.dispatchDate.toISOString(), d]));
   const paymentsByDate = new Map();
@@ -130,19 +141,29 @@ const salespersonStatement = asyncHandler(async (req, res) => {
   const rows = balances.map((b) => {
     const key = b.balanceDate.toISOString();
     const dispatch = dispatchByDate.get(key);
+
+    // Sort items by dairy layout order: brand → category → product displayOrder → name.
+    const sortedItems = [...(dispatch?.items ?? [])].sort((a, b) =>
+      (a.product.brand?.displayOrder ?? 999) - (b.product.brand?.displayOrder ?? 999) ||
+      (catOrder.get(`${a.product.brandId}::${a.product.category}`) ?? 999) -
+        (catOrder.get(`${b.product.brandId}::${b.product.category}`) ?? 999) ||
+      (a.product.displayOrder ?? 999) - (b.product.displayOrder ?? 999) ||
+      a.product.name.localeCompare(b.product.name)
+    );
+
     return {
       date:           b.balanceDate,
       openingBalance: Number(b.openingBalance),
       stockGiven:     Number(b.stockGiven),
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
-      items: dispatch?.items.map((i) => ({
+      items: sortedItems.map((i) => ({
         brandName:   i.product.brand.name,
         productName: i.product.name,
         quantity:    Number(i.quantity),
         unitPrice:   Number(i.unitPrice),
         totalAmount: Number(i.totalAmount),
-      })) ?? [],
+      })),
       payments: (paymentsByDate.get(key) ?? []).map((p) => ({
         amount: Number(p.amount),
         mode:   p.paymentMode,
@@ -702,25 +723,19 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     prisma.product.findMany({
       where: productWhere,
       include: { brand: { select: { id: true, name: true, displayOrder: true } } },
-      orderBy: includeReceipts
-        ? [
-            { brand: { displayOrder: 'asc' } },
-            { displayOrder: 'asc' },
-            { name: 'asc' },
-          ]
-        : [
-            { brand: { displayOrder: 'asc' } },
-            { displayOrder: 'asc' },
-            { name: 'asc' },
-          ],
+      // Category is a string column, not a relation, so Prisma cannot sort by
+      // categoryDisplayOrder here. A JS sort below applies the full ordering.
+      orderBy: [{ brand: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
 
-  // Stock Balance view mirrors the stock-receipt layout: order columns by
-  // brand → category → product display order (category is a string field, not
-  // a Prisma relation, so the category tier is sorted here in JS).
-  if (includeReceipts) {
+  // Always sort by brand → category → product displayOrder → name.
+  // Category is a string field on the product model (not a relation), so the
+  // category tier must be resolved here in JS using the categories table.
+  // This applies to both the dispatch sheet and the Stock Balance view so that
+  // products appear in the same order as the dairy layout settings.
+  {
     const catOrder = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
     allProducts.sort((a, b) =>
       (a.brand.displayOrder - b.brand.displayOrder) ||

@@ -22,6 +22,15 @@ const PRODUCTS = [
 // ─── GET /api/v1/salespeople/:id/products ─────────────────────────────────────
 
 test.describe('GET /api/v1/salespeople/:id/products', () => {
+  // category.findMany is now always called to populate categoryDisplayOrder.
+  test.beforeEach(() => {
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 1, name: 'Milk', displayOrder: 1 },
+      { brandId: 1, name: 'Curd', displayOrder: 2 },
+      { brandId: 2, name: 'Ghee', displayOrder: 1 },
+    ]);
+  });
+
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.get('/api/v1/salespeople/1/products');
     expect(res.status()).toBe(403);
@@ -105,6 +114,26 @@ test.describe('GET /api/v1/salespeople/:id/products', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toEqual([]);
+  });
+
+  test('includes categoryDisplayOrder so Exception Manager can sort by dairy layout', async ({ request }) => {
+    // Milk has displayOrder: 1, Curd has displayOrder: 2 (from beforeEach mock).
+    ctx.mockPrisma.product.findMany.mockResolvedValue(PRODUCTS);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const byId = Object.fromEntries(body.data.map(p => [p.productId, p]));
+    // Product 1 is Milk (brandId: 1, category: 'Milk') → displayOrder: 1
+    expect(byId[1].categoryDisplayOrder).toBe(1);
+    // Product 2 is Curd (brandId: 1, category: 'Curd') → displayOrder: 2
+    expect(byId[2].categoryDisplayOrder).toBe(2);
+    // Product 3 is Ghee (brandId: 2, category: 'Ghee') → displayOrder: 1
+    expect(byId[3].categoryDisplayOrder).toBe(1);
   });
 });
 
