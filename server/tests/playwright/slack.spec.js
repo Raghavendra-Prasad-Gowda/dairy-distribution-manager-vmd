@@ -281,6 +281,36 @@ test.describe('DISPATCH_LOCK_CHANGED card', () => {
   });
 });
 
+test.describe('DISPATCH_DAY_FINALIZED card', () => {
+  test('has the finalized header and amber color', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_DAY_FINALIZED, { date: '2026-08-15', by: 'dispatcher1' });
+    expect(headerText(c)).toBe('🏁 Dispatch Day Finalized');
+    expect(c.attachments[0].color).toBe('#e8a838'); // AMBER
+  });
+
+  test('shows the date and who finalized', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_DAY_FINALIZED, { date: '2026-08-15', by: 'dispatcher1' });
+    const text = allText(c);
+    expect(text).toContain('dispatcher1');
+    expect(text).not.toContain('undefined');
+  });
+});
+
+test.describe('DISPATCH_DAY_UNFINALIZED card', () => {
+  test('has the reversal header and blue color', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED, { date: '2026-08-15', by: 'raghav' });
+    expect(headerText(c)).toBe('↩️ Dispatch Day Finalization Reversed');
+    expect(c.attachments[0].color).toBe('#1264a3'); // BLUE
+  });
+
+  test('shows the date and admin who reversed it', () => {
+    const c = buildCard(SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED, { date: '2026-08-15', by: 'raghav' });
+    const text = allText(c);
+    expect(text).toContain('raghav');
+    expect(text).not.toContain('undefined');
+  });
+});
+
 test.describe('Salesperson pricing cards', () => {
   test('SALESPERSON_PRICES_UPDATED reports who and how many', () => {
     const c = buildCard(SLACK_EVENTS.SALESPERSON_PRICES_UPDATED, {
