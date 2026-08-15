@@ -169,10 +169,11 @@ export default function AdminUsersSetup() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 max-w-3xl mx-auto w-full space-y-4">
+      {/* Outer wrapper: flex-col so search stays pinned and table fills the rest */}
+      <div className="flex-1 overflow-hidden flex flex-col gap-4 p-4 md:p-6 max-w-3xl mx-auto w-full">
 
-        {/* Search */}
-        <div className="relative">
+        {/* Search — never scrolls away */}
+        <div className="relative flex-shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -188,11 +189,11 @@ export default function AdminUsersSetup() {
           )}
         </div>
 
-        {/* User list */}
+        {/* User list — takes remaining height and scrolls internally */}
         {loading ? (
           <BrandedLoader />
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-sm">
             {filtered.length === 0 ? (
               <p className="text-center text-slate-400 text-sm py-10">No admin users found</p>
             ) : (
