@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2, Package, ChevronDown, ChevronUp, Unlock } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatDateShort } from '../../utils/dateUtils';
 import api from '../../api/axios';
 
@@ -31,6 +32,8 @@ function TogglePill({ enabled, onChange }) {
 
 export default function SalesmanPricesSetup() {
   const { notify } = useNotification();
+  const { user: me } = useAuth();
+
   const [salespeople, setSalespeople]       = useState([]);
   const [selectedSpId, setSelectedSpId]     = useState('');
   const [brands, setBrands]                 = useState([]);
@@ -90,6 +93,20 @@ export default function SalesmanPricesSetup() {
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
   );
+
+  // Exception Manager — superadmin only
+  const [showExceptionModal, setShowExceptionModal] = useState(false);
+  const [exceptionForm, setExceptionForm] = useState({
+    selectedProducts: new Set(),
+    selectedSalesmen: new Set(),
+    action: 'enable',
+    prices: {},        // { [productId]: string }
+    effectiveFrom: getIndiaDate(),
+  });
+  const [savingExceptions, setSavingExceptions] = useState(false);
+  const [exProductSearch, setExProductSearch]   = useState('');
+  const [exSpSearch, setExSpSearch]             = useState('');
+
   const [loading, setLoading]               = useState(false);
   const [saving, setSaving]                 = useState(false);
   const [spSearch, setSpSearch]             = useState('');  // Salesperson search
@@ -575,6 +592,61 @@ export default function SalesmanPricesSetup() {
     }
   };
 
+  // ── Exception Manager (superadmin only) ──────────────────────────────────────
+  // Enables or disables a globally-disabled product for a specific set of
+  // salespeople without touching the global flag. Optionally sets prices too.
+  const handleSaveExceptions = async () => {
+    const productIds = Array.from(exceptionForm.selectedProducts);
+    const spIds      = Array.from(exceptionForm.selectedSalesmen);
+    if (!productIds.length) { notify('Select at least one product', 'warning'); return; }
+    if (!spIds.length)       { notify('Select at least one salesperson', 'warning'); return; }
+
+    const isEnabling = exceptionForm.action === 'enable';
+    setSavingExceptions(true);
+    notify('Applying exceptions…', 'loading');
+    try {
+      // Step 1: flip isEnabled per salesperson for each selected product
+      await api.post('/salespeople/products/bulk-update', {
+        salespersonIds: spIds,
+        products: productIds.map(id => ({ productId: id, isEnabled: isEnabling })),
+      });
+
+      // Step 2: set prices if enabling and prices were entered
+      if (isEnabling) {
+        const pricesWithValues = productIds
+          .filter(id => exceptionForm.prices[id] !== undefined && exceptionForm.prices[id] !== '' && parseFloat(exceptionForm.prices[id]) >= 0)
+          .map(id => ({ productId: id, sellingPrice: parseFloat(exceptionForm.prices[id]) }));
+
+        if (pricesWithValues.length > 0) {
+          await api.post('/salespeople/bulk-update', {
+            salespersonIds: spIds,
+            productPrices:  pricesWithValues,
+            effectiveFrom:  exceptionForm.effectiveFrom,
+          });
+        }
+      }
+
+      const priceCount = isEnabling
+        ? productIds.filter(id => exceptionForm.prices[id] !== undefined && exceptionForm.prices[id] !== '').length
+        : 0;
+
+      notify(
+        `${isEnabling ? 'Enabled' : 'Disabled'} ${productIds.length} product(s) for ${spIds.length} salesperson(s)` +
+        (priceCount ? ` with ${priceCount} price(s) set` : ''),
+        'success'
+      );
+      setShowExceptionModal(false);
+      setExceptionForm({ selectedProducts: new Set(), selectedSalesmen: new Set(), action: 'enable', prices: {}, effectiveFrom: getIndiaDate() });
+      setExProductSearch('');
+      setExSpSearch('');
+      fetchGlobal();
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to apply exceptions', 'error');
+    } finally {
+      setSavingExceptions(false);
+    }
+  };
+
   // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {
     const source = isGlobal ? globalProducts : prices;
@@ -856,6 +928,17 @@ export default function SalesmanPricesSetup() {
                       <Package size={14} />
                       Bulk Product Access
                     </button>
+                    {/* Exception Manager — superadmin only */}
+                    {me?.role === 'superadmin' && (
+                      <button
+                        onClick={() => setShowExceptionModal(true)}
+                        className="text-xs font-semibold px-3 py-2 rounded-xl border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 transition whitespace-nowrap flex items-center gap-1.5"
+                        title="Enable globally-disabled products for specific salespeople"
+                      >
+                        <Unlock size={13} />
+                        Exception Manager
+                      </button>
+                    )}
                     <button
                       onClick={() => { fetchProductView(); setShowAllSalesmenPrices(true); }}
                       className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
@@ -2126,6 +2209,290 @@ export default function SalesmanPricesSetup() {
                 {updatingBulkProducts && <Loader2 size={16} className="animate-spin" />}
                 {updatingBulkProducts ? 'Updating...' : 'Confirm'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exception Manager Modal (superadmin only) ─────────────────────────────
+          Enables/disables globally-disabled products for a chosen set of salespeople,
+          with optional per-product price setting in the same action.              */}
+      {showExceptionModal && me?.role === 'superadmin' && (
+        <div
+          className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="bg-violet-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+              <div className="flex items-center gap-3 min-w-0">
+                <Unlock size={18} className="text-violet-200 flex-shrink-0" />
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Exception Manager</h3>
+                  <p className="text-[11px] text-violet-200 mt-0.5">Enable globally-disabled products for specific salespeople only</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
+                className="p-1.5 text-violet-200 hover:text-white hover:bg-violet-600 rounded-lg transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-5">
+
+              {/* Action selector */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Action</label>
+                <div className="flex gap-3">
+                  {[
+                    { value: 'enable',  label: '✓ Enable for selected salespeople' },
+                    { value: 'disable', label: '✗ Remove exception (disable)' },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setExceptionForm(f => ({ ...f, action: value }))}
+                      className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition ${
+                        exceptionForm.action === value
+                          ? value === 'enable'
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
+                            : 'bg-slate-700 border-slate-700 text-white'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {exceptionForm.action === 'enable'
+                    ? 'Selected products will appear for the chosen salespeople only. The global setting stays off for everyone else.'
+                    : 'Removes the per-salesperson exception — these products go back to globally disabled for the selected salespeople.'}
+                </p>
+              </div>
+
+              {/* Globally-disabled product list */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Globally Disabled Products ({exceptionForm.selectedProducts.size} selected)
+                  </label>
+                  {(() => {
+                    const disabledAll = globalProducts.filter(p => !p.salespersonEnabled);
+                    return disabledAll.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setExceptionForm(f => ({
+                          ...f,
+                          selectedProducts: f.selectedProducts.size === disabledAll.length
+                            ? new Set()
+                            : new Set(disabledAll.map(p => p.productId)),
+                        }))}
+                        className="text-xs font-semibold text-violet-600 hover:text-violet-700"
+                      >
+                        {exceptionForm.selectedProducts.size === globalProducts.filter(p => !p.salespersonEnabled).length
+                          ? 'Deselect All' : 'Select All'}
+                      </button>
+                    );
+                  })()}
+                </div>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search disabled products…"
+                    value={exProductSearch}
+                    onChange={e => setExProductSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent"
+                  />
+                </div>
+                {(() => {
+                  const q = exProductSearch.toLowerCase();
+                  const disabled = globalProducts
+                    .filter(p => !p.salespersonEnabled)
+                    .filter(p => !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)))
+                    .sort((a, b) =>
+                      (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
+                      (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+                      a.productName.localeCompare(b.productName)
+                    );
+
+                  if (disabled.length === 0) {
+                    return (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-700 text-center">
+                        {exProductSearch
+                          ? 'No matching globally-disabled products.'
+                          : 'All products are currently globally enabled — nothing to create exceptions for.'}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-52 overflow-y-auto divide-y divide-slate-100">
+                      {disabled.map(p => {
+                        const checked = exceptionForm.selectedProducts.has(p.productId);
+                        const showPrice = exceptionForm.action === 'enable' && checked;
+                        return (
+                          <label
+                            key={p.productId}
+                            className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white transition ${checked ? 'bg-violet-50' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setExceptionForm(f => {
+                                const s = new Set(f.selectedProducts);
+                                if (s.has(p.productId)) s.delete(p.productId); else s.add(p.productId);
+                                return { ...f, selectedProducts: s };
+                              })}
+                              className="w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-800 truncate">{p.productName}</p>
+                              {p.category && (
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide">{p.category}</p>
+                              )}
+                            </div>
+                            {/* Inline price input — only when enabling this product */}
+                            {showPrice && (
+                              <div className="relative flex-shrink-0" onClick={e => e.preventDefault()}>
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={exceptionForm.prices[p.productId] ?? ''}
+                                  onChange={e => setExceptionForm(f => ({ ...f, prices: { ...f.prices, [p.productId]: e.target.value } }))}
+                                  onClick={e => e.stopPropagation()}
+                                  placeholder={p.salespersonDefaultPrice > 0 ? String(p.salespersonDefaultPrice) : 'Price'}
+                                  className="w-24 pl-5 pr-2 py-1.5 text-xs text-right font-semibold border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                />
+                              </div>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                {exceptionForm.action === 'enable' && exceptionForm.selectedProducts.size > 0 && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Price is optional per product — leave blank to use the global default price.
+                  </p>
+                )}
+              </div>
+
+              {/* Effective From — shown only when enabling and at least one price is entered */}
+              {exceptionForm.action === 'enable' &&
+                Object.values(exceptionForm.prices).some(v => v !== '' && v !== undefined) && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Prices From</label>
+                  <input
+                    type="date"
+                    value={exceptionForm.effectiveFrom}
+                    onChange={e => setExceptionForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                    min={getIndiaDate()}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Today = immediate; future date = schedule the price change.
+                  </p>
+                </div>
+              )}
+
+              {/* Salespeople */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Salespeople ({exceptionForm.selectedSalesmen.size} selected)
+                  </label>
+                  {salespeople.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setExceptionForm(f => ({
+                        ...f,
+                        selectedSalesmen: f.selectedSalesmen.size === salespeople.length
+                          ? new Set()
+                          : new Set(salespeople.map(sp => sp.id)),
+                      }))}
+                      className="text-xs font-semibold text-violet-600 hover:text-violet-700"
+                    >
+                      {exceptionForm.selectedSalesmen.size === salespeople.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search salespeople…"
+                    value={exSpSearch}
+                    onChange={e => setExSpSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-52 overflow-y-auto space-y-1">
+                  {(() => {
+                    const q = exSpSearch.toLowerCase();
+                    const filtered = salespeople.filter(sp =>
+                      !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q))
+                    );
+                    return filtered.length === 0
+                      ? <p className="text-xs text-slate-400 text-center py-4">No salespeople found</p>
+                      : filtered.map(sp => (
+                        <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1.5 rounded transition">
+                          <input
+                            type="checkbox"
+                            checked={exceptionForm.selectedSalesmen.has(sp.id)}
+                            onChange={() => setExceptionForm(f => {
+                              const s = new Set(f.selectedSalesmen);
+                              if (s.has(sp.id)) s.delete(sp.id); else s.add(sp.id);
+                              return { ...f, selectedSalesmen: s };
+                            })}
+                            className="w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{sp.name}</p>
+                            {sp.route && <p className="text-xs text-slate-400 truncate">{sp.route}</p>}
+                          </div>
+                        </label>
+                      ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Footer buttons */}
+              <div className="flex gap-3 pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveExceptions}
+                  disabled={
+                    savingExceptions ||
+                    exceptionForm.selectedProducts.size === 0 ||
+                    exceptionForm.selectedSalesmen.size === 0
+                  }
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-violet-700 hover:bg-violet-800 disabled:bg-violet-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {savingExceptions
+                    ? <Loader2 className="animate-spin" size={14} />
+                    : <Unlock size={14} />
+                  }
+                  {savingExceptions
+                    ? 'Applying…'
+                    : `${exceptionForm.action === 'enable' ? 'Enable' : 'Disable'} (${exceptionForm.selectedProducts.size}P × ${exceptionForm.selectedSalesmen.size}S)`
+                  }
+                </button>
+              </div>
+
             </div>
           </div>
         </div>
