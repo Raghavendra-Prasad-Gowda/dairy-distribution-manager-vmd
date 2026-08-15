@@ -79,7 +79,7 @@ dairy-distribution-manager-vmd/
         ├── App.jsx                    # Route tree, lazy loading, ProtectedRoute, ErrorBoundary
         ├── api/axios.js               # Shared Axios instance — ALWAYS use this
         ├── context/
-        │   ├── AuthContext.jsx        # Auth state, 12h session, useAuth() hook
+        │   ├── AuthContext.jsx        # Auth state, 2h session, useAuth() hook
         │   └── NotificationContext.jsx # useNotification() → notify(msg, type)
         ├── components/
         │   ├── Layout.jsx             # App shell with sidebar navigation

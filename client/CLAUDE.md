@@ -40,8 +40,8 @@ client/src/
 - Do not remove or bypass the ErrorBoundary.
 
 ### Session Timeout
-- `AuthContext` clears auth state after 12 hours (`SESSION_MS = 12 * 60 * 60 * 1000`).
-- Must match JWT expiry on the server. If JWT expiry changes, update `SESSION_MS` too.
+- `AuthContext` clears auth state after 2 hours (`SESSION_MS = 2 * 60 * 60 * 1000` in `src/utils/session.js`).
+- Must match JWT expiry on the server (`JWT_EXPIRES_IN: 7200`). If JWT expiry changes, update `SESSION_MS` too.
 
 ### State Management
 - No global state library. React context only for cross-cutting concerns (auth, notifications).

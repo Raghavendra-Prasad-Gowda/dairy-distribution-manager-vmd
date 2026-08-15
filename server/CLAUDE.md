@@ -54,7 +54,7 @@ server/
 ### Security
 - PIN endpoint: rate-limited to 5 attempts per 15 min (express-rate-limit).
 - Payload limit: `express.json({ limit: '10kb' })`.
-- JWT expiry: 12 hours. Client session timeout must match.
+- JWT expiry: 2 hours (`JWT_EXPIRES_IN: 7200`). Client session timeout must match (`SESSION_MS = 2 * 60 * 60 * 1000`).
 - No secrets in code. All secrets via environment variables.
 
 ### Logging
