@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, ShieldCheck, Search, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck } from 'lucide-react';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
@@ -36,6 +36,8 @@ export default function AdminUsersSetup() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]         = useState(false);
 
+  const [togglingId, setTogglingId]     = useState(null);
+
   useEffect(() => { load(); }, []);
 
   async function load() {
@@ -65,7 +67,7 @@ export default function AdminUsersSetup() {
     setSubmitting(true);
     try {
       await api.post('/admin-users', newUser);
-      notify('Admin user created', 'success');
+      notify(`${ROLE_LABEL[newUser.role] ?? 'User'} created successfully`, 'success');
       setNewUser({ username: '', password: '', role: 'admin' });
       setShowNewPw(false);
       setShowAddModal(false);
@@ -74,6 +76,27 @@ export default function AdminUsersSetup() {
       notify(err.response?.data?.error ?? 'Failed to create user', 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── Quick enable / disable ───────────────────────────────────────────────────
+  const handleToggleActive = async (u) => {
+    setTogglingId(u.id);
+    try {
+      await api.put(`/admin-users/${u.id}`, {
+        username: u.username,
+        role:     u.role,
+        isActive: !u.isActive,
+      });
+      notify(
+        `${ROLE_LABEL[u.role] ?? 'User'} "${u.username}" ${!u.isActive ? 'enabled' : 'disabled'}`,
+        'success'
+      );
+      load();
+    } catch (err) {
+      notify(err.response?.data?.error ?? 'Failed to update user', 'error');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -128,20 +151,21 @@ export default function AdminUsersSetup() {
         message={deleting ? 'Deleting user…' : submitting ? 'Creating user…' : 'Updating user…'}
       />
 
+
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <ShieldCheck size={17} className="text-emerald-300 flex-shrink-0" />
           <div>
             <h1 className="text-sm font-bold text-white leading-tight">Admin Users</h1>
-            <p className="text-emerald-300 text-xs">Manage admin and super admin accounts</p>
+            <p className="text-emerald-300 text-xs">Manage admin, super admin and dispatcher accounts</p>
           </div>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition"
         >
-          <Plus size={14} /> Add Admin
+          <Plus size={14} /> Add User
         </button>
       </div>
 
@@ -197,8 +221,27 @@ export default function AdminUsersSetup() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {/* Quick enable / disable — one click, no modal */}
+                          <button
+                            onClick={() => handleToggleActive(u)}
+                            disabled={u.id === me?.adminUserId || togglingId === u.id}
+                            title={u.isActive ? `Disable ${u.username}` : `Enable ${u.username}`}
+                            className={`p-1.5 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
+                              u.isActive
+                                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                            }`}
+                          >
+                            {togglingId === u.id
+                              ? <Loader2 size={14} className="animate-spin" />
+                              : u.isActive
+                              ? <UserX size={14} />
+                              : <UserCheck size={14} />
+                            }
+                          </button>
                           <button
                             onClick={() => openEdit(u)}
+                            title="Edit user"
                             className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
                           >
                             <Edit2 size={14} />
@@ -206,6 +249,7 @@ export default function AdminUsersSetup() {
                           <button
                             onClick={() => setDeleteTarget(u)}
                             disabled={u.id === me?.adminUserId}
+                            title="Delete user"
                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Trash2 size={14} />
@@ -225,7 +269,7 @@ export default function AdminUsersSetup() {
       <Modal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title="Add Admin User"
+        title="Add User"
         size="sm"
         footer={
           <>

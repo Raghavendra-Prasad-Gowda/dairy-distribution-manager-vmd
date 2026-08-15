@@ -511,7 +511,7 @@ test.describe('Global default price fallback behavior', () => {
     expect(body.data[0].sellingPrice).toBe(0); // No fallback if global default is 0
   });
 
-  test('globally disabled product is excluded regardless of per-salesman enablement', async ({ request }) => {
+  test('globally disabled product without per-salesman exception is excluded from salesman view', async ({ request }) => {
     const ENABLED_PRODUCT = {
       id: 1, brandId: 1, name: 'Nandini Milk', isActive: true,
       showInStockReceipt: true,
@@ -545,7 +545,7 @@ test.describe('Global default price fallback behavior', () => {
     ctx.mockPrisma.product.findMany.mockResolvedValue([ENABLED_PRODUCT, DISABLED_PRODUCT]);
     ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([
       { productId: 1, isEnabled: true },
-      { productId: 2, isEnabled: true }, // Enabled per-salesman but doesn't matter
+      // No per-salesman exception for product 2 — salespersonEnabled:false defaults to hidden
     ]);
     ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
     ctx.mockPrisma.category.findMany.mockResolvedValue([]);

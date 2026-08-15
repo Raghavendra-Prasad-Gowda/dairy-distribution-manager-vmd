@@ -1335,3 +1335,57 @@ test.describe('DELETE /api/v1/dispatches/finalize-day', () => {
     expect(res.status()).toBe(200);
   });
 });
+
+// ─── Dispatcher security boundary ────────────────────────────────────────────
+//
+// A dispatcher may only: read the daily-dispatch report, read stock-receipt
+// availability, lock/unlock today's entries, and finalize/undo-finalize today.
+// Every other dispatch action must return 403 for a dispatcher token.
+// These tests pin the guards so a careless controller change can't silently
+// open up a write path to a dispatcher.
+
+test.describe('Dispatcher — blocked actions', () => {
+  test('GET /api/v1/dispatches → 403 (raw list; dispatcher uses /reports/daily-dispatch)', async ({ request }) => {
+    const res = await request.get('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('POST /api/v1/dispatches → 403 (cannot create or modify stock entries)', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+      data: { salespersonId: 1, dispatchDate: getIndiaDateStr(), items: [] },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('PATCH /api/v1/dispatches/1/submit → 403 (submit is a salesman/admin action)', async ({ request }) => {
+    const res = await request.patch('/api/v1/dispatches/1/submit', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('DELETE /api/v1/dispatches/1 → 403 (cannot delete stock entries)', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/1', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('DELETE /api/v1/dispatches/finalize-day → 403 (undo is an admin-only action)', async ({ request }) => {
+    const res = await request.delete('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('POST /api/v1/dispatches/open-for-entry → 403 (admin-only, not dispatcher)', async ({ request }) => {
+    const res = await request.post('/api/v1/dispatches/open-for-entry', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+      data: { salespersonId: 1, dispatchDate: getIndiaDateStr() },
+    });
+    expect(res.status()).toBe(403);
+  });
+});
