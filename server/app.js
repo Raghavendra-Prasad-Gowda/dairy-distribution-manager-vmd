@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
 const env = require('./config/env'); // validates & freezes config at boot (fail-fast)
+const prisma = require('./lib/prisma');
 const logger = require('./config/logger');
 const AppError = require('./utils/AppError');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
@@ -88,9 +89,25 @@ app.use(cookieParser());
 // ─── 7. Body parser ──────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));
 
-// ─── Root & Health check ──────────────────────────────────────────────────────
+// ─── Root & Health checks ─────────────────────────────────────────────────────
 app.get('/', (req, res) => res.json({ name: 'Dairy Distribution Manager API', status: 'ok' }));
+
+// Liveness: is the process up? Fast, no dependencies — a failing liveness probe
+// tells the platform to RESTART the container.
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+// Readiness: can we actually serve traffic (DB reachable)? A failing readiness
+// probe tells the load balancer to STOP routing here without killing the pod.
+// So an LB never reports healthy while Postgres is down or pool-exhausted.
+app.get('/health/ready', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', uptime: process.uptime() });
+  } catch (err) {
+    logger.error('Readiness check failed — database unreachable.', { message: err.message });
+    res.status(503).json({ status: 'unavailable', error: 'database unreachable' });
+  }
+});
 
 // ─── Public routes ───────────────────────────────────────────────────────────
 app.use('/api/v1/auth', authRoutes);

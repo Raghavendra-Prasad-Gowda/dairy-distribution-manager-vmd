@@ -147,6 +147,9 @@ model StockReceipt {
 
   @@unique([productId, receiptDate, routeId])
   @@index([brandId, receiptDate])
+  // Standalone date index for cross-brand report scans (stockSummary with no
+  // brand filter) where the composite above (leading col brandId) can't help.
+  @@index([receiptDate])
   @@map("stock_receipts")
 }
 
@@ -286,6 +289,11 @@ model StockDispatch {
   items       StockDispatchItem[]
 
   @@unique([salespersonId, dispatchDate])
+  // Standalone date index: every cross-salesperson date report (daily dispatch
+  // summary, stock summary, profit/loss, finalization checks) filters
+  // dispatchDate without salespersonId, so the composite unique above (leading
+  // col salespersonId) can't serve them — they would seq-scan as history grows.
+  @@index([dispatchDate])
   @@map("stock_dispatches")
 }
 
