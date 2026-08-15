@@ -2313,12 +2313,7 @@ export default function SalesmanPricesSetup() {
                   const q = exProductSearch.toLowerCase();
                   const disabled = globalProducts
                     .filter(p => !p.salespersonEnabled)
-                    .filter(p => !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)))
-                    .sort((a, b) =>
-                      (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
-                      (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
-                      a.productName.localeCompare(b.productName)
-                    );
+                    .filter(p => !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
 
                   if (disabled.length === 0) {
                     return (
@@ -2330,59 +2325,111 @@ export default function SalesmanPricesSetup() {
                     );
                   }
 
+                  // Group by brand, preserving brands array order (displayOrder)
+                  const brandOrder = brands.map(b => b.id);
+                  const byBrand = {};
+                  disabled.forEach(p => {
+                    if (!byBrand[p.brandId]) byBrand[p.brandId] = { brandName: p.brandName, products: [] };
+                    byBrand[p.brandId].products.push(p);
+                  });
+                  const sortedBrandIds = Object.keys(byBrand)
+                    .map(Number)
+                    .sort((a, b) => {
+                      const ai = brandOrder.indexOf(a);
+                      const bi = brandOrder.indexOf(b);
+                      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+                    });
+
                   return (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-52 overflow-y-auto divide-y divide-slate-100">
-                      {disabled.map(p => {
-                        const checked = exceptionForm.selectedProducts.has(p.productId);
-                        const showPrice = exceptionForm.action === 'enable' && checked;
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-64 overflow-y-auto">
+                      {sortedBrandIds.map(brandId => {
+                        const { brandName, products: brandProducts } = byBrand[brandId];
+
+                        // Group products within the brand by category, sorted by categoryDisplayOrder
+                        const byCat = {};
+                        brandProducts.forEach(p => {
+                          const key = p.category || '';
+                          if (!byCat[key]) byCat[key] = { catOrder: p.categoryDisplayOrder ?? 999, products: [] };
+                          byCat[key].products.push(p);
+                        });
+                        const sortedCats = Object.entries(byCat)
+                          .sort(([, a], [, b]) => a.catOrder - b.catOrder);
+
                         return (
-                          <label
-                            key={p.productId}
-                            className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white transition ${checked ? 'bg-violet-50' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => setExceptionForm(f => {
-                                const s = new Set(f.selectedProducts);
-                                if (s.has(p.productId)) s.delete(p.productId); else s.add(p.productId);
-                                return { ...f, selectedProducts: s };
-                              })}
-                              className="w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-800 truncate">{p.productName}</p>
-                              {p.category && (
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wide">{p.category}</p>
-                              )}
-                              {/* Dairy cost / MRP reference */}
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] text-slate-400">
-                                  Cost <span className="font-semibold text-slate-500">₹{Number(p.dairyCostPrice ?? 0).toFixed(2)}</span>
-                                </span>
-                                <span className="text-slate-200 text-[10px]">|</span>
-                                <span className="text-[10px] text-slate-400">
-                                  MRP <span className="font-semibold text-emerald-600">₹{Number(p.dairySellingPrice ?? 0).toFixed(2)}</span>
-                                </span>
-                              </div>
+                          <div key={brandId}>
+                            {/* Brand header */}
+                            <div className="sticky top-0 z-10 bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white uppercase tracking-wider">
+                              {brandName}
                             </div>
-                            {/* Inline price input — only when enabling this product */}
-                            {showPrice && (
-                              <div className="relative flex-shrink-0" onClick={e => e.preventDefault()}>
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={exceptionForm.prices[p.productId] ?? ''}
-                                  onChange={e => setExceptionForm(f => ({ ...f, prices: { ...f.prices, [p.productId]: e.target.value } }))}
-                                  onClick={e => e.stopPropagation()}
-                                  placeholder={p.dairySellingPrice > 0 ? String(p.dairySellingPrice) : 'Price'}
-                                  className="w-24 pl-5 pr-2 py-1.5 text-xs text-right font-semibold border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
-                                />
-                              </div>
-                            )}
-                          </label>
+                            {sortedCats.map(([cat, { products: catProducts }]) => {
+                              // Sort products within category by displayOrder → name
+                              const sorted = [...catProducts].sort((a, b) =>
+                                (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+                                a.productName.localeCompare(b.productName)
+                              );
+                              return (
+                                <div key={cat || '_none'}>
+                                  {cat && (
+                                    <div className="bg-slate-100 border-y border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                      {cat}
+                                    </div>
+                                  )}
+                                  <div className="divide-y divide-slate-100">
+                                    {sorted.map(p => {
+                                      const checked = exceptionForm.selectedProducts.has(p.productId);
+                                      const showPrice = exceptionForm.action === 'enable' && checked;
+                                      return (
+                                        <label
+                                          key={p.productId}
+                                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white transition ${checked ? 'bg-violet-50' : ''}`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => setExceptionForm(f => {
+                                              const s = new Set(f.selectedProducts);
+                                              if (s.has(p.productId)) s.delete(p.productId); else s.add(p.productId);
+                                              return { ...f, selectedProducts: s };
+                                            })}
+                                            className="w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0"
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-slate-800 truncate">{p.productName}</p>
+                                            {/* Dairy cost / MRP reference */}
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                              <span className="text-[10px] text-slate-400">
+                                                Cost <span className="font-semibold text-slate-500">₹{Number(p.dairyCostPrice ?? 0).toFixed(2)}</span>
+                                              </span>
+                                              <span className="text-slate-200 text-[10px]">|</span>
+                                              <span className="text-[10px] text-slate-400">
+                                                MRP <span className="font-semibold text-emerald-600">₹{Number(p.dairySellingPrice ?? 0).toFixed(2)}</span>
+                                              </span>
+                                            </div>
+                                          </div>
+                                          {/* Inline price input — only when enabling this product */}
+                                          {showPrice && (
+                                            <div className="relative flex-shrink-0" onClick={e => e.preventDefault()}>
+                                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                              <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={exceptionForm.prices[p.productId] ?? ''}
+                                                onChange={e => setExceptionForm(f => ({ ...f, prices: { ...f.prices, [p.productId]: e.target.value } }))}
+                                                onClick={e => e.stopPropagation()}
+                                                placeholder={p.dairySellingPrice > 0 ? String(p.dairySellingPrice) : 'Price'}
+                                                className="w-24 pl-5 pr-2 py-1.5 text-xs text-right font-semibold border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                              />
+                                            </div>
+                                          )}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         );
                       })}
                     </div>
