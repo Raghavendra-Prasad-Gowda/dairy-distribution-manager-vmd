@@ -144,6 +144,11 @@ test.describe('GET /api/v1/reports/dairy-statement', () => {
 // ─── GET /api/v1/reports/salesperson-statement ───────────────────────────────
 
 test.describe('GET /api/v1/reports/salesperson-statement', () => {
+  // category.findMany is now always called to sort dispatch items by dairy layout order.
+  test.beforeEach(() => {
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+  });
+
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30');
     expect(res.status()).toBe(403);
@@ -220,7 +225,10 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
       salespersonId: 1,
       dispatchDate: new Date('2026-04-30'),
       items: [{
-        product: { name: 'Milk 500ml', brand: { name: 'Nandini' } },
+        product: {
+          name: 'Milk 500ml', brandId: 1, category: 'Milk', displayOrder: 1,
+          brand: { name: 'Nandini', displayOrder: 1 },
+        },
         quantity: 60, unitPrice: 40, totalAmount: 2400,
       }],
     };
@@ -245,6 +253,54 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
     expect(body.data[0].items[0]).toHaveProperty('productName', 'Milk 500ml');
     expect(body.data[0].payments).toHaveLength(1);
     expect(body.data[0].payments[0]).toHaveProperty('amount', 1200);
+  });
+
+  test('dispatch items are sorted by brand → category → product displayOrder → name', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 5000, amountPaid: 0, closingBalance: 5000,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      // Returned from DB in insertion order (wrong order):
+      // Curd 200g (category Curd, displayOrder 2) should come AFTER Milk 500ml (Milk, displayOrder 1)
+      // because Milk.categoryDisplayOrder=1 < Curd.categoryDisplayOrder=2
+      items: [
+        {
+          product: {
+            name: 'Curd 200g', brandId: 1, category: 'Curd', displayOrder: 2,
+            brand: { name: 'Nandini', displayOrder: 1 },
+          },
+          quantity: 10, unitPrice: 30, totalAmount: 300,
+        },
+        {
+          product: {
+            name: 'Milk 500ml', brandId: 1, category: 'Milk', displayOrder: 1,
+            brand: { name: 'Nandini', displayOrder: 1 },
+          },
+          quantity: 60, unitPrice: 40, totalAmount: 2400,
+        },
+      ],
+    };
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 1, name: 'Milk', displayOrder: 1 },
+      { brandId: 1, name: 'Curd', displayOrder: 2 },
+    ]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const items = (await res.json()).data[0].items;
+    expect(items).toHaveLength(2);
+    // After sort: Milk (category displayOrder 1) before Curd (category displayOrder 2)
+    expect(items[0].productName).toBe('Milk 500ml');
+    expect(items[1].productName).toBe('Curd 200g');
   });
 });
 

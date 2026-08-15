@@ -82,8 +82,14 @@ export default function ProductsSetup() {
       return acc;
     }, {});
 
-    return Object.entries(grouped);
-  }, [products, search]);
+    // Sort category groups by the dairy layout display order, then alphabetically.
+    const catOrderMap = new Map(categories.map(c => [c.name, c.displayOrder]));
+    return Object.entries(grouped).sort(([a], [b]) => {
+      const oa = catOrderMap.get(a) ?? 9999;
+      const ob = catOrderMap.get(b) ?? 9999;
+      return oa !== ob ? oa - ob : a.localeCompare(b);
+    });
+  }, [products, categories, search]);
 
   const totalFiltered = filteredGrouped.reduce((s, [, arr]) => s + arr.length, 0);
 
