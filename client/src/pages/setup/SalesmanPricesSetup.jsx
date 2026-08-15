@@ -2355,6 +2355,16 @@ export default function SalesmanPricesSetup() {
                               {p.category && (
                                 <p className="text-[10px] text-slate-400 uppercase tracking-wide">{p.category}</p>
                               )}
+                              {/* Dairy cost / MRP reference */}
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-slate-400">
+                                  Cost <span className="font-semibold text-slate-500">₹{Number(p.dairyCostPrice ?? 0).toFixed(2)}</span>
+                                </span>
+                                <span className="text-slate-200 text-[10px]">|</span>
+                                <span className="text-[10px] text-slate-400">
+                                  MRP <span className="font-semibold text-emerald-600">₹{Number(p.dairySellingPrice ?? 0).toFixed(2)}</span>
+                                </span>
+                              </div>
                             </div>
                             {/* Inline price input — only when enabling this product */}
                             {showPrice && (
@@ -2367,7 +2377,7 @@ export default function SalesmanPricesSetup() {
                                   value={exceptionForm.prices[p.productId] ?? ''}
                                   onChange={e => setExceptionForm(f => ({ ...f, prices: { ...f.prices, [p.productId]: e.target.value } }))}
                                   onClick={e => e.stopPropagation()}
-                                  placeholder={p.salespersonDefaultPrice > 0 ? String(p.salespersonDefaultPrice) : 'Price'}
+                                  placeholder={p.dairySellingPrice > 0 ? String(p.dairySellingPrice) : 'Price'}
                                   className="w-24 pl-5 pr-2 py-1.5 text-xs text-right font-semibold border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
                                 />
                               </div>
@@ -2378,11 +2388,33 @@ export default function SalesmanPricesSetup() {
                     </div>
                   );
                 })()}
-                {exceptionForm.action === 'enable' && exceptionForm.selectedProducts.size > 0 && (
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Price is optional per product — leave blank to use the global default price.
-                  </p>
-                )}
+                {exceptionForm.action === 'enable' && exceptionForm.selectedProducts.size > 0 && (() => {
+                  const selectedDisabled = globalProducts.filter(
+                    p => !p.salespersonEnabled && exceptionForm.selectedProducts.has(p.productId)
+                  );
+                  return (
+                    <div className="flex items-center justify-between mt-1.5 gap-2">
+                      <p className="text-[10px] text-slate-400">
+                        Price is optional — leave blank to use the global default price.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newPrices = { ...exceptionForm.prices };
+                          selectedDisabled.forEach(p => {
+                            if (p.dairySellingPrice > 0) {
+                              newPrices[p.productId] = String(p.dairySellingPrice);
+                            }
+                          });
+                          setExceptionForm(f => ({ ...f, prices: newPrices }));
+                        }}
+                        className="flex-shrink-0 text-[10px] font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 whitespace-nowrap"
+                      >
+                        Use dairy MRP for all
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Effective From — shown only when enabling and at least one price is entered */}
