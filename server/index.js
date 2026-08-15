@@ -6,7 +6,12 @@ const env = require('./config/env');
 const logger = require('./config/logger');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
 
-/** Resolve any migrations that started but never finished. */
+/**
+ * Resolve any migrations that started but never finished.
+ * Retained as an operational recovery helper; not wired into the default boot
+ * path (Render/Aiven handle uptime). Kept exported-in-spirit for manual use.
+ */
+// eslint-disable-next-line no-unused-vars
 async function resolveFailedMigrations() {
   const { Client } = require('pg');
   const client = new Client({

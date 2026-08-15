@@ -7,8 +7,11 @@
   "scripts": {
     "start": "node index.js",
     "test": "playwright test",
+    "lint": "eslint .",
     "lint:tz": "node scripts/check-timezone-safety.js",
-    "check": "npm run lint:tz && npm test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run lint:tz && npm test",
     "build": "npx prisma generate",
     "deploy": "npx prisma migrate deploy",
     "start:prod": "node index.js",
@@ -35,7 +38,12 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1"
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.59.1",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

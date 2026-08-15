@@ -61,7 +61,6 @@ if (!parsed.success) {
     .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
     .join('\n');
   // Logger imports env, so avoid a circular dependency here and write to stderr.
-  // eslint-disable-next-line no-console
   console.error(`\n[env] Invalid environment configuration:\n${issues}\n`);
   throw new Error('Invalid environment configuration — see errors above.');
 }

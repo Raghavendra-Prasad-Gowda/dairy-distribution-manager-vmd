@@ -3,6 +3,10 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+// Retained but not yet wired in: the overselling guard is temporarily disabled
+// at the call site (see createOrUpdate). Kept imported so re-enabling is a
+// one-line uncomment. See hardening plan P2-5.
+// eslint-disable-next-line no-unused-vars
 const { validateDispatchStock } = require('../services/stockGuard');
 const { isDayFinalizedForDispatcher } = require('../services/dispatchDayFinalization');
 const { getIndiaDateStr } = require('../utils/dateUtils');

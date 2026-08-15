@@ -395,7 +395,7 @@ const depositSummary = asyncHandler(async (req, res) => {
     let dailyDeposit = 0;
 
     for (const r of items) {
-      const { name, category, unitType, unitSize, containerType, displayOrder } = r.product;
+      const { name, category, unitType, unitSize, displayOrder } = r.product;
       if (!qualifiesForDeposit(r.product, brand, enabledCategories)) continue;
 
       const qty            = Number(r.quantity);

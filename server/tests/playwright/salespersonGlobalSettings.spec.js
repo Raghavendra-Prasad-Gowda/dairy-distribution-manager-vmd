@@ -344,7 +344,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
 
   test('can update both isEnabled and defaultPrice together', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-    let updateCalls = [];
+    const updateCalls = [];
     ctx.mockPrisma.product.update.mockImplementation(async (args) => {
       updateCalls.push(args.data);
       return { id: args.where.id };

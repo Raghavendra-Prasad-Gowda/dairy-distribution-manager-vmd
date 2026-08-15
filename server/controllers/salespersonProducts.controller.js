@@ -1,6 +1,5 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
-const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { assertAdmin } = require('../utils/authz');
 const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');

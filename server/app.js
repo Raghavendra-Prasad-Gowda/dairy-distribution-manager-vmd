@@ -8,7 +8,6 @@ const cookieParser = require('cookie-parser');
 const env = require('./config/env'); // validates & freezes config at boot (fail-fast)
 const prisma = require('./lib/prisma');
 const logger = require('./config/logger');
-const AppError = require('./utils/AppError');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
 
 // ─── Route imports ────────────────────────────────────────────────────────────
@@ -152,8 +151,9 @@ app.use('/api/v1/routes',               requireAdmin, routesRoutes);
 app.use('/api/v1/admin-users',          requireSuperAdmin, adminUsersRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
-// Must be the last middleware
-app.use((err, req, res, next) => {
+// Must be the last middleware. The 4-arg signature (incl. unused _next) is how
+// Express recognizes this as an error handler — the arity matters, not the name.
+app.use((err, req, res, _next) => {
   const isDev = process.env.NODE_ENV === 'development';
 
   // Prisma known error codes
