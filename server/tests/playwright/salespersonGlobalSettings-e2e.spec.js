@@ -132,7 +132,7 @@ test.describe('E2E: Global price changes propagate to salesman view', () => {
 // ─── E2E: Admin disables product globally, salesman no longer sees it ────────
 
 test.describe('E2E: Global disable filters from salesman view', () => {
-  test('product disabled globally is excluded from salesman price list', async ({ request }) => {
+  test('product disabled globally without per-salesman exception is excluded from salesman price list', async ({ request }) => {
     const PRODUCT_ID = 2;
     const SALESMAN_ID = 5;
     const salesmanToken = makeSalesmanToken(SALESMAN_ID);
@@ -177,7 +177,7 @@ test.describe('E2E: Global disable filters from salesman view', () => {
 
     ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([
       { productId: 1, isEnabled: true },
-      { productId: PRODUCT_ID, isEnabled: true }, // Even if enabled per-salesman
+      // No per-salesman exception row for PRODUCT_ID — default-off applies
     ]);
 
     ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);

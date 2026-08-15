@@ -80,7 +80,7 @@ describe('AdminUsersSetup — list', () => {
 describe('AdminUsersSetup — add user', () => {
   it('disables Create until both username and password are filled', async () => {
     await renderPage();
-    fireEvent.click(screen.getByText('Add Admin'));
+    fireEvent.click(screen.getByText('Add User'));
     const createBtn = screen.getByRole('button', { name: /Create/i });
     expect(createBtn).toBeDisabled();
 
@@ -92,7 +92,7 @@ describe('AdminUsersSetup — add user', () => {
 
   it('posts the new user and refreshes the list on success', async () => {
     await renderPage();
-    fireEvent.click(screen.getByText('Add Admin'));
+    fireEvent.click(screen.getByText('Add User'));
     fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'newadmin' } });
     fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
     fireEvent.click(screen.getByRole('button', { name: /Create/i }));
@@ -100,13 +100,14 @@ describe('AdminUsersSetup — add user', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/admin-users', { username: 'newadmin', password: 'secret1', role: 'admin' })
     );
-    expect(notify).toHaveBeenCalledWith('Admin user created', 'success');
+    // ROLE_LABEL['admin'] is 'Admin', so the message is 'Admin created successfully'
+    expect(notify).toHaveBeenCalledWith('Admin created successfully', 'success');
   });
 
   it('shows the server error on a failed create', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Username already taken' } } });
     await renderPage();
-    fireEvent.click(screen.getByText('Add Admin'));
+    fireEvent.click(screen.getByText('Add User'));
     fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'dup' } });
     fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
     fireEvent.click(screen.getByRole('button', { name: /Create/i }));
@@ -116,7 +117,7 @@ describe('AdminUsersSetup — add user', () => {
 
   it('the role select offers Dispatcher, and creating one posts role: dispatcher', async () => {
     await renderPage();
-    fireEvent.click(screen.getByText('Add Admin'));
+    fireEvent.click(screen.getByText('Add User'));
     fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'dispatcher1' } });
     fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
     fireEvent.change(screen.getByDisplayValue('Admin'), { target: { value: 'dispatcher' } });
@@ -135,7 +136,8 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    const [editBtn] = within(row).getAllByRole('button');
+    // Row buttons: [toggleActive, edit, delete] — edit is index 1
+    const [, editBtn] = within(row).getAllByRole('button');
     fireEvent.click(editBtn);
 
     expect(screen.getByText('Edit — raghav')).toBeInTheDocument();
@@ -149,7 +151,8 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    const [editBtn] = within(row).getAllByRole('button');
+    // Row buttons: [toggleActive, edit, delete] — edit is index 1
+    const [, editBtn] = within(row).getAllByRole('button');
     fireEvent.click(editBtn);
 
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
@@ -165,7 +168,8 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    const [editBtn] = within(row).getAllByRole('button');
+    // Row buttons: [toggleActive, edit, delete] — edit is index 1
+    const [, editBtn] = within(row).getAllByRole('button');
     fireEvent.click(editBtn);
     fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'newpass1' } });
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
@@ -184,7 +188,9 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('me');
 
     const row = screen.getByText('me').closest('tr');
-    const [editBtn] = within(row).getAllByRole('button');
+    // Row buttons: [toggleActive (disabled for self), edit, delete (disabled for self)]
+    // Edit is index 1 — it's always enabled so you can still open the modal to view
+    const [, editBtn] = within(row).getAllByRole('button');
     fireEvent.click(editBtn);
 
     expect(screen.getByDisplayValue('Admin')).toBeDisabled();
@@ -197,7 +203,8 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('me');
     const row = screen.getByText('me').closest('tr');
-    const [, deleteBtn] = within(row).getAllByRole('button');
+    // Row buttons: [toggleActive (disabled for self), edit, delete (disabled for self)]
+    const [,, deleteBtn] = within(row).getAllByRole('button');
     expect(deleteBtn).toBeDisabled();
   });
 
@@ -206,7 +213,8 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [, deleteBtn] = within(row).getAllByRole('button');
+    // Row buttons: [toggleActive, edit, delete] — delete is index 2
+    const [,, deleteBtn] = within(row).getAllByRole('button');
     fireEvent.click(deleteBtn);
 
     expect(await screen.findByText('Delete admin user?')).toBeInTheDocument();
