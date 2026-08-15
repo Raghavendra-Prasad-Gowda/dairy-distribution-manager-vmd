@@ -136,10 +136,12 @@ describe('SalespersonOutstanding — date selector', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [] } });
     const { container } = renderPage();
     await screen.findByText(/No salespeople configured/);
-    expect(api.get).toHaveBeenCalledWith(expect.stringContaining('date=2026-08-09'));
+    expect(api.get).toHaveBeenCalledWith('/salesperson-balance', { params: { date: '2026-08-09' } });
 
     const dateInput = container.querySelector('input[type="date"]');
     fireEvent.change(dateInput, { target: { value: '2026-08-01' } });
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('date=2026-08-01')));
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith('/salesperson-balance', { params: { date: '2026-08-01' } })
+    );
   });
 });
