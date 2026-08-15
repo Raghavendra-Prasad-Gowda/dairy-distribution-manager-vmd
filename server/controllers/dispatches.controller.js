@@ -85,7 +85,10 @@ async function resolveSalespersonItemPricing(salespersonId, items, dispatchDate)
     if (!product || !product.isActive) {
       throw new AppError(`Product ${item.productId} is not available`, 400);
     }
-    const isEnabled = product.salespersonEnabled && (enabledMap[item.productId] ?? true);
+    // Per-salesperson override wins; fall back to global flag when no row exists.
+    // This lets Exception Manager enable a globally-disabled product for a subset
+    // of salespeople (salespersonProduct.isEnabled=true overrides salespersonEnabled=false).
+    const isEnabled = enabledMap[item.productId] ?? product.salespersonEnabled;
     if (!isEnabled) {
       throw new AppError(`Product ${item.productId} is not enabled for your account`, 403);
     }

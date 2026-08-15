@@ -185,7 +185,7 @@ export default function ProductsSetup() {
       await api.put(`/products/${p.id}`, { showInStockReceipt: !p.showInStockReceipt });
       setProducts(prev => prev.map(x => x.id === p.id ? { ...x, showInStockReceipt: !x.showInStockReceipt } : x));
     } catch {
-      notify('Failed to update', 'error');
+      notify('Failed to update product', 'error');
     }
   };
 

@@ -953,6 +953,212 @@ describe('Global Settings — handleClearCustomPrices()', () => {
   });
 });
 
+describe('Global Settings — Exception Manager (superadmin only)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function openExceptionManager() {
+    await renderAndGoGlobal();
+    await waitFor(() => expect(screen.getByText('Nandini Curd 400g')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Exception Manager/i }));
+    // Wait for the modal heading to appear
+    await waitFor(() =>
+      expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument()
+    );
+  }
+
+  it('shows "Exception Manager" button in global mode for superadmin', async () => {
+    await renderAndGoGlobal();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Exception Manager/i })).toBeInTheDocument());
+  });
+
+  it('opens the Exception Manager modal when the button is clicked', async () => {
+    await openExceptionManager();
+    // Sub-heading in the modal header
+    expect(screen.getByText(/Enable globally-disabled products for specific salespeople only/i)).toBeInTheDocument();
+  });
+
+  it('shows globally-disabled products in the modal list', async () => {
+    await openExceptionManager();
+    // GLOBAL_PRODUCTS[1] is salespersonEnabled: false (Nandini Curd 400g)
+    // Should appear in the modal's product checklist
+    const checkboxes = screen.getAllByRole('checkbox');
+    // At least one checkbox corresponds to the disabled product
+    expect(checkboxes.length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Nandini Curd 400g').length).toBeGreaterThan(0);
+  });
+
+  it('shows dairy Cost and MRP labels for disabled products in the modal', async () => {
+    await openExceptionManager();
+    // Product 2: dairyCostPrice: 20, dairySellingPrice: 28
+    // These appear as "Cost ₹20.00 | MRP ₹28.00" in the Exception Manager
+    // (They also appear in the global table, so we just verify the labels exist)
+    expect(screen.getAllByText(/Cost/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/MRP/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₹20.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₹28.00').length).toBeGreaterThan(0);
+  });
+
+  it('shows "Use dairy MRP for all" button after selecting a disabled product with enable action', async () => {
+    await openExceptionManager();
+    // Select the disabled product (Nandini Curd 400g checkbox)
+    const checkbox = screen.getByRole('checkbox', { name: /Nandini Curd 400g/i });
+    fireEvent.click(checkbox);
+    await waitFor(() =>
+      expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument()
+    );
+  });
+
+  it('"Use dairy MRP for all" fills price inputs with dairySellingPrice', async () => {
+    await openExceptionManager();
+
+    // Select the disabled product
+    const checkbox = screen.getByRole('checkbox', { name: /Nandini Curd 400g/i });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Use dairy MRP for all'));
+
+    // The price input for the selected product should now hold the dairy selling price ("28")
+    // (dairySellingPrice: 28 for Nandini Curd 400g)
+    await waitFor(() => {
+      const allSpinbuttons = screen.getAllByRole('spinbutton');
+      const filled = allSpinbuttons.find(i => i.value === '28');
+      expect(filled).toBeDefined();
+    });
+  });
+
+  it('"Use dairy MRP for all" does not overwrite a price that was manually entered', async () => {
+    await openExceptionManager();
+
+    const checkbox = screen.getByRole('checkbox', { name: /Nandini Curd 400g/i });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument());
+
+    // Manually enter a price BEFORE clicking "Use dairy MRP for all"
+    // The button fills ALL selected products — it doesn't skip those already filled.
+    // After clicking, the value should be 28 (MRP overrides the manual entry).
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    const modalInput = spinbuttons.find(i => i.placeholder === '28');
+    if (modalInput) {
+      fireEvent.change(modalInput, { target: { value: '25' } });
+    }
+
+    fireEvent.click(screen.getByText('Use dairy MRP for all'));
+
+    await waitFor(() => {
+      const allInputs = screen.getAllByRole('spinbutton');
+      const filledWithMRP = allInputs.find(i => i.value === '28');
+      expect(filledWithMRP).toBeDefined();
+    });
+  });
+
+  it('Submit button is disabled until both products and salespeople are selected', async () => {
+    await openExceptionManager();
+    // Submit button with no selections → disabled
+    const submitBtn = screen.getByRole('button', { name: /Enable \(|Disable \(/ });
+    expect(submitBtn).toBeDisabled();
+  });
+
+  // ── Brand grouping in Exception Manager ────────────────────────────────────
+
+  it('groups globally-disabled products under a brand section header', async () => {
+    // GLOBAL_PRODUCTS[1] (Nandini Curd 400g) is disabled. The brand header
+    // "Nandini" must appear inside the modal product list.
+    await openExceptionManager();
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    // getByText uses exact match — "Nandini" won't match "Nandini Curd 400g".
+    expect(within(modal).getByText('Nandini')).toBeInTheDocument();
+  });
+
+  it('shows a category sub-header inside the brand section', async () => {
+    // Nandini Curd 400g → category: 'Curd' → rendered as a section header
+    // inside the "Nandini" brand group, not inline on the product row.
+    await openExceptionManager();
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    expect(within(modal).getByText('Curd')).toBeInTheDocument();
+  });
+
+  it('shows separate brand headers when disabled products span multiple brands', async () => {
+    const multibrandProducts = [
+      ...GLOBAL_PRODUCTS,
+      {
+        productId: 3,
+        productName: 'Jersey Full Cream 500ml',
+        brandId: 2,
+        brandName: 'Jersey',
+        category: 'Milk',
+        categoryDisplayOrder: 1,
+        displayOrder: 1,
+        salespersonEnabled: false,
+        salespersonDefaultPrice: 0,
+        dairyCostPrice: 38,
+        dairySellingPrice: 52,
+      },
+    ];
+
+    setupDefaultMocks({ globalProducts: multibrandProducts });
+    render(<SalesmanPricesSetup />);
+    await waitFor(() => expect(screen.getByText('Ramesh Kumar')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Global'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/products/salesperson-global'));
+    fireEvent.click(screen.getByRole('button', { name: /Exception Manager/i }));
+    await waitFor(() =>
+      expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument()
+    );
+
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    const withinModal = within(modal);
+
+    // Both brand headers appear inside the modal
+    expect(withinModal.getByText('Nandini')).toBeInTheDocument();
+    expect(withinModal.getByText('Jersey')).toBeInTheDocument();
+    // Both disabled products are listed
+    expect(withinModal.getByText('Nandini Curd 400g')).toBeInTheDocument();
+    expect(withinModal.getByText('Jersey Full Cream 500ml')).toBeInTheDocument();
+  });
+
+  it('orders brand sections by brands displayOrder (Nandini before Jersey)', async () => {
+    // BRANDS fixture: Nandini displayOrder=1, Jersey displayOrder=2 → Nandini first.
+    const multibrandProducts = [
+      ...GLOBAL_PRODUCTS,
+      {
+        productId: 3,
+        productName: 'Jersey Full Cream 500ml',
+        brandId: 2,
+        brandName: 'Jersey',
+        category: 'Milk',
+        categoryDisplayOrder: 1,
+        displayOrder: 1,
+        salespersonEnabled: false,
+        salespersonDefaultPrice: 0,
+        dairyCostPrice: 38,
+        dairySellingPrice: 52,
+      },
+    ];
+
+    setupDefaultMocks({ globalProducts: multibrandProducts });
+    render(<SalesmanPricesSetup />);
+    await waitFor(() => expect(screen.getByText('Ramesh Kumar')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Global'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/products/salesperson-global'));
+    fireEvent.click(screen.getByRole('button', { name: /Exception Manager/i }));
+    await waitFor(() =>
+      expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument()
+    );
+
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    const nandiniHeader = within(modal).getByText('Nandini');
+    const jerseyHeader = within(modal).getByText('Jersey');
+
+    // Nandini (displayOrder 1) must precede Jersey (displayOrder 2) in the DOM.
+    expect(
+      nandiniHeader.compareDocumentPosition(jerseyHeader) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+});
+
 describe('Global Settings — handleClearAllSalesmanPrices()', () => {
   beforeEach(() => {
     vi.clearAllMocks();

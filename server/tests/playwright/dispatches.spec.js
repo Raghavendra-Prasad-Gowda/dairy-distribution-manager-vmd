@@ -947,13 +947,34 @@ test.describe('POST /api/v1/dispatches — salesman price integrity', () => {
     expect(priceFindManyArgs.where.effectiveFrom).toEqual({ lte: new Date(TODAY) });
   });
 
-  test('rejects a product that is not globally enabled for salespeople', async ({ request }) => {
+  test('allows a globally-disabled product when a per-salesperson exception enables it', async ({ request }) => {
+    // The Exception Manager (superadmin) creates a salespersonProduct row with
+    // isEnabled=true for an otherwise globally-disabled product. That exception
+    // must take precedence over the global gate so the salesperson can dispatch it.
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.create.mockResolvedValue({ id: 1, salespersonId: 7, dispatchDate: TODAY, totalAmount: 300, items: [] });
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: false, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: true }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    mockSalespersonCascade(ctx.mockPrisma);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(201);
+  });
+
+  test('rejects a globally-disabled product when no per-salesperson exception exists', async ({ request }) => {
+    // Without an exception row, a globally-disabled product stays blocked.
     ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
     ctx.mockPrisma.product.findMany.mockResolvedValue([
       { id: 1, isActive: true, salespersonEnabled: false, salespersonDefaultPrice: 30 },
     ]);
-    // A per-salesperson "enabled" row can never override the global gate.
-    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: true }]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]); // no exception row
     ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
 
     const res = await request.post('/api/v1/dispatches', {
