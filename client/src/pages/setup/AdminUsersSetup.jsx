@@ -118,7 +118,7 @@ export default function AdminUsersSetup() {
       };
       if (editForm.password) payload.password = editForm.password;
       await api.put(`/admin-users/${editUser.id}`, payload);
-      notify('Admin user updated', 'success');
+      notify(`${ROLE_LABEL[editForm.role] ?? 'User'} "${editForm.username}" updated`, 'success');
       setEditUser(null);
       load();
     } catch (err) {
@@ -133,7 +133,7 @@ export default function AdminUsersSetup() {
     setDeleting(true);
     try {
       await api.delete(`/admin-users/${deleteTarget.id}`);
-      notify('Admin user deleted', 'success');
+      notify(`${ROLE_LABEL[deleteTarget.role] ?? 'User'} "${deleteTarget.username}" deleted`, 'success');
       setDeleteTarget(null);
       load();
     } catch (err) {

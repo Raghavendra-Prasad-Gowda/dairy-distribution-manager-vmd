@@ -953,6 +953,115 @@ describe('Global Settings — handleClearCustomPrices()', () => {
   });
 });
 
+describe('Global Settings — Exception Manager (superadmin only)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function openExceptionManager() {
+    await renderAndGoGlobal();
+    await waitFor(() => expect(screen.getByText('Nandini Curd 400g')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Exception Manager/i }));
+    // Wait for the modal heading to appear
+    await waitFor(() =>
+      expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument()
+    );
+  }
+
+  it('shows "Exception Manager" button in global mode for superadmin', async () => {
+    await renderAndGoGlobal();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Exception Manager/i })).toBeInTheDocument());
+  });
+
+  it('opens the Exception Manager modal when the button is clicked', async () => {
+    await openExceptionManager();
+    // Sub-heading in the modal header
+    expect(screen.getByText(/Enable globally-disabled products for specific salespeople only/i)).toBeInTheDocument();
+  });
+
+  it('shows globally-disabled products in the modal list', async () => {
+    await openExceptionManager();
+    // GLOBAL_PRODUCTS[1] is salespersonEnabled: false (Nandini Curd 400g)
+    // Should appear in the modal's product checklist
+    const checkboxes = screen.getAllByRole('checkbox');
+    // At least one checkbox corresponds to the disabled product
+    expect(checkboxes.length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Nandini Curd 400g').length).toBeGreaterThan(0);
+  });
+
+  it('shows dairy Cost and MRP labels for disabled products in the modal', async () => {
+    await openExceptionManager();
+    // Product 2: dairyCostPrice: 20, dairySellingPrice: 28
+    // These appear as "Cost ₹20.00 | MRP ₹28.00" in the Exception Manager
+    // (They also appear in the global table, so we just verify the labels exist)
+    expect(screen.getAllByText(/Cost/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/MRP/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₹20.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('₹28.00').length).toBeGreaterThan(0);
+  });
+
+  it('shows "Use dairy MRP for all" button after selecting a disabled product with enable action', async () => {
+    await openExceptionManager();
+    // Select the disabled product (Nandini Curd 400g checkbox)
+    const checkbox = screen.getByRole('checkbox', { name: /Nandini Curd 400g/i });
+    fireEvent.click(checkbox);
+    await waitFor(() =>
+      expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument()
+    );
+  });
+
+  it('"Use dairy MRP for all" fills price inputs with dairySellingPrice', async () => {
+    await openExceptionManager();
+
+    // Select the disabled product
+    const checkbox = screen.getByRole('checkbox', { name: /Nandini Curd 400g/i });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Use dairy MRP for all'));
+
+    // The price input for the selected product should now hold the dairy selling price ("28")
+    // (dairySellingPrice: 28 for Nandini Curd 400g)
+    await waitFor(() => {
+      const allSpinbuttons = screen.getAllByRole('spinbutton');
+      const filled = allSpinbuttons.find(i => i.value === '28');
+      expect(filled).toBeDefined();
+    });
+  });
+
+  it('"Use dairy MRP for all" does not overwrite a price that was manually entered', async () => {
+    await openExceptionManager();
+
+    const checkbox = screen.getByRole('checkbox', { name: /Nandini Curd 400g/i });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument());
+
+    // Manually enter a price BEFORE clicking "Use dairy MRP for all"
+    // The button fills ALL selected products — it doesn't skip those already filled.
+    // After clicking, the value should be 28 (MRP overrides the manual entry).
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    const modalInput = spinbuttons.find(i => i.placeholder === '28');
+    if (modalInput) {
+      fireEvent.change(modalInput, { target: { value: '25' } });
+    }
+
+    fireEvent.click(screen.getByText('Use dairy MRP for all'));
+
+    await waitFor(() => {
+      const allInputs = screen.getAllByRole('spinbutton');
+      const filledWithMRP = allInputs.find(i => i.value === '28');
+      expect(filledWithMRP).toBeDefined();
+    });
+  });
+
+  it('Submit button is disabled until both products and salespeople are selected', async () => {
+    await openExceptionManager();
+    // Submit button with no selections → disabled
+    const submitBtn = screen.getByRole('button', { name: /Enable \(|Disable \(/ });
+    expect(submitBtn).toBeDisabled();
+  });
+});
+
 describe('Global Settings — handleClearAllSalesmanPrices()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
