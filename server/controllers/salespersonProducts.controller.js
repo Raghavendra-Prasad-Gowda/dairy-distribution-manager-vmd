@@ -9,7 +9,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
 
-  const [products, enabledRows] = await Promise.all([
+  const [products, enabledRows, categories] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
       include: { brand: { select: { id: true, name: true } } },
@@ -19,22 +19,27 @@ const getProducts = asyncHandler(async (req, res) => {
       where: { salespersonId },
       select: { productId: true, isEnabled: true },
     }),
+    // Fetch category display orders so the Exception Manager can sort products
+    // by the dairy layout order (brand → category → product displayOrder → name).
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
 
+  const catOrderMap = new Map(categories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
   const enabledMap = Object.fromEntries(enabledRows.map(r => [r.productId, r.isEnabled]));
 
   const result = products.map(p => ({
-    productId:         p.id,
-    productName:       p.name,
-    brandId:           p.brandId,
-    brandName:         p.brand.name,
-    category:          p.category,
-    displayOrder:      p.displayOrder,
-    unitType:          p.unitType,
-    unitSize:          p.unitSize,
-    containerType:     p.containerType,
-    unitsPerContainer: p.unitsPerContainer,
-    isEnabled:         enabledMap[p.id] ?? false,
+    productId:            p.id,
+    productName:          p.name,
+    brandId:              p.brandId,
+    brandName:            p.brand.name,
+    category:             p.category,
+    categoryDisplayOrder: catOrderMap.get(`${p.brandId}::${p.category}`) ?? 999,
+    displayOrder:         p.displayOrder,
+    unitType:             p.unitType,
+    unitSize:             p.unitSize,
+    containerType:        p.containerType,
+    unitsPerContainer:    p.unitsPerContainer,
+    isEnabled:            enabledMap[p.id] ?? false,
   }));
 
   res.json({ success: true, data: result });
