@@ -1060,6 +1060,103 @@ describe('Global Settings — Exception Manager (superadmin only)', () => {
     const submitBtn = screen.getByRole('button', { name: /Enable \(|Disable \(/ });
     expect(submitBtn).toBeDisabled();
   });
+
+  // ── Brand grouping in Exception Manager ────────────────────────────────────
+
+  it('groups globally-disabled products under a brand section header', async () => {
+    // GLOBAL_PRODUCTS[1] (Nandini Curd 400g) is disabled. The brand header
+    // "Nandini" must appear inside the modal product list.
+    await openExceptionManager();
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    // getByText uses exact match — "Nandini" won't match "Nandini Curd 400g".
+    expect(within(modal).getByText('Nandini')).toBeInTheDocument();
+  });
+
+  it('shows a category sub-header inside the brand section', async () => {
+    // Nandini Curd 400g → category: 'Curd' → rendered as a section header
+    // inside the "Nandini" brand group, not inline on the product row.
+    await openExceptionManager();
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    expect(within(modal).getByText('Curd')).toBeInTheDocument();
+  });
+
+  it('shows separate brand headers when disabled products span multiple brands', async () => {
+    const multibrandProducts = [
+      ...GLOBAL_PRODUCTS,
+      {
+        productId: 3,
+        productName: 'Jersey Full Cream 500ml',
+        brandId: 2,
+        brandName: 'Jersey',
+        category: 'Milk',
+        categoryDisplayOrder: 1,
+        displayOrder: 1,
+        salespersonEnabled: false,
+        salespersonDefaultPrice: 0,
+        dairyCostPrice: 38,
+        dairySellingPrice: 52,
+      },
+    ];
+
+    setupDefaultMocks({ globalProducts: multibrandProducts });
+    render(<SalesmanPricesSetup />);
+    await waitFor(() => expect(screen.getByText('Ramesh Kumar')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Global'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/products/salesperson-global'));
+    fireEvent.click(screen.getByRole('button', { name: /Exception Manager/i }));
+    await waitFor(() =>
+      expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument()
+    );
+
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    const withinModal = within(modal);
+
+    // Both brand headers appear inside the modal
+    expect(withinModal.getByText('Nandini')).toBeInTheDocument();
+    expect(withinModal.getByText('Jersey')).toBeInTheDocument();
+    // Both disabled products are listed
+    expect(withinModal.getByText('Nandini Curd 400g')).toBeInTheDocument();
+    expect(withinModal.getByText('Jersey Full Cream 500ml')).toBeInTheDocument();
+  });
+
+  it('orders brand sections by brands displayOrder (Nandini before Jersey)', async () => {
+    // BRANDS fixture: Nandini displayOrder=1, Jersey displayOrder=2 → Nandini first.
+    const multibrandProducts = [
+      ...GLOBAL_PRODUCTS,
+      {
+        productId: 3,
+        productName: 'Jersey Full Cream 500ml',
+        brandId: 2,
+        brandName: 'Jersey',
+        category: 'Milk',
+        categoryDisplayOrder: 1,
+        displayOrder: 1,
+        salespersonEnabled: false,
+        salespersonDefaultPrice: 0,
+        dairyCostPrice: 38,
+        dairySellingPrice: 52,
+      },
+    ];
+
+    setupDefaultMocks({ globalProducts: multibrandProducts });
+    render(<SalesmanPricesSetup />);
+    await waitFor(() => expect(screen.getByText('Ramesh Kumar')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Global'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/products/salesperson-global'));
+    fireEvent.click(screen.getByRole('button', { name: /Exception Manager/i }));
+    await waitFor(() =>
+      expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument()
+    );
+
+    const modal = screen.getByText('Exception Manager', { selector: 'h3' }).closest('.bg-white');
+    const nandiniHeader = within(modal).getByText('Nandini');
+    const jerseyHeader = within(modal).getByText('Jersey');
+
+    // Nandini (displayOrder 1) must precede Jersey (displayOrder 2) in the DOM.
+    expect(
+      nandiniHeader.compareDocumentPosition(jerseyHeader) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });
 
 describe('Global Settings — handleClearAllSalesmanPrices()', () => {
