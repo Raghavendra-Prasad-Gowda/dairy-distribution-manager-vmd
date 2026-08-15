@@ -702,25 +702,19 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     prisma.product.findMany({
       where: productWhere,
       include: { brand: { select: { id: true, name: true, displayOrder: true } } },
-      orderBy: includeReceipts
-        ? [
-            { brand: { displayOrder: 'asc' } },
-            { displayOrder: 'asc' },
-            { name: 'asc' },
-          ]
-        : [
-            { brand: { displayOrder: 'asc' } },
-            { displayOrder: 'asc' },
-            { name: 'asc' },
-          ],
+      // Category is a string column, not a relation, so Prisma cannot sort by
+      // categoryDisplayOrder here. A JS sort below applies the full ordering.
+      orderBy: [{ brand: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
 
-  // Stock Balance view mirrors the stock-receipt layout: order columns by
-  // brand → category → product display order (category is a string field, not
-  // a Prisma relation, so the category tier is sorted here in JS).
-  if (includeReceipts) {
+  // Always sort by brand → category → product displayOrder → name.
+  // Category is a string field on the product model (not a relation), so the
+  // category tier must be resolved here in JS using the categories table.
+  // This applies to both the dispatch sheet and the Stock Balance view so that
+  // products appear in the same order as the dairy layout settings.
+  {
     const catOrder = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
     allProducts.sort((a, b) =>
       (a.brand.displayOrder - b.brand.displayOrder) ||
