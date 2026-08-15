@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalesmanPricesSetup from './SalesmanPricesSetup';
 import api from '../../api/axios';
@@ -200,6 +200,15 @@ describe('SalesmanPricesSetup', () => {
       const saveBtn = screen.getByRole('button', { name: /Save/i });
       expect(saveBtn).toBeDisabled();
     });
+  });
+
+  it('does NOT show the Exception Manager button for admin role in global mode', async () => {
+    // This file mocks useAuth with role 'admin' — superadmin-only features must be hidden
+    render(<SalesmanPricesSetup />);
+    await screen.findByText('Ramesh Kumar');
+    fireEvent.click(screen.getByText('Global'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/products/salesperson-global'));
+    expect(screen.queryByText('Exception Manager')).not.toBeInTheDocument();
   });
 });
 

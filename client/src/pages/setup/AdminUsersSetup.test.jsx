@@ -129,6 +129,34 @@ describe('AdminUsersSetup — add user', () => {
   });
 });
 
+describe('AdminUsersSetup — toggle active', () => {
+  it('disables the toggle for your own account', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 1, username: 'me' })] } });
+    await renderPage();
+    await screen.findByText('me');
+    const row = screen.getByText('me').closest('tr');
+    const [toggleBtn] = within(row).getAllByRole('button');
+    expect(toggleBtn).toBeDisabled();
+  });
+
+  it('calls PUT and notifies with role label on enable/disable', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin', isActive: true })] },
+    });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [toggleBtn] = within(row).getAllByRole('button');
+    fireEvent.click(toggleBtn);
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/admin-users/5', { username: 'raghav', role: 'admin', isActive: false })
+    );
+    // isActive was true → disabling → 'Admin "raghav" disabled'
+    expect(notify).toHaveBeenCalledWith('Admin "raghav" disabled', 'success');
+  });
+});
+
 describe('AdminUsersSetup — edit user', () => {
   it('opens prefilled with the username, leaving the password field blank', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });
@@ -181,6 +209,20 @@ describe('AdminUsersSetup — edit user', () => {
     );
   });
 
+  it('notifies with role label and username on successful update', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+
+    const row = screen.getByText('raghav').closest('tr');
+    const [, editBtn] = within(row).getAllByRole('button');
+    fireEvent.click(editBtn);
+
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+    // ROLE_LABEL['admin'] is 'Admin', so the message is 'Admin "raghav" updated'
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Admin "raghav" updated', 'success'));
+  });
+
   it('disables the role select and active toggle when editing your own account', async () => {
     // useAuth mock's adminUserId is 1 — this user IS the logged-in admin.
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 1, username: 'me' })] } });
@@ -224,6 +266,7 @@ describe('AdminUsersSetup — delete user', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete/i }));
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin-users/5'));
-    expect(notify).toHaveBeenCalledWith('Admin user deleted', 'success');
+    // ROLE_LABEL['admin'] is 'Admin', so the message is 'Admin "raghav" deleted'
+    expect(notify).toHaveBeenCalledWith('Admin "raghav" deleted', 'success');
   });
 });
