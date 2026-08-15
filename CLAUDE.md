@@ -1,7 +1,6 @@
 # CLAUDE.md — Vikas Milk Dairy Distribution Manager
 
-> This document is the engineering contract for this codebase.
-> All code changes MUST comply with every section below.
+> Engineering contract for this codebase. All changes MUST comply with every section.
 
 ---
 
@@ -9,14 +8,14 @@
 
 **Dairy Distribution Manager (VMD)** is a production business management system for Vikas Milk Dairy. It tracks:
 - Multi-brand stock receipt (Nandini, Jersey, Gowardhan) with per-route entry for Nandini
-- Cascading daily balance ledger per brand (opening + stock − payments = closing)
+- Cascading daily balance ledger per brand (opening + stock + deposits + topUp − payments = closing)
 - Salesperson dispatch and collection tracking with cascading balance ledger
 - Financial reports and outstanding balances
 
 **Live deployment:**
 - Frontend → Vercel (React 19 + Vite)
 - Backend → Render (Node.js/Express 5)
-- Database → Aiven (PostgreSQL)
+- Database → Aiven (PostgreSQL via Prisma)
 
 ---
 
@@ -29,39 +28,102 @@ dairy-distribution-manager-vmd/
 ├── .github/workflows/pr-checks.yml   # CI on every PR to main
 │
 ├── server/                            # Express 5 backend
-│   ├── CLAUDE.md                      # Backend engineering contract
+│   ├── CLAUDE.md                      # Backend engineering sub-contract
 │   ├── app.js                         # Middleware stack, route registration, error handler
 │   ├── index.js                       # Entry point: listen → migrate → seed → ready
 │   ├── controllers/                   # Business logic (one file per resource)
-│   ├── routes/                        # Thin route definitions (middleware + controller refs)
+│   │   ├── auth.controller.js
+│   │   ├── brands.controller.js
+│   │   ├── categories.controller.js
+│   │   ├── products.controller.js
+│   │   ├── stockReceipts.controller.js
+│   │   ├── dairyBalance.controller.js
+│   │   ├── dairyPayments.controller.js
+│   │   ├── dairyDepositTopUps.controller.js
+│   │   ├── dispatches.controller.js
+│   │   ├── salespeople.controller.js
+│   │   ├── salespersonPrices.controller.js
+│   │   ├── salespersonProducts.controller.js
+│   │   ├── salespersonBalance.controller.js
+│   │   ├── salespersonPayments.controller.js
+│   │   ├── salespersonStatement.controller.js
+│   │   ├── reports.controller.js
+│   │   ├── routes.controller.js
+│   │   ├── pin.controller.js
+│   │   ├── adminUsers.controller.js
+│   │   └── clientErrors.controller.js
+│   ├── routes/                        # Thin route definitions only
 │   ├── middleware/
-│   │   ├── auth.js                    # JWT verification
+│   │   ├── auth.js                    # JWT: authenticate, requireAdmin, requireSuperAdmin
 │   │   └── asyncHandler.js            # Async error propagation
 │   ├── services/
 │   │   ├── balanceService.js          # Cascading balance recalculation (serializable tx)
+│   │   ├── depositRules.js            # qualifiesForDeposit, calculateLineDeposit
 │   │   └── stockGuard.js              # Dispatch stock availability check
 │   ├── utils/
 │   │   ├── validate.js                # All Zod schemas + validate() + parseId()
 │   │   ├── AppError.js                # Operational error class
+│   │   ├── slack.js                   # notifySlack, SLACK_EVENTS, buildCard
+│   │   ├── dateUtils.js               # getIndiaDateStr, getIndiaTomorrowStr (IST helpers)
 │   │   └── constants.js               # JWT_EXPIRES_IN, BCRYPT_ROUNDS
 │   ├── lib/prisma.js                  # Singleton Prisma client — ALWAYS import this
 │   ├── config/logger.js               # Winston — use instead of console.log
 │   └── prisma/
 │       ├── schema.prisma              # Single source of truth for all DB models
 │       ├── migrations/                # Never edit migration files manually
-│       └── seed.js                    # Seeds admin user only
+│       └── seed.js                    # Seeds brands + admin user only
 │
 └── client/                            # React 19 frontend
-    ├── CLAUDE.md                      # Frontend engineering contract
+    ├── CLAUDE.md                      # Frontend engineering sub-contract
     └── src/
-        ├── App.jsx                    # Route tree, ProtectedRoute, ErrorBoundary
+        ├── App.jsx                    # Route tree, lazy loading, ProtectedRoute, ErrorBoundary
         ├── api/axios.js               # Shared Axios instance — ALWAYS use this
         ├── context/
         │   ├── AuthContext.jsx        # Auth state, 12h session, useAuth() hook
-        │   └── NotificationContext.jsx
+        │   └── NotificationContext.jsx # useNotification() → notify(msg, type)
         ├── components/
-        │   └── ErrorBoundary.jsx      # Catches chunk errors + unexpected crashes
-        ├── pages/                     # Route-level page components
+        │   ├── Layout.jsx             # App shell with sidebar navigation
+        │   ├── ErrorBoundary.jsx      # Catches ChunkLoadError + unexpected crashes
+        │   ├── BrandTabs.jsx          # Brand switcher tabs
+        │   ├── Pagination.jsx         # Shared pagination component
+        │   └── ui/
+        │       └── BrandedLoader.jsx  # VMD's branded tumbler spinner
+        ├── pages/
+        │   ├── Dashboard.jsx
+        │   ├── Login.jsx
+        │   ├── daily/
+        │   │   └── StockReceipt.jsx
+        │   ├── payments/
+        │   │   ├── DairyPayments.jsx
+        │   │   └── SalespersonCollections.jsx
+        │   ├── reports/
+        │   │   ├── DairyStatement.jsx
+        │   │   ├── SalespersonStatement.jsx
+        │   │   ├── StockSummary.jsx
+        │   │   ├── DepositReport.jsx
+        │   │   ├── DailyDispatchSummary.jsx
+        │   │   ├── StockBalanceSummary.jsx
+        │   │   ├── SalesmanDayBalance.jsx
+        │   │   ├── SalesmanProfitLoss.jsx
+        │   │   ├── DairyReports.jsx
+        │   │   └── *Print.jsx          # Print/PDF variants
+        │   ├── setup/
+        │   │   ├── ProductsSetup.jsx
+        │   │   ├── CategorySetup.jsx
+        │   │   ├── SalesmanUsersSetup.jsx
+        │   │   ├── SalesmanPricesSetup.jsx   # includes Exception Manager
+        │   │   ├── LayoutSettings.jsx
+        │   │   ├── RouteSetup.jsx
+        │   │   ├── BrandsSetup.jsx
+        │   │   ├── DairySettings.jsx
+        │   │   └── AdminUsersSetup.jsx        # superadmin only
+        │   ├── salesman/               # Salesman-role pages
+        │   │   ├── StockEntry.jsx
+        │   │   ├── SalespersonBalance.jsx
+        │   │   ├── MyStatement.jsx
+        │   │   ├── MyStatementPrint.jsx
+        │   │   └── ChangePassword.jsx
+        │   └── SalespersonOutstanding.jsx
         └── utils/
             ├── dateUtils.js           # India timezone helpers — ALWAYS use these
             └── constants.js
@@ -69,7 +131,263 @@ dairy-distribution-manager-vmd/
 
 ---
 
-## 3. Engineering Principles
+## 3. Roles & Access
+
+| Role | Access |
+|------|--------|
+| `superadmin` | Everything — including Admin Users setup |
+| `admin` | Full access except Admin Users setup |
+| `dispatcher` | Dispatch sheet + Stock Balance report + change password |
+| `salesman` | Stock entry (own), own balance/statement, change password |
+
+**Route guards in `App.jsx`:**
+- `ProtectedRoute` — authenticated only
+- `ProtectedRoute adminOnly` — admin + superadmin only
+- `ProtectedRoute superAdminOnly` — superadmin only
+- Dispatcher and salesman are conditionally routed to their own route trees
+
+**API guards in `app.js`:**
+- All `/api/v1/*` requires `authenticate` (JWT)
+- Most admin routes: `requireAdmin` middleware
+- Superadmin routes: `requireSuperAdmin` middleware
+- `bulkWriteLimiter`: 30 req/min on bulk endpoints (`salespersonProducts`, `stockReceipts`)
+- Login: 20 attempts/hour rate limit
+
+---
+
+## 4. Database Models (Prisma Schema)
+
+### Key models summary
+
+| Model | Purpose | Key constraints |
+|-------|---------|----------------|
+| `Brand` | Dairy brand (Nandini, Jersey, Gowardhan) | unique `name`, `displayOrder` |
+| `Category` | Product grouping within a brand | unique `(brandId, name)`, `displayOrder` |
+| `Product` | Sellable item | unique `(brandId, name)`, `category` is String (not a relation), `displayOrder` |
+| `Route` | Nandini delivery route | unique `(brandId, routeNumber)`, routeId=0 = no route |
+| `StockReceipt` | Daily stock received from dairy | unique `(productId, receiptDate, routeId)` |
+| `DairyBalance` | Cascading ledger per brand per date | unique `(brandId, balanceDate)` |
+| `DairyPayment` | Payment to dairy (`isTopUp=true` = pre-existing debt load) | |
+| `DairyDepositTopUp` | Crate/container deposit ledger (separate from stock) | |
+| `Salesperson` | Delivery agent | `username`, `passwordHash`, `displayOrder` |
+| `SalespersonPrice` | Per-salesman selling price (effective-date-aware) | unique `(salespersonId, productId, effectiveFrom)` |
+| `SalespersonProduct` | Per-salesman product exception (`isEnabled`) | unique `(salespersonId, productId)` |
+| `StockDispatch` | Daily dispatch to salesman | unique `(salespersonId, dispatchDate)` |
+| `StockDispatchItem` | Line items in a dispatch | |
+| `SalespersonBalance` | Cascading ledger per salesman per date | unique `(salespersonId, balanceDate)` |
+| `SalespersonPayment` | Collection from salesman (`isTopUp=true` = pre-existing debt) | |
+| `AdminUser` | Admin/superadmin/dispatcher login | roles: admin/superadmin/dispatcher |
+| `DispatchDayFinalization` | Explicit finalization of a dispatch day | unique `(date)` |
+| `ClientErrorLog` | Frontend crash reports | |
+
+### Critical: `category` is a String on `Product`
+
+`product.category` is a plain `String?` column — **not** a foreign key relation. Prisma cannot `ORDER BY category.displayOrder` in a single query. Sorting by category display order always requires a separate `category.findMany` and a JS sort. See Section 9 for the canonical pattern.
+
+### Key field notes
+
+- `Product.salespersonEnabled` — global on/off for all salespeople (default `true`)
+- `Product.showInStockReceipt` — show in stock receipt entry screen
+- `Product.depositEnabled` — per-product deposit flag
+- `Category.depositEnabled` — per-category deposit flag
+- `Brand.depositEnabled`, `Brand.depositPerLitre`, `Brand.depositCalcMethod` — deposit config
+- `DairyPayment.isTopUp` — `true` = pre-existing debt added to balance, `false` = real payment subtracted
+- `SalespersonPayment.isTopUp` — same semantics for salesman side
+- `DispatchDayFinalization` — past dates are auto-finalized; today requires an explicit row
+
+---
+
+## 5. Balance Calculation — Critical Concept
+
+### Dairy balance formula
+```
+closingBalance = openingBalance + stockValue + depositValue + topUpAmount − amountPaid
+```
+
+### Salesperson balance formula
+```
+closingBalance = openingBalance + stockGiven + topUpAmount − amountPaid
+```
+
+**Top-ups ADD** (they are pre-existing dues loaded into the app, not payments).
+**Payments SUBTRACT.**
+
+### Rules
+- Any stock receipt save, dairy payment create/update/delete → call `recalculateDairyBalance(brandId, date)`
+- Any dispatch create/update/delete, salesman payment create/update/delete → call `recalculateSalespersonBalance(salespersonId, date)`
+- These cascade forward through ALL subsequent dates in a **serializable transaction**
+- Never write balance records directly — always go through `balanceService.js`
+- When rolling into your own `$transaction`, pass `tx` to the balance function so it joins the outer transaction
+
+```js
+// Correct — standalone balance recalc
+await recalculateDairyBalance(brandId, date);
+
+// Correct — inside your own transaction
+await prisma.$transaction(async (tx) => {
+  await tx.stockReceipt.upsertMany(...);
+  await recalculateDairyBalance(brandId, date, tx); // tx passed!
+}, { isolationLevel: 'Serializable' });
+```
+
+---
+
+## 6. Route Map
+
+### Backend API (all under `/api/v1`)
+
+| Route | Auth | Controller |
+|-------|------|-----------|
+| `POST /auth/login` | public | auth |
+| `POST /auth/logout` | JWT | auth |
+| `POST /auth/change-password` | JWT | auth |
+| `GET /brands` | JWT | brands |
+| `POST /brands` | admin | brands |
+| `PUT /brands/:id` | admin | brands |
+| `GET /categories` | JWT | categories |
+| `POST /categories` | admin | categories |
+| `PUT /categories/:id` | admin | categories |
+| `DELETE /categories/:id` | admin | categories |
+| `GET /products` | admin | products |
+| `POST /products` | admin | products |
+| `PUT /products/:id` | admin | products |
+| `GET /stock-receipts` | JWT | stockReceipts |
+| `POST /stock-receipts/bulk` | JWT + bulkLimiter | stockReceipts |
+| `GET /dairy-balance` | admin | dairyBalance |
+| `POST /dairy-payments` | admin | dairyPayments |
+| `PUT /dairy-payments/:id` | admin | dairyPayments |
+| `DELETE /dairy-payments/:id` | admin | dairyPayments |
+| `POST /dairy-deposit-topups/bulk` | admin | dairyDepositTopUps |
+| `GET /salespeople` | admin | salespeople |
+| `POST /salespeople` | admin | salespeople |
+| `PUT /salespeople/:id` | admin | salespeople |
+| `GET /salespeople/:id/prices` | JWT | salespersonPrices |
+| `POST /salespeople/:id/prices/bulk` | JWT | salespersonPrices |
+| `GET /salespeople/:id/products` | admin | salespersonProducts |
+| `POST /salespeople/:id/products/bulk` | admin + bulkLimiter | salespersonProducts |
+| `POST /salespeople/products/bulk-multiple` | admin | salespersonProducts |
+| `GET /dispatches` | JWT | dispatches |
+| `POST /dispatches` | JWT | dispatches |
+| `DELETE /dispatches/:id` | JWT | dispatches |
+| `GET /salesperson-balance` | JWT | salespersonBalance |
+| `POST /salesperson-payments` | admin | salespersonPayments |
+| `PUT /salesperson-payments/:id` | admin | salespersonPayments |
+| `DELETE /salesperson-payments/:id` | admin | salespersonPayments |
+| `GET /salesperson-statement` | JWT | salespersonStatement |
+| `GET /reports/*` | JWT (per-route gating inside router) | reports |
+| `POST /pin/verify` | admin | pin |
+| `GET /routes` | admin | routes |
+| `POST /routes` | admin | routes |
+| `PUT /routes/:id` | admin | routes |
+| `GET /admin-users` | superadmin | adminUsers |
+| `POST /admin-users` | superadmin | adminUsers |
+| `PUT /admin-users/:id` | superadmin | adminUsers |
+| `DELETE /admin-users/:id` | superadmin | adminUsers |
+
+### Frontend routes (from `App.jsx`)
+
+**Admin/superadmin:**
+- `/` → Dashboard
+- `/dairy/stock/:brandName` → StockReceipt
+- `/dairy/payments` → DairyPayments
+- `/dairy/setup` → DairySettings
+- `/dairy/setup/categories` → CategorySetup
+- `/dairy/setup/products` → ProductsSetup
+- `/dairy/setup/layout` → LayoutSettings
+- `/dairy/setup/routes` → RouteSetup
+- `/dairy/setup/brands` → BrandsSetup
+- `/salesman/payments` → SalespersonCollections
+- `/salesman/setup/users` → SalesmanUsersSetup
+- `/salesman/setup/prices` → SalesmanPricesSetup
+- `/dairy/reports` → DairyReports
+- `/reports/dairy` → DairyStatement
+- `/reports/salespeople` → SalespersonStatement
+- `/salesman/dispatch-sheet` → DailyDispatchSummary
+- `/salesman/day-balance` → SalesmanDayBalance
+- `/salesman/profit-loss` → SalesmanProfitLoss
+- `/reports/stock` → StockSummary
+- `/reports/stock-balance` → StockBalanceSummary
+- `/reports/deposit` → DepositReport
+- `/salesperson-outstanding` → SalespersonOutstanding
+- `/admin/users` → AdminUsersSetup (superadmin only)
+
+**Dispatcher:**
+- `/salesman/dispatch-sheet` → DailyDispatchSummary
+- `/reports/stock-balance` → StockBalanceSummary
+- `/dispatcher/change-password` → ChangePassword
+
+**Salesman:**
+- `/` → StockEntry
+- `/salesman/stock-entry` → StockEntry
+- `/salesman/balance` → SalespersonBalance
+- `/salesman/my-statement` → MyStatement
+- `/salesman/change-password` → ChangePassword
+
+**Print routes (no Layout shell):**
+- `/print/stock-summary`, `/print/deposit`, `/print/dairy-statement`, `/print/salesperson-statement` (admin only)
+- `/print/salesman-my-statement` (any authenticated)
+
+---
+
+## 7. Engineering Principles
+
+### Required patterns
+
+**Controller pattern (backend)**
+```js
+// controllers/products.controller.js
+const asyncHandler = require('../middleware/asyncHandler');
+const { validate, parseId, schemas } = require('../utils/validate');
+const AppError = require('../utils/AppError');
+const prisma = require('../lib/prisma');
+const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+
+const getAll = asyncHandler(async (req, res) => {
+  const products = await prisma.product.findMany({ where: { isActive: true } });
+  res.json({ success: true, data: products });
+});
+
+const create = asyncHandler(async (req, res) => {
+  const data = validate(schemas.createProduct, req, res);
+  if (!data) return;                              // ← always return after failed validate
+  const product = await prisma.product.create({ data });
+  void notifySlack(SLACK_EVENTS.PRODUCT_CREATED, { name: product.name }); // fire-and-forget
+  res.status(201).json({ success: true, data: product });
+});
+
+module.exports = { getAll, create };
+```
+
+**Route pattern (backend — thin, no logic)**
+```js
+// routes/products.js
+const router = require('express').Router();
+const controller = require('../controllers/products.controller');
+router.get('/',    controller.getAll);
+router.post('/',   controller.create);
+router.put('/:id', controller.update);
+module.exports = router;
+```
+
+**Date handling (frontend)**
+```js
+// ✅ CORRECT
+import { getIndiaDate, formatDateDisplay, formatCurrency } from '../utils/dateUtils';
+const today = getIndiaDate(); // "2026-04-30" in IST
+
+// ❌ WRONG
+const today = new Date().toISOString().slice(0, 10); // machine timezone
+```
+
+**API calls (frontend)**
+```js
+// ✅ CORRECT — uses auth interceptors
+import api from '../api/axios';
+const res = await api.get('/brands');
+
+// ❌ WRONG — bypasses JWT
+import axios from 'axios';
+```
 
 ### Single Responsibility
 - Routes define HTTP endpoints only — no business logic in route files
@@ -87,53 +405,7 @@ Never swallow errors with empty `catch` blocks. Let `asyncHandler` propagate the
 
 ---
 
-## 4. Required Patterns
-
-### Controller pattern (backend)
-```js
-// controllers/products.controller.js
-const getAll = asyncHandler(async (req, res) => {
-  const products = await prisma.product.findMany({ where: { isActive: true } });
-  res.json({ success: true, data: products });
-});
-module.exports = { getAll };
-
-// routes/products.js (thin)
-router.get('/', controller.getAll);
-```
-
-### Route pattern (backend)
-```js
-// routes/products.js
-const controller = require('../controllers/products.controller');
-router.get('/',    controller.getAll);
-router.post('/',   controller.create);
-router.put('/:id', controller.update);
-```
-
-### Date handling (frontend)
-```js
-// ✅ CORRECT
-import { getIndiaDate } from '../utils/dateUtils';
-const today = getIndiaDate(); // "2026-04-30" in IST
-
-// ❌ WRONG
-const today = new Date().toISOString().slice(0, 10); // machine timezone
-```
-
-### API calls (frontend)
-```js
-// ✅ CORRECT — uses auth interceptors
-import api from '../api/axios';
-const res = await api.get('/brands');
-
-// ❌ WRONG — bypasses JWT
-import axios from 'axios';
-```
-
----
-
-## 5. What NOT to Do
+## 8. What NOT to Do
 
 | Do NOT | Reason |
 |--------|--------|
@@ -146,20 +418,390 @@ import axios from 'axios';
 | Edit migration files | Migrations are immutable; create a new one |
 | Commit `.env` | Credentials must never be in version control |
 | `console.log` in server code | Use Winston logger from `config/logger.js` |
+| `prisma` inside a transaction block | Pass `tx` — the global client is outside the transaction |
+| Bypass `balanceService` to write balance rows | Balance cascade is mandatory |
+| Import pages eagerly in `App.jsx` | Defeats code splitting — use `lazy()` |
+| Raw `fetch` in frontend | Use `src/api/axios.js` |
 
 ---
 
-## 6. Balance Calculation — Critical Concept
+## 9. Product Display Order — Dairy Layout
 
-Every stock receipt save, payment create/update/delete triggers `recalculateDairyBalance()` or `recalculateSalespersonBalance()`. These cascade forward through all subsequent dates in a **serializable transaction** to ensure correct propagation of retroactive changes.
+**Canonical sort**: `brand.displayOrder → categoryDisplayOrder → product.displayOrder → product.name`
 
-Formula: `closingBalance = openingBalance + stockValue − amountPaid`
+Because `product.category` is a plain string (not a relation), Prisma cannot sort by `category.displayOrder` in one query. Every place that renders a sorted product list MUST apply this pattern:
 
-Never bypass `balanceService` to write balance records directly.
+**Backend — catOrder Map pattern**
+```js
+const [products, categories] = await Promise.all([
+  prisma.product.findMany({
+    where: { isActive: true },
+    include: { brand: { select: { id: true, name: true, displayOrder: true } } },
+    orderBy: [{ brand: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { name: 'asc' }],
+  }),
+  prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
+]);
+
+const catOrderMap = new Map(categories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+
+const sorted = [...products].sort((a, b) =>
+  (a.brand?.displayOrder ?? 999) - (b.brand?.displayOrder ?? 999) ||
+  (catOrderMap.get(`${a.brandId}::${a.category}`) ?? 999) -
+    (catOrderMap.get(`${b.brandId}::${b.category}`) ?? 999) ||
+  (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
+  a.name.localeCompare(b.name)
+);
+```
+
+**Frontend — category group sort**
+```js
+const catOrderMap = new Map(categories.map(c => [c.name, c.displayOrder]));
+const sortedGroups = Object.entries(grouped).sort(([a], [b]) => {
+  const oa = catOrderMap.get(a) ?? 9999;
+  const ob = catOrderMap.get(b) ?? 9999;
+  return oa !== ob ? oa - ob : a.localeCompare(b);
+});
+```
+
+**API responses that serve the Exception Manager** (SalesmanPricesSetup) must include `categoryDisplayOrder` so the client can sort. See `salespersonProducts.controller.js` for the reference implementation.
+
+**Checklist — every place products are shown sorted:**
+- `reports.controller.js` — `dailyDispatch`, `salespersonStatement`
+- `salespersonProducts.controller.js` — `getProducts`
+- `ProductsSetup.jsx` — `filteredGrouped` useMemo
+- Any new feature that renders a product list
 
 ---
 
-## 7. Local Development
+## 10. Slack Notifications
+
+Every **write action** must fire a Slack card. The call is fire-and-forget — never `await` it for the HTTP response.
+
+```js
+// ✅ Correct — non-blocking
+void notifySlack(SLACK_EVENTS.PRODUCT_CREATED, {
+  name: product.name,
+  brandName: brand.name,
+  costPrice: product.costPrice,
+  sellingPrice: product.sellingPrice,
+});
+
+// ❌ Wrong — blocks response
+await notifySlack(...);
+```
+
+### Full SLACK_EVENTS catalogue
+
+**System:** `SERVER_STARTED`, `SERVER_SHUTDOWN`, `SERVER_BOOT_FAILED`, `SERVER_ERROR`, `PROCESS_CRASH`, `CLIENT_ERROR`
+
+**Auth:** `LOGIN`, `LOGOUT`, `FAILED_LOGIN`, `PASSWORD_CHANGED`, `PIN_FAILED`
+
+**Salesman self-service (info only):** `SALESPERSON_BALANCE_VIEWED`, `SALESPERSON_STATEMENT_VIEWED`
+
+**Stock Receipts:** `STOCK_RECEIPT_SAVED`
+
+**Dairy Payments:** `DAIRY_PAYMENT_RECORDED`, `DAIRY_PAYMENT_UPDATED`, `DAIRY_PAYMENT_DELETED`
+
+**Dispatch:** `DISPATCH_SAVED`, `DISPATCH_DELETED`, `DISPATCH_SUBMITTED`, `DISPATCH_LOCK_CHANGED`, `DISPATCH_DAY_FINALIZED`, `DISPATCH_DAY_UNFINALIZED`
+
+**Salesperson Payments:** `SALESPERSON_PAYMENT_RECORDED`, `SALESPERSON_PAYMENT_UPDATED`, `SALESPERSON_PAYMENT_DELETED`
+
+**Bulk/Ledger:** `SALESPERSON_TOPUP_RECORDED`, `DAIRY_TOPUP_RECORDED`, `DAIRY_DEPOSIT_TOPUP_RECORDED`, `SALESPERSON_LEDGER_RESET`
+
+**Setup — Salespeople:** `SALESPERSON_CREATED`, `SALESPERSON_UPDATED`
+
+**Setup — Pricing:** `SALESPERSON_PRICES_UPDATED`, `SALESPERSON_PRICES_COPIED`, `SALESPERSON_PRICES_BULK_UPDATED`, `PRODUCT_PRICES_CLEARED`
+
+**Setup — Products:** `PRODUCT_CREATED`, `PRODUCT_UPDATED`, `PRODUCT_DELETED`, `PRODUCT_GLOBAL_ACCESS_UPDATED`
+
+**Setup — Categories:** `CATEGORY_CREATED`, `CATEGORY_UPDATED`, `CATEGORY_DELETED`
+
+**Setup — Routes:** `ROUTE_CREATED`, `ROUTE_UPDATED`, `ROUTE_DELETED`
+
+**Setup — Brands:** `BRAND_CREATED`, `BRAND_UPDATED`
+
+**Superadmin:** `ADMIN_USER_CREATED`, `ADMIN_USER_UPDATED`, `ADMIN_USER_DELETED`
+
+### Adding a new event
+1. Add a key to `SLACK_EVENTS` in `server/utils/slack.js`
+2. Add a color to `EVENT_COLOR` (GREEN=create, AMBER=update, RED=delete)
+3. Add a `case` to `buildCard()` using the Block Kit helpers (`headerBlock`, `fieldsBlock`, `textBlock`, `dividerBlock`, `footerBlock`, `card`)
+4. Fire with `void notifySlack(SLACK_EVENTS.YOUR_EVENT, { ...data })`
+
+### Data enrichment
+`notifySlack` auto-fetches `brandName` if you pass `brandId`, and `salespersonName` if you pass `salespersonId`. You don't need to look them up yourself when those IDs are available.
+
+---
+
+## 11. BrandedLoader — VMD Spinner
+
+**Import:** `import BrandedLoader from '../../components/ui/BrandedLoader';`
+
+**Use `BrandedLoader`** for any full-page, section, or overlay loading state.
+**Use `Loader2` from lucide-react** only for in-button spinners.
+
+| Situation | Usage |
+|-----------|-------|
+| Page initial load (lazy route) | `<BrandedLoader />` (via `PageLoader` in `App.jsx`) |
+| Full-page blocking wait | `<BrandedLoader overlay open={loading} label="Saving…" />` |
+| Section/card loading | `<BrandedLoader size="sm" />` |
+| Saving with dim backdrop | `<BrandedLoader overlay tone="transparent" open={saving} label="Saving…" />` |
+| App brand screen (cold start) | `<BrandedLoader overlay tone="brand" lively />` |
+
+**Props reference:**
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `overlay` | `false` | Fixed full-screen with backdrop |
+| `open` | `true` | Controls visibility in overlay mode (noop when `!overlay`) |
+| `label` | `"Loading…"` | Status text shown below the spinner |
+| `hideBrand` | `false` | Hides the "Vikas Milk Dairy" title |
+| `size` | `"md"` | `"sm"` / `"md"` / `"lg"` |
+| `tone` | `"card"` | Overlay background: `"card"` (white card) / `"transparent"` (blur) / `"brand"` (emerald gradient) |
+| `inlinePadY` | `"py-16"` | Padding in inline (non-overlay) mode |
+| `lively` | `false` | Adds sonar ping ring — for cold-start screen only |
+
+---
+
+## 12. Testing
+
+### Backend — Playwright API tests
+
+**Location:** `server/tests/playwright/*.spec.js`
+
+**Setup pattern (every spec file):**
+```js
+const { expect } = require('@playwright/test');
+const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
+const { test, ctx, makeAuthToken, makeSuperAdminToken, makeDispatcherToken } = setupSuite();
+```
+
+**Mock Prisma — always reset between tests:**
+- `setupSuite()` calls `ctx.mockPrisma.reset()` before each test automatically
+- Within a `test.describe` block, if a new Prisma model is called by the handler being tested, add a `test.beforeEach` to mock it — otherwise it returns `undefined` and the handler crashes with "Cannot read properties of undefined"
+
+```js
+// ✅ Required if your handler calls category.findMany
+test.beforeEach(() => {
+  ctx.mockPrisma.category.findMany.mockResolvedValue([
+    { brandId: 1, name: 'Milk', displayOrder: 1 },
+    { brandId: 1, name: 'Curd', displayOrder: 2 },
+  ]);
+});
+```
+
+**Token helpers:**
+- `makeAuthToken()` → admin JWT
+- `makeSuperAdminToken()` → superadmin JWT
+- `makeSalesmanToken(salespersonId)` → salesman JWT
+- `makeDispatcherToken()` → dispatcher JWT
+
+**Test pattern:**
+```js
+test('returns 200 with data', async ({ request }) => {
+  ctx.mockPrisma.product.findMany.mockResolvedValue([...]);
+  const res = await request.get('/api/v1/products', {
+    headers: { Authorization: `Bearer ${makeAuthToken()}` },
+  });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body.success).toBe(true);
+  expect(body.data).toHaveLength(1);
+});
+```
+
+**Minimum coverage per new endpoint:**
+- 403 (no token)
+- 401 (bad/expired token)
+- 400 (invalid input / bad ID)
+- 403 (wrong role, e.g. salesman hitting admin-only)
+- 200/201 (happy path)
+- The specific business logic path (e.g. missing field defaults, cascades)
+
+### Frontend — Vitest + React Testing Library
+
+**Location:** `client/src/pages/**/*.test.jsx`
+
+**Setup pattern:**
+```js
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import api from '../../api/axios';
+
+vi.mock('../../api/axios', () => ({
+  default: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
+}));
+
+const notify = vi.fn();
+vi.mock('../../context/NotificationContext', () => ({
+  useNotification: () => ({ notify }),
+}));
+
+vi.mock('../../utils/dateUtils', async () => {
+  const actual = await vi.importActual('../../utils/dateUtils');
+  return { ...actual, getIndiaDate: () => '2026-08-09' }; // pin today's date
+});
+```
+
+**Mock API responses:**
+```js
+vi.mocked(api.get).mockImplementation((url) => {
+  if (url.includes('/brands'))     return Promise.resolve({ data: { data: brands } });
+  if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } });
+  if (url.includes('/products'))   return Promise.resolve({ data: { data: products } });
+  return Promise.resolve({ data: { data: [] } });
+});
+```
+
+**Minimum RTL coverage per new page:**
+- Renders initial state correctly
+- Shows empty state when no data
+- Handles API errors (notify called with 'error')
+- Core user interactions (click, change, submit)
+- Optimistic UI updates (no extra GET calls)
+
+---
+
+## 13. Validation Schemas (Zod)
+
+All schemas live in `server/utils/validate.js`. Key constraints:
+
+| Schema | Key rules |
+|--------|----------|
+| `createProduct` | `unitType` enum `ml/gram/piece`, `unitSize` nullable, `containerType` nullable, `effectiveFrom` must be today (IST) or later |
+| `updateProduct` | all fields optional; same date constraints |
+| `bulkStockReceipt` | `date` cannot be beyond tomorrow (IST) |
+| `createDispatch` | `dispatchDate` cannot be beyond tomorrow (IST); empty `items` = delete draft |
+| `bulkSalespersonPrices` | `effectiveFrom` must be today or later |
+| `bulkSalespersonTopUp` | `entries` array min 1 |
+| `createAdminUser` | `role` enum `admin/superadmin/dispatcher` |
+
+**Usage in controllers:**
+```js
+const data = validate(schemas.createProduct, req, res);
+if (!data) return;  // ← 400 already sent, must return immediately
+```
+
+**`parseId` for route params:**
+```js
+const id = parseId(req.params.id, 'Product ID'); // throws AppError(400) if not a positive int
+```
+
+---
+
+## 14. Salesperson Product Exception Manager
+
+The Exception Manager (in `SalesmanPricesSetup.jsx`) lets superadmins enable/disable specific products for specific salespeople, overriding the global `product.salespersonEnabled` flag.
+
+**Resolution logic in `dispatches.controller.js`:**
+```js
+// SalespersonProduct.isEnabled ?? product.salespersonEnabled
+// If there's an override row → use its isEnabled
+// If no override row → fall back to global salespersonEnabled
+const isEnabled = enabledMap[item.productId] ?? product.salespersonEnabled;
+```
+
+**Critical:** Use `??` (nullish coalescing), NOT `&&` (logical AND). The `&&` operator would short-circuit when `salespersonEnabled=false`, making exceptions impossible.
+
+**API response must include `categoryDisplayOrder`** for the client-side sort to work correctly. See `salespersonProducts.controller.js`.
+
+---
+
+## 15. Dispatch Day Finalization
+
+- **Past dates**: Auto-finalized by `isDayFinalizedForDispatcher()` — no `DispatchDayFinalization` row needed
+- **Today**: Requires an explicit `DispatchDayFinalization` row created when the dispatcher explicitly finalizes the day
+- After finalization: Only admin/superadmin can unlock individual dispatches; dispatchers lose the unlock ability
+- Reverting finalization: admin-only, emits `DISPATCH_DAY_UNFINALIZED` Slack event
+
+---
+
+## 16. Git Standards
+
+### Primary development branch
+**`environment/test`** is the default branch for all development. Always develop on `environment/test` unless told otherwise.
+
+### Branch workflow
+```bash
+# Start any new work from environment/test
+git fetch origin environment/test
+git checkout environment/test
+git pull origin environment/test
+
+# Develop, commit, push
+git add .
+git commit -m "feat: add product category sort to dispatch sheet"
+git push -u origin environment/test
+```
+
+### Branch naming (only when explicitly requested to use a feature branch)
+- Feature branches: `feat/<description>`
+- Bug fixes: `fix/<description>`
+- Do NOT create these unless the user asks — default to `environment/test`
+
+### Commit message rules
+- Imperative mood, present tense: "add", "fix", "update" — not "added", "fixed"
+- Max 72 chars in the subject line
+- Never force-push `main`
+
+### CI
+- PRs to `main` run CI automatically (`.github/workflows/pr-checks.yml`)
+- CI runs both Playwright (backend) and Vitest (frontend) tests
+
+---
+
+## 17. Change Checklist
+
+Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
+
+### 17.1 Tests
+- **Backend change** → add/update Playwright spec in `server/tests/playwright/`
+- **Frontend change** → add/update Vitest spec next to the page file
+- Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
+- Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`
+
+### 17.2 Slack notification
+- Every write action needs a Slack card
+- Use `void notifySlack(SLACK_EVENTS.XXX, {...})` — never await
+- If the operation doesn't have an event yet, add one to the catalogue (Section 10)
+- Auto-enrichment: pass `brandId` or `salespersonId` and the name is fetched automatically
+
+### 17.3 Product display order
+- Any new endpoint that returns products must fetch `category.findMany` and apply the catOrder Map sort
+- Any new frontend component that renders a product list must sort by `brand.displayOrder → categoryDisplayOrder → product.displayOrder → name`
+- API responses consumed by the Exception Manager must include `categoryDisplayOrder`
+- See Section 9 for the exact code patterns
+
+### 17.4 BrandedLoader
+- Use `BrandedLoader` (not a generic spinner) for page-level and section-level loading states
+- Use `Loader2` from lucide-react only for in-button spinners
+- See Section 11 for the props reference and usage table
+
+---
+
+## 18. Environment Variables
+
+### Server
+| Variable | Required | Purpose |
+|----------|:---:|---------|
+| `DATABASE_URL` | Yes | Prisma connection string |
+| `DIRECT_URL` | Yes | Direct connection for migrations |
+| `JWT_SECRET` | Yes | Min 32 chars |
+| `ADMIN_PASSWORD` | Yes | Initial admin password |
+| `EDIT_PIN` | Yes | 6-digit PIN for protected edits |
+| `CLIENT_ORIGIN` | Yes | Comma-separated CORS origins |
+| `NODE_ENV` | Yes | `development` or `production` |
+| `SLACK_WEBHOOK_URL` | No | Slack incoming webhook — unset = silent |
+| `APP_URL` | No | Added as "Open App" link in Slack card footers |
+
+### Client
+| Variable | Required | Purpose |
+|----------|:---:|---------|
+| `VITE_API_BASE_URL` | Yes | Backend base URL |
+
+---
+
+## 19. Local Development
 
 ```bash
 # Backend
@@ -172,187 +814,23 @@ npm start              # http://localhost:3001
 cd client && npm install
 # .env: VITE_API_BASE_URL=http://localhost:3001/api/v1
 npm run dev            # http://localhost:5173
-```
 
----
-
-## 8. Environment Variables
-
-### Server
-| Variable | Required | Purpose |
-|----------|:---:|---------|
-| `DATABASE_URL` | Yes | Prisma connection string |
-| `DIRECT_URL` | Yes | Direct connection for migrations |
-| `JWT_SECRET` | Yes | Min 32 chars |
-| `ADMIN_PASSWORD` | Yes | Initial admin password |
-| `EDIT_PIN` | Yes | 6-digit PIN for protected edits |
-| `CLIENT_ORIGIN` | Yes | Comma-separated CORS origins |
-| `NODE_ENV` | Yes | `development` or `production` |
-
-### Client
-| Variable | Required | Purpose |
-|----------|:---:|---------|
-| `VITE_API_BASE_URL` | Yes | Backend base URL |
-
----
-
-## 9. Git Standards
-
-### Default development branch
-**All new features, bug fixes, and code changes MUST be developed on `environment/test`.**
-This is the integration branch — it is always the starting point and the target for day-to-day work.
-
-```bash
-git checkout environment/test
-git pull origin environment/test
-# … make changes, commit, push …
-git push -u origin environment/test
-```
-
-Do NOT create separate `feat/` or `fix/` branches unless explicitly requested.
-Only `main` is off-limits for direct commits — everything else flows through `environment/test` first.
-
-### Other rules
-- **Never force-push `main`**
-- Commit messages: imperative mood, present tense, max 72 chars
-- PRs to `main` run CI automatically (`.github/workflows/pr-checks.yml`)
-
----
-
-## 10. Change Checklist — Rules for Every Code Change
-
-Every feature addition, bug fix, or refactor MUST satisfy all four rules below before being committed. These are not optional.
-
----
-
-### 10.1 Tests are mandatory
-
-Every change ships with tests. No exceptions.
-
-**Backend — Playwright integration tests** (`server/tests/playwright/<resource>.spec.js`):
-- New endpoint → new `test.describe` block covering auth, validation, and the happy path
-- Bug fix → add a test that would have caught the bug (pin the broken behavior, show the fix)
-- New Prisma call added to an existing handler → add `test.beforeEach` mock for that call inside the affected `test.describe` so existing tests don't get unexpected 500s
-
-**Frontend — Vitest + React Testing Library** (`client/src/pages/**/*.test.jsx`):
-- New UI behaviour → new `it()` case in the matching test file
-- New component → matching `*.test.jsx` file
-- Bug fix → a test reproducing the broken render, proving the fix
-
-**Run before committing:**
-```bash
-# Backend
+# Run backend tests
 cd server && npx playwright test
 
-# Frontend
-cd client && npx vitest run
+# Run frontend tests
+cd client && npm test
 ```
 
 ---
 
-### 10.2 Slack notifications for every write action
+## 20. Global Error Handler
 
-Every endpoint that creates, updates, or deletes business data MUST fire a Slack notification. Read-only (GET) endpoints are excluded.
+The error handler in `app.js` (last middleware) automatically handles:
+- `P2002` (Prisma unique violation) → 400 `DUPLICATE`
+- `P2025` (Prisma not found) → 404 `NOT_FOUND`
+- `P2003` (Prisma FK constraint) → 400 `FK_CONSTRAINT`
+- `err.isOperational` (AppError) → `err.statusCode` + `err.message`
+- All other errors → 500 + `void notifySlack(SERVER_ERROR, ...)`
 
-**Pattern:**
-```js
-// Always fire non-blocking (void, never await).
-void notifySlack(SLACK_EVENTS.DISPATCH_SAVED, {
-  salespersonName: sp.name,
-  date:            data.dispatchDate,
-  totalAmount:     grandTotal,
-  by:              actingUsername,
-});
-```
-
-**Adding a new event:**
-1. Add the key to `SLACK_EVENTS` in `server/utils/slack.js`
-2. Add a color entry in `EVENT_COLOR` (GREEN = create, AMBER = update, RED = delete)
-3. Add a card-builder case in the `buildCard()` switch to define the Slack message fields
-
-**Do NOT:**
-- `await notifySlack(...)` — Slack must never slow down the API response
-- Skip the Slack call on error paths — fire it on success only (after the DB write succeeds)
-- Reuse an existing event for a semantically different action — add a new event key instead
-
----
-
-### 10.3 Product display order must follow dairy layout settings
-
-Any list of products — in API responses, rendered tables, dropdowns, or expandable sections — MUST be ordered:
-
-> **brand.displayOrder → category.displayOrder → product.displayOrder → product.name**
-
-**Why JS sort is required:** `category` is a plain string column on the `product` table (not a Prisma relation), so Prisma cannot sort by `category.displayOrder` in a single query. Always fetch `category` rows and sort in application code.
-
-**Canonical backend pattern:**
-```js
-const [products, categories] = await Promise.all([
-  prisma.product.findMany({
-    orderBy: [{ brand: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { name: 'asc' }],
-  }),
-  prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
-]);
-
-// Build lookup: "brandId::categoryName" → displayOrder
-const catOrder = new Map(categories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
-
-products.sort((a, b) =>
-  (a.brand.displayOrder  - b.brand.displayOrder) ||
-  ((catOrder.get(`${a.brandId}::${a.category}`) ?? 999) -
-   (catOrder.get(`${b.brandId}::${b.category}`) ?? 999)) ||
-  (a.displayOrder - b.displayOrder) ||
-  a.name.localeCompare(b.name)
-);
-```
-
-**API responses** that expose a product list MUST include `categoryDisplayOrder` (computed from the catOrder map) so the frontend can re-sort or group without an extra round-trip.
-
-**Frontend pattern** — when the API already returns `categoryDisplayOrder`:
-```js
-products.sort((a, b) =>
-  (a.brandDisplayOrder      - b.brandDisplayOrder)      ||
-  (a.categoryDisplayOrder   - b.categoryDisplayOrder)   ||
-  (a.displayOrder           - b.displayOrder)           ||
-  a.productName.localeCompare(b.productName)
-);
-```
-
-**When grouping into sections** (brand header → category sub-header → product rows), always sort the section arrays — never rely on insertion order or `Object.entries()` key order.
-
----
-
-### 10.4 Use BrandedLoader for all loading states
-
-The app's branded tumbler spinner is `client/src/components/ui/BrandedLoader.jsx`. Use it for every loading state the user sees while waiting. **Do not** hand-roll a spinner with `animate-spin` or any other ad-hoc approach.
-
-**Import:**
-```jsx
-import BrandedLoader from '../../components/ui/BrandedLoader';
-```
-
-**When to use which mode:**
-
-| Situation | Usage |
-|---|---|
-| Page-level data load (content area is empty) | `<BrandedLoader />` |
-| Save / submit in progress (page stays visible) | `<BrandedLoader overlay label="Saving…" />` |
-| Full-screen gate (app booting, auth loading) | `<BrandedLoader overlay tone="brand" />` |
-| Modal action in progress | `<BrandedLoader overlay tone="transparent" label="Processing…" />` |
-| Section reload inside a loaded page | `<BrandedLoader size="sm" inlinePadY="py-8" />` |
-
-**Do NOT use `BrandedLoader` for:**
-- Tiny in-button loading indicators — use `<Loader2 className="animate-spin" />` from `lucide-react` instead
-- Skeleton screens — keep those as-is where they already exist
-
-**Props reference:**
-
-| Prop | Default | Purpose |
-|---|---|---|
-| `overlay` | `false` | Fixed full-screen overlay with backdrop |
-| `open` | `true` | When `false` on an overlay, renders nothing (use for conditional overlay) |
-| `label` | `"Loading…"` | Status text shown below the mark (uppercased automatically) |
-| `hideBrand` | `false` | Suppress "Vikas Milk Dairy" wordmark |
-| `size` | `"md"` | `"sm"` / `"md"` / `"lg"` |
-| `tone` | `"card"` | Overlay background: `"card"` (white card), `"brand"` (green), `"transparent"` (dim blur) |
-| `lively` | `false` | Adds sonar-ping ring for high-urgency states |
+Never try/catch in controllers — let `asyncHandler` propagate to this handler.
