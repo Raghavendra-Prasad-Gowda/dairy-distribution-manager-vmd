@@ -985,6 +985,25 @@ test.describe('POST /api/v1/dispatches — salesman price integrity', () => {
     expect(res.status()).toBe(403);
   });
 
+  test('rejects when globally-disabled product has an explicit isEnabled=false row (double-block)', async ({ request }) => {
+    // enabledMap[id] = false (not undefined) → false ?? false = false → blocked.
+    // Confirms the ?? operator doesn't accidentally allow an explicit false row
+    // to fall through to the global flag and somehow become true.
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, isActive: true, salespersonEnabled: false, salespersonDefaultPrice: 30 },
+    ]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: false }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+
+    const res = await request.post('/api/v1/dispatches', {
+      headers: salesmanAuth(),
+      data: { dispatchDate: TODAY, items: [{ productId: 1, quantity: 10, unitPrice: 30 }] },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
   test('rejects a product explicitly disabled for this salesperson', async ({ request }) => {
     ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(null);
     ctx.mockPrisma.product.findMany.mockResolvedValue([
