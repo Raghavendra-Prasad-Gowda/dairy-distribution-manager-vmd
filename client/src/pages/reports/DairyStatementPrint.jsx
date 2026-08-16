@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
-import { formatCurrency } from '../../utils/dateUtils';
+import { formatCurrency, getIndiaDateTimeStr, formatDateShortNoYear } from '../../utils/dateUtils';
 
 const BUSINESS = 'Vikas Milk Dairy';
 
@@ -33,7 +33,7 @@ export default function DairyStatementPrint() {
   }, [rows]);
 
   const dateLabel   = from === to ? from : `${from} to ${to}`;
-  const printedAt   = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const printedAt   = getIndiaDateTimeStr();
   const totalBill   = rows?.reduce((s, r) => s + r.stockValue + (r.depositValue ?? 0), 0) ?? 0;
   const totalPaid   = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing     = rows?.length ? rows[rows.length - 1].closingBalance : 0;
@@ -109,7 +109,7 @@ export default function DairyStatementPrint() {
                 const owing = row.closingBalance > 0;
                 return (
                   <tr key={i} className={owing ? 'balance-owing' : 'balance-clear'}>
-                    <td>{new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                    <td>{formatDateShortNoYear(row.date)}</td>
                     <td className="right">{formatCurrency(row.openingBalance)}</td>
                     <td className="right">{formatCurrency(row.stockValue + (row.depositValue ?? 0))}</td>
                     <td className="right">{formatCurrency(row.amountPaid)}</td>
