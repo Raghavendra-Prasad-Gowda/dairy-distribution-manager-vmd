@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -11,6 +11,7 @@ import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 function SortableSpRow({ sp }) {
@@ -43,8 +44,8 @@ const ITEMS_PER_PAGE = 10;
 
 export default function SalesmanUsersSetup() {
   const { notify } = useNotification();
-  const [salespeople, setSalespeople]       = useState([]);
-  const [loading, setLoading]               = useState(false);
+  const { data: salespeople, loading, refetch: loadSalespeople, setData: setSalespeople } =
+    useApiResource('/salespeople?all=true', { initialData: [] });
   const [showAddModal, setShowAddModal]     = useState(false);
   const [showPwModal, setShowPwModal]       = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -65,19 +66,6 @@ export default function SalesmanUsersSetup() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const loadSalespeople = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await api.get('/salespeople?all=true');
-      setSalespeople(r.data.data);
-    } catch {
-      notify('Failed to load salespeople', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [notify]);
-
-  useEffect(() => { loadSalespeople(); }, [loadSalespeople]);
   useEffect(() => { setCurrentPage(1); }, [search]);
 
   const enterReorderMode = () => {

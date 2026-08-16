@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck } from 'lucide-react';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -6,6 +6,7 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 const ROLE_LABEL = { admin: 'Admin', superadmin: 'Super Admin', dispatcher: 'Dispatcher' };
@@ -19,8 +20,7 @@ export default function AdminUsersSetup() {
   const { notify } = useNotification();
   const { user: me } = useAuth();
 
-  const [users, setUsers]               = useState([]);
-  const [loading, setLoading]           = useState(false);
+  const { data: users, loading, refetch: load } = useApiResource('/admin-users', { initialData: [] });
   const [search, setSearch]             = useState('');
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -37,20 +37,6 @@ export default function AdminUsersSetup() {
   const [deleting, setDeleting]         = useState(false);
 
   const [togglingId, setTogglingId]     = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await api.get('/admin-users');
-      setUsers(r.data.data);
-    } catch {
-      notify('Failed to load admin users', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [notify]);
-
-  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

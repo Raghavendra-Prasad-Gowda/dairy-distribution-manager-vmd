@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Navigation, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
@@ -12,8 +13,6 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   const { notify } = useNotification();
   const [brands, setBrands]         = useState(shellBrands ?? []);
   const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
-  const [routes, setRoutes]         = useState([]);
-  const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyMsg, setBusyMsg]       = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,22 +31,10 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId, shellBrands, inShell]);
 
-  const fetchRoutes = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await api.get(`/routes?brandId=${activeBrandId}`);
-      setRoutes(r.data.data);
-    } catch {
-      notify('Failed to load routes', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeBrandId, notify]);
-
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchRoutes();
-  }, [activeBrandId, fetchRoutes]);
+  const { data: routes, loading, refetch: fetchRoutes } = useApiResource(
+    activeBrandId ? `/routes?brandId=${activeBrandId}` : null,
+    { initialData: [] }
+  );
 
   const openAdd  = () => { setEditingRoute(null); setFormNumber(''); setIsModalOpen(true); };
   const openEdit = (route) => { setEditingRoute(route); setFormNumber(route.routeNumber); setIsModalOpen(true); };

@@ -33,7 +33,7 @@ export function useApiResource(url, opts = {}) {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get(url, params ? { params } : undefined);
+      const res = params ? await api.get(url, { params }) : await api.get(url);
       const payload = res.data?.data ?? res.data;
       const value = select ? select(payload) : payload;
       setData(value);

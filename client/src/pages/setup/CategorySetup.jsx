@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, Layers, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -6,6 +6,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
@@ -15,8 +16,6 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
   const { notify } = useNotification();
   const [brands, setBrands]         = useState(shellBrands ?? []);
   const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]         = useState('');
@@ -37,24 +36,16 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId, shellBrands, inShell]);
 
-  const fetchCategories = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await api.get(`/categories?brandId=${activeBrandId}`);
-      setCategories(r.data.data);
-    } catch {
-      notify('Failed to load categories', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeBrandId, notify]);
+  const { data: categories, loading, refetch: fetchCategories } = useApiResource(
+    activeBrandId ? `/categories?brandId=${activeBrandId}` : null,
+    { initialData: [] }
+  );
 
   useEffect(() => {
     if (!activeBrandId) return;
-    fetchCategories();
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId, fetchCategories]);
+  }, [activeBrandId]);
 
   useEffect(() => { setCurrentPage(1); }, [search]);
 
