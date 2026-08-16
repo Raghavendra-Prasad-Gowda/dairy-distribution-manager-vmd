@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -113,9 +113,7 @@ export default function SalespersonStatement() {
       .catch(() => setError('Failed to load salespeople'));
   }, []);
 
-  useEffect(() => { if (selectedSp) fetchReport(); }, [selectedSp, from, to]);
-
-  async function fetchReport() {
+  const fetchReport = useCallback(async () => {
     setLoading(true); setError('');
     setExpandedRows(new Set());
     try {
@@ -126,7 +124,9 @@ export default function SalespersonStatement() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedSp, from, to]);
+
+  useEffect(() => { if (selectedSp) fetchReport(); }, [selectedSp, fetchReport]);
 
   const closingBalance  = rows.length ? rows[rows.length - 1].closingBalance : 0;
   const totalGiven      = rows.reduce((s, r) => s + r.stockGiven,  0);

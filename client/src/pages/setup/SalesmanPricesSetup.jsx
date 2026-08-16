@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2, Package, ChevronDown, ChevronUp, Unlock } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -132,26 +132,7 @@ export default function SalesmanPricesSetup() {
       .catch(() => notify('Failed to load data', 'error'));
   }, [notify]);
 
-  useEffect(() => {
-    if (!selectedSpId) return;
-    if (isGlobal) {
-      fetchGlobal();
-      fetchProductView();
-    } else {
-      fetchPrices();
-    }
-    setSearch('');
-    setCurrentPage(1);
-  }, [selectedSpId, activeBrandId]);
-
-  useEffect(() => {
-    setSearch('');
-    setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function fetchPrices() {
+  const fetchPrices = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get(`/salespeople/${selectedSpId}/prices`);
@@ -162,7 +143,88 @@ export default function SalesmanPricesSetup() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedSpId, notify]);
+
+  const fetchGlobal = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/products/salesperson-global');
+      setGlobalProducts(r.data.data);
+      setDirtyGlobal({});
+      setDirtyGlobalPrices({});
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load global products', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [notify]);
+
+  const fetchProductView = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch all prices for all salespeople for this brand
+      const promises = salespeople.map(sp =>
+        api.get(`/salespeople/${sp.id}/prices`).then(r => ({ spId: sp.id, spName: sp.name, data: r.data.data }))
+      );
+      const results = await Promise.all(promises);
+
+      // Reorganize by product
+      const productMap = {};
+      results.forEach(({ spId, spName, data }) => {
+        data.forEach(p => {
+          if (p.brandId !== activeBrandId) return;
+          if (!productMap[p.productId]) {
+            productMap[p.productId] = {
+              productId: p.productId,
+              productName: p.productName,
+              brandId: p.brandId,
+              category: p.category,
+              categoryDisplayOrder: p.categoryDisplayOrder ?? 999,
+              displayOrder: p.displayOrder ?? 999,
+              dairyCostPrice: p.dairyCostPrice,
+              dairySellingPrice: p.dairySellingPrice,
+              salespersonPrices: {},
+            };
+          }
+          productMap[p.productId].salespersonPrices[spId] = {
+            spId,
+            spName,
+            sellingPrice: p.sellingPrice,
+            isEnabled: p.isEnabled,
+          };
+        });
+      });
+
+      setProductView(Object.values(productMap).sort((a, b) =>
+        a.categoryDisplayOrder - b.categoryDisplayOrder ||
+        a.displayOrder - b.displayOrder ||
+        a.productName.localeCompare(b.productName)
+      ));
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to load product view', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [salespeople, activeBrandId, notify]);
+
+  useEffect(() => {
+    if (!selectedSpId) return;
+    if (isGlobal) {
+      fetchGlobal();
+      fetchProductView();
+    } else {
+      fetchPrices();
+    }
+    setSearch('');
+    setCurrentPage(1);
+  }, [selectedSpId, activeBrandId, isGlobal, fetchGlobal, fetchProductView, fetchPrices]);
+
+  useEffect(() => {
+    setSearch('');
+    setCurrentPage(1);
+  }, [activeBrandId]);
+
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   // ── Per-row price edit ────────────────────────────────────────────────────────
   function openPriceEdit(p) {
@@ -208,68 +270,6 @@ export default function SalesmanPricesSetup() {
     } catch (err) {
       notify(err.response?.data?.error ?? 'Failed to save price', 'error');
       setSavingPrice(false);
-    }
-  }
-
-  async function fetchGlobal() {
-    setLoading(true);
-    try {
-      const r = await api.get('/products/salesperson-global');
-      setGlobalProducts(r.data.data);
-      setDirtyGlobal({});
-      setDirtyGlobalPrices({});
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to load global products', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchProductView() {
-    setLoading(true);
-    try {
-      // Fetch all prices for all salespeople for this brand
-      const promises = salespeople.map(sp =>
-        api.get(`/salespeople/${sp.id}/prices`).then(r => ({ spId: sp.id, spName: sp.name, data: r.data.data }))
-      );
-      const results = await Promise.all(promises);
-
-      // Reorganize by product
-      const productMap = {};
-      results.forEach(({ spId, spName, data }) => {
-        data.forEach(p => {
-          if (p.brandId !== activeBrandId) return;
-          if (!productMap[p.productId]) {
-            productMap[p.productId] = {
-              productId: p.productId,
-              productName: p.productName,
-              brandId: p.brandId,
-              category: p.category,
-              categoryDisplayOrder: p.categoryDisplayOrder ?? 999,
-              displayOrder: p.displayOrder ?? 999,
-              dairyCostPrice: p.dairyCostPrice,
-              dairySellingPrice: p.dairySellingPrice,
-              salespersonPrices: {},
-            };
-          }
-          productMap[p.productId].salespersonPrices[spId] = {
-            spId,
-            spName,
-            sellingPrice: p.sellingPrice,
-            isEnabled: p.isEnabled,
-          };
-        });
-      });
-
-      setProductView(Object.values(productMap).sort((a, b) =>
-        a.categoryDisplayOrder - b.categoryDisplayOrder ||
-        a.displayOrder - b.displayOrder ||
-        a.productName.localeCompare(b.productName)
-      ));
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to load product view', 'error');
-    } finally {
-      setLoading(false);
     }
   }
 

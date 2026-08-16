@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -200,9 +200,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
       .catch(() => setRoutes([]));
   }, [activeBrandId]);
 
-  useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, from, to]);
-
-  async function fetchReport() {
+  const fetchReport = useCallback(async () => {
     setLoading(true); setError('');
     setExpandedRows(new Set());
     try {
@@ -213,7 +211,9 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeBrandId, from, to]);
+
+  useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, fetchReport]);
 
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 

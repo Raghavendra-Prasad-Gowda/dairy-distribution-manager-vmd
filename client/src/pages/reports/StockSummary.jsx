@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertCircle, Package, ChevronRight, ChevronDown, Printer } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
@@ -44,9 +44,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
       .catch(() => {});
   }, [shellActiveBrandId]);
 
-  useEffect(() => { fetchSummary(); }, [from, to, shellActiveBrandId, selectedRouteId]);
-
-  async function fetchSummary() {
+  const fetchSummary = useCallback(async () => {
     setLoading(true); setError('');
     setExpanded(new Set());
     try {
@@ -59,7 +57,9 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [from, to, shellActiveBrandId, selectedRouteId]);
+
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
   function toggle(key) {
     setExpanded(prev => {

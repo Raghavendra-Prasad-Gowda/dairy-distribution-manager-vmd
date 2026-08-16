@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -272,9 +272,7 @@ export default function MyStatement() {
   function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
   function collapseAll() { setExpandedRows(new Set()); }
 
-  useEffect(() => { fetchReport(); }, [from, to]);
-
-  async function fetchReport() {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     setError('');
     setExpandedRows(new Set());
@@ -286,7 +284,9 @@ export default function MyStatement() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [from, to]);
+
+  useEffect(() => { fetchReport(); }, [fetchReport]);
 
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
   const totalGiven     = rows.reduce((s, r) => s + r.stockGiven, 0);

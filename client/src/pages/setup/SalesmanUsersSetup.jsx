@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -65,10 +65,7 @@ export default function SalesmanUsersSetup() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  useEffect(() => { loadSalespeople(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function loadSalespeople() {
+  const loadSalespeople = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get('/salespeople?all=true');
@@ -78,7 +75,10 @@ export default function SalesmanUsersSetup() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [notify]);
+
+  useEffect(() => { loadSalespeople(); }, [loadSalespeople]);
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   const enterReorderMode = () => {
     setReorderList([...salespeople]);
