@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext, useRef } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import api from '../api/axios';
 import { SESSION_MS, expireSessionAndRedirect } from '../utils/session';
 
@@ -9,17 +9,35 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const timerRef = useRef(null);
 
-  const clearTimer = () => {
+  // These helpers only ever close over the stable timerRef, the stable setUser
+  // setter, and module-level imports — none of that changes across renders, so
+  // useCallback([]) (or a dep on another useCallback below) gives each a truly
+  // stable identity that's safe to list in the mount effect's deps.
+  const clearTimer = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-  };
+  }, []);
 
-  const scheduleExpiry = (loginTime, doLogout) => {
+  const scheduleExpiry = useCallback((loginTime, doLogout) => {
     clearTimer();
     const remaining = SESSION_MS - (Date.now() - loginTime);
     if (remaining <= 0) return false;
     timerRef.current = setTimeout(doLogout, remaining);
     return true;
-  };
+  }, [clearTimer]);
+
+  const clearStorage = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('loginTime');
+    delete api.defaults.headers.common['Authorization'];
+  }, []);
+
+  const performAutoLogout = useCallback(async () => {
+    clearTimer();
+    await api.post('/auth/logout').catch(() => {});
+    setUser(null);
+    expireSessionAndRedirect('Your session expired after 2 hours. Please log in again.');
+  }, [clearTimer]);
 
   useEffect(() => {
     const token     = localStorage.getItem('token');
@@ -37,21 +55,7 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
     return clearTimer;
-  }, []);
-
-  function clearStorage() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('loginTime');
-    delete api.defaults.headers.common['Authorization'];
-  }
-
-  async function performAutoLogout() {
-    clearTimer();
-    await api.post('/auth/logout').catch(() => {});
-    setUser(null);
-    expireSessionAndRedirect('Your session expired after 2 hours. Please log in again.');
-  }
+  }, [scheduleExpiry, performAutoLogout, clearStorage, clearTimer]);
 
   const login = async (username, password) => {
     try {

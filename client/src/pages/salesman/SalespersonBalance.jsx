@@ -42,7 +42,7 @@ export default function SalespersonBalance() {
         setError(e.response?.data?.error ?? 'Failed to load balance information');
       })
       .finally(() => setLoading(false));
-  }, [salespersonId, today, pagination.page, fromDate, toDate]);
+  }, [salespersonId, today, pagination.page, pagination.limit, fromDate, toDate]);
 
   if (!salespersonId) {
     return <div className="p-4 text-center text-slate-500">Unable to load balance</div>;
