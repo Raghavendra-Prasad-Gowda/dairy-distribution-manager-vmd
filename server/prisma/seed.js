@@ -3,6 +3,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const logger = require('../config/logger');
+const env = require('../config/env');
 
 let _ownClient = null;
 function getClient(externalClient) {
@@ -21,8 +22,8 @@ async function seedFoundationData(externalPrisma) {
 
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
   // Env vars are authoritative — always sync username + password on every boot.
-  const rawSuperUsername = process.env.SUPERADMIN_USERNAME;
-  const rawSuperPassword = process.env.SUPERADMIN_PASSWORD;
+  const rawSuperUsername = env.SUPERADMIN_USERNAME;
+  const rawSuperPassword = env.SUPERADMIN_PASSWORD;
   if (rawSuperUsername && rawSuperPassword) {
     const existingSuperAdmin = await prisma.adminUser.findFirst({ where: { role: 'superadmin' } });
     const passwordHash = await bcrypt.hash(rawSuperPassword, BCRYPT_ROUNDS);

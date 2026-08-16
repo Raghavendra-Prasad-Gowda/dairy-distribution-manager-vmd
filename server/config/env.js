@@ -46,6 +46,13 @@ const schema = z.object({
     '123456'
   ),
 
+  // Superadmin auto-provisioning (prisma/seed.js). Genuinely optional — when
+  // unset, seeding is skipped entirely (no superadmin is created/synced). Never
+  // required-in-prod like the secrets above; a deployment may deliberately omit
+  // these and create the superadmin some other way.
+  SUPERADMIN_USERNAME: z.string().optional(),
+  SUPERADMIN_PASSWORD: z.string().optional(),
+
   // CORS / links
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   APP_URL: z.string().optional().default(''),

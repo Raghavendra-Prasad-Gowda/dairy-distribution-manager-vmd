@@ -68,4 +68,26 @@ test.describe('config/env.js', () => {
     expect(env.JWT_SECRET.length).toBeGreaterThanOrEqual(32);
     expect(env.allowedOrigins).toContain('http://localhost:5173');
   });
+
+  test('SUPERADMIN_USERNAME/PASSWORD are genuinely optional, even in production', () => {
+    // Unlike JWT_SECRET/EDIT_PIN, these must never block boot when unset —
+    // prisma/seed.js treats their absence as "skip seeding", not an error.
+    const env = loadEnv({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://x',
+      ADMIN_PASSWORD: 'x',
+      JWT_SECRET: 'a'.repeat(32),
+      EDIT_PIN: '654321',
+      SUPERADMIN_USERNAME: undefined,
+      SUPERADMIN_PASSWORD: undefined,
+    });
+    expect(env.SUPERADMIN_USERNAME).toBeUndefined();
+    expect(env.SUPERADMIN_PASSWORD).toBeUndefined();
+  });
+
+  test('SUPERADMIN_USERNAME/PASSWORD pass through when set', () => {
+    const env = loadEnv({ NODE_ENV: 'development', SUPERADMIN_USERNAME: 'root', SUPERADMIN_PASSWORD: 'hunter2' });
+    expect(env.SUPERADMIN_USERNAME).toBe('root');
+    expect(env.SUPERADMIN_PASSWORD).toBe('hunter2');
+  });
 });
