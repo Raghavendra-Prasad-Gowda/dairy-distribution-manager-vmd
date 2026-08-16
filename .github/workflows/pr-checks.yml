@@ -91,6 +91,16 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  lint-api-spec:
+    name: Lint OpenAPI spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx --yes @redocly/cli lint docs/openapi.yaml
+
   security-audit:
     name: Dependency vulnerability scan
     runs-on: ubuntu-latest

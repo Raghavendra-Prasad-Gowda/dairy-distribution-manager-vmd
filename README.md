@@ -99,6 +99,15 @@ secrets above must be present and valid or the server refuses to boot.
 
 ---
 
+## API reference
+
+The full `/api/v1` surface — every route, auth requirement, request/response shape
+— is documented as an OpenAPI 3.0 spec at [`docs/openapi.yaml`](./docs/openapi.yaml).
+Paste it into [editor.swagger.io](https://editor.swagger.io) or open it in any
+OpenAPI-aware tool for an interactive browse.
+
+---
+
 ## Testing & quality
 
 ```bash
