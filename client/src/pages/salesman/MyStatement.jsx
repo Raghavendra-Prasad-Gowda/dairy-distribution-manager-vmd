@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
-import api from '../../api/axios';
+import { useApiResource } from '../../hooks/useApiResource';
 
 // ─── Item-level crates/litres, computed once when the statement loads ─────────
 // Crates: quantity ÷ unitsPerContainer, kept at full precision here (not
@@ -249,10 +249,22 @@ function ExpandableRow({ row, open, onToggle }) {
 export default function MyStatement() {
   const [from, setFrom]           = useState(getFirstDayOfMonth());
   const [to, setTo]               = useState(getIndiaDate());
-  const [rows, setRows]           = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+
+  const { data: rows, loading, error } = useApiResource(
+    `/salesperson-statement/me?from=${from}&to=${to}`,
+    {
+      initialData: [],
+      notifyOnError: false,
+      // Collapse any expanded rows whenever a new report loads — mirrors the
+      // old fetchReport's setExpandedRows(new Set()) at fetch-start; the
+      // table is hidden behind BrandedLoader while loading either way.
+      select: (payload) => {
+        setExpandedRows(new Set());
+        return payload.map((row) => ({ ...row, items: withComputedFields(row.items) }));
+      },
+    }
+  );
 
   const expandableIndices = rows.reduce((acc, r, i) => {
     if (r.items?.length > 0 || r.payments?.length > 0 || r.topUps?.length > 0) acc.push(i);
@@ -271,22 +283,6 @@ export default function MyStatement() {
   }
   function expandAll()   { setExpandedRows(new Set(expandableIndices)); }
   function collapseAll() { setExpandedRows(new Set()); }
-
-  useEffect(() => { fetchReport(); }, [from, to]);
-
-  async function fetchReport() {
-    setLoading(true);
-    setError('');
-    setExpandedRows(new Set());
-    try {
-      const r = await api.get(`/salesperson-statement/me?from=${from}&to=${to}`);
-      setRows(r.data.data.map((row) => ({ ...row, items: withComputedFields(row.items) })));
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load statement');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
   const totalGiven     = rows.reduce((s, r) => s + r.stockGiven, 0);

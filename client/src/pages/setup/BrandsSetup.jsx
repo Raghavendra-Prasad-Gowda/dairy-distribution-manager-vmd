@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Store, Plus, Pencil, X, EyeOff, Eye, Archive, Droplet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -6,6 +6,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { getBrandColors } from '../../utils/constants';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 // ── Small deposit toggle pill ─────────────────────────────────────────────────
@@ -36,8 +37,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // reaching this page (it's not superAdminOnly-routed) can use it.
   const isAdmin      = user?.role === 'admin' || isSuperAdmin;
 
-  const [brands, setBrands]       = useState([]);
-  const [loading, setLoading]     = useState(false);
+  const { data: brands, loading, setData: setBrands } = useApiResource('/brands?includeInactive=true', { initialData: [] });
   const [submitting, setSubmitting] = useState(false);
   const [busyMsg, setBusyMsg]       = useState('');
 
@@ -53,14 +53,6 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [depositBrand, setDepositBrand]     = useState(null); // brand pending deposit edit
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositRate, setDepositRate]       = useState('');
-
-  useEffect(() => {
-    setLoading(true);
-    api.get('/brands?includeInactive=true')
-      .then(r => setBrands(r.data.data ?? []))
-      .catch(() => notify('Failed to load brands', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
 
   const openAdd = () => {
     setEditingBrand(null);

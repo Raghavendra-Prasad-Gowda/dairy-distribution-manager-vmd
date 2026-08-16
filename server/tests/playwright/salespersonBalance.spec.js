@@ -36,8 +36,8 @@ test.describe('GET /api/v1/salesperson-balance', () => {
 
   test('returns 200 with balances for all active salespeople', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([SALESPERSON]);
-    // buildSalespersonBalance: existing record found — returns early
-    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(BALANCE);
+    // getAll batch-fetches persisted rows in one findMany — existing row found.
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([BALANCE]);
 
     const res = await request.get('/api/v1/salesperson-balance?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -52,7 +52,7 @@ test.describe('GET /api/v1/salesperson-balance', () => {
 
   test('returns 200 with computed balance when no existing record', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([SALESPERSON]);
-    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]); // batch: no persisted rows
     ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
     ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
     ctx.mockPrisma.salespersonPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
@@ -68,6 +68,7 @@ test.describe('GET /api/v1/salesperson-balance', () => {
 
   test('returns 200 with empty list when no active salespeople', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/salesperson-balance?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -145,6 +146,31 @@ test.describe('GET /api/v1/salesperson-balance/:id', () => {
     expect(body.data.stockGiven).toBe(0);
     expect(body.data.amountPaid).toBe(0);
     expect(body.data.closingBalance).toBe(2500);
+  });
+
+  test('computed fallback ADDS top-ups (regression: must match balanceService)', async ({ request }) => {
+    // No persisted row for the date → controller falls back to balanceService.
+    // opening=2500, stockGiven=0, topUp=+1000, realPaid=-400 → closing=3100.
+    // Guards against the old fallback that omitted topUpAmount and subtracted
+    // top-ups instead of adding them.
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue({ closingBalance: 2500 });
+    ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
+    ctx.mockPrisma.salespersonPayment.aggregate.mockImplementation(({ where }) =>
+      Promise.resolve({ _sum: { amount: where.isTopUp ? 1000 : 400 } })
+    );
+
+    const res = await request.get('/api/v1/salesperson-balance/1?date=2026-05-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.openingBalance).toBe(2500);
+    expect(body.data.topUpAmount).toBe(1000);
+    expect(body.data.amountPaid).toBe(400);
+    expect(body.data.closingBalance).toBe(3100);
   });
 
   test('formula: closingBalance = openingBalance + stockGiven - amountPaid', async ({ request }) => {

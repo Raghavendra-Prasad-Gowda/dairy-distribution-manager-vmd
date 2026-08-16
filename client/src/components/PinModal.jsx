@@ -69,18 +69,18 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
     }
   }, [isOpen]);
 
+  const isLocked = remaining > 0;
+
   // Countdown timer while locked out
   useEffect(() => {
-    if (!isOpen || remaining <= 0) return;
+    if (!isOpen || !isLocked) return;
     timerRef.current = setInterval(() => {
       const rem = getLockoutRemaining();
       setRemaining(rem);
       if (rem <= 0) clearInterval(timerRef.current);
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [isOpen, remaining > 0]);
-
-  const isLocked = remaining > 0;
+  }, [isOpen, isLocked]);
 
   const handleKey = (e, idx) => {
     if (isLocked) return;

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
+const env = require('../config/env');
 
 const authenticate = (req, res, next) => {
   const token =
@@ -11,7 +12,7 @@ const authenticate = (req, res, next) => {
     return next(new AppError('No token provided. Please log in.', 403));
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+  jwt.verify(token, env.JWT_SECRET, (err, decoded) => {
     if (err) {
       return next(new AppError('Unauthorized. Token is invalid or expired.', 401));
     }

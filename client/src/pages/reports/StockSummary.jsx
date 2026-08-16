@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AlertCircle, Package, ChevronRight, ChevronDown, Printer } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 function fmtCrates(qty, upc) {
@@ -30,9 +31,6 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
   const isShell = inShell || shellActiveBrandId != null;
   const [from, setFrom]             = useState(getFirstDayOfMonth());
   const [to, setTo]                 = useState(getIndiaDate());
-  const [data, setData]             = useState(null);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
   const [expanded, setExpanded]     = useState(new Set());
   const [routes, setRoutes]         = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState('');
@@ -44,22 +42,12 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
       .catch(() => {});
   }, [shellActiveBrandId]);
 
-  useEffect(() => { fetchSummary(); }, [from, to, shellActiveBrandId, selectedRouteId]);
-
-  async function fetchSummary() {
-    setLoading(true); setError('');
-    setExpanded(new Set());
-    try {
-      const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
-      const routeParam = selectedRouteId   ? `&routeId=${selectedRouteId}`     : '';
-      const r = await api.get(`/reports/stock-summary?from=${from}&to=${to}${brandParam}${routeParam}`);
-      setData(r.data.data);
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load summary');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const brandParam = shellActiveBrandId ? `&brandId=${shellActiveBrandId}` : '';
+  const routeParam = selectedRouteId   ? `&routeId=${selectedRouteId}`     : '';
+  const { data, loading, error } = useApiResource(
+    `/reports/stock-summary?from=${from}&to=${to}${brandParam}${routeParam}`,
+    { notifyOnError: false }
+  );
 
   function toggle(key) {
     setExpanded(prev => {
@@ -229,14 +217,14 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">From</label>
                 <input
-                  type="date" value={from} onChange={e => setFrom(e.target.value)}
+                  type="date" value={from} onChange={e => { setFrom(e.target.value); setExpanded(new Set()); }}
                   className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To</label>
                 <input
-                  type="date" value={to} onChange={e => setTo(e.target.value)}
+                  type="date" value={to} onChange={e => { setTo(e.target.value); setExpanded(new Set()); }}
                   className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -245,7 +233,7 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Route</label>
                   <select
                     value={selectedRouteId}
-                    onChange={e => setSelectedRouteId(e.target.value)}
+                    onChange={e => { setSelectedRouteId(e.target.value); setExpanded(new Set()); }}
                     className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   >
                     <option value="">All Routes</option>

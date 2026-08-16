@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight, RotateCcw } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
@@ -43,11 +43,9 @@ export default function DailyDispatchSummary() {
   // admin/superadmin are completely unrestricted, unchanged.
   const canToggleLock = !isDispatcher || (isToday && !dayFinalized);
 
-  useEffect(() => { fetchData(); }, [date]);
-
   useEffect(() => { setCollapsedBrands({}); }, [selectedSpId]);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true); setError('');
     setSelectedSpId(null);
     try {
@@ -86,7 +84,9 @@ export default function DailyDispatchSummary() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [date, isDispatcher]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   async function confirmOpenForEntry() {
     if (!openConfirm) return;
@@ -97,7 +97,7 @@ export default function DailyDispatchSummary() {
       await api.post('/dispatches/open-for-entry', { salespersonId, dispatchDate: date });
       await fetchData();
       setSelectedSpId(salespersonId);
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setOpenLoading(false);
@@ -110,7 +110,7 @@ export default function DailyDispatchSummary() {
     try {
       await api.post('/dispatches/finalize-day');
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setFinalizeLoading(false);
@@ -123,7 +123,7 @@ export default function DailyDispatchSummary() {
     try {
       await api.delete('/dispatches/finalize-day');
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setUnfinalizeLoading(false);
@@ -202,7 +202,7 @@ export default function DailyDispatchSummary() {
       const action = isLocked ? 'unlock' : 'lock';
       await api.patch(`/dispatches/${dispatchId}/${action}`);
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setLockLoading(false);

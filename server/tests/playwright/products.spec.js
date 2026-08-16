@@ -311,7 +311,7 @@ test.describe('Future-scheduled prices', () => {
   });
 
   test('PUT with FUTURE effectiveFrom does NOT promote into Product.costPrice', async ({ request }) => {
-    let productUpdates = [];
+    const productUpdates = [];
     ctx.mockPrisma.product.update.mockImplementation(async (args) => {
       productUpdates.push(args);
       return { ...PRODUCT, ...args.data };
@@ -333,7 +333,7 @@ test.describe('Future-scheduled prices', () => {
   });
 
   test('PUT with TODAY effectiveFrom DOES update Product.costPrice (the latest <= today)', async ({ request }) => {
-    let productUpdates = [];
+    const productUpdates = [];
     ctx.mockPrisma.product.update.mockImplementation(async (args) => {
       productUpdates.push(args);
       return { ...PRODUCT, ...args.data };

@@ -70,6 +70,47 @@ export function formatDateShort(dateStr) {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
+/**
+ * Returns the current instant formatted as an IST datetime string, e.g.
+ * "24 May 2026, 06:15 pm" — for "Printed on …" footers. `new Date()` with no
+ * arguments captures the current moment unambiguously (there's no string to
+ * mis-parse), but the formatting still belongs here rather than duplicated at
+ * every call site — this was copy-pasted identically across 5 print pages.
+ */
+export function getIndiaDateTimeStr() {
+  return new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+/**
+ * Safely parses an API date value (YYYY-MM-DD or a full ISO datetime string,
+ * e.g. a Prisma DateTime like "2026-04-30T00:00:00.000Z") into a local-calendar
+ * JS Date anchored to that same calendar day — never `new Date(isoString)`
+ * followed by `.toLocaleDateString()` with no explicit timeZone, which silently
+ * rolls the displayed date back a day for any browser west of UTC. Once
+ * constructed this way, the Date is safe to format however the caller likes.
+ */
+export function parseLocalDate(dateStr) {
+  const ymd = String(dateStr).slice(0, 10);
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * Compact "24 May" format (day + month, no year) — for table columns where the
+ * year is already shown in a header/date-range. Accepts YYYY-MM-DD or ISO.
+ */
+export function formatDateShortNoYear(dateStr) {
+  if (!dateStr) return '—';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const d = parseLocalDate(dateStr);
+  if (Number.isNaN(d.getTime())) return String(dateStr).slice(0, 10);
+  return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]}`;
+}
+
 /** Formats as "₹1,23,456.00" in Indian locale */
 export function formatCurrency(amount) {
   return new Intl.NumberFormat('en-IN', {

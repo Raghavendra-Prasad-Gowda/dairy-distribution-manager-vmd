@@ -5,6 +5,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
@@ -12,8 +13,6 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   const { notify } = useNotification();
   const [brands, setBrands]         = useState(shellBrands ?? []);
   const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
-  const [routes, setRoutes]         = useState([]);
-  const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyMsg, setBusyMsg]       = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,28 +25,16 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [inShell, notify]);
 
   useEffect(() => {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  }, [shellActiveBrandId, shellBrands, inShell]);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchRoutes();
-  }, [activeBrandId]);
-
-  async function fetchRoutes() {
-    setLoading(true);
-    try {
-      const r = await api.get(`/routes?brandId=${activeBrandId}`);
-      setRoutes(r.data.data);
-    } catch {
-      notify('Failed to load routes', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: routes, loading, refetch: fetchRoutes } = useApiResource(
+    activeBrandId ? `/routes?brandId=${activeBrandId}` : null,
+    { initialData: [] }
+  );
 
   const openAdd  = () => { setEditingRoute(null); setFormNumber(''); setIsModalOpen(true); };
   const openEdit = (route) => { setEditingRoute(route); setFormNumber(route.routeNumber); setIsModalOpen(true); };

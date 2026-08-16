@@ -16,7 +16,7 @@ import Modal from './Modal';
 
 describe('Modal — default (plain) header, unchanged for existing callers', () => {
   it('renders a plain dark title with no colored band when accent is omitted', () => {
-    const { container } = render(
+    render(
       <Modal open onClose={vi.fn()} title="Delete payment?">
         <p>Are you sure?</p>
       </Modal>

@@ -3,6 +3,7 @@ import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucid
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 
@@ -148,12 +149,23 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   const [activeBrandId, setActive] = useState(shellActiveBrandId ?? null);
   const [from, setFrom]            = useState(getFirstDayOfMonth());
   const [to, setTo]                = useState(getIndiaDate());
-  const [rows, setRows]            = useState([]);
-  const [loading, setLoading]      = useState(false);
-  const [error, setError]          = useState('');
+  const [brandsError, setBrandsError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [routes, setRoutes]             = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState('');
+
+  const { data: rows, loading, error: reportError } = useApiResource(
+    activeBrandId ? `/reports/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}` : null,
+    {
+      initialData: [],
+      notifyOnError: false,
+      // Collapse any expanded date rows whenever a new report loads — mirrors
+      // the old fetchReport's setExpandedRows(new Set()) at fetch-start; the
+      // table is hidden behind BrandedLoader while loading either way.
+      select: (payload) => { setExpandedRows(new Set()); return payload; },
+    }
+  );
+  const error = reportError || brandsError;
 
   // Filter rows to only dates that have receipts for the selected route.
   const visibleRows = selectedRouteId
@@ -176,46 +188,36 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   function expandAll()   { setExpandedRows(new Set(expandableDates)); }
   function collapseAll() { setExpandedRows(new Set()); }
 
-  // When route changes, collapse all rows (user can expand manually).
-  useEffect(() => {
-    setExpandedRows(new Set());
-  }, [selectedRouteId]);
-
   useEffect(() => {
     if (inShell) return;
     api.get('/brands')
       .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
-      .catch(() => setError('Failed to load brands'));
-  }, []);
+      .catch(() => setBrandsError('Failed to load brands'));
+  }, [inShell]);
 
   useEffect(() => {
+    // Syncs local activeBrandId/brands state from the shell parent's props —
+    // the same pattern repeated across every shell-aware setup/report page
+    // (CategorySetup, RouteSetup, BrandsSetup, SalespersonStatement, …).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  }, [shellActiveBrandId, shellBrands, inShell]);
 
   useEffect(() => {
     if (!activeBrandId) return;
-    setSelectedRouteId('');
-    api.get(`/routes?brandId=${activeBrandId}`)
-      .then(r => setRoutes(r.data.data ?? []))
-      .catch(() => setRoutes([]));
+    let cancelled = false;
+    (async () => {
+      setSelectedRouteId('');
+      try {
+        const r = await api.get(`/routes?brandId=${activeBrandId}`);
+        if (!cancelled) setRoutes(r.data.data ?? []);
+      } catch {
+        if (!cancelled) setRoutes([]);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [activeBrandId]);
 
-  useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, from, to]);
-
-  async function fetchReport() {
-    setLoading(true); setError('');
-    setExpandedRows(new Set());
-    try {
-      const r = await api.get(`/reports/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`);
-      setRows(r.data.data);
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const activeBrand = brands.find((b) => b.id === activeBrandId);
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 
   return (
@@ -260,7 +262,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Route</label>
             <select
               value={selectedRouteId}
-              onChange={e => setSelectedRouteId(e.target.value)}
+              onChange={e => { setSelectedRouteId(e.target.value); setExpandedRows(new Set()); }}
               className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
             >
               <option value="">All Routes</option>

@@ -117,11 +117,11 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
       setBrands(b);
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [inShell, notify]);
 
   useEffect(() => {
     if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  }, [shellActiveBrandId, shellBrands, inShell]);
 
   // Load categories + products for active brand
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
       setDirty(false);
     }).catch(() => notify('Failed to load data', 'error'))
       .finally(() => setLoading(false));
-  }, [activeBrandId]);
+  }, [activeBrandId, notify]);
 
   // Products grouped by category, sorted by the current index in the categories array
   const grouped = React.useMemo(() => {

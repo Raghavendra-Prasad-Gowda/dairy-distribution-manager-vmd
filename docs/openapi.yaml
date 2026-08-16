@@ -1,0 +1,1446 @@
+openapi: 3.0.3
+info:
+  title: Vikas Milk Dairy — Distribution Manager API
+  version: "1.0.0"
+  description: |
+    REST API for the VMD Distribution Manager — multi-brand stock receipt,
+    cascading dairy/salesperson balance ledgers, dispatch, collections, and
+    reporting.
+
+    ## Conventions
+    - All endpoints are mounted under `/api/v1`.
+    - Every response uses one of two envelopes:
+      - Success: `{ "success": true, "data": ... }`
+      - Failure: `{ "success": false, "error": "message", "code"?: "STRING" }`
+        (`code` is present for Prisma-mapped errors — `DUPLICATE`, `NOT_FOUND`,
+        `FK_CONSTRAINT` — and for Zod validation failures — `VALIDATION_ERROR`.)
+    - Dates are `YYYY-MM-DD` strings in request bodies/query params (interpreted
+      in IST) and ISO-8601 datetimes in response bodies (Prisma `DateTime`).
+    - All money fields are decimal-precision (never floats in the DB); JSON
+      responses serialize them as JS numbers.
+    - Authentication: a JWT is required on every route except `POST /auth/login`
+      and `POST /errors/client`. Send it as an httpOnly cookie (`token`, set
+      automatically on login) or `Authorization: Bearer <token>`. Tokens expire
+      after 2 hours.
+    - Roles: `superadmin` > `admin` > `dispatcher` / `salesman`. Endpoints below
+      document the minimum role required; superadmin can always do what admin can.
+  contact:
+    name: Vikas Milk Dairy Engineering
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Local development
+  - url: https://{host}/api/v1
+    description: Deployed (Render)
+    variables:
+      host:
+        default: your-app.onrender.com
+
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+
+tags:
+  - name: Auth
+  - name: Brands
+  - name: Categories
+  - name: Products
+  - name: Stock Receipts
+  - name: Dairy Balance
+  - name: Dairy Payments
+  - name: Dairy Deposit Top-Ups
+  - name: Salespeople
+  - name: Salesperson Prices
+  - name: Salesperson Products
+  - name: Dispatches
+  - name: Salesperson Balance
+  - name: Salesperson Payments
+  - name: Salesperson Statement
+  - name: Reports
+  - name: PIN
+  - name: Routes
+  - name: Admin Users
+  - name: Client Errors
+
+paths:
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in (admin, superadmin, dispatcher, or salesman)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Logged in — sets an httpOnly `token` cookie and also returns the token in the body
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          accessToken: { type: string }
+                          businessName: { type: string }
+                          role: { type: string, enum: [admin, superadmin, dispatcher, salesman] }
+                          adminUserId: { type: integer, nullable: true }
+                          salespersonId: { type: integer, nullable: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { description: Rate limited — 20 attempts/hour }
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change the current user's password (admin or salesman)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 6 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out (clears the auth cookie)
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Brands ────────────────────────────────────────────────────────────────
+  /brands:
+    get:
+      tags: [Brands]
+      summary: List brands (active + non-archived by default)
+      parameters:
+        - name: includeInactive
+          in: query
+          schema: { type: boolean }
+          description: Admin/superadmin only — also returns disabled (isActive=false) brands. Archived brands are never returned.
+      responses:
+        '200': { $ref: '#/components/responses/BrandList' }
+    post:
+      tags: [Brands]
+      summary: Create a brand (superadmin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: { name: { type: string } }
+      responses:
+        '201': { $ref: '#/components/responses/BrandOne' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /brands/reorder:
+    patch:
+      tags: [Brands]
+      summary: Bulk-update display order (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderList' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /brands/{id}:
+    put:
+      tags: [Brands]
+      summary: Update a brand (admin; renaming/enabling/archiving is superadmin-only)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                depositEnabled: { type: boolean }
+                depositPerLitre: { type: number }
+                isActive: { type: boolean }
+                isArchived: { type: boolean, description: 'Once true, cannot be reversed from the app' }
+      responses:
+        '200': { $ref: '#/components/responses/BrandOne' }
+  /brands/{id}/copy-products:
+    post:
+      tags: [Brands]
+      summary: Copy another brand's products/categories/salesperson assignments into this brand (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceBrandId]
+              properties: { sourceBrandId: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Categories ────────────────────────────────────────────────────────────
+  /categories:
+    get:
+      tags: [Categories]
+      summary: List categories, optionally filtered by brand
+      parameters:
+        - name: brandId
+          in: query
+          schema: { type: integer }
+      responses:
+        '200': { $ref: '#/components/responses/CategoryList' }
+    post:
+      tags: [Categories]
+      summary: Create a category (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId, name]
+              properties:
+                brandId: { type: integer }
+                name: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/CategoryOne' }
+  /categories/reorder:
+    patch:
+      tags: [Categories]
+      summary: Bulk-update display order (admin)
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReorderList' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /categories/{id}:
+    put:
+      tags: [Categories]
+      summary: Rename a category and/or toggle deposit eligibility (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                depositEnabled: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/CategoryOne' }
+    delete:
+      tags: [Categories]
+      summary: Delete a category (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Products ──────────────────────────────────────────────────────────────
+  /products:
+    get:
+      tags: [Products]
+      summary: List products (admin), optionally priced as of a date
+      parameters:
+        - name: brandId
+          in: query
+          schema: { type: integer }
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+          description: When set, costPrice reflects the price effective on this date. Response always includes upcomingCostPrice/upcomingSellingPrice for any future-scheduled change.
+        - name: all
+          in: query
+          schema: { type: boolean }
+          description: Include inactive products
+      responses:
+        '200': { $ref: '#/components/responses/ProductList' }
+    post:
+      tags: [Products]
+      summary: Create a product (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProductInput' }
+      responses:
+        '201': { $ref: '#/components/responses/ProductOne' }
+  /products/salesperson-global:
+    get:
+      tags: [Products]
+      summary: List products with the global salesperson-access flag/price (admin)
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+    patch:
+      tags: [Products]
+      summary: Bulk-update the global salesperson-access flag and/or default price (admin)
+      description: Enabling a product (isEnabled=true) requires defaultPrice > 0. Cascades enable/disable to per-salesperson override rows for all active salespeople.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [products]
+              properties:
+                products:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId]
+                    properties:
+                      productId: { type: integer }
+                      isEnabled: { type: boolean }
+                      defaultPrice: { type: number }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /products/reorder:
+    patch:
+      tags: [Products]
+      summary: Bulk-update display order (admin)
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReorderList' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /products/{id}:
+    put:
+      tags: [Products]
+      summary: Update a product, optionally scheduling a future price change (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProductInput' }
+      responses:
+        '200': { $ref: '#/components/responses/ProductOne' }
+    delete:
+      tags: [Products]
+      summary: Soft-delete (deactivate) a product (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /products/{id}/salesperson-prices:
+    delete:
+      tags: [Products]
+      summary: Clear all salesperson custom prices for this product, reverting to the global default (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Stock Receipts ────────────────────────────────────────────────────────
+  /stock-receipts:
+    get:
+      tags: [Stock Receipts]
+      summary: List stock receipts for a brand/date (admin)
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: integer } }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: routeId, in: query, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /stock-receipts/availability:
+    get:
+      tags: [Stock Receipts]
+      summary: Stock-on-hand availability for a date (admin or dispatcher)
+      parameters:
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /stock-receipts/bulk:
+    post:
+      tags: [Stock Receipts]
+      summary: Save a full day's stock receipt for a brand (upsert; zero-quantity lines are removed) (admin)
+      description: Rate-limited to 30 requests/minute. `date` cannot be beyond tomorrow (IST).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId, date]
+              properties:
+                brandId: { type: integer }
+                date: { type: string, format: date }
+                routeId: { type: integer, default: 0 }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [productId, quantity, unitPrice]
+                    properties:
+                      productId: { type: integer }
+                      quantity: { type: number, minimum: 0 }
+                      unitPrice: { type: number, minimum: 0 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '429': { description: Rate limited — 30 req/min }
+
+  # ── Dairy Balance ─────────────────────────────────────────────────────────
+  /dairy-balance:
+    get:
+      tags: [Dairy Balance]
+      summary: All active brands' balance snapshot for a date (admin)
+      parameters: [{ $ref: '#/components/parameters/DateQueryRequired' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dairy-balance/{brandId}:
+    get:
+      tags: [Dairy Balance]
+      summary: One brand's balance snapshot for a date (admin)
+      parameters:
+        - { name: brandId, in: path, required: true, schema: { type: integer } }
+        - { $ref: '#/components/parameters/DateQueryRequired' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dairy-balance/route-breakdown:
+    get:
+      tags: [Dairy Balance]
+      summary: Per-route stock-value totals for a brand over a date range (admin)
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: integer } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+
+  # ── Dairy Payments ────────────────────────────────────────────────────────
+  /dairy-payments:
+    get:
+      tags: [Dairy Payments]
+      summary: List dairy payments (admin)
+      parameters:
+        - { name: brandId, in: query, schema: { type: integer } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer }, description: 'Opt-in: supplying page or limit switches the response to { items, pagination }' }
+        - { name: limit, in: query, schema: { type: integer, maximum: 100 } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessListOrPaginated' }
+    post:
+      tags: [Dairy Payments]
+      summary: Record a payment to a brand (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDairyPaymentInput' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /dairy-payments/bulk-topup:
+    post:
+      tags: [Dairy Payments]
+      summary: Bulk-load pre-existing dues for several brands at once (superadmin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkTopUpInput' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /dairy-payments/{id}:
+    put:
+      tags: [Dairy Payments]
+      summary: Update a payment (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CreateDairyPaymentInput'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    delete:
+      tags: [Dairy Payments]
+      summary: Delete a payment (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Dairy Deposit Top-Ups ─────────────────────────────────────────────────
+  /dairy-deposit-topups/bulk:
+    post:
+      tags: [Dairy Deposit Top-Ups]
+      summary: Bulk-load a pre-existing crate/container deposit balance for several brands (superadmin)
+      description: Standalone ledger — never touches DairyBalance/topUpAmount.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topUpDate, entries]
+              properties:
+                topUpDate: { type: string, format: date }
+                notes: { type: string, maxLength: 500 }
+                entries:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [brandId, amount]
+                    properties:
+                      brandId: { type: integer }
+                      amount: { type: number, minimum: 0, exclusiveMinimum: true }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /dairy-deposit-topups/{id}:
+    delete:
+      tags: [Dairy Deposit Top-Ups]
+      summary: Delete a deposit top-up entry (superadmin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Salespeople ───────────────────────────────────────────────────────────
+  /salespeople:
+    get:
+      tags: [Salespeople]
+      summary: List salespeople (admin)
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+    post:
+      tags: [Salespeople]
+      summary: Create a salesperson (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                phone: { type: string }
+                route: { type: string }
+                username: { type: string, minLength: 3 }
+                password: { type: string, minLength: 6 }
+                displayOrder: { type: integer }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /salespeople/{id}:
+    get:
+      tags: [Salespeople]
+      summary: Get one salesperson (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    put:
+      tags: [Salespeople]
+      summary: Update a salesperson (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    delete:
+      tags: [Salespeople]
+      summary: Deactivate a salesperson (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /salespeople/reorder:
+    put:
+      tags: [Salespeople]
+      summary: Bulk-update display order (admin)
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReorderList' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /salespeople/reset-ledger:
+    post:
+      tags: [Salespeople]
+      summary: Wipe the financial history of several salespeople (superadmin, destructive)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [salespersonIds]
+              properties:
+                salespersonIds: { type: array, items: { type: integer }, minItems: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Salesperson Prices ────────────────────────────────────────────────────
+  /salespeople/{id}/prices:
+    get:
+      tags: [Salesperson Prices]
+      summary: Get a salesperson's product prices (salesman sees own enabled products; admin sees all)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /salespeople/{id}/prices/bulk:
+    post:
+      tags: [Salesperson Prices]
+      summary: Bulk-save prices for one salesperson (admin)
+      description: Rate-limited to 30 req/min. effectiveFrom must be today (IST) or later.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [effectiveFrom, prices]
+              properties:
+                effectiveFrom: { type: string, format: date }
+                prices:
+                  type: array
+                  items:
+                    type: object
+                    required: [productId, sellingPrice]
+                    properties:
+                      productId: { type: integer }
+                      sellingPrice: { type: number, minimum: 0 }
+                      effectiveFrom: { type: string, format: date }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '429': { description: Rate limited — 30 req/min }
+  /salespeople/{id}/prices/copy-from/{sourceId}:
+    post:
+      tags: [Salesperson Prices]
+      summary: Copy another salesperson's prices onto this one for a brand (admin)
+      parameters:
+        - { $ref: '#/components/parameters/IdPath' }
+        - { name: sourceId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '429': { description: Rate limited — 30 req/min }
+  /salespeople/bulk-update:
+    post:
+      tags: [Salesperson Prices]
+      summary: Bulk-update prices for multiple products across multiple salesmen (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [salespersonIds, productPrices, effectiveFrom]
+              properties:
+                salespersonIds: { type: array, items: { type: integer }, minItems: 1 }
+                productPrices:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId, sellingPrice]
+                    properties:
+                      productId: { type: integer }
+                      sellingPrice: { type: number, minimum: 0 }
+                effectiveFrom: { type: string, format: date }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '429': { description: Rate limited — 30 req/min }
+
+  # ── Salesperson Products (Exception Manager) ─────────────────────────────
+  /salespeople/{id}/products:
+    get:
+      tags: [Salesperson Products]
+      summary: List all products with per-salesperson enabled status (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /salespeople/{id}/products/bulk:
+    post:
+      tags: [Salesperson Products]
+      summary: Bulk enable/disable products for one salesperson (admin)
+      description: Rate-limited to 30 req/min.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [products]
+              properties:
+                products:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId, isEnabled]
+                    properties:
+                      productId: { type: integer }
+                      isEnabled: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '429': { description: Rate limited — 30 req/min }
+  /salespeople/products/bulk-update:
+    post:
+      tags: [Salesperson Products]
+      summary: Bulk enable/disable products across multiple salesmen (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [salespersonIds, products]
+              properties:
+                salespersonIds: { type: array, items: { type: integer }, minItems: 1 }
+                products:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [productId, isEnabled]
+                    properties:
+                      productId: { type: integer }
+                      isEnabled: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Dispatches ────────────────────────────────────────────────────────────
+  /dispatches:
+    get:
+      tags: [Dispatches]
+      summary: List dispatches (salesman sees own; admin sees all/filtered by salespersonId; dispatcher blocked)
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: salespersonId, in: query, schema: { type: integer } }
+        - { name: page, in: query, schema: { type: integer }, description: 'Opt-in: supplying page or limit switches the response to { items, pagination }' }
+        - { name: limit, in: query, schema: { type: integer, maximum: 100 } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessListOrPaginated' }
+    post:
+      tags: [Dispatches]
+      summary: Create or update a day's dispatch (upsert by salesperson+date)
+      description: |
+        Salesman may only edit their own, unlocked entries; server re-derives
+        each item's unitPrice from the salesperson's effective price (the
+        request body's unitPrice is ignored for a salesman caller — see
+        Security notes in the repo CLAUDE.md). Empty `items` clears the draft.
+        `dispatchDate` cannot be beyond tomorrow (IST).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dispatchDate]
+              properties:
+                salespersonId: { type: integer, description: 'Required for admin; ignored/injected for salesman' }
+                dispatchDate: { type: string, format: date }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [productId, quantity, unitPrice]
+                    properties:
+                      productId: { type: integer }
+                      quantity: { type: number, minimum: 0, exclusiveMinimum: true }
+                      unitPrice: { type: number, minimum: 0 }
+                notes: { type: string, maxLength: 500 }
+                submitting: { type: boolean, default: false }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '201': { $ref: '#/components/responses/Success' }
+  /dispatches/summary:
+    get:
+      tags: [Dispatches]
+      summary: Cross-salesperson dispatch summary for a date (admin)
+      parameters: [{ $ref: '#/components/parameters/DateQueryRequired' }]
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /dispatches/open-for-entry:
+    post:
+      tags: [Dispatches]
+      summary: Admin opens a specific salesperson+date for entry, even with no dispatch yet (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [salespersonId, dispatchDate]
+              properties:
+                salespersonId: { type: integer }
+                dispatchDate: { type: string, format: date }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dispatches/finalize-day:
+    post:
+      tags: [Dispatches]
+      summary: Dispatcher finalizes today (force-locks unsubmitted entries) (dispatcher only)
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    delete:
+      tags: [Dispatches]
+      summary: Admin reverses today's dispatcher finalization (admin)
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dispatches/{id}/submit:
+    patch:
+      tags: [Dispatches]
+      summary: Salesman submits (locks) their entry
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dispatches/{id}/lock:
+    patch:
+      tags: [Dispatches]
+      summary: Lock an entry (admin/superadmin unrestricted; dispatcher only for today, before finalization)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dispatches/{id}/unlock:
+    patch:
+      tags: [Dispatches]
+      summary: Unlock an entry (admin/superadmin unrestricted; dispatcher only for today, before finalization)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /dispatches/{id}:
+    delete:
+      tags: [Dispatches]
+      summary: Delete a dispatch (dispatcher blocked; salesman only their own, unlocked)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Salesperson Balance ───────────────────────────────────────────────────
+  /salesperson-balance:
+    get:
+      tags: [Salesperson Balance]
+      summary: All active salespeople's balance snapshot for a date (admin)
+      parameters: [{ $ref: '#/components/parameters/DateQueryRequired' }]
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /salesperson-balance/{id}:
+    get:
+      tags: [Salesperson Balance]
+      summary: One salesperson's balance snapshot for a date (admin, or the salesman themselves)
+      parameters:
+        - { $ref: '#/components/parameters/IdPath' }
+        - { $ref: '#/components/parameters/DateQueryRequired' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /salesperson-balance/{id}/history:
+    get:
+      tags: [Salesperson Balance]
+      summary: Paginated balance history for a salesperson, with top-up attribution (admin, or the salesman themselves)
+      parameters:
+        - { $ref: '#/components/parameters/IdPath' }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date }, description: 'Defaults to the last 90 days when from/to are omitted' }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessPaginated' }
+
+  # ── Salesperson Payments ──────────────────────────────────────────────────
+  /salesperson-payments:
+    get:
+      tags: [Salesperson Payments]
+      summary: List payments (salesman sees own; admin sees all/filtered; dispatcher blocked)
+      parameters:
+        - { name: salespersonId, in: query, schema: { type: integer } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer }, description: 'Opt-in: supplying page or limit switches the response to { items, pagination }' }
+        - { name: limit, in: query, schema: { type: integer, maximum: 100 } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessListOrPaginated' }
+    post:
+      tags: [Salesperson Payments]
+      summary: Record a collection from a salesperson (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSalespersonPaymentInput' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /salesperson-payments/bulk-topup:
+    post:
+      tags: [Salesperson Payments]
+      summary: Bulk-load pre-existing dues for several salespeople at once (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkTopUpInput' }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /salesperson-payments/{id}:
+    put:
+      tags: [Salesperson Payments]
+      summary: Update a payment (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSalespersonPaymentInput' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    delete:
+      tags: [Salesperson Payments]
+      summary: Delete a payment (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Salesperson Statement ─────────────────────────────────────────────────
+  /salesperson-statement/me:
+    get:
+      tags: [Salesperson Statement]
+      summary: The logged-in salesman's own statement for a date range
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+
+  # ── Reports (all admin-only except daily-dispatch, which dispatcher may also read) ──
+  /reports/dairy-statement:
+    get:
+      tags: [Reports]
+      summary: Dairy ledger statement for a brand + date range
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: integer } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /reports/salesperson-statement:
+    get:
+      tags: [Reports]
+      summary: Salesperson ledger statement for a salesperson + date range
+      parameters:
+        - { name: salespersonId, in: query, required: true, schema: { type: integer } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+  /reports/stock-summary:
+    get:
+      tags: [Reports]
+      summary: Daily stock received vs. dispatched, across brands or one brand/route
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: date, in: query, schema: { type: string, format: date }, description: 'Legacy single-date shorthand for from=to=date' }
+        - { name: brandId, in: query, schema: { type: integer } }
+        - { name: routeId, in: query, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /reports/outstanding:
+    get:
+      tags: [Reports]
+      summary: Latest outstanding balance per active brand and per active salesperson
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /reports/deposit-summary:
+    get:
+      tags: [Reports]
+      summary: Crate/container deposit ledger for a brand + date range (receipts + manual top-ups merged)
+      parameters:
+        - { name: brandId, in: query, required: true, schema: { type: integer } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /reports/daily-dispatch:
+    get:
+      tags: [Reports]
+      summary: Dispatch matrix (salesperson × product) for a date (admin or dispatcher)
+      parameters:
+        - { $ref: '#/components/parameters/DateQueryRequired' }
+        - { name: includeReceipts, in: query, schema: { type: boolean }, description: 'Also surface every product with stock received that day (Stock Balance view)' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /reports/profit-loss:
+    get:
+      tags: [Reports]
+      summary: Per-salesman profit & loss over a date range (billed price vs. dairy cost, at time of dispatch)
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── PIN ───────────────────────────────────────────────────────────────────
+  /pin/verify:
+    post:
+      tags: [PIN]
+      summary: Verify the shared edit PIN for a protected action (admin)
+      description: Rate-limited to 5 attempts per 15 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties: { pin: { oneOf: [{ type: string }, { type: integer }] } }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '400': { description: Incorrect PIN }
+        '429': { description: Rate limited — 5 attempts/15 min }
+
+  # ── Routes ────────────────────────────────────────────────────────────────
+  /routes:
+    get:
+      tags: [Routes]
+      summary: List Nandini delivery routes for a brand (admin)
+      parameters:
+        - { name: brandId, in: query, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+    post:
+      tags: [Routes]
+      summary: Create a route (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brandId, routeNumber]
+              properties:
+                brandId: { type: integer }
+                routeNumber: { type: string }
+                displayOrder: { type: integer }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /routes/{id}:
+    put:
+      tags: [Routes]
+      summary: Update a route (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    delete:
+      tags: [Routes]
+      summary: Delete a route (admin)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Admin Users ───────────────────────────────────────────────────────────
+  /admin-users:
+    get:
+      tags: [Admin Users]
+      summary: List admin/superadmin/dispatcher accounts (superadmin only)
+      responses:
+        '200': { $ref: '#/components/responses/SuccessList' }
+    post:
+      tags: [Admin Users]
+      summary: Create an admin/superadmin/dispatcher account (superadmin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, minLength: 3 }
+                password: { type: string, minLength: 6 }
+                role: { type: string, enum: [admin, superadmin, dispatcher], default: admin }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+  /admin-users/{id}:
+    put:
+      tags: [Admin Users]
+      summary: Update an admin account (superadmin only; cannot self-demote/deactivate into lockout)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    delete:
+      tags: [Admin Users]
+      summary: Delete an admin account (superadmin only)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+  # ── Client Errors ─────────────────────────────────────────────────────────
+  /errors/client:
+    post:
+      tags: [Client Errors]
+      summary: Report a frontend crash (public, no auth — forwarded to Slack)
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message: { type: string }
+                stack: { type: string }
+                page: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    DateQueryRequired:
+      name: date
+      in: query
+      required: true
+      schema: { type: string, format: date }
+
+  schemas:
+    SuccessEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: {}
+    ErrorEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error: { type: string }
+        code: { type: string, description: 'DUPLICATE | NOT_FOUND | FK_CONSTRAINT | VALIDATION_ERROR (present for some error classes only)' }
+
+    ReorderList:
+      type: array
+      items:
+        type: object
+        required: [id, displayOrder]
+        properties:
+          id: { type: integer }
+          displayOrder: { type: integer }
+
+    Brand:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        displayOrder: { type: integer }
+        depositEnabled: { type: boolean }
+        depositPerLitre: { type: number }
+        depositCalcMethod: { type: string }
+        isActive: { type: boolean }
+        isArchived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    Category:
+      type: object
+      properties:
+        id: { type: integer }
+        brandId: { type: integer }
+        name: { type: string }
+        displayOrder: { type: integer }
+        depositEnabled: { type: boolean }
+
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        brandId: { type: integer }
+        name: { type: string }
+        category: { type: string, nullable: true }
+        unitType: { type: string, enum: [ml, gram, piece] }
+        unitSize: { type: integer, nullable: true }
+        mlPerCrate: { type: integer, nullable: true }
+        containerType: { type: string, enum: [crate, box], nullable: true }
+        unitsPerContainer: { type: integer, nullable: true }
+        costPrice: { type: number }
+        sellingPrice: { type: number }
+        isActive: { type: boolean }
+        showInStockReceipt: { type: boolean }
+        salespersonEnabled: { type: boolean }
+        salespersonDefaultPrice: { type: number }
+        depositEnabled: { type: boolean }
+        displayOrder: { type: integer }
+        upcomingCostPrice: { type: number, nullable: true }
+        upcomingCostPriceFrom: { type: string, format: date, nullable: true }
+        upcomingSellingPrice: { type: number, nullable: true }
+        upcomingSellingPriceFrom: { type: string, format: date, nullable: true }
+
+    CreateProductInput:
+      type: object
+      required: [brandId, name]
+      properties:
+        brandId: { type: integer }
+        name: { type: string }
+        category: { type: string, nullable: true }
+        unitType: { type: string, enum: [ml, gram, piece], default: piece }
+        unitSize: { type: integer, nullable: true }
+        mlPerCrate: { type: integer, nullable: true }
+        containerType: { type: string, enum: [crate, box], nullable: true }
+        unitsPerContainer: { type: integer, nullable: true }
+        costPrice: { type: number, default: 0 }
+        sellingPrice: { type: number, default: 0 }
+        effectiveFrom: { type: string, format: date, description: 'Today (IST) or later' }
+        sellingPriceEffectiveFrom: { type: string, format: date, description: 'Today (IST) or later' }
+    UpdateProductInput:
+      allOf:
+        - $ref: '#/components/schemas/CreateProductInput'
+        - type: object
+          properties:
+            isActive: { type: boolean }
+            showInStockReceipt: { type: boolean }
+            depositEnabled: { type: boolean }
+          required: []
+
+    Route:
+      type: object
+      properties:
+        id: { type: integer }
+        brandId: { type: integer }
+        routeNumber: { type: string }
+        displayOrder: { type: integer }
+        isActive: { type: boolean }
+
+    Salesperson:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        phone: { type: string, nullable: true }
+        route: { type: string, nullable: true }
+        username: { type: string, nullable: true }
+        isActive: { type: boolean }
+        displayOrder: { type: integer }
+
+    StockDispatchItem:
+      type: object
+      properties:
+        productId: { type: integer }
+        quantity: { type: number }
+        unitPrice: { type: number }
+        totalAmount: { type: number }
+
+    StockDispatch:
+      type: object
+      properties:
+        id: { type: integer }
+        salespersonId: { type: integer }
+        dispatchDate: { type: string, format: date }
+        totalAmount: { type: number }
+        notes: { type: string, nullable: true }
+        isSubmitted: { type: boolean }
+        isAdminUnlocked: { type: boolean }
+        isLocked: { type: boolean, description: 'Derived: (isSubmitted || pastDate) && !isAdminUnlocked' }
+        items: { type: array, items: { $ref: '#/components/schemas/StockDispatchItem' } }
+
+    DairyBalance:
+      type: object
+      properties:
+        brandId: { type: integer }
+        balanceDate: { type: string, format: date }
+        openingBalance: { type: number }
+        stockValue: { type: number }
+        depositValue: { type: number }
+        topUpAmount: { type: number, description: 'Pre-existing dues loaded by an admin — ADDS to the balance' }
+        amountPaid: { type: number, description: 'Real payments only — SUBTRACTS from the balance' }
+        closingBalance: { type: number, description: 'opening + stockValue + depositValue + topUpAmount − amountPaid' }
+
+    SalespersonBalance:
+      type: object
+      properties:
+        salespersonId: { type: integer }
+        balanceDate: { type: string, format: date }
+        openingBalance: { type: number }
+        stockGiven: { type: number }
+        topUpAmount: { type: number, description: 'Pre-existing dues loaded by an admin — ADDS to the balance' }
+        amountPaid: { type: number, description: 'Real payments only — SUBTRACTS from the balance' }
+        closingBalance: { type: number, description: 'opening + stockGiven + topUpAmount − amountPaid' }
+
+    CreateDairyPaymentInput:
+      type: object
+      required: [brandId, paymentDate, amount]
+      properties:
+        brandId: { type: integer }
+        paymentDate: { type: string, format: date }
+        amount: { type: number, minimum: 0, exclusiveMinimum: true }
+        paymentMode: { type: string, enum: [Cash, UPI, NEFT, RTGS, Cheque, Online] }
+        reference: { type: string, maxLength: 500 }
+        notes: { type: string, maxLength: 500 }
+
+    CreateSalespersonPaymentInput:
+      type: object
+      required: [salespersonId, paymentDate, amount]
+      properties:
+        salespersonId: { type: integer }
+        paymentDate: { type: string, format: date }
+        amount: { type: number, minimum: 0, exclusiveMinimum: true }
+        paymentMode: { type: string, enum: [Cash, UPI, NEFT, RTGS, Cheque, Online] }
+        reference: { type: string, maxLength: 500 }
+        notes: { type: string, maxLength: 500 }
+
+    BulkTopUpInput:
+      type: object
+      required: [paymentDate, entries]
+      properties:
+        paymentDate: { type: string, format: date }
+        notes: { type: string, maxLength: 500 }
+        entries:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [amount]
+            properties:
+              brandId: { type: integer, description: 'Dairy top-up entries use brandId' }
+              salespersonId: { type: integer, description: 'Salesperson top-up entries use salespersonId' }
+              amount: { type: number, minimum: 0, exclusiveMinimum: true }
+
+    AdminUser:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        role: { type: string, enum: [admin, superadmin, dispatcher] }
+        isActive: { type: boolean }
+
+  responses:
+    Success:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+    SuccessList:
+      description: OK — data is an array
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { type: array, items: {} } }
+    SuccessPaginated:
+      description: OK — data is `{ items, pagination }`
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items: { type: array, items: {} }
+                      pagination:
+                        type: object
+                        properties:
+                          total: { type: integer }
+                          page: { type: integer }
+                          limit: { type: integer }
+                          pages: { type: integer }
+                          hasMore: { type: boolean }
+    SuccessListOrPaginated:
+      description: OK — a flat array by default, or `{ items, pagination }` when `page`/`limit` is supplied
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { type: array, items: {} } }
+              - allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items: { type: array, items: {} }
+                          pagination: { type: object }
+    BrandOne:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Brand' } }
+    BrandList:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/Brand' } } }
+    CategoryOne:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Category' } }
+    CategoryList:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/Category' } } }
+    ProductOne:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Product' } }
+    ProductList:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/Product' } } }
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Forbidden:
+      description: Authenticated, but insufficient role
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }

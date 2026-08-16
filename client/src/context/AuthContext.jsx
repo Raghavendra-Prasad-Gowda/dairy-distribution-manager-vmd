@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext, useRef } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import api from '../api/axios';
 import { SESSION_MS, expireSessionAndRedirect } from '../utils/session';
 
@@ -9,19 +9,40 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const timerRef = useRef(null);
 
-  const clearTimer = () => {
+  // These helpers only ever close over the stable timerRef, the stable setUser
+  // setter, and module-level imports — none of that changes across renders, so
+  // useCallback([]) (or a dep on another useCallback below) gives each a truly
+  // stable identity that's safe to list in the mount effect's deps.
+  const clearTimer = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-  };
+  }, []);
 
-  const scheduleExpiry = (loginTime, doLogout) => {
+  const scheduleExpiry = useCallback((loginTime, doLogout) => {
     clearTimer();
     const remaining = SESSION_MS - (Date.now() - loginTime);
     if (remaining <= 0) return false;
     timerRef.current = setTimeout(doLogout, remaining);
     return true;
-  };
+  }, [clearTimer]);
 
-  useEffect(() => {
+  const clearStorage = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('loginTime');
+    delete api.defaults.headers.common['Authorization'];
+  }, []);
+
+  const performAutoLogout = useCallback(async () => {
+    clearTimer();
+    await api.post('/auth/logout').catch(() => {});
+    setUser(null);
+    expireSessionAndRedirect('Your session expired after 2 hours. Please log in again.');
+  }, [clearTimer]);
+
+  // Reads localStorage and schedules the expiry timer — a real side effect
+  // (setTimeout), so it stays behind useEffect rather than becoming a lazy
+  // useState initializer like Login.jsx's one-shot session notice.
+  const hydrateSession = useCallback(() => {
     const token     = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     const loginTime = Number(localStorage.getItem('loginTime'));
@@ -36,22 +57,21 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
+  }, [scheduleExpiry, performAutoLogout, clearStorage]);
+
+  useEffect(() => {
+    // hydrateSession reads localStorage and, when a still-valid session is
+    // found, both sets user state AND schedules the real side effect this
+    // mount effect exists for (the expiry setTimeout via scheduleExpiry) —
+    // the two are intentionally one atomic step so the timer is always
+    // armed in the same tick the user is restored. Splitting the setUser
+    // call out into a lazy useState initializer would leave a window where
+    // a stale/expired session could render as logged-in with no expiry
+    // timer running.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    hydrateSession();
     return clearTimer;
-  }, []);
-
-  function clearStorage() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('loginTime');
-    delete api.defaults.headers.common['Authorization'];
-  }
-
-  async function performAutoLogout() {
-    clearTimer();
-    await api.post('/auth/logout').catch(() => {});
-    setUser(null);
-    expireSessionAndRedirect('Your session expired after 2 hours. Please log in again.');
-  }
+  }, [hydrateSession, clearTimer]);
 
   const login = async (username, password) => {
     try {
@@ -97,4 +117,9 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// Co-locating the hook with its Provider only costs Fast Refresh granularity
+// (an edit here triggers a full reload instead of an HMR patch) — no runtime
+// or correctness impact. Splitting into a separate useAuth.js file would
+// mean updating ~13 import sites for a dev-experience-only gain.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

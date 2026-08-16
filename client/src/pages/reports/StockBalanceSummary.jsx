@@ -32,19 +32,29 @@ export default function StockBalanceSummary() {
       .catch(() => setError('Failed to load brands'));
   }, []);
 
+  // Fetch lives inside the effect so no state is set synchronously during
+  // render, and the `cancelled` flag drops a slow in-flight response if the
+  // date changes again before it lands.
   useEffect(() => {
-    setLoading(true);
-    setError('');
-    Promise.all([
-      api.get(`/stock-receipts/availability?date=${date}`),
-      api.get(`/reports/daily-dispatch?date=${date}&includeReceipts=1`),
-    ])
-      .then(([availRes, dispRes]) => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [availRes, dispRes] = await Promise.all([
+          api.get(`/stock-receipts/availability?date=${date}`),
+          api.get(`/reports/daily-dispatch?date=${date}&includeReceipts=1`),
+        ]);
+        if (cancelled) return;
         setAvailData(availRes.data.data ?? []);
         setDispatchData(dispRes.data.data ?? null);
-      })
-      .catch(e => setError(e.response?.data?.error ?? 'Failed to load data'))
-      .finally(() => setLoading(false));
+      } catch (e) {
+        if (!cancelled) setError(e.response?.data?.error ?? 'Failed to load data');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [date]);
 
   // Column definitions — products for the active brand

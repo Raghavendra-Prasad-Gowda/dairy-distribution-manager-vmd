@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
@@ -131,9 +131,11 @@ export default function DairyPayments() {
 
   const today = getIndiaDate();
 
-  // Breakdown panel state
-  const [breakdown,        setBreakdown]        = useState(null);
-  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  // Breakdown panel state. The loading flag is tracked (set around the fetch
+  // below) but not currently rendered anywhere — no skeleton/spinner reads it
+  // yet — so the read side is intentionally unused for now.
+  const [breakdown,         setBreakdown]        = useState(null);
+  const [_breakdownLoading, setBreakdownLoading] = useState(false);
 
   // Prefill state wired into PaymentForm
   const [paymentPrefill,   setPaymentPrefill]   = useState(null);
@@ -150,15 +152,15 @@ export default function DairyPayments() {
         }
       })
       .catch(() => notify('Failed to load brands', 'error'));
+    // Deliberately mount-only: reads the URL's initial ?brandId= once to seed
+    // the selection. searchParams is intentionally excluded — react-router
+    // hands back a new object each navigation, and this must NOT refetch
+    // /brands every time the URL changes. notify is stable (useCallback([])
+    // in NotificationContext) so its omission never affects firing either way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchAll();
-    fetchBreakdown();
-  }, [activeBrandId]);
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const [balRes, pmtRes] = await Promise.all([
@@ -172,9 +174,9 @@ export default function DairyPayments() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeBrandId, today, notify]);
 
-  async function fetchBreakdown() {
+  const fetchBreakdown = useCallback(async () => {
     if (!activeBrandId) return;
     setBreakdownLoading(true);
     try {
@@ -185,7 +187,13 @@ export default function DairyPayments() {
     } finally {
       setBreakdownLoading(false);
     }
-  }
+  }, [activeBrandId, today]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    fetchAll();
+    fetchBreakdown();
+  }, [activeBrandId, fetchAll, fetchBreakdown]);
 
   const handlePayment = async (formData) => {
     setSaving(true);

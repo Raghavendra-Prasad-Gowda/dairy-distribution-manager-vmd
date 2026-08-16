@@ -34,7 +34,7 @@ vi.mock('../../context/AuthContext', () => ({
 }));
 
 vi.mock('../../components/BrandTabs', () => ({
-  default: ({ brands, activeBrandId, onChange }) => (
+  default: ({ brands, onChange }) => (
     <div data-testid="brand-tabs">
       {brands.map(b => (
         <button key={b.id} onClick={() => onChange(b.id)}>

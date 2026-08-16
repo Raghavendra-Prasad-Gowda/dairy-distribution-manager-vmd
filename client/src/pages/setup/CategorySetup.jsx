@@ -6,6 +6,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
@@ -15,8 +16,6 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
   const { notify } = useNotification();
   const [brands, setBrands]         = useState(shellBrands ?? []);
   const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]         = useState('');
@@ -31,32 +30,24 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [inShell, notify]);
 
   useEffect(() => {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  }, [shellActiveBrandId, shellBrands, inShell]);
+
+  const { data: categories, loading, refetch: fetchCategories } = useApiResource(
+    activeBrandId ? `/categories?brandId=${activeBrandId}` : null,
+    { initialData: [] }
+  );
 
   useEffect(() => {
     if (!activeBrandId) return;
-    fetchCategories();
     setSearch('');
     setCurrentPage(1);
   }, [activeBrandId]);
 
   useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function fetchCategories() {
-    setLoading(true);
-    try {
-      const r = await api.get(`/categories?brandId=${activeBrandId}`);
-      setCategories(r.data.data);
-    } catch {
-      notify('Failed to load categories', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const openAdd = () => { setEditingCat(null); setFormName(''); setIsModalOpen(true); };
   const openEdit = (cat) => { setEditingCat(cat); setFormName(cat.name); setIsModalOpen(true); };

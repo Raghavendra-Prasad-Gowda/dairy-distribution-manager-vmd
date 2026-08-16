@@ -72,7 +72,7 @@ export default function SalesmanProfitLoss() {
     })();
 
     return () => { cancelled = true; };
-  }, [from, to]);
+  }, [from, to, notify]);
 
   const salespeople = useMemo(() => data?.salespeople ?? [], [data]);
 

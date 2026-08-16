@@ -38,6 +38,10 @@ const schemas = {
     currentPassword: z.string().min(1, 'Current password is required'),
     newPassword: z.string().min(6, 'New password must be at least 6 characters'),
   }),
+  verifyPin: z.object({
+    // Accept string or number from the client, coerce to string for comparison.
+    pin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'PIN is required')),
+  }),
 
   // Brands
   createBrand: z.object({
@@ -105,6 +109,18 @@ const schemas = {
     id:           z.number().int().positive(),
     displayOrder: z.number().int().nonnegative(),
   })),
+  // Bulk update of the global salesperson-access flag / default price per product.
+  // The "enabling requires a positive default price" rule is enforced in the
+  // controller (it needs the cross-field context) but the shapes are checked here.
+  updateSalespersonGlobal: z.object({
+    products: z.array(z.object({
+      productId:    z.number().int().positive('productId is required'),
+      isEnabled:    z.boolean().optional(),
+      // Price SEMANTICS ("must be > 0 to enable") are enforced in the controller
+      // where the cross-field context lives; here we only check the type.
+      defaultPrice: z.number().optional(),
+    })).min(1, 'products array is required'),
+  }),
 
   // Stock Receipts (qty 0 is meaningful — it means "no receipt for this product
   // on this day", and the controller filters those out before insert)

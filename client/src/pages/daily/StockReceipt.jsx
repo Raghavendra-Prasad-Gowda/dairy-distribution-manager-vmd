@@ -46,7 +46,6 @@ export default function StockReceipt() {
   const inputRefs = useRef({});
 
   const COL_COUNT  = 5;
-  const today       = getIndiaDate();
   const activeRoute = routes[activeRouteIdx] ?? null;
   const activeColor = ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length];
   const hasRoutes   = routes.length > 0;
@@ -74,7 +73,7 @@ export default function StockReceipt() {
         setActiveBrand(matched ?? null);
       })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, [brandName]);
+  }, [brandName, notify]);
 
   // ─── Routes (all brands) ──────────────────────────────────────────────────
   useEffect(() => {
@@ -137,7 +136,7 @@ export default function StockReceipt() {
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
-  }, [activeBrand, date]);
+  }, [activeBrand, date, notify]);
 
   // ─── Keyboard nav ─────────────────────────────────────────────────────────
   const allFiltered = useMemo(
@@ -166,7 +165,7 @@ export default function StockReceipt() {
     });
   }
 
-  const groupedData = useMemo(filteredGrouped, [products, categories, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groupedData = useMemo(filteredGrouped, [products, categories, search]);
 
   const handleKeyDown = (e, productId) => {
     if (e.key !== 'Enter' && e.key !== 'Tab') return;
@@ -220,7 +219,6 @@ export default function StockReceipt() {
   // ─── Derived totals ───────────────────────────────────────────────────────
   // Balance card — sum across ALL routes
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
-  const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
 
   // Live deposit — recomputes as quantities are entered, mirrors balance service logic
   const liveDepositValue = React.useMemo(() => {

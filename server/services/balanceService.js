@@ -4,11 +4,14 @@ const { qualifiesForDeposit, calculateLineDeposit } = require('./depositRules');
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
- * Computes and upserts DairyBalance for a single date.
- * Accepts an optional transaction client (tx) so it can run inside a
- * serializable transaction when cascading multiple dates.
+ * Computes the DairyBalance figures for a single date WITHOUT persisting them.
+ * This is the single source of truth for the dairy balance formula — both the
+ * ledger writer (_calcDairyBalance) and the read-time fallback
+ * (computeDairyBalance) go through here so they can never drift.
+ *
+ * Formula: closing = opening + stockValue + depositValue + topUpAmount − amountPaid
  */
-async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
+async function _computeDairyBalance(brandId, balanceDate, tx = prisma) {
   const prev = await tx.dairyBalance.findFirst({
     where: { brandId, balanceDate: { lt: balanceDate } },
     orderBy: { balanceDate: 'desc' },
@@ -58,18 +61,31 @@ async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
   const topUpAmount = Number(topUpAgg._sum.amount ?? 0);
   const closingBalance = openingBalance + stockValue + depositValue + topUpAmount - amountPaid;
 
+  return { brandId, balanceDate, openingBalance, stockValue, depositValue, topUpAmount, amountPaid, closingBalance };
+}
+
+/**
+ * Computes and upserts DairyBalance for a single date.
+ * Accepts an optional transaction client (tx) so it can run inside a
+ * serializable transaction when cascading multiple dates.
+ */
+async function _calcDairyBalance(brandId, balanceDate, tx = prisma) {
+  const b = await _computeDairyBalance(brandId, balanceDate, tx);
   return tx.dairyBalance.upsert({
     where: { brandId_balanceDate: { brandId, balanceDate } },
-    update: { openingBalance, stockValue, depositValue, topUpAmount, amountPaid, closingBalance },
-    create: { brandId, balanceDate, openingBalance, stockValue, depositValue, topUpAmount, amountPaid, closingBalance },
+    update: { openingBalance: b.openingBalance, stockValue: b.stockValue, depositValue: b.depositValue, topUpAmount: b.topUpAmount, amountPaid: b.amountPaid, closingBalance: b.closingBalance },
+    create: { brandId, balanceDate, openingBalance: b.openingBalance, stockValue: b.stockValue, depositValue: b.depositValue, topUpAmount: b.topUpAmount, amountPaid: b.amountPaid, closingBalance: b.closingBalance },
   });
 }
 
 /**
- * Computes and upserts SalespersonBalance for a single date.
- * Accepts an optional transaction client (tx).
+ * Computes the SalespersonBalance figures for a single date WITHOUT persisting.
+ * Single source of truth for the salesperson balance formula, shared by the
+ * ledger writer and the read-time fallback.
+ *
+ * Formula: closing = opening + stockGiven + topUpAmount − amountPaid
  */
-async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) {
+async function _computeSalespersonBalance(salespersonId, balanceDate, tx = prisma) {
   const [prev, dispatchAgg, paymentAgg, topUpAgg] = await Promise.all([
     tx.salespersonBalance.findFirst({
       where: { salespersonId, balanceDate: { lt: balanceDate } },
@@ -97,10 +113,19 @@ async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) 
   const topUpAmount    = Number(topUpAgg._sum.amount ?? 0);
   const closingBalance = openingBalance + stockGiven + topUpAmount - amountPaid;
 
+  return { salespersonId, balanceDate, openingBalance, stockGiven, topUpAmount, amountPaid, closingBalance };
+}
+
+/**
+ * Computes and upserts SalespersonBalance for a single date.
+ * Accepts an optional transaction client (tx).
+ */
+async function _calcSalespersonBalance(salespersonId, balanceDate, tx = prisma) {
+  const b = await _computeSalespersonBalance(salespersonId, balanceDate, tx);
   return tx.salespersonBalance.upsert({
     where: { salespersonId_balanceDate: { salespersonId, balanceDate } },
-    update: { openingBalance, stockGiven, topUpAmount, amountPaid, closingBalance },
-    create: { salespersonId, balanceDate, openingBalance, stockGiven, topUpAmount, amountPaid, closingBalance },
+    update: { openingBalance: b.openingBalance, stockGiven: b.stockGiven, topUpAmount: b.topUpAmount, amountPaid: b.amountPaid, closingBalance: b.closingBalance },
+    create: { salespersonId, balanceDate, openingBalance: b.openingBalance, stockGiven: b.stockGiven, topUpAmount: b.topUpAmount, amountPaid: b.amountPaid, closingBalance: b.closingBalance },
   });
 }
 
@@ -172,4 +197,25 @@ async function recalculateSalespersonBalance(salespersonId, date, tx = null) {
   }
 }
 
-module.exports = { recalculateDairyBalance, recalculateSalespersonBalance };
+/**
+ * Read-only dairy balance snapshot for a date, WITHOUT persisting a row.
+ * Used by read endpoints when no DairyBalance row exists yet for the date,
+ * so the on-the-fly figure matches exactly what the cascade would have written.
+ */
+async function computeDairyBalance(brandId, date, tx = prisma) {
+  return _computeDairyBalance(brandId, new Date(date), tx);
+}
+
+/**
+ * Read-only salesperson balance snapshot for a date, WITHOUT persisting a row.
+ */
+async function computeSalespersonBalance(salespersonId, date, tx = prisma) {
+  return _computeSalespersonBalance(salespersonId, new Date(date), tx);
+}
+
+module.exports = {
+  recalculateDairyBalance,
+  recalculateSalespersonBalance,
+  computeDairyBalance,
+  computeSalespersonBalance,
+};

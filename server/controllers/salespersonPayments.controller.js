@@ -3,12 +3,16 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+const { cascadeAroundDateChange, validateBulkEntities } = require('../services/paymentLedger');
+const { getActingUsername } = require('../utils/actor');
+const { getPaginationParams, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { assertAdmin } = require('../utils/authz');
 
 // Admin only — records payment received from salesperson
 const create = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.createSalespersonPayment, req, res);
   if (!data) return;
@@ -39,31 +43,20 @@ const create = asyncHandler(async (req, res) => {
 const bulkTopUp = asyncHandler(async (req, res) => {
   // Route already gates this with requireAdmin; repeated here so the guard
   // survives the handler being remounted somewhere less strict.
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const data = validate(schemas.bulkSalespersonTopUp, req, res);
   if (!data) return;
 
   const ids = data.entries.map(e => e.salespersonId);
-  if (new Set(ids).size !== ids.length) {
-    throw new AppError('Each salesperson can only appear once', 400);
-  }
-
-  const found = await prisma.salesperson.findMany({
-    where:  { id: { in: ids } },
-    select: { id: true, name: true },
+  const found = await validateBulkEntities({
+    ids,
+    findMany: (args) => prisma.salesperson.findMany(args),
+    label: 'salesperson',
   });
-  if (found.length !== ids.length) {
-    const missing = ids.filter(id => !found.some(s => s.id === id));
-    throw new AppError(`Salesperson not found: ${missing.join(', ')}`, 404);
-  }
 
   // Stamped on every row so the salesman can see who loaded the amount.
-  const admin = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
-    select: { username: true },
-  });
-  const createdBy = admin?.username ?? 'admin';
+  const createdBy = await getActingUsername(req);
 
   const created = await prisma.$transaction(async (tx) => {
     const rows = [];
@@ -122,17 +115,26 @@ const getAll = asyncHandler(async (req, res) => {
     if (to)   where.paymentDate.lte = new Date(to);
   }
 
-  const payments = await prisma.salespersonPayment.findMany({
-    where,
-    include: { salesperson: { select: { id: true, name: true } } },
-    orderBy: { paymentDate: 'desc' },
-  });
+  const include = { salesperson: { select: { id: true, name: true } } };
+  const orderBy = { paymentDate: 'desc' };
+
+  // Opt-in pagination: engages only when ?page/?limit is supplied.
+  const paging = getPaginationParams(req.query);
+  if (paging) {
+    const [items, total] = await Promise.all([
+      prisma.salespersonPayment.findMany({ where, include, orderBy, skip: paging.skip, take: paging.limit }),
+      prisma.salespersonPayment.count({ where }),
+    ]);
+    return res.json({ success: true, data: { items, pagination: buildPaginationMeta(total, paging.page, paging.limit) } });
+  }
+
+  const payments = await prisma.salespersonPayment.findMany({ where, include, orderBy });
   res.json({ success: true, data: payments });
 });
 
 // Admin only
 const update = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const id = parseId(req.params.id, 'Payment ID');
   const data = validate(schemas.updateSalespersonPayment, req, res);
@@ -148,12 +150,7 @@ const update = asyncHandler(async (req, res) => {
       where: { id },
       data: { ...data, paymentDate: new Date(data.paymentDate) },
     });
-    const earliest = oldDate < newDate ? oldDate : newDate;
-    await recalculateSalespersonBalance(existing.salespersonId, earliest, tx);
-    if (newDate !== oldDate) {
-      const later = oldDate < newDate ? newDate : oldDate;
-      await recalculateSalespersonBalance(existing.salespersonId, later, tx);
-    }
+    await cascadeAroundDateChange(recalculateSalespersonBalance, existing.salespersonId, oldDate, newDate, tx);
     return u;
   }, { isolationLevel: 'Serializable' });
   logger.info('Salesperson payment updated', { id, salespersonId: existing.salespersonId, amount: data.amount, date: newDate });
@@ -169,7 +166,7 @@ const update = asyncHandler(async (req, res) => {
 
 // Admin only
 const remove = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') throw new AppError('Admin access required', 403);
+  assertAdmin(req);
 
   const id = parseId(req.params.id, 'Payment ID');
   const payment = await prisma.salespersonPayment.findUnique({ where: { id } });

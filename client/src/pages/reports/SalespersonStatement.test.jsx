@@ -12,6 +12,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalespersonStatement from './SalespersonStatement';
 import api from '../../api/axios';
 
+const notify = vi.fn();
+vi.mock('../../context/NotificationContext', () => ({
+  useNotification: () => ({ notify }),
+}));
+
 vi.mock('../../api/axios', () => ({
   default: { get: vi.fn() },
 }));

@@ -74,6 +74,7 @@ function createMockPrisma() {
       update:     mockFn(),
       delete:     mockFn(),
       aggregate:  mockFn(),
+      count:      mockFn(),
     },
     dairyDepositTopUp: {
       findMany:   mockFn(),

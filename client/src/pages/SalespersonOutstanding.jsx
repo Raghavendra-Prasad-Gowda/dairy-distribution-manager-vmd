@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, CreditCard } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
 import BrandedLoader from '../components/ui/BrandedLoader';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
-import { useNotification } from '../context/NotificationContext';
-import api from '../api/axios';
+import { useApiResource } from '../hooks/useApiResource';
 
 function getInitials(name) {
   const parts = name.trim().split(/\s+/);
@@ -96,20 +95,14 @@ function SpCard({ sp }) {
 }
 
 export default function SalespersonOutstanding() {
-  const { notify } = useNotification();
-  const [date, setDate]       = useState(getIndiaDate());
-  const [balances, setBalances] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-
-  useEffect(() => {
-    setLoading(true);
-    setError('');
-    api.get(`/salesperson-balance?date=${date}`)
-      .then(r => setBalances(r.data.data ?? []))
-      .catch(e => setError(e.response?.data?.error ?? 'Failed to load data'))
-      .finally(() => setLoading(false));
-  }, [date]);
+  const [date, setDate] = useState(getIndiaDate());
+  // Data fetching, loading, and error handling via the shared hook. The page
+  // renders errors inline (banner), so it opts out of the default error toast.
+  const { data: balances, loading, error } = useApiResource('/salesperson-balance', {
+    params: { date },
+    initialData: [],
+    notifyOnError: false,
+  });
 
   const totalOwing       = balances.reduce((s, b) => s + Math.max(0, b.closingBalance ?? 0), 0);
   const clearedCount     = balances.filter(b => (b.closingBalance ?? 0) <= 0).length;
