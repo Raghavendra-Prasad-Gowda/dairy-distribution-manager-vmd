@@ -504,9 +504,7 @@ const finalizeDay = asyncHandler(async (req, res) => {
 // dispatcher regains lock/unlock access. Does NOT touch the dispatch entries
 // themselves (no rows are unlocked — that's a separate admin action per row).
 const unfinalizeDay = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
-    throw new AppError('Admin access required', 403);
-  }
+  assertAdmin(req);
 
   const todayStr = getIndiaDateStr();
   // Past dates are auto-finalized by date comparison — there is no DB row to
