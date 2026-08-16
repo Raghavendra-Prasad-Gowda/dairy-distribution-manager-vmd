@@ -1,25 +1,12 @@
 'use strict';
 
-const AppError = require('../../utils/AppError');
+const { assertAdmin, assertRole } = require('../../utils/authz');
 
 // Defense-in-depth: every report endpoint mounts under requireAdmin in app.js,
 // but if that middleware is ever moved or misconfigured, the controller still
-// refuses. Salespeople have no business reading aggregate reports.
-function assertAdmin(req) {
-  const role = req.user?.role;
-  if (role !== 'admin' && role !== 'superadmin') {
-    throw new AppError('Admin access required', 403);
-  }
-}
-
-// dailyDispatch alone is also readable by dispatcher (route-level gate is
-// requireAdminOrDispatcher) — same defense-in-depth purpose as assertAdmin.
-function assertAdminOrDispatcher(req) {
-  const role = req.user?.role;
-  if (role !== 'admin' && role !== 'superadmin' && role !== 'dispatcher') {
-    throw new AppError('Admin access required', 403);
-  }
-}
+// refuses. dailyDispatch alone is also readable by a dispatcher (route-level
+// gate is requireAdminOrDispatcher). Both delegate to the shared authz helper.
+const assertAdminOrDispatcher = (req) => assertRole(req, 'admin', 'superadmin', 'dispatcher');
 
 function round2(n) { return Math.round(n * 100) / 100; }
 function round3(n) { return Math.round(n * 1000) / 1000; }

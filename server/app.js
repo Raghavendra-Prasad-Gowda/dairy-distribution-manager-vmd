@@ -154,7 +154,7 @@ app.use('/api/v1/admin-users',          requireSuperAdmin, adminUsersRoutes);
 // Must be the last middleware. The 4-arg signature (incl. unused _next) is how
 // Express recognizes this as an error handler — the arity matters, not the name.
 app.use((err, req, res, _next) => {
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = env.isDev;
 
   // Prisma known error codes
   if (err.code === 'P2002') {

@@ -10,7 +10,7 @@ client/src/
 │   ├── Layout.jsx          # App shell with sidebar navigation
 │   └── ErrorBoundary.jsx   # Catches ChunkLoadError + unexpected render errors
 ├── context/
-│   ├── AuthContext.jsx     # JWT auth state, session timeout (12h)
+│   ├── AuthContext.jsx     # JWT auth state, session timeout (2h)
 │   └── NotificationContext.jsx
 ├── pages/
 │   ├── Dashboard.jsx
@@ -62,4 +62,4 @@ client/src/
 - Do not store JWT or sensitive data in `localStorage` (auth context uses memory + httpOnly cookie flow).
 - Do not add global state management (Redux, Zustand) without discussion — context has been sufficient.
 - Do not remove the `ErrorBoundary` wrapper.
-- Do not hardcode API base URLs — use the axios instance which reads from `VITE_API_URL`.
+- Do not hardcode API base URLs — use the axios instance which reads from `VITE_API_BASE_URL`.
