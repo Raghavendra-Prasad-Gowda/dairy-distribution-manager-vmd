@@ -188,11 +188,6 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   function expandAll()   { setExpandedRows(new Set(expandableDates)); }
   function collapseAll() { setExpandedRows(new Set()); }
 
-  // When route changes, collapse all rows (user can expand manually).
-  useEffect(() => {
-    setExpandedRows(new Set());
-  }, [selectedRouteId]);
-
   useEffect(() => {
     if (inShell) return;
     api.get('/brands')
@@ -201,15 +196,26 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   }, [inShell]);
 
   useEffect(() => {
+    // Syncs local activeBrandId/brands state from the shell parent's props —
+    // the same pattern repeated across every shell-aware setup/report page
+    // (CategorySetup, RouteSetup, BrandsSetup, SalespersonStatement, …).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId, shellBrands, inShell]);
 
   useEffect(() => {
     if (!activeBrandId) return;
-    setSelectedRouteId('');
-    api.get(`/routes?brandId=${activeBrandId}`)
-      .then(r => setRoutes(r.data.data ?? []))
-      .catch(() => setRoutes([]));
+    let cancelled = false;
+    (async () => {
+      setSelectedRouteId('');
+      try {
+        const r = await api.get(`/routes?brandId=${activeBrandId}`);
+        if (!cancelled) setRoutes(r.data.data ?? []);
+      } catch {
+        if (!cancelled) setRoutes([]);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [activeBrandId]);
 
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
@@ -256,7 +262,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Route</label>
             <select
               value={selectedRouteId}
-              onChange={e => setSelectedRouteId(e.target.value)}
+              onChange={e => { setSelectedRouteId(e.target.value); setExpandedRows(new Set()); }}
               className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
             >
               <option value="">All Routes</option>

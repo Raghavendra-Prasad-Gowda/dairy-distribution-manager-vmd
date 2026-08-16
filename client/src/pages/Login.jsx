@@ -12,26 +12,23 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
-  const [notice, setNotice]     = useState('');
-  const [slowWarning, setSlowWarning] = useState(false);
-  const slowTimer = useRef(null);
-
   // One-shot notice left by expireSessionAndRedirect() (session.js) when the
   // user was bounced here by an expired/timed-out session — tells them why
   // they landed back on the login page instead of leaving them guessing.
-  useEffect(() => {
-    const msg = consumeSessionNotice();
-    if (msg) setNotice(msg);
-  }, []);
+  // consumeSessionNotice() is a synchronous, side-effect-free-on-repeat read
+  // (it clears the sessionStorage flag), so a lazy initializer replaces what
+  // used to be a mount-only effect.
+  const [notice, setNotice]     = useState(() => consumeSessionNotice() || '');
+  const [slowWarning, setSlowWarning] = useState(false);
+  const slowTimer = useRef(null);
 
   useEffect(() => {
-    if (loading) {
-      slowTimer.current = setTimeout(() => setSlowWarning(true), 6000);
-    } else {
+    if (!loading) return;
+    slowTimer.current = setTimeout(() => setSlowWarning(true), 6000);
+    return () => {
       clearTimeout(slowTimer.current);
       setSlowWarning(false);
-    }
-    return () => clearTimeout(slowTimer.current);
+    };
   }, [loading]);
 
   if (user)    return <Navigate to="/" replace />;

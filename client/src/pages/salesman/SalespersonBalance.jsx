@@ -21,27 +21,36 @@ export default function SalespersonBalance() {
 
   const salespersonId = user?.salespersonId;
 
+  // Fetch lives inside the effect so no state is set synchronously during
+  // render, and the `cancelled` flag drops a slow in-flight response if the
+  // filters change again before it lands.
   useEffect(() => {
     if (!salespersonId) return;
-    setLoading(true);
-    setError('');
+    let cancelled = false;
 
     const historyUrl = `/salesperson-balance/${salespersonId}/history?page=${pagination.page}&limit=${pagination.limit}&from=${fromDate}&to=${toDate}`;
 
-    Promise.all([
-      api.get(`/salesperson-balance/${salespersonId}?date=${today}`),
-      api.get(historyUrl),
-    ])
-      .then(([balRes, histRes]) => {
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [balRes, histRes] = await Promise.all([
+          api.get(`/salesperson-balance/${salespersonId}?date=${today}`),
+          api.get(historyUrl),
+        ]);
+        if (cancelled) return;
         const bal = balRes.data.data;
         setBalance(bal || { openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0 });
         setHistory(histRes.data.data.items ?? []);
         setPagination(histRes.data.data.pagination);
-      })
-      .catch((e) => {
-        setError(e.response?.data?.error ?? 'Failed to load balance information');
-      })
-      .finally(() => setLoading(false));
+      } catch (e) {
+        if (!cancelled) setError(e.response?.data?.error ?? 'Failed to load balance information');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [salespersonId, today, pagination.page, pagination.limit, fromDate, toDate]);
 
   if (!salespersonId) {

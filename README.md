@@ -123,8 +123,9 @@ npm run build                  # production build
 ```
 
 CI (`.github/workflows/pr-checks.yml`) runs on every PR to `main`:
-timezone-safety lint, server ESLint, server API tests, client UI tests, and a
-client production build.
+timezone-safety lint, server ESLint, client ESLint, server API tests + coverage
+gate, client UI tests + coverage gate, a client production build, an OpenAPI
+spec lint, and a dependency vulnerability scan.
 
 ---
 

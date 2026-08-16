@@ -55,7 +55,11 @@ export function markRequestEnd(reqId) {
 export function subscribe(fn) {
   listeners.add(fn);
   // Push current state immediately so subscribers don't miss an in-flight wake.
-  try { fn(isWaking); } catch (_) {}
+  try {
+    fn(isWaking);
+  } catch {
+    // A subscriber threw — don't let it break the notify loop for the rest.
+  }
   return () => { listeners.delete(fn); };
 }
 

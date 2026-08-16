@@ -39,7 +39,10 @@ export const AuthProvider = ({ children }) => {
     expireSessionAndRedirect('Your session expired after 2 hours. Please log in again.');
   }, [clearTimer]);
 
-  useEffect(() => {
+  // Reads localStorage and schedules the expiry timer — a real side effect
+  // (setTimeout), so it stays behind useEffect rather than becoming a lazy
+  // useState initializer like Login.jsx's one-shot session notice.
+  const hydrateSession = useCallback(() => {
     const token     = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     const loginTime = Number(localStorage.getItem('loginTime'));
@@ -54,8 +57,21 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
+  }, [scheduleExpiry, performAutoLogout, clearStorage]);
+
+  useEffect(() => {
+    // hydrateSession reads localStorage and, when a still-valid session is
+    // found, both sets user state AND schedules the real side effect this
+    // mount effect exists for (the expiry setTimeout via scheduleExpiry) —
+    // the two are intentionally one atomic step so the timer is always
+    // armed in the same tick the user is restored. Splitting the setUser
+    // call out into a lazy useState initializer would leave a window where
+    // a stale/expired session could render as logged-in with no expiry
+    // timer running.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    hydrateSession();
     return clearTimer;
-  }, [scheduleExpiry, performAutoLogout, clearStorage, clearTimer]);
+  }, [hydrateSession, clearTimer]);
 
   const login = async (username, password) => {
     try {
@@ -101,4 +117,9 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// Co-locating the hook with its Provider only costs Fast Refresh granularity
+// (an edit here triggers a full reload instead of an HMR patch) — no runtime
+// or correctness impact. Splitting into a separate useAuth.js file would
+// mean updating ~13 import sites for a dev-experience-only gain.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
