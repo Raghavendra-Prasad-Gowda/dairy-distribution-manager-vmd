@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Truck, CreditCard, AlertCircle, ArrowRight, LayoutDashboard } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
@@ -75,9 +75,7 @@ export default function Dashboard() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
 
-  useEffect(() => { fetchAll(); }, [date]);
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -88,7 +86,9 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [date]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const totalDairyOwing = dairyBalances.reduce((s, b) => s + Math.max(0, b.closingBalance), 0);
 

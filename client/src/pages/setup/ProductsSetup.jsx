@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Edit2, Archive, Search, X, Package } from 'lucide-react';
 import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
@@ -43,16 +43,7 @@ export default function ProductsSetup() {
       .catch(() => notify('Failed to load brands', 'error'));
   }, [notify]);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchAll();
-    setSearch('');
-    setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
@@ -66,7 +57,16 @@ export default function ProductsSetup() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeBrandId, notify]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    fetchAll();
+    setSearch('');
+    setCurrentPage(1);
+  }, [activeBrandId, fetchAll]);
+
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {

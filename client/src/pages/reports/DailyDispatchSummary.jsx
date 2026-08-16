@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight, RotateCcw } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
@@ -43,11 +43,9 @@ export default function DailyDispatchSummary() {
   // admin/superadmin are completely unrestricted, unchanged.
   const canToggleLock = !isDispatcher || (isToday && !dayFinalized);
 
-  useEffect(() => { fetchData(); }, [date]);
-
   useEffect(() => { setCollapsedBrands({}); }, [selectedSpId]);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true); setError('');
     setSelectedSpId(null);
     try {
@@ -86,7 +84,9 @@ export default function DailyDispatchSummary() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [date, isDispatcher]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   async function confirmOpenForEntry() {
     if (!openConfirm) return;

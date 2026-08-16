@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, Search, Layers, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -37,16 +37,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId, shellBrands, inShell]);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchCategories();
-    setSearch('');
-    setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function fetchCategories() {
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get(`/categories?brandId=${activeBrandId}`);
@@ -56,7 +47,16 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeBrandId, notify]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    fetchCategories();
+    setSearch('');
+    setCurrentPage(1);
+  }, [activeBrandId, fetchCategories]);
+
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   const openAdd = () => { setEditingCat(null); setFormName(''); setIsModalOpen(true); };
   const openEdit = (cat) => { setEditingCat(cat); setFormName(cat.name); setIsModalOpen(true); };

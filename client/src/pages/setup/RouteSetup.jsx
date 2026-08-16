@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, Navigation, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -32,12 +32,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId, shellBrands, inShell]);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchRoutes();
-  }, [activeBrandId]);
-
-  async function fetchRoutes() {
+  const fetchRoutes = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get(`/routes?brandId=${activeBrandId}`);
@@ -47,7 +42,12 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeBrandId, notify]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    fetchRoutes();
+  }, [activeBrandId, fetchRoutes]);
 
   const openAdd  = () => { setEditingRoute(null); setFormNumber(''); setIsModalOpen(true); };
   const openEdit = (route) => { setEditingRoute(route); setFormNumber(route.routeNumber); setIsModalOpen(true); };
