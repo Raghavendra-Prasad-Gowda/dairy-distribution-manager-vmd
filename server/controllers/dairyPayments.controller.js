@@ -3,6 +3,8 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
+const { cascadeAroundDateChange, validateBulkEntities } = require('../services/paymentLedger');
+const { getActingUsername } = require('../utils/actor');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -38,24 +40,13 @@ const bulkTopUp = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const ids = data.entries.map(e => e.brandId);
-  if (new Set(ids).size !== ids.length) {
-    throw new AppError('Each brand can only appear once', 400);
-  }
-
-  const found = await prisma.brand.findMany({
-    where:  { id: { in: ids } },
-    select: { id: true, name: true },
+  const found = await validateBulkEntities({
+    ids,
+    findMany: (args) => prisma.brand.findMany(args),
+    label: 'brand',
   });
-  if (found.length !== ids.length) {
-    const missing = ids.filter(id => !found.some(b => b.id === id));
-    throw new AppError(`Brand not found: ${missing.join(', ')}`, 404);
-  }
 
-  const admin = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
-    select: { username: true },
-  });
-  const createdBy = admin?.username ?? 'admin';
+  const createdBy = await getActingUsername(req);
 
   const created = await prisma.$transaction(async (tx) => {
     const rows = [];
@@ -128,12 +119,7 @@ const update = asyncHandler(async (req, res) => {
       data: { ...data, paymentDate: new Date(data.paymentDate) },
     });
     // Cascade the older date first; if the date changed, the new date too.
-    const earliest = oldDate < newDate ? oldDate : newDate;
-    await recalculateDairyBalance(existing.brandId, earliest, tx);
-    if (newDate !== oldDate) {
-      const later = oldDate < newDate ? newDate : oldDate;
-      await recalculateDairyBalance(existing.brandId, later, tx);
-    }
+    await cascadeAroundDateChange(recalculateDairyBalance, existing.brandId, oldDate, newDate, tx);
     return u;
   }, { isolationLevel: 'Serializable' });
   logger.info('Dairy payment updated', { id, brandId: existing.brandId, amount: data.amount, date: newDate });

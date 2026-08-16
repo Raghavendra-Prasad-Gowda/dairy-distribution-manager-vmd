@@ -2,6 +2,8 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
+const { validateBulkEntities } = require('../services/paymentLedger');
+const { getActingUsername } = require('../utils/actor');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -23,28 +25,18 @@ const bulkCreate = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const ids = data.entries.map(e => e.brandId);
-  if (new Set(ids).size !== ids.length) {
-    throw new AppError('Each brand can only appear once', 400);
-  }
-
-  const found = await prisma.brand.findMany({
-    where:  { id: { in: ids } },
+  const found = await validateBulkEntities({
+    ids,
+    findMany: (args) => prisma.brand.findMany(args),
+    label: 'brand',
     select: { id: true, name: true, depositEnabled: true },
   });
-  if (found.length !== ids.length) {
-    const missing = ids.filter(id => !found.some(b => b.id === id));
-    throw new AppError(`Brand not found: ${missing.join(', ')}`, 404);
-  }
   const notEnabled = found.filter(b => !b.depositEnabled);
   if (notEnabled.length) {
     throw new AppError(`Deposit is not enabled for: ${notEnabled.map(b => b.name).join(', ')}`, 400);
   }
 
-  const admin = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
-    select: { username: true },
-  });
-  const createdBy = admin?.username ?? 'admin';
+  const createdBy = await getActingUsername(req);
 
   const created = await prisma.$transaction(async (tx) => {
     const rows = [];

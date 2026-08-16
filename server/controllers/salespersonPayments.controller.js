@@ -3,6 +3,8 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateSalespersonBalance } = require('../services/balanceService');
+const { cascadeAroundDateChange, validateBulkEntities } = require('../services/paymentLedger');
+const { getActingUsername } = require('../utils/actor');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { assertAdmin } = require('../utils/authz');
@@ -46,25 +48,14 @@ const bulkTopUp = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const ids = data.entries.map(e => e.salespersonId);
-  if (new Set(ids).size !== ids.length) {
-    throw new AppError('Each salesperson can only appear once', 400);
-  }
-
-  const found = await prisma.salesperson.findMany({
-    where:  { id: { in: ids } },
-    select: { id: true, name: true },
+  const found = await validateBulkEntities({
+    ids,
+    findMany: (args) => prisma.salesperson.findMany(args),
+    label: 'salesperson',
   });
-  if (found.length !== ids.length) {
-    const missing = ids.filter(id => !found.some(s => s.id === id));
-    throw new AppError(`Salesperson not found: ${missing.join(', ')}`, 404);
-  }
 
   // Stamped on every row so the salesman can see who loaded the amount.
-  const admin = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
-    select: { username: true },
-  });
-  const createdBy = admin?.username ?? 'admin';
+  const createdBy = await getActingUsername(req);
 
   const created = await prisma.$transaction(async (tx) => {
     const rows = [];
@@ -149,12 +140,7 @@ const update = asyncHandler(async (req, res) => {
       where: { id },
       data: { ...data, paymentDate: new Date(data.paymentDate) },
     });
-    const earliest = oldDate < newDate ? oldDate : newDate;
-    await recalculateSalespersonBalance(existing.salespersonId, earliest, tx);
-    if (newDate !== oldDate) {
-      const later = oldDate < newDate ? newDate : oldDate;
-      await recalculateSalespersonBalance(existing.salespersonId, later, tx);
-    }
+    await cascadeAroundDateChange(recalculateSalespersonBalance, existing.salespersonId, oldDate, newDate, tx);
     return u;
   }, { isolationLevel: 'Serializable' });
   logger.info('Salesperson payment updated', { id, salespersonId: existing.salespersonId, amount: data.amount, date: newDate });
