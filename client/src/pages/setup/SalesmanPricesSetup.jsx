@@ -1,34 +1,25 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Save, IndianRupee, Search, X, Globe, Edit2, Copy, AlertCircle, Clock, Eye, Trash2, Loader2, Package, ChevronDown, ChevronUp, Unlock } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { IndianRupee, Globe } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
-import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
-import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
-import { getIndiaDate, formatDateShort } from '../../utils/dateUtils';
+import { getIndiaDate } from '../../utils/dateUtils';
 import api from '../../api/axios';
+import SalespersonSidebar from './salesmanPrices/SalespersonSidebar';
+import PriceToolbar from './salesmanPrices/PriceToolbar';
+import PriceTable from './salesmanPrices/PriceTable';
+import PriceEditModal from './salesmanPrices/PriceEditModal';
+import PriceHistoryModal from './salesmanPrices/PriceHistoryModal';
+import CopyPricesModal from './salesmanPrices/CopyPricesModal';
+import BulkUpdatePricesModal from './salesmanPrices/BulkUpdatePricesModal';
+import AllSalesmenPricesModal from './salesmanPrices/AllSalesmenPricesModal';
+import ClearAllConfirmModal from './salesmanPrices/ClearAllConfirmModal';
+import BulkProductAccessModal from './salesmanPrices/BulkProductAccessModal';
+import ExceptionManagerModal from './salesmanPrices/ExceptionManagerModal';
 
 const ITEMS_PER_PAGE = 10;
 const GLOBAL_ID = 'global';
-
-function TogglePill({ enabled, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 ${
-        enabled ? 'bg-emerald-500' : 'bg-slate-200'
-      }`}
-    >
-      <span
-        className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
-          enabled ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
-}
 
 export default function SalesmanPricesSetup() {
   const { notify } = useNotification();
@@ -225,6 +216,14 @@ export default function SalesmanPricesSetup() {
   }, [activeBrandId]);
 
   useEffect(() => { setCurrentPage(1); }, [search]);
+
+  // ── Salesperson selection (sidebar) ─────────────────────────────────────────
+  const handleSelectSp = (id) => {
+    setSelectedSpId(String(id));
+    setDirtyToggles({});
+    setDirtyGlobal({});
+    setDirtyGlobalPrices({});
+  };
 
   // ── Per-row price edit ────────────────────────────────────────────────────────
   function openPriceEdit(p) {
@@ -727,31 +726,7 @@ export default function SalesmanPricesSetup() {
     );
   }, [salespeople, spSearch]);
 
-  // Render salesperson row in sidebar
-  function SpRow({ sp }) {
-    const isSelected = String(sp.id) === String(selectedSpId);
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setSelectedSpId(String(sp.id));
-          setDirtyToggles({});
-          setDirtyGlobal({});
-          setDirtyGlobalPrices({});
-        }}
-        className={`w-full text-left px-3 py-2.5 border-l-4 transition-colors ${
-          isSelected
-            ? 'bg-emerald-50 border-emerald-600'
-            : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
-        }`}
-      >
-        <p className={`text-sm font-semibold leading-tight truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
-          {sp.name}
-        </p>
-        {sp.route && <p className="text-xs text-slate-400 leading-tight mt-0.5">{sp.route}</p>}
-      </button>
-    );
-  }
+  const isSuperAdmin = me?.role === 'superadmin';
 
   return (
     <div className="flex flex-col h-full">
@@ -770,61 +745,14 @@ export default function SalesmanPricesSetup() {
       {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* LEFT PANEL — Salesperson list */}
-        <aside className="flex flex-col w-[220px] flex-shrink-0 border-r border-slate-200 bg-white">
-
-          {/* Search */}
-          <div className="p-3 border-b border-slate-100 flex-shrink-0">
-            <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={spSearch}
-                onChange={e => setSpSearch(e.target.value)}
-                placeholder="Search salesperson…"
-                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              />
-              {spSearch && (
-                <button onClick={() => setSpSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Salesperson list */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
-            {/* Global Settings option */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedSpId(GLOBAL_ID);
-                setDirtyToggles({});
-                setDirtyGlobal({});
-                setDirtyGlobalPrices({});
-              }}
-              className={`w-full text-left px-3 py-2.5 border-l-4 transition-colors flex items-center gap-2 ${
-                selectedSpId === GLOBAL_ID
-                  ? 'bg-emerald-50 border-emerald-600'
-                  : 'border-transparent hover:bg-slate-50 active:bg-slate-100'
-              }`}
-            >
-              <Globe size={14} className={selectedSpId === GLOBAL_ID ? 'text-emerald-700' : 'text-slate-500'} />
-              <span className={`text-sm font-semibold leading-tight ${selectedSpId === GLOBAL_ID ? 'text-emerald-800' : 'text-slate-800'}`}>
-                Global
-              </span>
-            </button>
-
-            {/* Salesperson list */}
-            {filteredSalespeople.length === 0 ? (
-              <li className="px-3 py-6 text-center text-slate-400 text-xs">
-                {search ? 'No results' : 'No salespeople'}
-              </li>
-            ) : (
-              filteredSalespeople.map(sp => <SpRow key={sp.id} sp={sp} />)
-            )}
-          </div>
-        </aside>
+        <SalespersonSidebar
+          filteredSalespeople={filteredSalespeople}
+          spSearch={spSearch}
+          setSpSearch={setSpSearch}
+          selectedSpId={selectedSpId}
+          search={search}
+          onSelect={handleSelectSp}
+        />
 
         {/* RIGHT PANEL — Content area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-50">
@@ -853,1723 +781,152 @@ export default function SalesmanPricesSetup() {
                 />
               )}
 
-              {/* Search + Save */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 flex-wrap">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by product name or category…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                  {search && (
-                    <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                {!isGlobal && (
-                  <>
-                    <button
-                      onClick={() => setShowEnabledOnly(v => {
-                        localStorage.setItem('sp_showEnabledOnly', String(!v));
-                        return !v;
-                      })}
-                      className={`text-xs font-semibold px-3 py-2 rounded-xl border transition whitespace-nowrap flex-shrink-0 ${
-                        showEnabledOnly
-                          ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600'
-                      }`}
-                    >
-                      {showEnabledOnly ? 'Enabled only' : 'Show all'}
-                    </button>
-                    <button
-                      onClick={() => setShowCopyModal(true)}
-                      className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition whitespace-nowrap"
-                    >
-                      <Copy size={12} /> Copy Prices
-                    </button>
-                  </>
-                )}
-                {isGlobal && (
-                  <div className="flex items-center gap-2 ml-auto flex-wrap">
-                    <button
-                      onClick={() => handleToggleAllGlobal(true)}
-                      disabled={allBrandEnabled}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
-                    >
-                      Enable All
-                    </button>
-                    <button
-                      onClick={() => handleToggleAllGlobal(false)}
-                      disabled={allBrandDisabled}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap"
-                    >
-                      Disable All
-                    </button>
-                    <button
-                      onClick={() => setShowBulkUpdateModal(true)}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
-                    >
-                      Bulk Update Prices
-                    </button>
-                    <button
-                      onClick={() => setShowBulkProductModal(true)}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap flex items-center gap-1.5"
-                    >
-                      <Package size={14} />
-                      Bulk Product Access
-                    </button>
-                    {/* Exception Manager — superadmin only */}
-                    {me?.role === 'superadmin' && (
-                      <button
-                        onClick={() => setShowExceptionModal(true)}
-                        className="text-xs font-semibold px-3 py-2 rounded-xl border border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 transition whitespace-nowrap flex items-center gap-1.5"
-                        title="Enable globally-disabled products for specific salespeople"
-                      >
-                        <Unlock size={13} />
-                        Exception Manager
-                      </button>
-                    )}
-                    <button
-                      onClick={() => { fetchProductView(); setShowAllSalesmenPrices(true); }}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition whitespace-nowrap"
-                    >
-                      View Price List
-                    </button>
-                    <button
-                      onClick={() => setShowClearAllConfirm(true)}
-                      className="text-xs font-semibold px-3 py-2 rounded-xl border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition whitespace-nowrap"
-                    >
-                      Clear All Salesman Prices
-                    </button>
-                  </div>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !hasDirty}
-                  className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-
-              <Pagination
-                currentPage={currentPage} totalPages={totalPages}
-                startIndex={startIdx} endIndex={endIdx} total={totalFiltered}
-                onPageChange={setCurrentPage}
+              <PriceToolbar
+                isGlobal={isGlobal}
+                search={search}
+                setSearch={setSearch}
+                showEnabledOnly={showEnabledOnly}
+                setShowEnabledOnly={setShowEnabledOnly}
+                isSuperAdmin={isSuperAdmin}
+                onOpenCopyModal={() => setShowCopyModal(true)}
+                onOpenBulkUpdateModal={() => setShowBulkUpdateModal(true)}
+                onOpenBulkProductModal={() => setShowBulkProductModal(true)}
+                onOpenExceptionModal={() => setShowExceptionModal(true)}
+                onOpenAllSalesmenPrices={() => { fetchProductView(); setShowAllSalesmenPrices(true); }}
+                onOpenClearAllConfirm={() => setShowClearAllConfirm(true)}
+                onToggleAllGlobal={handleToggleAllGlobal}
+                allBrandEnabled={allBrandEnabled}
+                allBrandDisabled={allBrandDisabled}
+                onSave={handleSave}
+                saving={saving}
+                hasDirty={hasDirty}
               />
 
-              {/* Salesman-centric view table */}
-              {!isGlobal && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-emerald-700 sticky top-0 z-10">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Cost</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
-                        <th className="px-6 py-3 text-right text-xs font-bold text-white uppercase tracking-wider w-32">Selling Price</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-32">Prices From</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Effective Price</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-amber-200 uppercase tracking-wider w-28">Upcoming</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-amber-200 uppercase tracking-wider w-32">From</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-20">Edit</th>
-                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Access</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-100">
-                      {loading ? (
-                        <tr><td colSpan={colSpan}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
-                      ) : pageGroups.length === 0 ? (
-                        <tr>
-                          <td colSpan={colSpan} className="py-12 text-center text-slate-400 text-sm">
-                            {search ? 'No products match your search.' : 'No products for this brand'}
-                          </td>
-                        </tr>
-                      ) : (
-                        pageGroups.map(([category, items]) => (
-                          <React.Fragment key={category}>
-                            <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                              <td colSpan={colSpan} className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest">
-                                {category}
-                              </td>
-                            </tr>
-                            {items.map(p => {
-                              if (isGlobal) {
-                                const isDirty = dirtyGlobal[p.productId] !== undefined || dirtyGlobalPrices[p.productId] !== undefined;
-                                const priceValue = dirtyGlobalPrices[p.productId] !== undefined ? dirtyGlobalPrices[p.productId] : p.salespersonDefaultPrice;
-                                const isEnabled = p.salespersonEnabled;
-                                const priceInvalid = isEnabled && (!priceValue || priceValue <= 0);
-
-                                return (
-                                  <tr
-                                    key={p.productId}
-                                    className={`transition-colors ${
-                                      priceInvalid
-                                        ? 'bg-red-50/40 border-l-4 border-red-500'
-                                        : !isEnabled
-                                        ? 'bg-slate-50/60 opacity-70'
-                                        : isDirty
-                                        ? 'bg-emerald-50/40'
-                                        : 'hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    <td className="px-6 py-3.5 align-middle">
-                                      <div className="flex items-center gap-2">
-                                        <span className={`text-sm font-semibold ${isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                                          {p.productName}
-                                        </span>
-                                        {priceInvalid && <span className="text-[10px] bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-semibold">No price</span>}
-                                        {isDirty && !priceInvalid && <span className="text-[10px] text-amber-600 font-bold">unsaved</span>}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                      <span className="text-xs text-slate-400">{fmt(p.dairyCostPrice)}</span>
-                                    </td>
-                                    <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                      <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
-                                    </td>
-                                    <td className={`px-4 py-3.5 text-right align-middle ${priceInvalid ? 'bg-red-100/50' : ''}`}>
-                                      <div className="relative">
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          value={priceValue ?? ''}
-                                          onChange={e => handleGlobalPriceChange(p.productId, e.target.value)}
-                                          placeholder="Required"
-                                          className={`w-full pl-5 pr-2 py-2 text-xs text-right font-semibold tabular-nums border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
-                                            priceInvalid
-                                              ? 'border-red-400 bg-red-50 focus:ring-red-400 text-red-700'
-                                              : 'border-slate-200 focus:ring-emerald-400'
-                                          }`}
-                                          required
-                                        />
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-3.5 text-center align-middle">
-                                      <div title={priceInvalid ? 'Set default price before enabling' : ''}>
-                                        <TogglePill
-                                          enabled={isEnabled}
-                                          onChange={() => handleGlobalToggle(p.productId, isEnabled)}
-                                        />
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              }
-
-                              // Per-person row
-                              const hasPrice      = p.sellingPrice !== null;
-                              const isToggleDirty = dirtyToggles[p.productId] !== undefined;
-                              return (
-                                <tr
-                                  key={p.productId}
-                                  className={`transition-colors ${
-                                    !p.isEnabled
-                                      ? 'bg-slate-50/60 opacity-70'
-                                      : isToggleDirty
-                                      ? 'bg-emerald-50/40'
-                                      : 'hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <td className="px-6 py-3.5 align-middle">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className={`text-sm font-semibold ${p.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                                        {p.productName}
-                                      </span>
-                                      {!hasPrice && p.isEnabled && (
-                                        <span className="badge-amber text-[10px]">No price</span>
-                                      )}
-                                      {!p.salespersonEnabled && p.isEnabled && (
-                                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold" title="Globally disabled but enabled as exception for this salesperson">Exception</span>
-                                      )}
-                                      {!p.salespersonEnabled && !p.isEnabled && (
-                                        <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-semibold">Global off</span>
-                                      )}
-                                      {isToggleDirty && (
-                                        <span className="text-[10px] text-amber-600 font-bold">unsaved</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    <span className="text-xs text-slate-400">{fmt(p.dairyCostPrice)}</span>
-                                  </td>
-                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
-                                  </td>
-                                  <td className="px-6 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    {hasPrice
-                                      ? <span className="text-sm font-semibold text-slate-800">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-                                      : <span className="text-amber-600 font-semibold text-xs">Not set</span>
-                                    }
-                                  </td>
-                                  <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
-                                    {p.effectiveFrom
-                                      ? <span className="text-xs font-semibold text-amber-600 tabular-nums">{formatDateShort(p.effectiveFrom)}</span>
-                                      : <span className="text-xs text-slate-300">—</span>}
-                                  </td>
-                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    {p.sellingPrice != null ? (
-                                      <span className="text-sm font-bold text-emerald-700">₹{Number(p.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-                                    ) : (
-                                      <span className="text-xs text-slate-400 font-semibold">from global</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    {p.upcomingSellingPrice != null
-                                      ? <span className="text-sm font-semibold text-amber-700">₹{Number(p.upcomingSellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-                                      : <span className="text-xs text-slate-300">—</span>}
-                                  </td>
-                                  <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
-                                    {p.upcomingEffectiveFrom
-                                      ? <span className="text-xs font-semibold text-amber-700 tabular-nums">{formatDateShort(p.upcomingEffectiveFrom)}</span>
-                                      : <span className="text-xs text-slate-300">—</span>}
-                                  </td>
-                                  <td className="px-4 py-3.5 text-center align-middle">
-                                    <button
-                                      onClick={() => openPriceEdit(p)}
-                                      className="text-emerald-600 hover:text-emerald-800 transition-colors p-1.5 rounded-lg hover:bg-emerald-50"
-                                      title="Edit price"
-                                    >
-                                      <Edit2 className="w-4 h-4" />
-                                    </button>
-                                  </td>
-                                  <td className="px-6 py-3.5 text-center align-middle">
-                                    <div title={
-                                      !p.salespersonEnabled && p.isEnabled
-                                        ? 'Exception — globally off but enabled for this salesperson'
-                                        : !p.salespersonEnabled
-                                        ? 'Globally disabled — toggle to enable as exception for this salesperson only'
-                                        : ''
-                                    }>
-                                      <TogglePill
-                                        enabled={p.isEnabled}
-                                        onChange={() => handleToggle(p.productId, p.isEnabled, !p.salespersonEnabled)}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </React.Fragment>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              )}
-
-              {/* Global settings table */}
-              {isGlobal && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-emerald-700 sticky top-0 z-10">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Product</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Cost</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-28">Dairy Selling</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-200 uppercase tracking-wider w-32">Default Price</th>
-                        <th className="px-6 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-24">Global</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider w-28">Clear Prices</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-100">
-                      {loading ? (
-                        <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
-                      ) : pageGroups.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">
-                            {search ? 'No products match your search.' : 'No products for this brand'}
-                          </td>
-                        </tr>
-                      ) : (
-                        pageGroups.map(([category, items]) => (
-                          <React.Fragment key={category}>
-                            <tr className="bg-slate-100 border-l-4 border-emerald-500">
-                              <td colSpan={6} className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest">
-                                {category}
-                              </td>
-                            </tr>
-                            {items.map(p => {
-                              const isDirty = dirtyGlobal[p.productId] !== undefined || dirtyGlobalPrices[p.productId] !== undefined;
-                              const priceValue = dirtyGlobalPrices[p.productId] !== undefined ? dirtyGlobalPrices[p.productId] : p.salespersonDefaultPrice;
-                              const isEnabled = p.salespersonEnabled;
-                              const priceInvalid = isEnabled && (!priceValue || priceValue <= 0);
-
-                              return (
-                                <tr
-                                  key={p.productId}
-                                  className={`transition-colors ${
-                                    priceInvalid
-                                      ? 'bg-red-50/40 border-l-4 border-red-500'
-                                      : !isEnabled
-                                      ? 'bg-slate-50/60 opacity-70'
-                                      : isDirty
-                                      ? 'bg-emerald-50/40'
-                                      : 'hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <td className="px-6 py-3.5 align-middle">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-sm font-semibold ${isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                                        {p.productName}
-                                      </span>
-                                      {priceInvalid && <span className="text-[10px] bg-red-200 text-red-700 px-1.5 py-0.5 rounded font-semibold">No price</span>}
-                                      {isDirty && !priceInvalid && <span className="text-[10px] text-amber-600 font-bold">unsaved</span>}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    <span className="text-xs text-slate-400">{fmt(p.dairyCostPrice)}</span>
-                                  </td>
-                                  <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap tabular-nums">
-                                    <span className="text-xs text-slate-400">{fmt(p.dairySellingPrice)}</span>
-                                  </td>
-                                  <td className={`px-4 py-3.5 text-right align-middle ${priceInvalid ? 'bg-red-100/50' : ''}`}>
-                                    <div className="relative">
-                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={priceValue ?? ''}
-                                        onChange={e => handleGlobalPriceChange(p.productId, e.target.value)}
-                                        placeholder="Required"
-                                        className={`w-full pl-5 pr-2 py-2 text-xs text-right font-semibold tabular-nums border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
-                                          priceInvalid
-                                            ? 'border-red-400 bg-red-50 focus:ring-red-400 text-red-700'
-                                            : 'border-slate-200 focus:ring-emerald-400'
-                                        }`}
-                                        required
-                                      />
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-3.5 text-center align-middle">
-                                    <div title={priceInvalid ? 'Set default price before enabling' : ''}>
-                                      <TogglePill
-                                        enabled={isEnabled}
-                                        onChange={() => handleGlobalToggle(p.productId, isEnabled)}
-                                      />
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3.5 text-center align-middle">
-                                    <button
-                                      onClick={() => handleClearCustomPrices(p.productId)}
-                                      disabled={clearingProductId === p.productId}
-                                      className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition whitespace-nowrap"
-                                      title="Clear all custom prices for this product — all salesmen will use this global default"
-                                    >
-                                      {clearingProductId === p.productId ? 'Clearing…' : 'Clear'}
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </React.Fragment>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              )}
+              <PriceTable
+                isGlobal={isGlobal}
+                loading={loading}
+                pageGroups={pageGroups}
+                colSpan={colSpan}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                startIdx={startIdx}
+                endIdx={endIdx}
+                totalFiltered={totalFiltered}
+                setCurrentPage={setCurrentPage}
+                search={search}
+                dirtyGlobal={dirtyGlobal}
+                dirtyGlobalPrices={dirtyGlobalPrices}
+                dirtyToggles={dirtyToggles}
+                handleGlobalPriceChange={handleGlobalPriceChange}
+                handleGlobalToggle={handleGlobalToggle}
+                handleToggle={handleToggle}
+                openPriceEdit={openPriceEdit}
+                handleClearCustomPrices={handleClearCustomPrices}
+                clearingProductId={clearingProductId}
+                fmt={fmt}
+              />
             </div>
           )}
         </div>
       </div>
 
-      {/* Per-row price edit modal */}
-      {editingPrice && (() => {
-        const unitLabel = editingPrice.unitType === 'ml' && editingPrice.unitSize
-          ? `${editingPrice.unitSize} ml`
-          : editingPrice.unitType === 'gram' && editingPrice.unitSize
-          ? `${editingPrice.unitSize} g`
-          : editingPrice.unitType ?? '—';
-        const containerLabel = editingPrice.containerType && editingPrice.unitsPerContainer
-          ? `${editingPrice.unitsPerContainer} / ${editingPrice.containerType}`
-          : null;
-        return (
-          <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePriceEdit}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              {/* Emerald header bar — matches the app's page-header chrome */}
-              <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Edit2 size={18} className="text-emerald-200 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-base font-bold text-white leading-tight">Edit Price</h3>
-                    <p className="text-[11px] text-emerald-200 mt-0.5">Update salesperson selling price</p>
-                  </div>
-                </div>
-                <button onClick={closePriceEdit} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
-                  <X size={16} />
-                </button>
-              </div>
+      <PriceEditModal
+        editingPrice={editingPrice}
+        priceForm={priceForm}
+        setPriceForm={setPriceForm}
+        savingPrice={savingPrice}
+        onClose={closePriceEdit}
+        onSubmit={handleSavePrice}
+        onShowHistory={() => setShowPriceHistory(true)}
+        fmt={fmt}
+      />
 
-              <form onSubmit={handleSavePrice} className="px-5 py-5 space-y-5">
+      <PriceHistoryModal
+        show={showPriceHistory}
+        editingPrice={editingPrice}
+        onClose={() => setShowPriceHistory(false)}
+      />
 
-                {/* Product details — read only */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <div>
-                    <p className="text-sm font-bold text-slate-900 leading-tight">{editingPrice.productName}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {editingPrice.brandName && (
-                        <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">{editingPrice.brandName}</span>
-                      )}
-                      {editingPrice.category && (
-                        <span className="text-[10px] font-semibold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{editingPrice.category}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Unit</p>
-                      <p className="text-slate-700 font-semibold tabular-nums">{unitLabel}</p>
-                    </div>
-                    {containerLabel && (
-                      <div>
-                        <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Pack</p>
-                        <p className="text-slate-700 font-semibold tabular-nums">{containerLabel}</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Dairy Cost</p>
-                      <p className="text-slate-700 font-semibold tabular-nums">{fmt(editingPrice.dairyCostPrice)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Dairy Selling</p>
-                      <p className="text-slate-700 font-semibold tabular-nums">{fmt(editingPrice.dairySellingPrice)}</p>
-                    </div>
-                    {editingPrice.currentPrice != null && (
-                      <div className="col-span-2 pt-2 border-t border-slate-200">
-                        <p className="text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Current Price</p>
-                        <div className="flex items-baseline justify-between">
-                          <p className="text-sm text-emerald-700 font-bold tabular-nums">{fmt(editingPrice.currentPrice)}</p>
-                          {editingPrice.currentEffective && (
-                            <p className="text-[10px] text-slate-500 tabular-nums">since {formatDateShort(editingPrice.currentEffective)}</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {editingPrice.upcomingPrice != null && (
-                      <div className="col-span-2 pt-2 border-t border-amber-200 bg-amber-50/40 -mx-4 -mb-4 px-4 py-2 rounded-b-xl">
-                        <p className="text-amber-600 uppercase tracking-wider font-semibold mb-0.5">Upcoming · saving will replace this</p>
-                        <div className="flex items-baseline justify-between">
-                          <p className="text-sm text-amber-700 font-bold tabular-nums">{fmt(editingPrice.upcomingPrice)}</p>
-                          {editingPrice.upcomingEffective && (
-                            <p className="text-[10px] text-amber-700/80 tabular-nums">from {formatDateShort(editingPrice.upcomingEffective)}</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+      <CopyPricesModal
+        show={showCopyModal}
+        salespeople={salespeople}
+        selectedSpId={selectedSpId}
+        activeBrandId={activeBrandId}
+        brands={brands}
+        copyFromSpId={copyFromSpId}
+        setCopyFromSpId={setCopyFromSpId}
+        copyPricesSearch={copyPricesSearch}
+        setCopyPricesSearch={setCopyPricesSearch}
+        copyingPrices={copyingPrices}
+        onClose={() => { setShowCopyModal(false); setCopyFromSpId(''); setCopyPricesSearch(''); }}
+        onCopy={handleCopyPrices}
+      />
 
-                {/* Editable: Selling Price */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    New Selling Price (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                    <input
-                      autoFocus
-                      type="number" step="0.0001" min="0"
-                      value={priceForm.sellingPrice}
-                      onChange={e => setPriceForm(f => ({ ...f, sellingPrice: e.target.value }))}
-                      placeholder="0.00"
-                      className="w-full pl-7 pr-3 py-2.5 text-sm text-right font-semibold tabular-nums border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                </div>
+      <BulkUpdatePricesModal
+        show={showBulkUpdateModal}
+        globalProducts={globalProducts}
+        activeBrandId={activeBrandId}
+        bulkUpdateForm={bulkUpdateForm}
+        setBulkUpdateForm={setBulkUpdateForm}
+        bulkUpdateProductSearch={bulkUpdateProductSearch}
+        setBulkUpdateProductSearch={setBulkUpdateProductSearch}
+        bulkUpdateSalesmenSearch={bulkUpdateSalesmenSearch}
+        setBulkUpdateSalesmenSearch={setBulkUpdateSalesmenSearch}
+        salespeople={salespeople}
+        updatingBulkPrices={updatingBulkPrices}
+        addProductToUpdate={addProductToUpdate}
+        removeProductFromUpdate={removeProductFromUpdate}
+        handleBulkSalesmenToggle={handleBulkSalesmenToggle}
+        onClose={() => setShowBulkUpdateModal(false)}
+        onSubmit={handleBulkUpdate}
+      />
 
-                {/* Editable: Effective From — today or any future date.
-                    Past dates are blocked via min so admin can't accidentally
-                    back-date a change that would either be invisible or
-                    re-bill old transactions. */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Prices From
-                  </label>
-                  <input
-                    type="date"
-                    value={priceForm.effectiveFrom}
-                    onChange={e => setPriceForm(f => ({ ...f, effectiveFrom: e.target.value }))}
-                    min={getIndiaDate()}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                    required
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Pick today to make it the current price, or a future date to schedule the change.
-                  </p>
-                </div>
+      <AllSalesmenPricesModal
+        show={showAllSalesmenPrices}
+        salespeople={salespeople}
+        productView={productView}
+        onClose={() => setShowAllSalesmenPrices(false)}
+      />
 
-                <div className="flex gap-3 pt-1">
-                  <button type="button" onClick={() => setShowPriceHistory(true)} className="px-4 py-2.5 text-sm font-semibold bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl transition">
-                    History
-                  </button>
-                  <button type="button" onClick={closePriceEdit} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition">
-                    Cancel
-                  </button>
-                  <button type="submit" disabled={savingPrice} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
-                    {savingPrice ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                    {savingPrice ? 'Saving…' : 'Save Price'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        );
-      })()}
+      <ClearAllConfirmModal
+        show={showClearAllConfirm}
+        activeBrandId={activeBrandId}
+        brands={brands}
+        globalProducts={globalProducts}
+        clearingAllPrices={clearingAllPrices}
+        onClose={() => setShowClearAllConfirm(false)}
+        onConfirm={handleClearAllSalesmanPrices}
+      />
 
-      {/* Price History Modal */}
-      {showPriceHistory && editingPrice && (
-        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowPriceHistory(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
-              <div className="flex items-center gap-3 min-w-0">
-                <Clock size={18} className="text-emerald-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Price Schedule</h3>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">{editingPrice.productName}</p>
-                </div>
-              </div>
-              <button onClick={() => setShowPriceHistory(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
-                <X size={16} />
-              </button>
-            </div>
+      <BulkProductAccessModal
+        show={showBulkProductModal}
+        salespeople={salespeople}
+        globalProducts={globalProducts}
+        activeBrandId={activeBrandId}
+        bulkProductForm={bulkProductForm}
+        setBulkProductForm={setBulkProductForm}
+        bulkProductSearch={bulkProductSearch}
+        setBulkProductSearch={setBulkProductSearch}
+        updatingBulkProducts={updatingBulkProducts}
+        onClose={() => setShowBulkProductModal(false)}
+        onSubmit={handleBulkProductUpdate}
+      />
 
-            <div className="px-5 py-5 space-y-4">
-              {/* Current price */}
-              {editingPrice.currentPrice != null && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Current Price</p>
-                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold">Active</span>
-                  </div>
-                  <p className="text-2xl font-bold text-emerald-900 tabular-nums">
-                    ₹{Number(editingPrice.currentPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  {editingPrice.currentEffective && (
-                    <p className="text-xs text-emerald-600 mt-2">since {new Date(editingPrice.currentEffective + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Upcoming price */}
-              {editingPrice.upcomingPrice != null && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Upcoming Price</p>
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-semibold">Scheduled</span>
-                  </div>
-                  <p className="text-2xl font-bold text-amber-900 tabular-nums">
-                    ₹{Number(editingPrice.upcomingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  {editingPrice.upcomingEffective && (
-                    <p className="text-xs text-amber-600 mt-2">from {new Date(editingPrice.upcomingEffective + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                  )}
-                </div>
-              )}
-
-              {/* No prices scheduled */}
-              {editingPrice.currentPrice == null && editingPrice.upcomingPrice == null && (
-                <div className="text-center py-6 text-slate-400">
-                  <p className="text-sm">No prices scheduled for this product</p>
-                </div>
-              )}
-
-              {/* Info note */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Prices marked as "Current" are in effect today. Prices marked as "Scheduled" will become active on their specified date.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowPriceHistory(false)}
-                className="w-full px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Copy Prices Modal */}
-      {showCopyModal && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => {
-          setShowCopyModal(false);
-          setCopyFromSpId('');
-          setCopyPricesSearch('');
-        }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <div className="flex items-center gap-3 min-w-0">
-                <Copy size={18} className="text-emerald-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Copy Prices</h3>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">Copy prices from another salesman for this brand</p>
-                </div>
-              </div>
-              <button onClick={() => {
-                setShowCopyModal(false);
-                setCopyFromSpId('');
-                setCopyPricesSearch('');
-              }} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-5 py-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Copy from</label>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search salespeople…"
-                    value={copyPricesSearch}
-                    onChange={e => setCopyPricesSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                  />
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                  {salespeople
-                    .filter(sp => String(sp.id) !== String(selectedSpId))
-                    .filter(sp => {
-                      const q = copyPricesSearch.toLowerCase();
-                      return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
-                    })
-                    .map(sp => (
-                      <button
-                        key={sp.id}
-                        type="button"
-                        onClick={() => {
-                          setCopyFromSpId(String(sp.id));
-                          setCopyPricesSearch('');
-                        }}
-                        className={`w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition ${
-                          copyFromSpId === String(sp.id)
-                            ? 'bg-emerald-100 border-l-4 border-l-emerald-600'
-                            : ''
-                        }`}
-                      >
-                        <div className="font-medium text-slate-900">{sp.name}</div>
-                        {sp.route && <div className="text-xs text-slate-500">{sp.route}</div>}
-                      </button>
-                    ))}
-                  {salespeople
-                    .filter(sp => String(sp.id) !== String(selectedSpId))
-                    .filter(sp => {
-                      const q = copyPricesSearch.toLowerCase();
-                      return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
-                    }).length === 0 && (
-                    <div className="px-3 py-4 text-center text-xs text-slate-400">
-                      {copyPricesSearch ? 'No salespeople found' : 'No other salespeople'}
-                    </div>
-                  )}
-                </div>
-                <p className="text-[10px] text-slate-400 mt-2">
-                  All prices for {brands.find(b => b.id === activeBrandId)?.name || 'this brand'} will be copied.
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCopyModal(false);
-                    setCopyFromSpId('');
-                    setCopyPricesSearch('');
-                  }}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCopyPrices}
-                  disabled={copyingPrices || !copyFromSpId}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {copyingPrices ? <Loader2 className="animate-spin" size={14} /> : <Copy size={14} />}
-                  {copyingPrices ? 'Copying…' : 'Copy Prices'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Update Prices Modal */}
-      {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => {
-          setShowBulkUpdateModal(false);
-          setBulkUpdateProductSearch('');
-          setBulkUpdateSalesmenSearch('');
-        }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
-              <div className="flex items-center gap-3 min-w-0">
-                <IndianRupee size={18} className="text-emerald-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Bulk Update Prices</h3>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">Apply the same price to multiple salespeople</p>
-                </div>
-              </div>
-              <button onClick={() => {
-                setShowBulkUpdateModal(false);
-                setBulkUpdateProductSearch('');
-                setBulkUpdateSalesmenSearch('');
-              }} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-5 py-5 space-y-5">
-              {/* Product Selection and Addition */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Add Products</label>
-                  {(() => {
-                    const availableProducts = globalProducts.filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
-                      .filter(p => !bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId)));
-                    return availableProducts.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          for (const p of availableProducts) {
-                            addProductToUpdate(String(p.productId));
-                          }
-                        }}
-                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
-                      >
-                        Select All
-                      </button>
-                    );
-                  })()}
-                </div>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search products to add…"
-                    value={bulkUpdateProductSearch}
-                    onChange={e => setBulkUpdateProductSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                  />
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-48 overflow-y-auto">
-                  {(() => {
-                    const q = bulkUpdateProductSearch.toLowerCase();
-                    const available = globalProducts
-                      .filter(p => p.brandId === activeBrandId && p.salespersonEnabled)
-                      .filter(p => {
-                        const added = bulkUpdateForm.productPrices.some(pp => String(pp.productId) === String(p.productId));
-                        return !added && (!q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
-                      })
-                      .sort((a, b) =>
-                        (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
-                        (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
-                        a.productName.localeCompare(b.productName)
-                      );
-                    if (available.length === 0) {
-                      return (
-                        <div className="px-3 py-4 text-center text-xs text-slate-400">
-                          {bulkUpdateProductSearch ? 'No products found' : 'No enabled products or all added'}
-                        </div>
-                      );
-                    }
-                    return available.map(p => (
-                      <button
-                        key={p.productId}
-                        type="button"
-                        onClick={() => addProductToUpdate(String(p.productId))}
-                        className="w-full text-left px-3 py-2.5 text-sm border-b border-slate-100 hover:bg-emerald-50 transition"
-                      >
-                        <div className="font-medium text-slate-900">{p.productName}</div>
-                        {p.category && <div className="text-xs text-slate-500 uppercase tracking-wide">{p.category}</div>}
-                      </button>
-                    ));
-                  })()}
-                </div>
-              </div>
-
-              {/* Products Table */}
-              {bulkUpdateForm.productPrices.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    Selected Products ({bulkUpdateForm.productPrices.length})
-                  </label>
-                  <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">Product</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">Dairy Cost</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500 whitespace-nowrap">Dairy Selling</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-emerald-600 whitespace-nowrap">Salesman Price (₹)</th>
-                          <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-10 whitespace-nowrap">Remove</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {bulkUpdateForm.productPrices.map((p, idx) => {
-                          const salespersonVal = parseFloat(p.salespersonSellingPrice);
-                          const salespersonInvalid = p.salespersonSellingPrice !== '' && !(salespersonVal >= 0);
-                          return (
-                            <tr key={idx} className={salespersonInvalid ? 'bg-red-50/50' : ''}>
-                              <td className="px-3 py-2.5 min-w-max">
-                                <div className="font-medium text-slate-700">{p.productName}</div>
-                                {p.category && <div className="text-xs text-slate-500">{p.category}</div>}
-                              </td>
-                              <td className="px-3 py-2.5 text-right text-slate-600 tabular-nums text-xs whitespace-nowrap">
-                                ₹{Number(p.dairyCostPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="px-3 py-2.5 text-right text-slate-600 tabular-nums text-xs whitespace-nowrap">
-                                ₹{Number(p.dairySellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="px-3 py-2.5 min-w-fit">
-                                <div className="relative">
-                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                  <input
-                                    type="number"
-                                    step="0.0001"
-                                    min="0"
-                                    value={p.salespersonSellingPrice}
-                                    onChange={e => {
-                                      const updated = [...bulkUpdateForm.productPrices];
-                                      updated[idx].salespersonSellingPrice = e.target.value;
-                                      setBulkUpdateForm(prev => ({ ...prev, productPrices: updated }));
-                                    }}
-                                    placeholder="0.00"
-                                    className={`w-28 pl-6 pr-2 py-1.5 text-xs text-right font-semibold tabular-nums border rounded focus:outline-none focus:ring-2 focus:border-transparent ${
-                                      salespersonInvalid
-                                        ? 'border-red-300 bg-red-50 focus:ring-red-400'
-                                        : 'border-slate-200 focus:ring-emerald-400'
-                                    }`}
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-3 py-2.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => removeProductFromUpdate(idx)}
-                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                                  title="Remove"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Effective From */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Prices From
-                </label>
-                <input
-                  type="date"
-                  value={bulkUpdateForm.effectiveFrom}
-                  onChange={e => setBulkUpdateForm(f => ({ ...f, effectiveFrom: e.target.value }))}
-                  min={getIndiaDate()}
-                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Pick today to make it the current price, or a future date to schedule the change.
-                </p>
-              </div>
-
-              {/* Salesmen Selection */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Apply to Salespeople ({bulkUpdateForm.selectedSalesmen.size} selected)
-                  </label>
-                  {salespeople.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      {bulkUpdateForm.selectedSalesmen.size === salespeople.length ? (
-                        <button
-                          type="button"
-                          onClick={() => setBulkUpdateForm(f => ({ ...f, selectedSalesmen: new Set() }))}
-                          className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition"
-                        >
-                          Deselect All
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setBulkUpdateForm(f => ({ ...f, selectedSalesmen: new Set(salespeople.map(sp => sp.id)) }))}
-                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
-                        >
-                          Select All
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search salespeople…"
-                    value={bulkUpdateSalesmenSearch}
-                    onChange={e => setBulkUpdateSalesmenSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                  />
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
-                  {salespeople
-                    .filter(sp => {
-                      const q = bulkUpdateSalesmenSearch.toLowerCase();
-                      return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
-                    })
-                    .length === 0 ? (
-                    <p className="text-xs text-slate-400">No salespeople found</p>
-                  ) : (
-                    salespeople
-                      .filter(sp => {
-                        const q = bulkUpdateSalesmenSearch.toLowerCase();
-                        return !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q));
-                      })
-                      .map(sp => (
-                        <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
-                          <input
-                            type="checkbox"
-                            checked={bulkUpdateForm.selectedSalesmen.has(sp.id)}
-                            onChange={() => handleBulkSalesmenToggle(sp.id)}
-                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-slate-700 truncate">{sp.name}</div>
-                            {sp.route && <div className="text-xs text-slate-500 truncate">{sp.route}</div>}
-                          </div>
-                        </label>
-                      ))
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowBulkUpdateModal(false)}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkUpdate}
-                  disabled={updatingBulkPrices || bulkUpdateForm.selectedSalesmen.size === 0 || bulkUpdateForm.productPrices.length === 0}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {updatingBulkPrices ? <Loader2 className="animate-spin" size={14} /> : <IndianRupee size={14} />}
-                  {updatingBulkPrices ? 'Updating…' : `Update (${bulkUpdateForm.selectedSalesmen.size} salesmen, ${bulkUpdateForm.productPrices.length} products)`}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View All Salesmen Prices Modal */}
-      {showAllSalesmenPrices && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllSalesmenPrices(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="bg-emerald-700 px-5 py-4 flex items-center justify-between rounded-t-2xl flex-shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <Eye size={18} className="text-emerald-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Salesperson Price List</h3>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">View all salespeople's prices for each product</p>
-                </div>
-              </div>
-              <button onClick={() => setShowAllSalesmenPrices(false)} className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600 rounded-lg transition">
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Single overflow-auto container — both axes in one scroller so sticky thead/col work */}
-            <div className="flex-1 min-h-0 overflow-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-cyan-700 sticky top-0 z-20">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider min-w-[180px] sticky left-0 z-30 bg-cyan-700 border-r border-cyan-600">Product</th>
-                    {salespeople.filter(s => s.isActive).map(sp => (
-                      <th key={sp.id} className="px-3 py-3 text-center text-xs font-bold text-emerald-200 uppercase tracking-wider whitespace-nowrap">
-                        {sp.name}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-100">
-                      {productView.length === 0 ? (
-                        <tr>
-                          <td colSpan={salespeople.filter(s => s.isActive).length + 1} className="py-12 text-center text-slate-400 text-sm">
-                            No products for this brand
-                          </td>
-                        </tr>
-                      ) : (
-                        (() => {
-                          const rows = [];
-                          let lastCat = null;
-                          const activeSp = salespeople.filter(s => s.isActive);
-                          for (const product of productView) {
-                            const cat = product.category || 'Uncategorised';
-                            if (cat !== lastCat) {
-                              rows.push(
-                                <tr key={`cat-${cat}`} className="bg-slate-100 border-l-4 border-emerald-500">
-                                  <td className="px-6 py-2 text-left text-xs font-bold text-slate-600 uppercase tracking-widest sticky left-0 z-10 bg-slate-100 min-w-[180px]">
-                                    {cat}
-                                  </td>
-                                  <td colSpan={activeSp.length} className="bg-slate-100" />
-                                </tr>
-                              );
-                              lastCat = cat;
-                            }
-                            rows.push(
-                              <tr key={product.productId} className="hover:bg-slate-50 group">
-                                <td className="px-6 py-3 align-middle min-w-[180px] sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-200">
-                                  <p className="text-sm font-semibold text-slate-800">{product.productName}</p>
-                                </td>
-                                {activeSp.map(sp => {
-                                  const priceInfo = product.salespersonPrices[sp.id];
-                                  return (
-                                    <td key={sp.id} className="px-3 py-3 text-center align-middle">
-                                      {priceInfo ? (
-                                        <div className="flex flex-col items-center gap-1">
-                                          <span className={`text-xs font-semibold tabular-nums ${priceInfo.isEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                                            {priceInfo.sellingPrice != null ? `₹${Number(priceInfo.sellingPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Not set'}
-                                          </span>
-                                          {!priceInfo.isEnabled && <span className="text-[9px] bg-slate-200 text-slate-500 px-1 py-0.5 rounded">disabled</span>}
-                                        </div>
-                                      ) : (
-                                        <span className="text-xs text-slate-300">—</span>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          }
-                          return rows;
-                        })()
-                      )}
-                </tbody>
-              </table>
-            </div>
-            {/* Close button — pinned at bottom, never scrolls */}
-            <div className="flex-shrink-0 px-5 py-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowAllSalesmenPrices(false)}
-                className="w-full px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Clear All Salesman Prices Confirmation Modal */}
-      {showClearAllConfirm && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowClearAllConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="bg-red-700 px-5 py-4 flex items-center justify-between rounded-t-2xl">
-              <div className="flex items-center gap-3 min-w-0">
-                <Trash2 size={18} className="text-red-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Clear All Salesman Prices?</h3>
-                  <p className="text-[11px] text-red-200 mt-0.5">This action cannot be undone</p>
-                </div>
-              </div>
-              <button onClick={() => setShowClearAllConfirm(false)} className="p-1.5 text-red-200 hover:text-white hover:bg-red-600 rounded-lg transition">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-5 py-5 space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm text-red-900 font-semibold mb-2">Warning</p>
-                <p className="text-sm text-red-700 leading-relaxed">
-                  This will delete all custom salesman prices for all products in <span className="font-semibold">{brands.find(b => b.id === activeBrandId)?.name || 'this brand'}</span>. All salesmen will use the global default prices instead.
-                </p>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                <p className="text-xs text-slate-600 font-semibold mb-1">Products affected:</p>
-                <p className="text-sm text-slate-900 font-bold">
-                  {globalProducts.filter(p => p.brandId === activeBrandId).length} products
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowClearAllConfirm(false)}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleClearAllSalesmanPrices}
-                  disabled={clearingAllPrices}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-700 hover:bg-red-800 disabled:bg-red-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {clearingAllPrices ? <Loader2 className="animate-spin" size={14} /> : <AlertCircle size={14} />}
-                  {clearingAllPrices ? 'Clearing…' : 'Clear All Prices'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Enable/Disable Products Modal */}
-      {showBulkProductModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Package size={20} className="text-emerald-600" />
-              Bulk Enable/Disable Products
-            </h2>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Salesmen Selection */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
-                    Select Salesmen ({bulkProductForm.selectedSalesmen.size})
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (bulkProductForm.selectedSalesmen.size === salespeople.length) {
-                        setBulkProductForm(f => ({ ...f, selectedSalesmen: new Set() }));
-                      } else {
-                        setBulkProductForm(f => ({ ...f, selectedSalesmen: new Set(salespeople.map(sp => sp.id)) }));
-                      }
-                    }}
-                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
-                  >
-                    {bulkProductForm.selectedSalesmen.size === salespeople.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <div className="space-y-1 max-h-60 overflow-y-auto">
-                  {salespeople.length === 0 ? (
-                    <p className="text-sm text-slate-400">No salesmen available</p>
-                  ) : (
-                    salespeople.map(sp => (
-                      <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
-                        <input
-                          type="checkbox"
-                          checked={bulkProductForm.selectedSalesmen.has(sp.id)}
-                          onChange={() => {
-                            const updated = new Set(bulkProductForm.selectedSalesmen);
-                            if (updated.has(sp.id)) {
-                              updated.delete(sp.id);
-                            } else {
-                              updated.add(sp.id);
-                            }
-                            setBulkProductForm(f => ({ ...f, selectedSalesmen: updated }));
-                          }}
-                          className="w-4 h-4 rounded border-slate-300 text-emerald-600"
-                        />
-                        <span className="text-sm font-medium text-slate-700">{sp.name}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Products Selection */}
-              <div className="bg-slate-50 rounded-lg p-4 flex flex-col">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-600">
-                    Select Products ({bulkProductForm.selectedProducts.size})
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (bulkProductForm.selectedProducts.size === globalProducts.length) {
-                        setBulkProductForm(f => ({ ...f, selectedProducts: new Set() }));
-                      } else {
-                        setBulkProductForm(f => ({ ...f, selectedProducts: new Set(globalProducts.map(p => p.productId)) }));
-                      }
-                    }}
-                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
-                  >
-                    {bulkProductForm.selectedProducts.size === globalProducts.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={bulkProductSearch}
-                  onChange={e => setBulkProductSearch(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-                  {globalProducts.length === 0 ? (
-                    <p className="text-sm text-slate-400">No products available</p>
-                  ) : (
-                    (() => {
-                      const q = bulkProductSearch.toLowerCase();
-                      // Filter to only show products from the selected brand
-                      const brandProducts = globalProducts.filter(p => p.brandId === activeBrandId);
-                      const filtered = (q ? brandProducts.filter(p => p.productName.toLowerCase().includes(q)) : brandProducts)
-                        .sort((a, b) =>
-                          (a.categoryDisplayOrder ?? 999) - (b.categoryDisplayOrder ?? 999) ||
-                          (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
-                          a.productName.localeCompare(b.productName)
-                        );
-
-                      return filtered.length === 0 ? (
-                        <p className="text-sm text-slate-400">No products found</p>
-                      ) : (
-                        <div className="space-y-0.5">
-                          {filtered.map(prod => (
-                            <label key={prod.productId} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded">
-                              <input
-                                type="checkbox"
-                                checked={bulkProductForm.selectedProducts.has(prod.productId)}
-                                onChange={() => {
-                                  const updated = new Set(bulkProductForm.selectedProducts);
-                                  if (updated.has(prod.productId)) {
-                                    updated.delete(prod.productId);
-                                  } else {
-                                    updated.add(prod.productId);
-                                  }
-                                  setBulkProductForm(f => ({ ...f, selectedProducts: updated }));
-                                }}
-                                className="w-4 h-4 rounded border-slate-300 text-emerald-600"
-                              />
-                              <span className="text-sm text-slate-700">{prod.productName}</span>
-                            </label>
-                          ))}
-                        </div>
-                      );
-                    })()
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Action Selection */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-600 mb-2">
-                Action
-              </label>
-              <select
-                value={bulkProductForm.action}
-                onChange={e => setBulkProductForm(f => ({ ...f, action: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="enable">Enable for selected salesmen</option>
-                <option value="disable">Disable for selected salesmen</option>
-              </select>
-            </div>
-
-            {/* Buttons */}
-            <div className="border-t border-slate-200 pt-4 flex gap-3">
-              <button
-                onClick={() => setShowBulkProductModal(false)}
-                disabled={updatingBulkProducts}
-                className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkProductUpdate}
-                disabled={updatingBulkProducts || bulkProductForm.selectedSalesmen.size === 0 || bulkProductForm.selectedProducts.size === 0}
-                className="flex-1 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {updatingBulkProducts && <Loader2 size={16} className="animate-spin" />}
-                {updatingBulkProducts ? 'Updating...' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Exception Manager Modal (superadmin only) ─────────────────────────────
-          Enables/disables globally-disabled products for a chosen set of salespeople,
-          with optional per-product price setting in the same action.              */}
-      {showExceptionModal && me?.role === 'superadmin' && (
-        <div
-          className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-
-            {/* Header */}
-            <div className="bg-violet-700 px-5 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
-              <div className="flex items-center gap-3 min-w-0">
-                <Unlock size={18} className="text-violet-200 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Exception Manager</h3>
-                  <p className="text-[11px] text-violet-200 mt-0.5">Enable globally-disabled products for specific salespeople only</p>
-                </div>
-              </div>
-              <button
-                onClick={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
-                className="p-1.5 text-violet-200 hover:text-white hover:bg-violet-600 rounded-lg transition"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="px-5 py-5 space-y-5">
-
-              {/* Action selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Action</label>
-                <div className="flex gap-3">
-                  {[
-                    { value: 'enable',  label: '✓ Enable for selected salespeople' },
-                    { value: 'disable', label: '✗ Remove exception (disable)' },
-                  ].map(({ value, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setExceptionForm(f => ({ ...f, action: value }))}
-                      className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition ${
-                        exceptionForm.action === value
-                          ? value === 'enable'
-                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                            : 'bg-slate-700 border-slate-700 text-white'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  {exceptionForm.action === 'enable'
-                    ? 'Selected products will appear for the chosen salespeople only. The global setting stays off for everyone else.'
-                    : 'Removes the per-salesperson exception — these products go back to globally disabled for the selected salespeople.'}
-                </p>
-              </div>
-
-              {/* Globally-disabled product list */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Globally Disabled Products ({exceptionForm.selectedProducts.size} selected)
-                  </label>
-                  {(() => {
-                    const disabledAll = globalProducts.filter(p => !p.salespersonEnabled);
-                    return disabledAll.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setExceptionForm(f => ({
-                          ...f,
-                          selectedProducts: f.selectedProducts.size === disabledAll.length
-                            ? new Set()
-                            : new Set(disabledAll.map(p => p.productId)),
-                        }))}
-                        className="text-xs font-semibold text-violet-600 hover:text-violet-700"
-                      >
-                        {exceptionForm.selectedProducts.size === globalProducts.filter(p => !p.salespersonEnabled).length
-                          ? 'Deselect All' : 'Select All'}
-                      </button>
-                    );
-                  })()}
-                </div>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search disabled products…"
-                    value={exProductSearch}
-                    onChange={e => setExProductSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-transparent"
-                  />
-                </div>
-                {(() => {
-                  const q = exProductSearch.toLowerCase();
-                  const disabled = globalProducts
-                    .filter(p => !p.salespersonEnabled)
-                    .filter(p => !q || p.productName.toLowerCase().includes(q) || (p.category?.toLowerCase().includes(q)));
-
-                  if (disabled.length === 0) {
-                    return (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-700 text-center">
-                        {exProductSearch
-                          ? 'No matching globally-disabled products.'
-                          : 'All products are currently globally enabled — nothing to create exceptions for.'}
-                      </div>
-                    );
-                  }
-
-                  // Group by brand, preserving brands array order (displayOrder)
-                  const brandOrder = brands.map(b => b.id);
-                  const byBrand = {};
-                  disabled.forEach(p => {
-                    if (!byBrand[p.brandId]) byBrand[p.brandId] = { brandName: p.brandName, products: [] };
-                    byBrand[p.brandId].products.push(p);
-                  });
-                  const sortedBrandIds = Object.keys(byBrand)
-                    .map(Number)
-                    .sort((a, b) => {
-                      const ai = brandOrder.indexOf(a);
-                      const bi = brandOrder.indexOf(b);
-                      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-                    });
-
-                  return (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg max-h-64 overflow-y-auto">
-                      {sortedBrandIds.map(brandId => {
-                        const { brandName, products: brandProducts } = byBrand[brandId];
-
-                        // Group products within the brand by category, sorted by categoryDisplayOrder
-                        const byCat = {};
-                        brandProducts.forEach(p => {
-                          const key = p.category || '';
-                          if (!byCat[key]) byCat[key] = { catOrder: p.categoryDisplayOrder ?? 999, products: [] };
-                          byCat[key].products.push(p);
-                        });
-                        const sortedCats = Object.entries(byCat)
-                          .sort(([, a], [, b]) => a.catOrder - b.catOrder);
-
-                        return (
-                          <div key={brandId}>
-                            {/* Brand header */}
-                            <div className="sticky top-0 z-10 bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white uppercase tracking-wider">
-                              {brandName}
-                            </div>
-                            {sortedCats.map(([cat, { products: catProducts }]) => {
-                              // Sort products within category by displayOrder → name
-                              const sorted = [...catProducts].sort((a, b) =>
-                                (a.displayOrder ?? 999) - (b.displayOrder ?? 999) ||
-                                a.productName.localeCompare(b.productName)
-                              );
-                              return (
-                                <div key={cat || '_none'}>
-                                  {cat && (
-                                    <div className="bg-slate-100 border-y border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                      {cat}
-                                    </div>
-                                  )}
-                                  <div className="divide-y divide-slate-100">
-                                    {sorted.map(p => {
-                                      const checked = exceptionForm.selectedProducts.has(p.productId);
-                                      const showPrice = exceptionForm.action === 'enable' && checked;
-                                      return (
-                                        <label
-                                          key={p.productId}
-                                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-white transition ${checked ? 'bg-violet-50' : ''}`}
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={checked}
-                                            onChange={() => setExceptionForm(f => {
-                                              const s = new Set(f.selectedProducts);
-                                              if (s.has(p.productId)) s.delete(p.productId); else s.add(p.productId);
-                                              return { ...f, selectedProducts: s };
-                                            })}
-                                            className="w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0"
-                                          />
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-slate-800 truncate">{p.productName}</p>
-                                            {/* Dairy cost / MRP reference */}
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                              <span className="text-[10px] text-slate-400">
-                                                Cost <span className="font-semibold text-slate-500">₹{Number(p.dairyCostPrice ?? 0).toFixed(2)}</span>
-                                              </span>
-                                              <span className="text-slate-200 text-[10px]">|</span>
-                                              <span className="text-[10px] text-slate-400">
-                                                MRP <span className="font-semibold text-emerald-600">₹{Number(p.dairySellingPrice ?? 0).toFixed(2)}</span>
-                                              </span>
-                                            </div>
-                                          </div>
-                                          {/* Inline price input — only when enabling this product */}
-                                          {showPrice && (
-                                            <div className="relative flex-shrink-0" onClick={e => e.preventDefault()}>
-                                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
-                                              <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                value={exceptionForm.prices[p.productId] ?? ''}
-                                                onChange={e => setExceptionForm(f => ({ ...f, prices: { ...f.prices, [p.productId]: e.target.value } }))}
-                                                onClick={e => e.stopPropagation()}
-                                                placeholder={p.dairySellingPrice > 0 ? String(p.dairySellingPrice) : 'Price'}
-                                                className="w-24 pl-5 pr-2 py-1.5 text-xs text-right font-semibold border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
-                                              />
-                                            </div>
-                                          )}
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-                {exceptionForm.action === 'enable' && exceptionForm.selectedProducts.size > 0 && (() => {
-                  const selectedDisabled = globalProducts.filter(
-                    p => !p.salespersonEnabled && exceptionForm.selectedProducts.has(p.productId)
-                  );
-                  return (
-                    <div className="flex items-center justify-between mt-1.5 gap-2">
-                      <p className="text-[10px] text-slate-400">
-                        Price is optional — leave blank to use the global default price.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newPrices = { ...exceptionForm.prices };
-                          selectedDisabled.forEach(p => {
-                            if (p.dairySellingPrice > 0) {
-                              newPrices[p.productId] = String(p.dairySellingPrice);
-                            }
-                          });
-                          setExceptionForm(f => ({ ...f, prices: newPrices }));
-                        }}
-                        className="flex-shrink-0 text-[10px] font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 whitespace-nowrap"
-                      >
-                        Use dairy MRP for all
-                      </button>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Effective From — shown only when enabling and at least one price is entered */}
-              {exceptionForm.action === 'enable' &&
-                Object.values(exceptionForm.prices).some(v => v !== '' && v !== undefined) && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Prices From</label>
-                  <input
-                    type="date"
-                    value={exceptionForm.effectiveFrom}
-                    onChange={e => setExceptionForm(f => ({ ...f, effectiveFrom: e.target.value }))}
-                    min={getIndiaDate()}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Today = immediate; future date = schedule the price change.
-                  </p>
-                </div>
-              )}
-
-              {/* Salespeople */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Salespeople ({exceptionForm.selectedSalesmen.size} selected)
-                  </label>
-                  {salespeople.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setExceptionForm(f => ({
-                        ...f,
-                        selectedSalesmen: f.selectedSalesmen.size === salespeople.length
-                          ? new Set()
-                          : new Set(salespeople.map(sp => sp.id)),
-                      }))}
-                      className="text-xs font-semibold text-violet-600 hover:text-violet-700"
-                    >
-                      {exceptionForm.selectedSalesmen.size === salespeople.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                  )}
-                </div>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search salespeople…"
-                    value={exSpSearch}
-                    onChange={e => setExSpSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
-                  />
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-52 overflow-y-auto space-y-1">
-                  {(() => {
-                    const q = exSpSearch.toLowerCase();
-                    const filtered = salespeople.filter(sp =>
-                      !q || sp.name.toLowerCase().includes(q) || (sp.route?.toLowerCase().includes(q))
-                    );
-                    return filtered.length === 0
-                      ? <p className="text-xs text-slate-400 text-center py-4">No salespeople found</p>
-                      : filtered.map(sp => (
-                        <label key={sp.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1.5 rounded transition">
-                          <input
-                            type="checkbox"
-                            checked={exceptionForm.selectedSalesmen.has(sp.id)}
-                            onChange={() => setExceptionForm(f => {
-                              const s = new Set(f.selectedSalesmen);
-                              if (s.has(sp.id)) s.delete(sp.id); else s.add(sp.id);
-                              return { ...f, selectedSalesmen: s };
-                            })}
-                            className="w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 truncate">{sp.name}</p>
-                            {sp.route && <p className="text-xs text-slate-400 truncate">{sp.route}</p>}
-                          </div>
-                        </label>
-                      ));
-                  })()}
-                </div>
-              </div>
-
-              {/* Footer buttons */}
-              <div className="flex gap-3 pt-1 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveExceptions}
-                  disabled={
-                    savingExceptions ||
-                    exceptionForm.selectedProducts.size === 0 ||
-                    exceptionForm.selectedSalesmen.size === 0
-                  }
-                  className="flex-1 px-4 py-2.5 text-sm font-semibold bg-violet-700 hover:bg-violet-800 disabled:bg-violet-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {savingExceptions
-                    ? <Loader2 className="animate-spin" size={14} />
-                    : <Unlock size={14} />
-                  }
-                  {savingExceptions
-                    ? 'Applying…'
-                    : `${exceptionForm.action === 'enable' ? 'Enable' : 'Disable'} (${exceptionForm.selectedProducts.size}P × ${exceptionForm.selectedSalesmen.size}S)`
-                  }
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
+      <ExceptionManagerModal
+        show={showExceptionModal && isSuperAdmin}
+        globalProducts={globalProducts}
+        brands={brands}
+        salespeople={salespeople}
+        exceptionForm={exceptionForm}
+        setExceptionForm={setExceptionForm}
+        exProductSearch={exProductSearch}
+        setExProductSearch={setExProductSearch}
+        exSpSearch={exSpSearch}
+        setExSpSearch={setExSpSearch}
+        savingExceptions={savingExceptions}
+        onClose={() => { setShowExceptionModal(false); setExProductSearch(''); setExSpSearch(''); }}
+        onSave={handleSaveExceptions}
+      />
     </div>
   );
 }
