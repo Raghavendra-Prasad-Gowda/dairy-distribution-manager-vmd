@@ -13,6 +13,7 @@ const { getIndiaDateStr } = require('../utils/dateUtils');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { assertAdmin } = require('../utils/authz');
+const { getPaginationParams, buildPaginationMeta } = require('../utils/pagination');
 
 // Admin/superadmin/dispatcher all get lock/unlock in some form — dispatcher's
 // is further restricted to today + not-yet-finalized by
@@ -119,29 +120,38 @@ const getAll = asyncHandler(async (req, res) => {
     where.salespersonId = parseId(salespersonId, 'Salesperson ID');
   }
 
-  const dispatches = await prisma.stockDispatch.findMany({
-    where,
-    include: {
-      salesperson: { select: { id: true, name: true } },
-      items: {
-        include: {
-          product: { include: { brand: { select: { id: true, name: true } } } },
-        },
+  const include = {
+    salesperson: { select: { id: true, name: true } },
+    items: {
+      include: {
+        product: { include: { brand: { select: { id: true, name: true } } } },
       },
     },
-    orderBy: { dispatchDate: 'desc' },
-  });
+  };
+  const orderBy = { dispatchDate: 'desc' };
 
   const today = getIndiaDateStr();
-  const result = dispatches.map(d => ({
+  const mapRow = (d) => ({
     ...d,
     totalAmount:    Number(d.totalAmount),
     isLocked:       isEffectivelyLocked(d, today),
     isSubmitted:    d.isSubmitted,
     isAdminUnlocked: d.isAdminUnlocked,
-  }));
+  });
 
-  res.json({ success: true, data: result });
+  // Opt-in pagination: engages only when ?page/?limit is supplied, so existing
+  // callers keep the flat-array response unchanged.
+  const paging = getPaginationParams(req.query);
+  if (paging) {
+    const [dispatches, total] = await Promise.all([
+      prisma.stockDispatch.findMany({ where, include, orderBy, skip: paging.skip, take: paging.limit }),
+      prisma.stockDispatch.count({ where }),
+    ]);
+    return res.json({ success: true, data: { items: dispatches.map(mapRow), pagination: buildPaginationMeta(total, paging.page, paging.limit) } });
+  }
+
+  const dispatches = await prisma.stockDispatch.findMany({ where, include, orderBy });
+  res.json({ success: true, data: dispatches.map(mapRow) });
 });
 
 // Admin only — cross-salesperson report. Salesmen already have their own

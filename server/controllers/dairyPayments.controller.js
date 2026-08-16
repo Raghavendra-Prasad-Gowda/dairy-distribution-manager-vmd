@@ -5,6 +5,7 @@ const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
 const { cascadeAroundDateChange, validateBulkEntities } = require('../services/paymentLedger');
 const { getActingUsername } = require('../utils/actor');
+const { getPaginationParams, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 
@@ -95,11 +96,21 @@ const getAll = asyncHandler(async (req, res) => {
     if (from) where.paymentDate.gte = new Date(from);
     if (to)   where.paymentDate.lte = new Date(to);
   }
-  const payments = await prisma.dairyPayment.findMany({
-    where,
-    include: { brand: { select: { id: true, name: true } } },
-    orderBy: { paymentDate: 'desc' },
-  });
+  const include = { brand: { select: { id: true, name: true } } };
+  const orderBy = { paymentDate: 'desc' };
+
+  // Opt-in pagination: engages only when ?page/?limit is supplied, so existing
+  // callers keep the flat-array response unchanged.
+  const paging = getPaginationParams(req.query);
+  if (paging) {
+    const [items, total] = await Promise.all([
+      prisma.dairyPayment.findMany({ where, include, orderBy, skip: paging.skip, take: paging.limit }),
+      prisma.dairyPayment.count({ where }),
+    ]);
+    return res.json({ success: true, data: { items, pagination: buildPaginationMeta(total, paging.page, paging.limit) } });
+  }
+
+  const payments = await prisma.dairyPayment.findMany({ where, include, orderBy });
   res.json({ success: true, data: payments });
 });
 
