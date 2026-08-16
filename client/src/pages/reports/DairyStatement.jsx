@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 
@@ -148,12 +149,23 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   const [activeBrandId, setActive] = useState(shellActiveBrandId ?? null);
   const [from, setFrom]            = useState(getFirstDayOfMonth());
   const [to, setTo]                = useState(getIndiaDate());
-  const [rows, setRows]            = useState([]);
-  const [loading, setLoading]      = useState(false);
-  const [error, setError]          = useState('');
+  const [brandsError, setBrandsError] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [routes, setRoutes]             = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState('');
+
+  const { data: rows, loading, error: reportError } = useApiResource(
+    activeBrandId ? `/reports/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}` : null,
+    {
+      initialData: [],
+      notifyOnError: false,
+      // Collapse any expanded date rows whenever a new report loads — mirrors
+      // the old fetchReport's setExpandedRows(new Set()) at fetch-start; the
+      // table is hidden behind BrandedLoader while loading either way.
+      select: (payload) => { setExpandedRows(new Set()); return payload; },
+    }
+  );
+  const error = reportError || brandsError;
 
   // Filter rows to only dates that have receipts for the selected route.
   const visibleRows = selectedRouteId
@@ -185,7 +197,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
     if (inShell) return;
     api.get('/brands')
       .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
-      .catch(() => setError('Failed to load brands'));
+      .catch(() => setBrandsError('Failed to load brands'));
   }, [inShell]);
 
   useEffect(() => {
@@ -199,21 +211,6 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
       .then(r => setRoutes(r.data.data ?? []))
       .catch(() => setRoutes([]));
   }, [activeBrandId]);
-
-  const fetchReport = useCallback(async () => {
-    setLoading(true); setError('');
-    setExpandedRows(new Set());
-    try {
-      const r = await api.get(`/reports/dairy-statement?brandId=${activeBrandId}&from=${from}&to=${to}`);
-      setRows(r.data.data);
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeBrandId, from, to]);
-
-  useEffect(() => { if (activeBrandId) fetchReport(); }, [activeBrandId, fetchReport]);
 
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 

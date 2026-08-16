@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, Droplets, ChevronDown, ChevronRight, Printer, Landmark } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -7,6 +7,7 @@ import BulkTopUpModal from '../../components/BulkTopUpModal';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { getYesterday, formatCurrency } from '../../utils/dateUtils';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 
@@ -21,8 +22,6 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
   const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
   const [from, setFrom]                   = useState(getYesterday());
   const [to, setTo]                       = useState(getYesterday());
-  const [data, setData]                   = useState(null);
-  const [loading, setLoading]             = useState(false);
   const [collapsed, setCollapsed]         = useState(new Set());
   const [topUpOpen, setTopUpOpen]         = useState(false);
 
@@ -47,25 +46,24 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
     if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
   }, [shellActiveBrandId, shellBrands, inShell]);
 
-  const fetchDeposit = useCallback(() => {
-    if (!activeBrandId) return;
-    setData(null);
-    setCollapsed(new Set());
-    setLoading(true);
-    return api.get(`/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}`)
-      .then(r => {
-        const d = r.data.data;
-        setData(d);
-        // Collapse all by default when viewing more than one day
-        if (from !== to) {
-          setCollapsed(new Set((d?.rows ?? []).filter(r => r.dailyDeposit > 0).map(r => r.date)));
-        }
-      })
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [activeBrandId, from, to]);
-
-  useEffect(() => { fetchDeposit(); }, [fetchDeposit]);
+  // Deposit summary fetch. Previously this silently swallowed fetch errors
+  // (.catch(() => setData(null)), no notify) — that's the "no silent
+  // failures" anti-pattern CLAUDE.md calls out, so this migration also fixes
+  // it: useApiResource's default notifyOnError:true now surfaces a toast.
+  const { data, loading, refetch: fetchDeposit } = useApiResource(
+    activeBrandId ? `/reports/deposit-summary?brandId=${activeBrandId}&from=${from}&to=${to}` : null,
+    {
+      // Collapse all by default when viewing more than one day; reset to
+      // fully expanded for a single-day view — same net result as the old
+      // fetchDeposit's setCollapsed(new Set()) + conditional re-set.
+      select: (payload) => {
+        setCollapsed(from !== to
+          ? new Set((payload?.rows ?? []).filter(r => r.dailyDeposit > 0).map(r => r.date))
+          : new Set());
+        return payload;
+      },
+    }
+  );
 
   const daysWithDeposit = data?.rows.filter(r => r.dailyDeposit > 0).length ?? 0;
   // Excludes any carried-forward opening balance — this is an average of

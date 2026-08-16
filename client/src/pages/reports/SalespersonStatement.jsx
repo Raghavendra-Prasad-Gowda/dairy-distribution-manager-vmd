@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { useApiResource } from '../../hooks/useApiResource';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle }) {
@@ -82,10 +83,21 @@ export default function SalespersonStatement() {
   const [selectedSp, setSelectedSp]  = useState('');
   const [from, setFrom]              = useState(getFirstDayOfMonth());
   const [to, setTo]                  = useState(getIndiaDate());
-  const [rows, setRows]              = useState([]);
-  const [loading, setLoading]        = useState(false);
-  const [error, setError]            = useState('');
+  const [spError, setSpError]        = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+
+  const { data: rows, loading, error: reportError } = useApiResource(
+    selectedSp ? `/reports/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}` : null,
+    {
+      initialData: [],
+      notifyOnError: false,
+      // Collapse any expanded rows whenever a new report loads — mirrors the
+      // old fetchReport's setExpandedRows(new Set()) at fetch-start; the
+      // table is hidden behind BrandedLoader while loading either way.
+      select: (payload) => { setExpandedRows(new Set()); return payload; },
+    }
+  );
+  const error = reportError || spError;
 
   const expandableIndices = rows.reduce((acc, r, i) => {
     if (r.items?.length > 0 || r.payments?.length > 0) acc.push(i);
@@ -110,23 +122,8 @@ export default function SalespersonStatement() {
         setSalespeople(sp);
         if (sp.length) setSelectedSp(String(sp[0].id));
       })
-      .catch(() => setError('Failed to load salespeople'));
+      .catch(() => setSpError('Failed to load salespeople'));
   }, []);
-
-  const fetchReport = useCallback(async () => {
-    setLoading(true); setError('');
-    setExpandedRows(new Set());
-    try {
-      const r = await api.get(`/reports/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}`);
-      setRows(r.data.data);
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedSp, from, to]);
-
-  useEffect(() => { if (selectedSp) fetchReport(); }, [selectedSp, fetchReport]);
 
   const closingBalance  = rows.length ? rows[rows.length - 1].closingBalance : 0;
   const totalGiven      = rows.reduce((s, r) => s + r.stockGiven,  0);
