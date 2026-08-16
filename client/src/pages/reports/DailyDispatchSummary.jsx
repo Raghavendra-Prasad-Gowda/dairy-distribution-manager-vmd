@@ -97,7 +97,7 @@ export default function DailyDispatchSummary() {
       await api.post('/dispatches/open-for-entry', { salespersonId, dispatchDate: date });
       await fetchData();
       setSelectedSpId(salespersonId);
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setOpenLoading(false);
@@ -110,7 +110,7 @@ export default function DailyDispatchSummary() {
     try {
       await api.post('/dispatches/finalize-day');
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setFinalizeLoading(false);
@@ -123,7 +123,7 @@ export default function DailyDispatchSummary() {
     try {
       await api.delete('/dispatches/finalize-day');
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setUnfinalizeLoading(false);
@@ -202,7 +202,7 @@ export default function DailyDispatchSummary() {
       const action = isLocked ? 'unlock' : 'lock';
       await api.patch(`/dispatches/${dispatchId}/${action}`);
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setLockLoading(false);

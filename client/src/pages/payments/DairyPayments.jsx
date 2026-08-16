@@ -131,9 +131,11 @@ export default function DairyPayments() {
 
   const today = getIndiaDate();
 
-  // Breakdown panel state
-  const [breakdown,        setBreakdown]        = useState(null);
-  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  // Breakdown panel state. The loading flag is tracked (set around the fetch
+  // below) but not currently rendered anywhere — no skeleton/spinner reads it
+  // yet — so the read side is intentionally unused for now.
+  const [breakdown,         setBreakdown]        = useState(null);
+  const [_breakdownLoading, setBreakdownLoading] = useState(false);
 
   // Prefill state wired into PaymentForm
   const [paymentPrefill,   setPaymentPrefill]   = useState(null);

@@ -15,18 +15,6 @@ function fmtPrice(p) {
   return `₹${p % 1 === 0 ? p : Number(p).toFixed(2)}`;
 }
 
-function fmtLiters(qty, unitSize) {
-  if (!unitSize) return null;
-  const l = (qty * unitSize) / 1000;
-  return Number.isInteger(l) ? String(l) : l.toFixed(2);
-}
-
-function fmtKgs(qty, unitSizeGrams) {
-  if (!unitSizeGrams) return null;
-  const k = (qty * unitSizeGrams) / 1000;
-  return Number.isInteger(k) ? String(k) : k.toFixed(2);
-}
-
 export default function StockSummaryPrint() {
   const [params] = useSearchParams();
   const from    = params.get('from')    ?? '';

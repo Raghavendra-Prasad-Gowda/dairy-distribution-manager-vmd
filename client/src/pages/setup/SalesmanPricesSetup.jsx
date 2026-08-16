@@ -65,7 +65,9 @@ export default function SalesmanPricesSetup() {
   const [updatingBulkPrices, setUpdatingBulkPrices] = useState(false);
   const [bulkUpdateProductSearch, setBulkUpdateProductSearch] = useState('');
   const [bulkUpdateSalesmenSearch, setBulkUpdateSalesmenSearch] = useState('');
-  const [pendingProductSelection, setPendingProductSelection] = useState(''); // Temp for selecting product to add
+  // Temp for selecting product to add — the setter is used to reset this after
+  // adding a product to the bulk-update list; nothing currently reads the value.
+  const [_pendingProductSelection, setPendingProductSelection] = useState('');
   // Clear custom prices
   const [clearingProductId, setClearingProductId] = useState(null);
 
@@ -88,7 +90,9 @@ export default function SalesmanPricesSetup() {
   });
   const [updatingBulkProducts, setUpdatingBulkProducts] = useState(false);
   const [bulkProductSearch, setBulkProductSearch] = useState('');
-  const [expandedBrand, setExpandedBrand] = useState(null);
+  // The setter is used to reset this after a bulk product action completes;
+  // nothing currently reads the value.
+  const [_expandedBrand, setExpandedBrand] = useState(null);
 
   const [showEnabledOnly, setShowEnabledOnly] = useState(
     () => localStorage.getItem('sp_showEnabledOnly') !== 'false'
@@ -112,7 +116,6 @@ export default function SalesmanPricesSetup() {
   const [spSearch, setSpSearch]             = useState('');  // Salesperson search
   const [search, setSearch]                 = useState('');  // Product search
   const [currentPage, setCurrentPage]       = useState(1);
-  const [viewMode, setViewMode]             = useState('salesman'); // 'salesman' or 'product'
 
   const isGlobal = selectedSpId === GLOBAL_ID;
 
@@ -370,14 +373,6 @@ export default function SalesmanPricesSetup() {
     }));
   };
 
-  const updateProductPrice = (index, price) => {
-    setBulkUpdateForm(prev => {
-      const updated = [...prev.productPrices];
-      updated[index].salespersonSellingPrice = price;
-      return { ...prev, productPrices: updated };
-    });
-  };
-
   async function handleBulkUpdate() {
     if (bulkUpdateForm.selectedSalesmen.size === 0) {
       notify('Select at least one salesman', 'warning');
@@ -585,7 +580,7 @@ export default function SalesmanPricesSetup() {
       setShowClearAllConfirm(false);
       fetchGlobal();
       fetchProductView();
-    } catch (e) {
+    } catch {
       notify('Failed to clear all prices', 'error');
     } finally {
       setClearingAllPrices(false);
@@ -718,7 +713,6 @@ export default function SalesmanPricesSetup() {
     ? Object.keys(dirtyGlobal).length > 0 || Object.keys(dirtyGlobalPrices).length > 0
     : Object.keys(dirtyToggles).length > 0;
 
-  const selectedSp = salespeople.find(s => String(s.id) === String(selectedSpId));
   const fmt = v => v > 0 ? `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—';
 
   const colSpan = isGlobal ? 5 : 10;

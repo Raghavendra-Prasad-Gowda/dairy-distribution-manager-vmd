@@ -10,7 +10,6 @@ export default function DairyStatementPrint() {
   const from        = params.get('from')        ?? '';
   const to          = params.get('to')          ?? '';
   const brandId     = params.get('brandId')     ?? '';
-  const routeId     = params.get('routeId')     ?? '';
   const routeNumber = params.get('routeNumber') ?? '';
 
   const [rows,  setRows]  = useState(null);

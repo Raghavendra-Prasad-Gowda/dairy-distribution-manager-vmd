@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
-import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 
 export default function ChangePassword() {
-  const { user } = useAuth();
   const { notify } = useNotification();
   const [loading, setLoading] = useState(false);
   const [showPasswords, setShowPasswords] = useState({

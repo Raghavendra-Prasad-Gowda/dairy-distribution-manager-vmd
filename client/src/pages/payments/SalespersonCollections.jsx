@@ -270,7 +270,6 @@ export default function SalespersonCollections() {
   };
 
   const selectedSp = salespeople.find(sp => sp.id === selectedSpId);
-  const totalOwing   = Object.values(allBalances).reduce((s, b) => s + Math.max(0, b.closingBalance ?? 0), 0);
   const pendingCount = Object.values(allBalances).filter(b => (b.closingBalance ?? 0) > 0).length;
 
   const filteredSps = salespeople.filter(sp => {

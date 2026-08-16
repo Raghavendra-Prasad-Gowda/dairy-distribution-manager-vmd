@@ -215,7 +215,6 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
     }
   }
 
-  const activeBrand = brands.find((b) => b.id === activeBrandId);
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
 
   return (

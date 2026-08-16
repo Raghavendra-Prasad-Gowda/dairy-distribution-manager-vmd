@@ -5,7 +5,6 @@ import DateSelector from '../components/DateSelector';
 import BrandedLoader from '../components/ui/BrandedLoader';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { getBrandColors } from '../utils/constants';
-import { useNotification } from '../context/NotificationContext';
 import api from '../api/axios';
 
 /** Premium dairy payable card — brand-colored header, large owe amount, breakdown row */
@@ -71,7 +70,6 @@ function DairyPayableCard({ brandId, brandName, opening, stockValue, depositValu
 }
 
 export default function Dashboard() {
-  const { notify } = useNotification();
   const [date, setDate]           = useState(getIndiaDate());
   const [dairyBalances, setDairy] = useState([]);
   const [loading, setLoading]     = useState(true);
