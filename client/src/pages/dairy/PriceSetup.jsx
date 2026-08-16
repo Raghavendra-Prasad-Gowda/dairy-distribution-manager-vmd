@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Edit2, Trash2, Info, Search, X } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import Pagination from '../../components/Pagination';
@@ -29,18 +29,9 @@ export default function DairyPriceSetup() {
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [notify]);
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchProducts();
-    setSearch('');
-    setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function fetchProducts() {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get(`/products?brandId=${activeBrandId}`);
@@ -50,7 +41,16 @@ export default function DairyPriceSetup() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeBrandId, notify]);
+
+  useEffect(() => {
+    if (!activeBrandId) return;
+    fetchProducts();
+    setSearch('');
+    setCurrentPage(1);
+  }, [activeBrandId, fetchProducts]);
+
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   const openEdit = (p) => {
     setEditingProduct(p);

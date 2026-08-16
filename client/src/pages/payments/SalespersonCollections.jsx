@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -143,14 +143,15 @@ export default function SalespersonCollections() {
         if (sps.length) setSelectedSp(sps[0].id);
       })
       .catch(() => notify('Failed to load salespeople', 'error'));
+    // Mount-only: captures "today" once for the initial load. Adding `today`
+    // would add a real (if rare) new trigger — refetching if the tab is left
+    // open across midnight — so it's intentionally excluded to keep current
+    // behavior unchanged. notify is stable (useCallback([]) in
+    // NotificationContext) so its omission never affects firing either way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!selectedSpId) return;
-    fetchDetail();
-  }, [selectedSpId]);
-
-  async function fetchDetail() {
+  const fetchDetail = useCallback(async () => {
     setLoading(true);
     try {
       const [balRes, pmtRes] = await Promise.all([
@@ -164,7 +165,16 @@ export default function SalespersonCollections() {
     } finally {
       setLoading(false);
     }
-  }
+    // `today` is intentionally excluded — same reasoning as the mount effect
+    // above: keeps current behavior (no refetch on a midnight day-rollover
+    // while the tab is open) unchanged.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSpId, notify]);
+
+  useEffect(() => {
+    if (!selectedSpId) return;
+    fetchDetail();
+  }, [selectedSpId, fetchDetail]);
 
   async function refreshAllBalances() {
     const res = await api.get(`/salesperson-balance?date=${today}`);

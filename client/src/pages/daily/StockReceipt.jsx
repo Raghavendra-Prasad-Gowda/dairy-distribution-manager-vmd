@@ -73,7 +73,7 @@ export default function StockReceipt() {
         setActiveBrand(matched ?? null);
       })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, [brandName]);
+  }, [brandName, notify]);
 
   // ─── Routes (all brands) ──────────────────────────────────────────────────
   useEffect(() => {
@@ -136,7 +136,7 @@ export default function StockReceipt() {
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
-  }, [activeBrand, date]);
+  }, [activeBrand, date, notify]);
 
   // ─── Keyboard nav ─────────────────────────────────────────────────────────
   const allFiltered = useMemo(
@@ -165,7 +165,7 @@ export default function StockReceipt() {
     });
   }
 
-  const groupedData = useMemo(filteredGrouped, [products, categories, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groupedData = useMemo(filteredGrouped, [products, categories, search]);
 
   const handleKeyDown = (e, productId) => {
     if (e.key !== 'Enter' && e.key !== 'Tab') return;
