@@ -90,3 +90,26 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  security-audit:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [server, client]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - run: npm ci
+      # Fails the PR on any moderate-or-worse known vulnerability. Both
+      # packages are clean as of this writing — this is a regression gate,
+      # not a backlog. Dependabot (.github/dependabot.yml) keeps deps current
+      # so this stays green.
+      - run: npm audit --audit-level=moderate
