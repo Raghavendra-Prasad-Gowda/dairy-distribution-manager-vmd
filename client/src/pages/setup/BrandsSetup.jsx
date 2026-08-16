@@ -60,7 +60,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       .then(r => setBrands(r.data.data ?? []))
       .catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [notify]);
 
   const openAdd = () => {
     setEditingBrand(null);

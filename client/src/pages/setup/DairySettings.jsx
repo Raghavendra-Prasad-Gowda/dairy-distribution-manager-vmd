@@ -32,7 +32,7 @@ export default function DairySettings() {
       })
       .catch(() => notify('Failed to load brands', 'error'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [notify]);
 
   return (
     <div className="flex flex-col h-full">

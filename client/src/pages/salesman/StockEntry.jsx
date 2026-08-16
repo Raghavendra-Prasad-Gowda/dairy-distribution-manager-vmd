@@ -185,7 +185,7 @@ export default function SalespersonStockEntry() {
       })
       .catch(() => notify('Failed to load products', 'error'))
       .finally(() => setLoading(false));
-  }, [salespersonId, date]);
+  }, [salespersonId, date, notify]);
 
   // ─── Load balance ─────────────────────────────────────────────────────────
   useEffect(() => {

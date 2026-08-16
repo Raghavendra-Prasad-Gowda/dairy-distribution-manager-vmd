@@ -41,7 +41,7 @@ export default function ProductsSetup() {
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     if (!activeBrandId) return;

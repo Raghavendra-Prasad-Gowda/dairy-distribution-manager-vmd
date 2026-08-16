@@ -23,8 +23,9 @@ vi.mock('../../api/axios', () => ({
   default: { get: vi.fn(), post: vi.fn(() => Promise.resolve({ data: {} })) },
 }));
 
+const notify = vi.fn();
 vi.mock('../../context/NotificationContext', () => ({
-  useNotification: () => ({ notify: vi.fn() }),
+  useNotification: () => ({ notify }),
 }));
 
 vi.mock('../../utils/dateUtils', () => ({

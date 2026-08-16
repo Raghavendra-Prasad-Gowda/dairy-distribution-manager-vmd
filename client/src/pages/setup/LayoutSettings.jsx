@@ -142,7 +142,7 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
       setDirty(false);
     }).catch(() => notify('Failed to load data', 'error'))
       .finally(() => setLoading(false));
-  }, [activeBrandId]);
+  }, [activeBrandId, notify]);
 
   // Products grouped by category, sorted by the current index in the categories array
   const grouped = React.useMemo(() => {

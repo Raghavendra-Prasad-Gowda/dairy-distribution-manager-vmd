@@ -130,7 +130,7 @@ export default function SalesmanPricesSetup() {
         if (b.length) setActiveBrandId(b[0].id);
       })
       .catch(() => notify('Failed to load data', 'error'));
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     if (!selectedSpId) return;
