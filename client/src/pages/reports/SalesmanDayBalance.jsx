@@ -1,32 +1,25 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlertCircle, Wallet, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
-import api from '../../api/axios';
+import { useApiResource } from '../../hooks/useApiResource';
 
 export default function SalesmanDayBalance() {
   const [date, setDate]       = useState(getIndiaDate());
-  const [rows, setRows]       = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
   const [search, setSearch]   = useState('');
 
-  useEffect(() => {
-    setLoading(true);
-    setError('');
-    api.get(`/salesperson-balance?date=${date}`)
-      .then(r => {
-        const all = r.data.data ?? [];
-        // API already returns salespeople in the defined display order
-        const active = all.filter(b =>
-          Number(b.openingBalance) !== 0 || Number(b.amountPaid) !== 0 || Number(b.closingBalance) !== 0
-        );
-        setRows(active);
-      })
-      .catch(e => setError(e.response?.data?.error ?? 'Failed to load balances'))
-      .finally(() => setLoading(false));
-  }, [date]);
+  const { data: rows, loading, error } = useApiResource(
+    `/salesperson-balance?date=${date}`,
+    {
+      initialData: [],
+      notifyOnError: false,
+      // API already returns salespeople in the defined display order
+      select: (payload) => (payload ?? []).filter(b =>
+        Number(b.openingBalance) !== 0 || Number(b.amountPaid) !== 0 || Number(b.closingBalance) !== 0
+      ),
+    }
+  );
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();

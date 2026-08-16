@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Truck, CreditCard, AlertCircle, ArrowRight, LayoutDashboard } from 'lucide-react';
 import DateSelector from '../components/DateSelector';
 import BrandedLoader from '../components/ui/BrandedLoader';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { getBrandColors } from '../utils/constants';
-import api from '../api/axios';
+import { useApiResource } from '../hooks/useApiResource';
 
 /** Premium dairy payable card — brand-colored header, large owe amount, breakdown row */
 function DairyPayableCard({ brandId, brandName, opening, stockValue, depositValue, paid, closing }) {
@@ -71,24 +71,11 @@ function DairyPayableCard({ brandId, brandName, opening, stockValue, depositValu
 
 export default function Dashboard() {
   const [date, setDate]           = useState(getIndiaDate());
-  const [dairyBalances, setDairy] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const dairyRes = await api.get(`/dairy-balance?date=${date}`);
-      setDairy(dairyRes.data.data?.brands ?? []);
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  }, [date]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const { data: dairyBalances, loading, error } = useApiResource(
+    `/dairy-balance?date=${date}`,
+    { initialData: [], notifyOnError: false, select: (payload) => payload?.brands ?? [] }
+  );
 
   const totalDairyOwing = dairyBalances.reduce((s, b) => s + Math.max(0, b.closingBalance), 0);
 
