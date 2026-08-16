@@ -186,11 +186,11 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
     api.get('/brands')
       .then((r) => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => setError('Failed to load brands'));
-  }, []);
+  }, [inShell]);
 
   useEffect(() => {
     if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  }, [shellActiveBrandId, shellBrands, inShell]);
 
   useEffect(() => {
     if (!activeBrandId) return;

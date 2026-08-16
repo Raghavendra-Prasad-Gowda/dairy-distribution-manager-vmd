@@ -41,11 +41,11 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
       setBrands(list);
       if (list.length) setActiveBrandId(list[0].id);
     }).catch(() => {});
-  }, []);
+  }, [inShell]);
 
   useEffect(() => {
     if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  }, [shellActiveBrandId, shellBrands, inShell]);
 
   const fetchDeposit = useCallback(() => {
     if (!activeBrandId) return;
