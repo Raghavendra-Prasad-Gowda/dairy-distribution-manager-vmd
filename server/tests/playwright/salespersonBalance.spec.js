@@ -36,8 +36,8 @@ test.describe('GET /api/v1/salesperson-balance', () => {
 
   test('returns 200 with balances for all active salespeople', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([SALESPERSON]);
-    // buildSalespersonBalance: existing record found — returns early
-    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(BALANCE);
+    // getAll batch-fetches persisted rows in one findMany — existing row found.
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([BALANCE]);
 
     const res = await request.get('/api/v1/salesperson-balance?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -52,7 +52,7 @@ test.describe('GET /api/v1/salesperson-balance', () => {
 
   test('returns 200 with computed balance when no existing record', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([SALESPERSON]);
-    ctx.mockPrisma.salespersonBalance.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]); // batch: no persisted rows
     ctx.mockPrisma.salespersonBalance.findFirst.mockResolvedValue(null);
     ctx.mockPrisma.stockDispatch.aggregate.mockResolvedValue({ _sum: { totalAmount: null } });
     ctx.mockPrisma.salespersonPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
@@ -68,6 +68,7 @@ test.describe('GET /api/v1/salesperson-balance', () => {
 
   test('returns 200 with empty list when no active salespeople', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/salesperson-balance?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

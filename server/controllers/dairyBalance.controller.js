@@ -4,18 +4,9 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { computeDairyBalance } = require('../services/balanceService');
 
-/**
- * Returns the DairyBalance snapshot for a brand+date. Uses the persisted row
- * when one exists; otherwise computes it on the fly via balanceService — the
- * SINGLE source of truth for the formula — so the fallback can never disagree
- * with the cascade (top-ups add, deposit rules identical to the writer).
- */
-async function getOrBuildBalance(brandId, date) {
-  const balanceDate = new Date(date);
-  const existing = await prisma.dairyBalance.findUnique({
-    where: { brandId_balanceDate: { brandId, balanceDate } },
-  });
-  if (existing) return {
+/** Serialize a persisted DairyBalance row to the numeric snapshot shape. */
+function serializeBalance(existing) {
+  return {
     ...existing,
     openingBalance: Number(existing.openingBalance),
     stockValue:     Number(existing.stockValue),
@@ -24,10 +15,28 @@ async function getOrBuildBalance(brandId, date) {
     amountPaid:     Number(existing.amountPaid),
     closingBalance: Number(existing.closingBalance),
   };
+}
 
-  // No saved balance — compute on the fly through the shared service so the
-  // figures match exactly what the ledger cascade would have written.
-  return computeDairyBalance(brandId, date);
+/**
+ * Resolve a brand+date balance snapshot from a (possibly pre-fetched) persisted
+ * row, falling back to an on-the-fly compute via balanceService — the SINGLE
+ * source of truth for the formula — so the fallback can never disagree with the
+ * cascade (top-ups add, deposit rules identical to the writer).
+ */
+function resolveBalance(brandId, date, existing) {
+  return existing ? serializeBalance(existing) : computeDairyBalance(brandId, date);
+}
+
+/**
+ * Returns the DairyBalance snapshot for a brand+date. Uses the persisted row
+ * when one exists; otherwise computes it on the fly.
+ */
+async function getOrBuildBalance(brandId, date) {
+  const balanceDate = new Date(date);
+  const existing = await prisma.dairyBalance.findUnique({
+    where: { brandId_balanceDate: { brandId, balanceDate } },
+  });
+  return resolveBalance(brandId, date, existing);
 }
 
 const getAll = asyncHandler(async (req, res) => {
@@ -35,9 +44,18 @@ const getAll = asyncHandler(async (req, res) => {
   if (!date) throw new AppError('date query param is required', 400);
 
   const brands = await prisma.brand.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+
+  // Batch-fetch every persisted row for the date in ONE query instead of a
+  // findUnique per brand (the common path where rows already exist). Only
+  // brands with no cached row fall through to a compute.
+  const existingRows = await prisma.dairyBalance.findMany({
+    where: { balanceDate: new Date(date), brandId: { in: brands.map(b => b.id) } },
+  });
+  const existingByBrand = new Map(existingRows.map(r => [r.brandId, r]));
+
   const balances = await Promise.all(
     brands.map(async (b) => {
-      const bal = await getOrBuildBalance(b.id, date);
+      const bal = await resolveBalance(b.id, date, existingByBrand.get(b.id));
       return { brandId: b.id, brandName: b.name, ...bal };
     })
   );

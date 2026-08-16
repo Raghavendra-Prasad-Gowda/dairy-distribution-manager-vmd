@@ -6,18 +6,9 @@ const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { computeSalespersonBalance } = require('../services/balanceService');
 const { assertAdmin } = require('../utils/authz');
 
-/**
- * Returns the SalespersonBalance snapshot for a salesperson+date. Uses the
- * persisted row when one exists; otherwise computes it on the fly via
- * balanceService — the SINGLE source of truth — so the fallback matches the
- * cascade exactly (top-ups ADD, and only real payments subtract).
- */
-async function buildSalespersonBalance(salespersonId, date) {
-  const balanceDate = new Date(date);
-  const existing = await prisma.salespersonBalance.findUnique({
-    where: { salespersonId_balanceDate: { salespersonId, balanceDate } },
-  });
-  if (existing) return {
+/** Serialize a persisted SalespersonBalance row to the numeric snapshot shape. */
+function serializeBalance(existing) {
+  return {
     ...existing,
     openingBalance: Number(existing.openingBalance),
     stockGiven:     Number(existing.stockGiven),
@@ -25,8 +16,28 @@ async function buildSalespersonBalance(salespersonId, date) {
     amountPaid:     Number(existing.amountPaid),
     closingBalance: Number(existing.closingBalance),
   };
+}
 
-  return computeSalespersonBalance(salespersonId, date);
+/**
+ * Resolve a salesperson+date snapshot from a (possibly pre-fetched) persisted
+ * row, falling back to an on-the-fly compute via balanceService — the SINGLE
+ * source of truth — so the fallback matches the cascade exactly (top-ups ADD,
+ * only real payments subtract).
+ */
+function resolveBalance(salespersonId, date, existing) {
+  return existing ? serializeBalance(existing) : computeSalespersonBalance(salespersonId, date);
+}
+
+/**
+ * Returns the SalespersonBalance snapshot for a salesperson+date. Uses the
+ * persisted row when one exists; otherwise computes it on the fly.
+ */
+async function buildSalespersonBalance(salespersonId, date) {
+  const balanceDate = new Date(date);
+  const existing = await prisma.salespersonBalance.findUnique({
+    where: { salespersonId_balanceDate: { salespersonId, balanceDate } },
+  });
+  return resolveBalance(salespersonId, date, existing);
 }
 
 // Admin only: get all salespeople balances for a date
@@ -39,9 +50,18 @@ const getAll = asyncHandler(async (req, res) => {
     where: { isActive: true },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
+
+  // Batch-fetch every persisted row for the date in ONE query instead of a
+  // findUnique per salesperson (the common path). Only salespeople with no
+  // cached row fall through to a compute.
+  const existingRows = await prisma.salespersonBalance.findMany({
+    where: { balanceDate: new Date(date), salespersonId: { in: salespeople.map(sp => sp.id) } },
+  });
+  const existingBySp = new Map(existingRows.map(r => [r.salespersonId, r]));
+
   const balances = await Promise.all(
     salespeople.map(async (sp) => {
-      const bal = await buildSalespersonBalance(sp.id, date);
+      const bal = await resolveBalance(sp.id, date, existingBySp.get(sp.id));
       return { salespersonId: sp.id, salespersonName: sp.name, route: sp.route, ...bal };
     })
   );
