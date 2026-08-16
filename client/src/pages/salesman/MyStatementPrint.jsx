@@ -19,7 +19,7 @@ export default function MyStatementPrint() {
     api.get(`/salesperson-statement/me?from=${from}&to=${to}`)
       .then(r => setRows(r.data.data))
       .catch(() => setError('Failed to load statement'));
-  }, []);
+  }, [from, to]);
 
   useEffect(() => {
     if (rows) setTimeout(() => window.print(), 400);

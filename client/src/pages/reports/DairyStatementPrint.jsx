@@ -25,7 +25,7 @@ export default function DairyStatementPrint() {
       const b = brandsRes.data.data?.find(b => String(b.id) === String(brandId));
       if (b) setBrand(b.name);
     }).catch(() => setError('Failed to load report'));
-  }, []);
+  }, [brandId, from, to]);
 
   useEffect(() => {
     if (rows) setTimeout(() => window.print(), 400);

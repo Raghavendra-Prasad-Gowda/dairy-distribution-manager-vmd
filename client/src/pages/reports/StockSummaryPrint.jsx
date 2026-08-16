@@ -33,7 +33,7 @@ export default function StockSummaryPrint() {
     api.get(`/reports/stock-summary?from=${from}&to=${to}${q}`)
       .then(r => setData(r.data.data))
       .catch(() => setError('Failed to load report'));
-  }, []);
+  }, [brandId, from, routeId, to]);
 
   useEffect(() => {
     if (data) setTimeout(() => window.print(), 400);

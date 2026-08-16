@@ -24,7 +24,7 @@ export default function SalespersonStatementPrint() {
       const sp = spRes.data.data?.find(s => String(s.id) === String(salespersonId));
       if (sp) setSalesperson(sp.route ? `${sp.name} — ${sp.route}` : sp.name);
     }).catch(() => setError('Failed to load report'));
-  }, []);
+  }, [salespersonId, from, to]);
 
   useEffect(() => {
     if (rows) setTimeout(() => window.print(), 400);
