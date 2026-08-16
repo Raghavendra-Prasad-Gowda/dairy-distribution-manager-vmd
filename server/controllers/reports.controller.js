@@ -5,6 +5,7 @@ const prisma = require('../lib/prisma');
 const { qualifiesForDeposit, calculateLineDeposit } = require('../services/depositRules');
 const { getIndiaDateStr } = require('../utils/dateUtils');
 const { isDayFinalizedForDispatcher } = require('../services/dispatchDayFinalization');
+const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
 
 // Defense-in-depth: every report endpoint mounts under requireAdmin in app.js,
 // but if that middleware is ever moved or misconfigured, the controller still
@@ -128,7 +129,7 @@ const salespersonStatement = asyncHandler(async (req, res) => {
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
 
-  const catOrder = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+  const catOrder = buildCategoryOrderMap(allCategories);
 
   const dispatchByDate = new Map(allDispatches.map(d => [d.dispatchDate.toISOString(), d]));
   const paymentsByDate = new Map();
@@ -145,8 +146,8 @@ const salespersonStatement = asyncHandler(async (req, res) => {
     // Sort items by dairy layout order: brand → category → product displayOrder → name.
     const sortedItems = [...(dispatch?.items ?? [])].sort((a, b) =>
       (a.product.brand?.displayOrder ?? 999) - (b.product.brand?.displayOrder ?? 999) ||
-      (catOrder.get(`${a.product.brandId}::${a.product.category}`) ?? 999) -
-        (catOrder.get(`${b.product.brandId}::${b.product.category}`) ?? 999) ||
+      getCategoryOrder(catOrder, a.product.brandId, a.product.category) -
+        getCategoryOrder(catOrder, b.product.brandId, b.product.category) ||
       (a.product.displayOrder ?? 999) - (b.product.displayOrder ?? 999) ||
       a.product.name.localeCompare(b.product.name)
     );
@@ -220,7 +221,7 @@ const stockSummary = asyncHandler(async (req, res) => {
     }),
   ]);
   const routeMap   = new Map(allRoutes.map(r => [r.id, r.routeNumber]));
-  const catOrderMap = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+  const catOrderMap = buildCategoryOrderMap(allCategories);
 
   // Build date-keyed map
   const dateMap = new Map();
@@ -236,7 +237,7 @@ const stockSummary = asyncHandler(async (req, res) => {
       brandDisplayOrder:    r.brand.displayOrder ?? 0,
       productName:          r.product.name,
       category:             r.product.category ?? null,
-      categoryDisplayOrder: catOrderMap.get(`${r.brandId}::${r.product.category}`) ?? 999,
+      categoryDisplayOrder: getCategoryOrder(catOrderMap, r.brandId, r.product.category),
       quantity:             Number(r.quantity),
       unitPrice:            Number(r.unitPrice),
       amount:               Number(r.quantity) * Number(r.unitPrice),
@@ -536,7 +537,7 @@ const profitLoss = asyncHandler(async (req, res) => {
     }),
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
-  const catOrderMap = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+  const catOrderMap = buildCategoryOrderMap(allCategories);
 
   // Cost-price history for just the products actually dispatched in range.
   const productIds = [...new Set(
@@ -590,7 +591,7 @@ const profitLoss = asyncHandler(async (req, res) => {
           brandName:            item.product.brand?.name ?? null,
           brandDisplayOrder:    item.product.brand?.displayOrder ?? 0,
           category:             item.product.category ?? 'Other',
-          categoryDisplayOrder: catOrderMap.get(`${item.product.brand?.id}::${item.product.category}`) ?? 999,
+          categoryDisplayOrder: getCategoryOrder(catOrderMap, item.product.brand?.id, item.product.category),
           displayOrder:         item.product.displayOrder ?? 0,
           quantity: 0, revenue: 0, cost: 0,
         });
@@ -736,10 +737,10 @@ const dailyDispatch = asyncHandler(async (req, res) => {
   // This applies to both the dispatch sheet and the Stock Balance view so that
   // products appear in the same order as the dairy layout settings.
   {
-    const catOrder = new Map(allCategories.map(c => [`${c.brandId}::${c.name}`, c.displayOrder]));
+    const catOrder = buildCategoryOrderMap(allCategories);
     allProducts.sort((a, b) =>
       (a.brand.displayOrder - b.brand.displayOrder) ||
-      ((catOrder.get(`${a.brandId}::${a.category}`) ?? 999) - (catOrder.get(`${b.brandId}::${b.category}`) ?? 999)) ||
+      (getCategoryOrder(catOrder, a.brandId, a.category) - getCategoryOrder(catOrder, b.brandId, b.category)) ||
       (a.displayOrder - b.displayOrder) ||
       a.name.localeCompare(b.name)
     );
