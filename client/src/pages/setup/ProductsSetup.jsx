@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Archive, Search, X, Package } from 'lucide-react';
 import { getIndiaDate } from '../../utils/dateUtils';
 import BrandTabs from '../../components/BrandTabs';
@@ -7,6 +7,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResources } from '../../hooks/useApiResources';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
@@ -25,9 +26,6 @@ export default function ProductsSetup() {
   const { notify } = useNotification();
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
-  const [products, setProducts]     = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]         = useState('');
@@ -43,28 +41,23 @@ export default function ProductsSetup() {
       .catch(() => notify('Failed to load brands', 'error'));
   }, [notify]);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [prodRes, catRes] = await Promise.all([
-        api.get(`/products?brandId=${activeBrandId}`),
-        api.get(`/categories?brandId=${activeBrandId}`),
-      ]);
-      setProducts(prodRes.data.data);
-      setCategories(catRes.data.data);
-    } catch {
-      notify('Failed to load products', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeBrandId, notify]);
+  const { data, loading, refetch: fetchAll, setData } = useApiResources(
+    activeBrandId ? [`/products?brandId=${activeBrandId}`, `/categories?brandId=${activeBrandId}`] : null,
+    { initialData: [[], []] }
+  );
+  const [products, categories] = data;
+  // Drop-in replacement for the old `setProducts` useState setter — updates
+  // just the products slot, leaving categories untouched. Used by
+  // toggleShowInReceipt's optimistic update (no full refetch needed there).
+  const setProducts = (updater) => {
+    setData(([prods, cats]) => [typeof updater === 'function' ? updater(prods) : updater, cats]);
+  };
 
   useEffect(() => {
     if (!activeBrandId) return;
-    fetchAll();
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId, fetchAll]);
+  }, [activeBrandId]);
 
   useEffect(() => { setCurrentPage(1); }, [search]);
 
