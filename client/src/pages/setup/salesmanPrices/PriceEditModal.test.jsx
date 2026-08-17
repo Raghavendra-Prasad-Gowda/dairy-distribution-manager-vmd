@@ -3,6 +3,16 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import PriceEditModal from './PriceEditModal';
 
+// The "Prices From" date input has `min={getIndiaDate()}` — without pinning
+// this, the '2026-08-17' fixture below silently starts failing HTML5 date
+// validation (and blocking form submit) the moment real IST time crosses
+// midnight past that date. Every other spec file in this codebase pins
+// getIndiaDate(); this one just hadn't been, and it bit exactly as expected.
+vi.mock('../../../utils/dateUtils', async () => {
+  const actual = await vi.importActual('../../../utils/dateUtils');
+  return { ...actual, getIndiaDate: () => '2026-08-17' };
+});
+
 const fmt = v => (v > 0 ? `₹${Number(v).toFixed(2)}` : '—');
 
 function baseProps(overrides = {}) {

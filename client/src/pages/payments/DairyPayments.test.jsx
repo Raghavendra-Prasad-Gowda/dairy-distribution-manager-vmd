@@ -41,11 +41,23 @@ vi.mock('../../utils/dateUtils', async () => {
 });
 
 vi.mock('../../components/PinModal', () => ({
-  default: ({ isOpen, onSuccess }) => isOpen ? <button onClick={onSuccess}>Confirm PIN</button> : null,
+  default: ({ isOpen, onSuccess, onClose }) => isOpen ? (
+    <>
+      <button onClick={onSuccess}>Confirm PIN</button>
+      <button onClick={onClose}>Cancel PIN</button>
+    </>
+  ) : null,
 }));
 
 vi.mock('../../components/BulkTopUpModal', () => ({
-  default: ({ open }) => open ? <div data-testid="bulk-topup-modal" /> : null,
+  default: ({ open, onSaved, onClose }) => open ? (
+    <div data-testid="bulk-topup-modal">
+      <button onClick={() => onSaved({ paymentDate: '2026-08-09', entries: [{ brandId: 1, amount: 500 }] })}>
+        Confirm Top-up
+      </button>
+      <button onClick={onClose}>Close Top-up</button>
+    </div>
+  ) : null,
 }));
 
 const BRANDS = [{ id: 1, name: 'Nandini' }, { id: 2, name: 'Jersey' }];
@@ -89,6 +101,29 @@ async function renderPage() {
   await screen.findByText('Opening');
   return utils;
 }
+
+describe('DairyPayments — initial load failure', () => {
+  it('notifies an error when the brands fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.reject(new Error('network down'));
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<DairyPayments />);
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load brands', 'error'));
+  });
+
+  it('degrades to an empty breakdown (no crash) when the route-breakdown fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))                        return Promise.resolve({ data: { data: BRANDS } });
+      if (url.includes('/dairy-balance/route-breakdown'))  return Promise.reject(new Error('network down'));
+      if (url.includes('/dairy-balance/'))                 return Promise.resolve({ data: { data: BALANCE } });
+      if (url.includes('/dairy-payments'))                 return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await renderPage();
+    expect(screen.queryByText('Route Breakdown')).not.toBeInTheDocument();
+  });
+});
 
 describe('DairyPayments — brand selection', () => {
   it('defaults to the first brand', async () => {
@@ -166,6 +201,24 @@ describe('DairyPayments — payment history', () => {
     expect(screen.getByText('No payments match the current filters')).toBeInTheDocument();
   });
 
+  it('the X button clears the search and restores the full list', async () => {
+    mockApi({
+      payments: [
+        payment({ id: 1, amount: 1000, reference: 'AAA' }),
+        payment({ id: 2, amount: 2000, reference: 'BBB' }),
+      ],
+    });
+    await renderPage();
+    const input = screen.getByPlaceholderText(/Search by amount/i);
+    fireEvent.change(input, { target: { value: 'BBB' } });
+    expect(screen.queryByText('₹1,000.00')).toBeNull();
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(screen.getByText('₹1,000.00')).toBeInTheDocument();
+    expect(screen.getByText('₹2,000.00')).toBeInTheDocument();
+  });
+
   it('filters by date range via the filter panel', async () => {
     mockApi({
       payments: [
@@ -216,14 +269,55 @@ describe('DairyPayments — payment history', () => {
     expect(screen.getByText('₹2,000.00')).toBeInTheDocument();
   });
 
-  it('paginates history beyond 15 rows', async () => {
+  it('paginates history beyond 15 rows, Prev/Next both work', async () => {
     const payments = Array.from({ length: 16 }, (_, i) => payment({ id: i + 1, amount: 100 + i }));
     mockApi({ payments });
     await renderPage();
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
     expect(screen.getByText('Next')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled();
+
     fireEvent.click(screen.getByText('Next'));
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Prev'));
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+  });
+
+  it('filters by "To" date via the filter panel', async () => {
+    mockApi({
+      payments: [
+        payment({ id: 1, amount: 1000, paymentDate: '2026-08-01T00:00:00.000Z' }),
+        payment({ id: 2, amount: 2000, paymentDate: '2026-08-09T00:00:00.000Z' }),
+      ],
+    });
+    const { container } = await renderPage();
+    fireEvent.click(screen.getByText('Filter'));
+    // date inputs: [0] PaymentForm's own date, [1] From, [2] To
+    const [, , toInput] = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(toInput, { target: { value: '2026-08-05' } });
+    expect(screen.getByText('₹1,000.00')).toBeInTheDocument();
+    expect(screen.queryByText('₹2,000.00')).toBeNull();
+  });
+
+  it('filters by reference text, and the X button clears it', async () => {
+    mockApi({
+      payments: [
+        payment({ id: 1, amount: 1000, reference: 'CHQ-100' }),
+        payment({ id: 2, amount: 2000, reference: 'UPI-XYZ' }),
+      ],
+    });
+    await renderPage();
+    fireEvent.click(screen.getByText('Filter'));
+    const refInput = screen.getByPlaceholderText('Search…');
+    fireEvent.change(refInput, { target: { value: 'chq' } });
+    expect(screen.getByText('₹1,000.00')).toBeInTheDocument();
+    expect(screen.queryByText('₹2,000.00')).toBeNull();
+
+    fireEvent.click(refInput.parentElement.querySelector('button'));
+    expect(refInput).toHaveValue('');
+    expect(screen.getByText('₹2,000.00')).toBeInTheDocument();
   });
 });
 
@@ -241,7 +335,7 @@ describe('DairyPayments — record payment', () => {
     expect(notify).toHaveBeenCalledWith('Payment recorded successfully', 'success');
   });
 
-  it('shows an error toast when recording fails', async () => {
+  it('shows an error toast when recording fails, falling back to a generic message with no server error', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Server exploded' } } });
     await renderPage();
     const amountInput = screen.getByRole('spinbutton') ?? screen.getByPlaceholderText(/amount/i);
@@ -249,6 +343,13 @@ describe('DairyPayments — record payment', () => {
     fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Server exploded', 'error'));
+
+    // PaymentForm resets its own fields on every submit regardless of
+    // outcome, so the amount must be re-entered before retrying.
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    fireEvent.change(amountInput, { target: { value: '750' } });
+    fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to record payment', 'error'));
   });
 });
 
@@ -278,6 +379,81 @@ describe('DairyPayments — edit flow (PIN gated)', () => {
       expect(api.put).toHaveBeenCalledWith('/dairy-payments/7', expect.objectContaining({ amount: 1800 }))
     );
   });
+
+  it('editing the mode, date, and reference fields updates the save payload', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500, paymentMode: 'Cash', reference: '' })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Payment');
+
+    const modal = screen.getByText('Edit Payment').closest('div.bg-white');
+    fireEvent.click(within(modal).getByRole('button', { name: 'UPI' }));
+    fireEvent.change(within(modal).getByDisplayValue('2026-08-09'), { target: { value: '2026-08-05' } });
+    fireEvent.change(within(modal).getByPlaceholderText('Txn / cheque no.'), { target: { value: 'TXN-99' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/dairy-payments/7', expect.objectContaining({
+      paymentMode: 'UPI', paymentDate: '2026-08-05', reference: 'TXN-99',
+    })));
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Locked' } } });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Payment');
+    fireEvent.click(screen.getByText('Save Changes'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Locked', 'error'));
+
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByText('Save Changes'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update payment', 'error'));
+  });
+
+  it('the X button and Cancel both close the edit modal without saving', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Payment');
+
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByText('Edit Payment')).not.toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Payment');
+    fireEvent.click(screen.getByText('Edit Payment').closest('div.bg-emerald-800').querySelector('button'));
+    expect(screen.queryByText('Edit Payment')).not.toBeInTheDocument();
+  });
+
+  it('clicking the backdrop also closes the edit modal without saving', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Payment');
+
+    // The backdrop is the modal's fixed-inset outer div — its own onClick
+    // fires only when the click target is the backdrop itself, not the
+    // card, matching real click-outside-to-close behavior.
+    fireEvent.click(screen.getByText('Edit Payment').closest('.fixed.inset-0'));
+    expect(screen.queryByText('Edit Payment')).not.toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the PIN prompt never reaches the edit form', async () => {
+    mockApi({ payments: [payment({ id: 7 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Cancel PIN'));
+    expect(screen.queryByText('Confirm PIN')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edit Payment')).not.toBeInTheDocument();
+  });
 });
 
 describe('DairyPayments — delete flow (PIN gated)', () => {
@@ -305,6 +481,44 @@ describe('DairyPayments — delete flow (PIN gated)', () => {
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/dairy-payments/9'));
     expect(notify).toHaveBeenCalledWith('Payment deleted', 'success');
   });
+
+  it('Cancel closes the confirmation without deleting', async () => {
+    mockApi({ payments: [payment({ id: 9 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Delete Payment?');
+
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Delete Payment?')).not.toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('the X (close dialog) button also dismisses the delete confirmation', async () => {
+    mockApi({ payments: [payment({ id: 9 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Delete Payment?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByText('Delete Payment?')).not.toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('shows an error notification when the delete fails', async () => {
+    mockApi({ payments: [payment({ id: 9 })] });
+    vi.mocked(api.delete).mockRejectedValue(new Error('network down'));
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Delete Payment?');
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to delete payment', 'error'));
+  });
 });
 
 describe('DairyPayments — superadmin-only bulk top-up', () => {
@@ -318,6 +532,34 @@ describe('DairyPayments — superadmin-only bulk top-up', () => {
     mockRole = 'superadmin';
     await renderPage();
     expect(screen.getByText('Bulk Top-up')).toBeInTheDocument();
+  });
+
+  it('opens the modal and confirming posts the top-up and refreshes', async () => {
+    mockRole = 'superadmin';
+    vi.mocked(api.post).mockResolvedValue({ data: { data: { count: 1, total: 500 } } });
+    await renderPage();
+    fireEvent.click(screen.getByText('Bulk Top-up'));
+    expect(screen.getByTestId('bulk-topup-modal')).toBeInTheDocument();
+
+    const priorCalls = vi.mocked(api.get).mock.calls.filter(c => c[0].includes('/dairy-payments?')).length;
+    fireEvent.click(screen.getByText('Confirm Top-up'));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/dairy-payments/bulk-topup', {
+      paymentDate: '2026-08-09', entries: [{ brandId: 1, amount: 500 }],
+    }));
+    await waitFor(() => {
+      const newCalls = vi.mocked(api.get).mock.calls.filter(c => c[0].includes('/dairy-payments?')).length;
+      expect(newCalls).toBeGreaterThan(priorCalls);
+    });
+  });
+
+  it('closing the modal dismisses it without posting', async () => {
+    mockRole = 'superadmin';
+    await renderPage();
+    fireEvent.click(screen.getByText('Bulk Top-up'));
+    fireEvent.click(screen.getByText('Close Top-up'));
+    expect(screen.queryByTestId('bulk-topup-modal')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 });
 
