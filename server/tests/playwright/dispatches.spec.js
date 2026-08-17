@@ -6,6 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
+const jwt = require('jsonwebtoken');
 const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 const { getIndiaDateStr, getIndiaTomorrowStr } = require('../../utils/dateUtils');
@@ -56,6 +57,21 @@ test.describe('GET /api/v1/dispatches', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data).toHaveLength(1);
+  });
+
+  test('returns a paginated envelope when ?page/?limit is supplied', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([DISPATCH]);
+    ctx.mockPrisma.stockDispatch.count.mockResolvedValue(1);
+
+    const res = await request.get('/api/v1/dispatches?page=1&limit=10', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('items');
+    expect(body.data).toHaveProperty('pagination');
+    expect(body.data.pagination.total).toBe(1);
   });
 });
 
@@ -444,6 +460,27 @@ test.describe('PATCH /api/v1/dispatches/:id/submit', () => {
     expect(updateArgs.where).toEqual({ id: 1 });
   });
 
+  test('a salesman can submit their own dispatch', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH); // salespersonId: 1
+    ctx.mockPrisma.stockDispatch.update.mockResolvedValue({ ...DISPATCH, isSubmitted: true });
+
+    const res = await request.patch('/api/v1/dispatches/1/submit', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('a salesman cannot submit another salesperson\'s dispatch', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue(DISPATCH); // salespersonId: 1
+
+    const res = await request.patch('/api/v1/dispatches/1/submit', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(2)}` },
+    });
+
+    expect(res.status()).toBe(403);
+  });
+
   // itemCount used to only be reported by the (now-suppressed) intermediate
   // save's own card, so the Submitted card needs the dispatch's items included
   // to report it itself and not lose that information.
@@ -511,6 +548,9 @@ test.describe('PATCH /api/v1/dispatches/:id/lock', () => {
       updateArgs = args;
       return { ...DISPATCH, isSubmitted: true, isAdminUnlocked: false };
     });
+    // Resolves the Slack card's acting-user label — exercises the
+    // admin?.role === 'dispatcher' branch of resolveActor (_shared.js).
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'dispatcher1', role: 'dispatcher' });
 
     const res = await request.patch('/api/v1/dispatches/1/lock', {
       headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
@@ -518,6 +558,19 @@ test.describe('PATCH /api/v1/dispatches/:id/lock', () => {
 
     expect(res.status()).toBe(200);
     expect(updateArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
+  });
+
+  test('superadmin locks the dispatch (Slack card label reads "Super Admin")', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findUnique.mockResolvedValue({ ...DISPATCH, isSubmitted: false, isAdminUnlocked: true });
+    ctx.mockPrisma.stockDispatch.update.mockResolvedValue({ ...DISPATCH, isSubmitted: true, isAdminUnlocked: false });
+    // Exercises the admin?.role === 'superadmin' branch of resolveActor.
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'root', role: 'superadmin' });
+
+    const res = await request.patch('/api/v1/dispatches/1/lock', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
   });
 
   test('dispatcher is blocked from locking a dispatch dated in the past', async ({ request }) => {
@@ -770,6 +823,24 @@ test.describe('POST /api/v1/dispatches/finalize-day', () => {
     expect(updateManyArgs.where).toMatchObject({ isSubmitted: false });
     expect(updateManyArgs.data).toMatchObject({ isSubmitted: true, isAdminUnlocked: false });
     expect(createArgs.data).toMatchObject({ finalizedByAdminUserId: 2, isAuto: false });
+  });
+
+  test('finalization row records null finalizedByAdminUserId when the token carries none', async ({ request }) => {
+    let createArgs = null;
+    ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.stockDispatch.updateMany.mockResolvedValue({ count: 0 });
+    ctx.mockPrisma.dispatchDayFinalization.create.mockImplementation(async (args) => {
+      createArgs = args;
+      return { id: 1, date: args.data.date, finalizedByAdminUserId: args.data.finalizedByAdminUserId, isAuto: false };
+    });
+    const tokenWithNoAdminUserId = jwt.sign({ id: 9, role: 'dispatcher' }, 'test-secret-for-ci', { expiresIn: '1h' });
+
+    const res = await request.post('/api/v1/dispatches/finalize-day', {
+      headers: { Authorization: `Bearer ${tokenWithNoAdminUserId}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(createArgs.data.finalizedByAdminUserId).toBeNull();
   });
 
   test('returns 400 when today has already been finalized', async ({ request }) => {

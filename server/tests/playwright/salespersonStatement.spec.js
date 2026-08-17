@@ -10,9 +10,14 @@
  */
 
 const { expect } = require('@playwright/test');
+const jwt = require('jsonwebtoken');
 const { setupSuite, makeSalesmanToken, makeExpiredToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
+
+// A salesman-role token with no salespersonId — exercises the "account not
+// linked" guard, distinct from every other salesman token in this file.
+const makeUnlinkedSalesmanToken = () => jwt.sign({ id: 42, role: 'salesman' }, 'test-secret-for-ci', { expiresIn: '1h' });
 
 const BALANCE_ROW = {
   balanceDate:    new Date('2026-04-30'),
@@ -59,6 +64,15 @@ test.describe('GET /api/v1/salesperson-statement/me', () => {
     expect(res.status()).toBe(403);
     const body = await res.json();
     expect(body.error).toMatch(/salespeople only/i);
+  });
+
+  test('returns 400 when the salesman token carries no salespersonId', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-statement/me?from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeUnlinkedSalesmanToken()}` },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/not linked/i);
   });
 
   test('returns 400 when from query param is missing', async ({ request }) => {

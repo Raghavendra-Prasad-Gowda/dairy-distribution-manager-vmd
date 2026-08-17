@@ -121,6 +121,46 @@ test.describe('GET /api/v1/stock-receipts/availability', () => {
     const body = await res.json();
     expect(body.data).toHaveLength(0);
   });
+
+  test('defaults received/dispatched to 0 and unitsPerContainer to null for a product with no groupBy rows', async ({ request }) => {
+    // A product exists but has neither a receipt nor a dispatch groupBy row
+    // for this date, and no unitsPerContainer set — exercises every `?? `
+    // fallback in the per-product mapping.
+    const product = { id: 2, name: 'Curd 200g', brandId: 1, costPrice: 15, unitsPerContainer: null, brand: { id: 1, name: 'Nandini' } };
+    ctx.mockPrisma.product.findMany.mockResolvedValue([product]);
+    ctx.mockPrisma.stockReceipt.groupBy.mockResolvedValue([]);
+    ctx.mockPrisma.stockDispatchItem.groupBy.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/stock-receipts/availability?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('received', 0);
+    expect(body.data[0]).toHaveProperty('dispatched', 0);
+    expect(body.data[0]).toHaveProperty('available', 0);
+    expect(body.data[0]).toHaveProperty('unitsPerContainer', null);
+  });
+
+  test('defaults a groupBy row\'s _sum.quantity to 0 when Prisma returns a null sum', async ({ request }) => {
+    // Prisma can return _sum: { quantity: null } for a groupBy bucket with no
+    // matching rows summed (distinct from "no bucket at all", already covered
+    // above) — exercises the `?? 0` fallback on the _sum value itself.
+    const product = { id: 1, name: 'Milk 500ml', brandId: 1, costPrice: 22, unitsPerContainer: 24, brand: { id: 1, name: 'Nandini' } };
+    ctx.mockPrisma.product.findMany.mockResolvedValue([product]);
+    ctx.mockPrisma.stockReceipt.groupBy.mockResolvedValue([{ productId: 1, _sum: { quantity: null } }]);
+    ctx.mockPrisma.stockDispatchItem.groupBy.mockResolvedValue([{ productId: 1, _sum: { quantity: null } }]);
+
+    const res = await request.get('/api/v1/stock-receipts/availability?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('received', 0);
+    expect(body.data[0]).toHaveProperty('dispatched', 0);
+  });
 });
 
 // ─── POST /api/v1/stock-receipts/bulk ────────────────────────────────────────
@@ -277,6 +317,47 @@ test.describe('POST /api/v1/stock-receipts/bulk', () => {
     expect(recalcDates).toContain('2026-04-28');
     expect(recalcDates).toContain('2026-04-29');
     expect(recalcDates).toContain('2026-04-30');
+  });
+
+  test('Slack enrichment uses the real route number, deposit flag and balance snapshot when they exist', async ({ request }) => {
+    ctx.mockPrisma.$transaction.mockResolvedValue([RECEIPT]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1, unitsPerContainer: 24 }]);
+    ctx.mockPrisma.route.findUnique.mockResolvedValue({ routeNumber: 'R1' });
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ depositEnabled: true });
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue({
+      openingBalance: 1000, stockValue: 2200, depositValue: 100, amountPaid: 500, closingBalance: 2800,
+    });
+
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, date: '2026-04-30', routeId: 1, items: [{ productId: 1, quantity: 100, unitPrice: 22 }] },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('totalCrates skips items with no unitsPerContainer, mixed with items that have one', async ({ request }) => {
+    ctx.mockPrisma.$transaction.mockResolvedValue([]);
+    // Product 1 has a crate size; product 2 doesn't (e.g. a loose-piece item) —
+    // exercises both sides of the `upc ? … : s` fold in the same call.
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, unitsPerContainer: 24 },
+      { id: 2, unitsPerContainer: null },
+    ]);
+
+    const res = await request.post('/api/v1/stock-receipts/bulk', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        brandId: 1,
+        date: '2026-04-30',
+        items: [
+          { productId: 1, quantity: 48, unitPrice: 22 },
+          { productId: 2, quantity: 10, unitPrice: 15 },
+        ],
+      },
+    });
+
+    expect(res.status()).toBe(200);
   });
 
   test('items with zero quantity are filtered out and not inserted', async ({ request }) => {

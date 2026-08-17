@@ -85,6 +85,12 @@ test.describe('config/env.js', () => {
     expect(env.SUPERADMIN_PASSWORD).toBeUndefined();
   });
 
+  test('defaults NODE_ENV to "development" when unset', () => {
+    const env = loadEnv({ NODE_ENV: undefined, JWT_SECRET: undefined, EDIT_PIN: undefined, DATABASE_URL: undefined });
+    expect(env.NODE_ENV).toBe('development');
+    expect(env.isDev).toBe(true);
+  });
+
   test('SUPERADMIN_USERNAME/PASSWORD pass through when set', () => {
     const env = loadEnv({ NODE_ENV: 'development', SUPERADMIN_USERNAME: 'root', SUPERADMIN_PASSWORD: 'hunter2' });
     expect(env.SUPERADMIN_USERNAME).toBe('root');

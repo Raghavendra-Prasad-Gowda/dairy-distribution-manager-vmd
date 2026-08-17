@@ -8,6 +8,7 @@ const { getActingUsername } = require('../utils/actor');
 const { getPaginationParams, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { assertRole } = require('../utils/authz');
 
 const create = asyncHandler(async (req, res) => {
   const data = validate(schemas.createDairyPayment, req, res);
@@ -35,7 +36,7 @@ const create = asyncHandler(async (req, res) => {
 // they carry forward as that brand's opening balance. A top-up ADDS to what
 // the dairy owes (unlike a payment, which reduces it) — see balanceService.
 const bulkTopUp = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'superadmin') throw new AppError('Super admin access required', 403);
+  assertRole(req, 'superadmin');
 
   const data = validate(schemas.bulkDairyTopUp, req, res);
   if (!data) return;

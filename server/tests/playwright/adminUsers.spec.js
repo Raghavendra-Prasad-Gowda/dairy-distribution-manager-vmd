@@ -314,6 +314,20 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
     expect(body.data).not.toHaveProperty('passwordHash');
   });
 
+  test('returns 200 and rehashes the password when password is included', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => { updateArgs = args; return { ...ADMIN_USER, ...args.data }; });
+
+    const res = await request.put('/api/v1/admin-users/2', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { password: 'newsecurepass' },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toHaveProperty('passwordHash');
+    expect(updateArgs.data.passwordHash).not.toBe('newsecurepass');
+  });
+
   test('returns 200 when role is updated to superadmin', async ({ request }) => {
     ctx.mockPrisma.adminUser.update.mockResolvedValue({ ...ADMIN_USER, role: 'superadmin' });
 
