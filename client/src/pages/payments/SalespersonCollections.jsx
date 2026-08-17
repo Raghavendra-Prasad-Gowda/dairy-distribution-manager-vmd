@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -7,6 +7,7 @@ import ResetLedgerModal from '../../components/ResetLedgerModal';
 import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useApiResources } from '../../hooks/useApiResources';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
@@ -100,9 +101,6 @@ export default function SalespersonCollections() {
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
   const [selectedSpId, setSelectedSp] = useState(null);
-  const [balance, setBalance]         = useState(null);
-  const [payments, setPayments]       = useState([]);
-  const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState('');
   const [filter, setFilter]           = useState('all');
@@ -151,30 +149,22 @@ export default function SalespersonCollections() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchDetail = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [balRes, pmtRes] = await Promise.all([
-        api.get(`/salesperson-balance/${selectedSpId}?date=${today}`),
-        api.get(`/salesperson-payments?salespersonId=${selectedSpId}`),
-      ]);
-      setBalance(balRes.data.data);
-      setPayments(pmtRes.data.data);
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to load data', 'error');
-    } finally {
-      setLoading(false);
-    }
-    // `today` is intentionally excluded — same reasoning as the mount effect
-    // above: keeps current behavior (no refetch on a midnight day-rollover
-    // while the tab is open) unchanged.
+  // `today` is intentionally excluded from this memo's deps — same reasoning
+  // as the mount effect above: keeps current behavior (no refetch on a
+  // midnight day-rollover while the tab stays open on the same salesperson)
+  // unchanged. The urls only change (and only then does useApiResources
+  // refetch) when selectedSpId changes.
+  const detailUrls = useMemo(() => (
+    selectedSpId
+      ? [`/salesperson-balance/${selectedSpId}?date=${today}`, `/salesperson-payments?salespersonId=${selectedSpId}`]
+      : []
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSpId, notify]);
-
-  useEffect(() => {
-    if (!selectedSpId) return;
-    fetchDetail();
-  }, [selectedSpId, fetchDetail]);
+  ), [selectedSpId]);
+  const { data, loading, refetch: fetchDetail, setData } = useApiResources(detailUrls, {
+    initialData: { balance: null, payments: [] },
+    select: ([bal, pmts]) => ({ balance: bal, payments: pmts ?? [] }),
+  });
+  const { balance, payments } = data;
 
   async function refreshAllBalances() {
     const res = await api.get(`/salesperson-balance?date=${today}`);
@@ -189,12 +179,14 @@ export default function SalespersonCollections() {
     try {
       await api.post('/salesperson-payments', { ...formData, salespersonId: Number(selectedSpId) });
       notify('Collection recorded successfully', 'success');
+      // Fetched manually (not via fetchDetail) so `loading` never flips true
+      // here — the panel stays visible and just updates in place, instead of
+      // flashing the full-panel BrandedLoader after every payment.
       const [balRes, pmtRes] = await Promise.all([
         api.get(`/salesperson-balance/${selectedSpId}?date=${today}`),
         api.get(`/salesperson-payments?salespersonId=${selectedSpId}`),
       ]);
-      setBalance(balRes.data.data);
-      setPayments(pmtRes.data.data);
+      setData({ balance: balRes.data.data, payments: pmtRes.data.data ?? [] });
       await refreshAllBalances();
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to record collection', 'error');
