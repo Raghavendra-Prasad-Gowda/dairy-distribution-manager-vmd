@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { TrendingUp, AlertCircle, Calendar, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
-import api from '../../api/axios';
+import { useApiResources } from '../../hooks/useApiResources';
 
 export default function SalespersonBalance() {
   const { user } = useAuth();
 
   const today = getIndiaDate();
-  const [balance, setBalance] = useState(null);
-  const [history, setHistory] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0, limit: 20 });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   // Date range filters — default to today
   const [fromDate, setFromDate] = useState(getIndiaDate());
@@ -21,37 +17,30 @@ export default function SalespersonBalance() {
 
   const salespersonId = user?.salespersonId;
 
-  // Fetch lives inside the effect so no state is set synchronously during
-  // render, and the `cancelled` flag drops a slow in-flight response if the
-  // filters change again before it lands.
-  useEffect(() => {
-    if (!salespersonId) return;
-    let cancelled = false;
-
-    const historyUrl = `/salesperson-balance/${salespersonId}/history?page=${pagination.page}&limit=${pagination.limit}&from=${fromDate}&to=${toDate}`;
-
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const [balRes, histRes] = await Promise.all([
-          api.get(`/salesperson-balance/${salespersonId}?date=${today}`),
-          api.get(historyUrl),
-        ]);
-        if (cancelled) return;
-        const bal = balRes.data.data;
-        setBalance(bal || { openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0 });
-        setHistory(histRes.data.data.items ?? []);
-        setPagination(histRes.data.data.pagination);
-      } catch (e) {
-        if (!cancelled) setError(e.response?.data?.error ?? 'Failed to load balance information');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [salespersonId, today, pagination.page, pagination.limit, fromDate, toDate]);
+  // A monotonic request-id inside useApiResources drops a slow, now-stale
+  // response if the filters change again before it lands — the same
+  // protection the old cancelled-flag effect gave, now built into the hook.
+  const { data, loading, error } = useApiResources(
+    salespersonId ? [
+      `/salesperson-balance/${salespersonId}?date=${today}`,
+      `/salesperson-balance/${salespersonId}/history?page=${pagination.page}&limit=${pagination.limit}&from=${fromDate}&to=${toDate}`,
+    ] : null,
+    {
+      initialData: [null, null],
+      notifyOnError: false,
+      // The history endpoint's own pagination (server-echoed page/limit,
+      // plus the real total/pages) drives the next fetch's page/limit — set
+      // it here, inside the fetch's async continuation, same as the old
+      // effect did before its cancelled-flag guard.
+      select: ([balPayload, histPayload]) => {
+        if (histPayload?.pagination) setPagination(histPayload.pagination);
+        return [balPayload, histPayload];
+      },
+    }
+  );
+  const [balPayload, histPayload] = data;
+  const balance = balPayload || { openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0 };
+  const history = histPayload?.items ?? [];
 
   if (!salespersonId) {
     return <div className="p-4 text-center text-slate-500">Unable to load balance</div>;
