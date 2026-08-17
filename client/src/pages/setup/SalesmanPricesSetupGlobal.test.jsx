@@ -301,6 +301,15 @@ describe('Global Settings — fetchProductView()', () => {
       expect(newCount).toBeGreaterThan(callCount);
     });
   });
+
+  it('Close dismisses the View Price List modal', async () => {
+    await renderAndGoGlobal();
+    fireEvent.click(screen.getByText('View Price List'));
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Salesperson Price List/i })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('heading', { name: /Salesperson Price List/i })).not.toBeInTheDocument();
+  });
 });
 
 describe('Global Settings — handleGlobalToggle()', () => {
@@ -578,6 +587,26 @@ describe('Global Settings — handleSave() in global mode', () => {
     expect(mockNotify).toHaveBeenCalledWith('Set a default price before enabling this product', 'warning');
     expect(api.patch).not.toHaveBeenCalled();
   });
+
+  it('blocks save with an error when a product is toggled on but its price is then cleared', async () => {
+    // Re-enabling passes the toggle-time guard (existing price=50 is still
+    // valid at that moment); clearing the price afterwards leaves the
+    // product dirty-enabled with no price — handleSave's own defensive
+    // check must catch this before ever calling the API.
+    await renderAndGoGlobal();
+    await waitFor(() => expect(screen.getByText('Nandini Toned Milk 500ml')).toBeInTheDocument());
+
+    const milkRow = findProductRow('Nandini Toned Milk 500ml');
+    const toggle = getToggleInRow(milkRow);
+    fireEvent.click(toggle); // disable
+    fireEvent.click(toggle); // re-enable
+
+    fireEvent.change(within(milkRow).getByRole('spinbutton'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    expect(mockNotify).toHaveBeenCalledWith('Set a valid default price for product before enabling', 'error');
+    expect(api.patch).not.toHaveBeenCalled();
+  });
 });
 
 describe('Global Settings — handleBulkUpdate() (Bulk Update Prices)', () => {
@@ -632,6 +661,38 @@ describe('Global Settings — handleBulkUpdate() (Bulk Update Prices)', () => {
       const updateBtn = screen.getByRole('button', { name: /Update \(/ });
       expect(updateBtn).not.toBeDisabled();
     });
+  });
+
+  it('clicking a selected salesman again deselects them', async () => {
+    await openBulkUpdateModal();
+    const spCheckbox = screen.getByRole('checkbox', { name: /Ramesh Kumar/i });
+    fireEvent.click(spCheckbox); // select
+    expect(spCheckbox).toBeChecked();
+    fireEvent.click(spCheckbox); // deselect
+    expect(spCheckbox).not.toBeChecked();
+  });
+
+  it('shows a warning for a negative price on submit', async () => {
+    await openBulkUpdateModal();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ramesh Kumar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Nandini Toned Milk 500ml/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update \(/ })).not.toBeDisabled());
+
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '-5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Update \(/ }));
+
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.stringContaining('Invalid price for'),
+      'warning',
+    );
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('Cancel closes the modal without submitting', async () => {
+    await openBulkUpdateModal();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('heading', { name: /Bulk Update Prices/i })).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('shows warning when product price is left empty on submit', async () => {
@@ -735,6 +796,18 @@ describe('Global Settings — handleBulkUpdate() (Bulk Update Prices)', () => {
     const updateBtn = screen.getByRole('button', { name: /Update \(/ });
     expect(updateBtn).not.toHaveTextContent('Updating');
   });
+
+  it('removes a product from the selected list via the Remove button', async () => {
+    await openBulkUpdateModal();
+    fireEvent.click(screen.getByRole('button', { name: /Nandini Toned Milk 500ml/i }));
+    await waitFor(() => expect(screen.getByText('Selected Products (1)')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Remove/i }));
+
+    expect(screen.queryByText(/Selected Products/i)).not.toBeInTheDocument();
+    // Back in the "add" list, available to add again.
+    expect(screen.getByRole('button', { name: /Nandini Toned Milk 500ml/i })).toBeInTheDocument();
+  });
 });
 
 describe('Global Settings — handleBulkProductUpdate() (Bulk Product Access)', () => {
@@ -753,6 +826,15 @@ describe('Global Settings — handleBulkProductUpdate() (Bulk Product Access)', 
   it('opens Bulk Product Access modal with correct heading', async () => {
     await openBulkProductModal();
     expect(screen.getByText(/Bulk Enable\/Disable Products/i)).toBeInTheDocument();
+  });
+
+  it('Cancel closes the modal without submitting', async () => {
+    await openBulkProductModal();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ramesh Kumar/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText(/Bulk Enable\/Disable Products/i)).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('Confirm button is disabled when no salesman selected', async () => {
@@ -1305,6 +1387,86 @@ describe('Global Settings — Exception Manager (superadmin only)', () => {
       productB.compareDocumentPosition(productC) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
+
+  // ── Actually submitting (handleSaveExceptions) ─────────────────────────────
+
+  it('enabling with a price set calls both bulk-update endpoints and shows success', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} });
+    await openExceptionManager();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Nandini Curd 400g/i }));
+    await waitFor(() => expect(screen.getByText('Use dairy MRP for all')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Use dairy MRP for all'));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ramesh Kumar/ }));
+
+    const submitBtn = screen.getByRole('button', { name: /Enable \(/ });
+    expect(submitBtn).not.toBeDisabled();
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salespeople/products/bulk-update', {
+      salespersonIds: [1],
+      products: [{ productId: 2, isEnabled: true }],
+    }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salespeople/bulk-update', {
+      salespersonIds: [1],
+      productPrices: [{ productId: 2, sellingPrice: 28 }],
+      effectiveFrom: '2026-07-31',
+    }));
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledWith(
+      expect.stringContaining('Enabled 1 product(s) for 1 salesperson(s) with 1 price(s) set'),
+      'success',
+    ));
+    // Modal closes on success.
+    await waitFor(() => expect(screen.queryByText('Exception Manager', { selector: 'h3' })).not.toBeInTheDocument());
+  });
+
+  it('enabling without any price only calls the product-access endpoint, not the price endpoint', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} });
+    await openExceptionManager();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Nandini Curd 400g/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ramesh Kumar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Enable \(/ }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salespeople/products/bulk-update', {
+      salespersonIds: [1],
+      products: [{ productId: 2, isEnabled: true }],
+    }));
+    expect(api.post).not.toHaveBeenCalledWith('/salespeople/bulk-update', expect.anything());
+  });
+
+  it('disabling (removing an exception) calls only the product-access endpoint with isEnabled:false', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} });
+    await openExceptionManager();
+
+    fireEvent.click(screen.getByText('✗ Remove exception (disable)'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Nandini Curd 400g/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ramesh Kumar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Disable \(/ }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salespeople/products/bulk-update', {
+      salespersonIds: [1],
+      products: [{ productId: 2, isEnabled: false }],
+    }));
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledWith(
+      'Disabled 1 product(s) for 1 salesperson(s)',
+      'success',
+    ));
+  });
+
+  it('shows the server error message when applying exceptions fails', async () => {
+    vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Conflict' } } });
+    await openExceptionManager();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Nandini Curd 400g/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Ramesh Kumar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Enable \(/ }));
+
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledWith('Conflict', 'error'));
+    // Modal stays open on failure so the admin can retry.
+    expect(screen.getByText('Exception Manager', { selector: 'h3' })).toBeInTheDocument();
+  });
 });
 
 describe('Global Settings — handleClearAllSalesmanPrices()', () => {
@@ -1372,6 +1534,30 @@ describe('Global Settings — handleClearAllSalesmanPrices()', () => {
         'success',
       );
     });
+  });
+
+  it('continues clearing remaining products (and logs it) when one product fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(api.delete).mockImplementation((url) => {
+      if (url === '/products/1/salesperson-prices') return Promise.reject(new Error('locked'));
+      return Promise.resolve({ data: { data: { message: 'Cleared.', clearedSalespersonIds: [2] } } });
+    });
+    await renderAndGoGlobal();
+    fireEvent.click(screen.getByText('Clear All Salesman Prices'));
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Clear All Salesman Prices/i })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear All Prices/i }));
+
+    await waitFor(() => expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to clear prices for product 1:'),
+      expect.any(Error),
+    ));
+    // Product 2 still succeeded, so the overall action reports success.
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledWith(
+      expect.stringContaining('unique salesmen'),
+      'success',
+    ));
+    consoleSpy.mockRestore();
   });
 
   it('refreshes both global products and product view after clear all', async () => {
