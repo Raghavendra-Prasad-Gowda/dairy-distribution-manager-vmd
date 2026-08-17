@@ -15,25 +15,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Capture the interceptor handlers as axios.create() registers them.
-const handlers = { responseError: null };
+const handlers = { responseError: null, responseOk: null, requestOk: null, requestError: null };
 
 vi.mock('axios', () => ({
   default: {
     create: () => ({
       defaults: { headers: { common: {} } },
       interceptors: {
-        request:  { use: () => {} },
-        response: { use: (_ok, err) => { handlers.responseError = err; } },
+        request:  { use: (ok, err) => { handlers.requestOk = ok; handlers.requestError = err; } },
+        response: { use: (ok, err) => { handlers.responseOk = ok; handlers.responseError = err; } },
       },
     }),
   },
 }));
 
-vi.mock('./coldStart', () => ({
-  markRequestStart: () => {},
-  markRequestEnd:   () => {},
-  nextRequestId:    () => 1,
-}));
+const coldStart = {
+  markRequestStart: vi.fn(),
+  markRequestEnd:   vi.fn(),
+  nextRequestId:    vi.fn(() => 1),
+};
+vi.mock('./coldStart', () => coldStart);
 
 const SESSION_MS = 2 * 60 * 60 * 1000;
 
@@ -41,6 +42,9 @@ let originalLocation;
 
 beforeEach(async () => {
   vi.resetModules();
+  coldStart.markRequestStart.mockClear();
+  coldStart.markRequestEnd.mockClear();
+  coldStart.nextRequestId.mockClear();
   localStorage.clear();
   sessionStorage.clear();
   originalLocation = window.location;
@@ -57,6 +61,13 @@ afterEach(() => {
 async function fireError(error) {
   await handlers.responseError(error).catch(() => {});
 }
+
+describe('response error handler — cold-start tracking cleanup', () => {
+  it('stops tracking the failed request when it carried a cold-start id', async () => {
+    await fireError({ config: { url: '/brands', __reqId: 9 }, response: { status: 500 } });
+    expect(coldStart.markRequestEnd).toHaveBeenCalledWith(9);
+  });
+});
 
 describe('401 handling', () => {
   it('clears auth and redirects to login', async () => {
@@ -150,6 +161,61 @@ describe('401 handling — credential checks are not session expiry', () => {
     await fireError({ config: { url: '/auth/login' } });
 
     expect(window.location.href).toBe('');
+  });
+});
+
+describe('missing VITE_API_BASE_URL warning', () => {
+  it('logs an error when unset outside dev mode', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', '');
+    vi.stubEnv('DEV', false);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.resetModules();
+
+    await import('./axios');
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('VITE_API_BASE_URL is not set'));
+
+    errorSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+});
+
+describe('request interceptor', () => {
+  it('attaches the Bearer token when one is stored', () => {
+    localStorage.setItem('token', 'jwt-abc');
+    const config = handlers.requestOk({ headers: {} });
+    expect(config.headers['Authorization']).toBe('Bearer jwt-abc');
+  });
+
+  it('omits the Authorization header when there is no token', () => {
+    const config = handlers.requestOk({ headers: {} });
+    expect(config.headers['Authorization']).toBeUndefined();
+  });
+
+  it('tags every request with a cold-start id and starts tracking it', () => {
+    coldStart.nextRequestId.mockReturnValue(42);
+    const config = handlers.requestOk({ headers: {} });
+    expect(config.__reqId).toBe(42);
+    expect(coldStart.markRequestStart).toHaveBeenCalledWith(42);
+  });
+
+  it('rejects on a request-building error without swallowing it', async () => {
+    const err = new Error('bad config');
+    await expect(handlers.requestError(err)).rejects.toBe(err);
+  });
+});
+
+describe('response success handler', () => {
+  it('stops cold-start tracking for the completed request and returns it unchanged', () => {
+    const response = { config: { __reqId: 7 }, data: { ok: true } };
+    const result = handlers.responseOk(response);
+    expect(coldStart.markRequestEnd).toHaveBeenCalledWith(7);
+    expect(result).toBe(response);
+  });
+
+  it('does not call markRequestEnd when the response has no tracked id', () => {
+    const response = { config: {}, data: {} };
+    handlers.responseOk(response);
+    expect(coldStart.markRequestEnd).not.toHaveBeenCalled();
   });
 });
 
