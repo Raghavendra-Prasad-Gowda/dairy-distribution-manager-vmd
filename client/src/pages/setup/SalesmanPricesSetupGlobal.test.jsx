@@ -867,37 +867,39 @@ describe('Global Settings — handleClearCustomPrices()', () => {
     });
   });
 
-  it('shows confirm dialog before clearing', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('shows a confirmation modal before clearing, without calling DELETE yet', async () => {
     await renderAndGoGlobal();
     await waitFor(() => expect(screen.getByText('Nandini Toned Milk 500ml')).toBeInTheDocument());
 
     const clearBtns = screen.getAllByRole('button', { name: 'Clear' });
     fireEvent.click(clearBtns[0]);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    expect(await screen.findByText(/Clear all custom prices for/)).toBeInTheDocument();
     expect(api.delete).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
-  it('does NOT call DELETE when user cancels confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('does NOT call DELETE when user cancels the confirmation modal', async () => {
     await renderAndGoGlobal();
     await waitFor(() => expect(screen.getByText('Nandini Toned Milk 500ml')).toBeInTheDocument());
 
     const clearBtns = screen.getAllByRole('button', { name: 'Clear' });
     fireEvent.click(clearBtns[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     expect(api.delete).not.toHaveBeenCalled();
   });
 
   it('calls DELETE /products/:id/salesperson-prices when confirmed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     await renderAndGoGlobal();
     await waitFor(() => expect(screen.getByText('Nandini Toned Milk 500ml')).toBeInTheDocument());
 
     const clearBtns = screen.getAllByRole('button', { name: 'Clear' });
     fireEvent.click(clearBtns[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
 
     await waitFor(() => {
       expect(api.delete).toHaveBeenCalledWith('/products/1/salesperson-prices');
@@ -905,12 +907,14 @@ describe('Global Settings — handleClearCustomPrices()', () => {
   });
 
   it('shows success notification with message from API response', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     await renderAndGoGlobal();
     await waitFor(() => expect(screen.getByText('Nandini Toned Milk 500ml')).toBeInTheDocument());
 
     const clearBtns = screen.getAllByRole('button', { name: 'Clear' });
     fireEvent.click(clearBtns[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
 
     await waitFor(() => {
       expect(mockNotify).toHaveBeenCalledWith('Cleared custom prices for 2 salespeople.', 'success');
@@ -918,7 +922,6 @@ describe('Global Settings — handleClearCustomPrices()', () => {
   });
 
   it('shows error notification when DELETE fails', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.mocked(api.delete).mockRejectedValue({ response: { data: { error: 'Product not found' } } });
 
     await renderAndGoGlobal();
@@ -927,13 +930,15 @@ describe('Global Settings — handleClearCustomPrices()', () => {
     const clearBtns = screen.getAllByRole('button', { name: 'Clear' });
     fireEvent.click(clearBtns[0]);
 
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
+
     await waitFor(() => {
       expect(mockNotify).toHaveBeenCalledWith('Product not found', 'error');
     });
   });
 
   it('refreshes global products after successful clear', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     await renderAndGoGlobal();
     await waitFor(() => expect(screen.getByText('Nandini Toned Milk 500ml')).toBeInTheDocument());
 
@@ -943,6 +948,9 @@ describe('Global Settings — handleClearCustomPrices()', () => {
 
     const clearBtns = screen.getAllByRole('button', { name: 'Clear' });
     fireEvent.click(clearBtns[0]);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear' }));
 
     await waitFor(() => {
       const newCount = vi.mocked(api.get).mock.calls.filter(

@@ -198,3 +198,65 @@ describe('DepositReport — Deposit Top-up button visibility', () => {
     expect(within(dialog).queryByText('Jersey')).toBeNull();
   });
 });
+
+describe('DepositReport — deleting a manual top-up row (superadmin only)', () => {
+  function reportWithTopUpRow() {
+    return emptyReport({
+      totalDeposit: 500,
+      rows: [{
+        date: '2026-08-08', dailyDeposit: 500, runningTotal: 500,
+        items: [{
+          isTopUp: true, id: 5, category: 'Deposits',
+          productName: 'Manual Top-up', depositAmount: 500,
+          notes: 'Opening balance', createdBy: 'admin',
+        }],
+      }],
+    });
+  }
+
+  it('asks for confirmation before deleting, without calling DELETE yet', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText(/Delete this deposit top-up/)).toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('does NOT delete when the confirmation is cancelled', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('calls DELETE and refreshes the report when confirmed', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    vi.mocked(api.delete).mockResolvedValue({ data: { success: true } });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/dairy-deposit-topups/5'));
+    expect(notify).toHaveBeenCalledWith('Deposit top-up deleted', 'success');
+  });
+});
