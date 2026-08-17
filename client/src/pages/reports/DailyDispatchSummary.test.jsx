@@ -15,6 +15,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import DailyDispatchSummary from './DailyDispatchSummary';
 import api from '../../api/axios';
 
+const notify = vi.fn();
+vi.mock('../../context/NotificationContext', () => ({
+  useNotification: () => ({ notify }),
+}));
+
 vi.mock('../../api/axios', () => ({
   default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
