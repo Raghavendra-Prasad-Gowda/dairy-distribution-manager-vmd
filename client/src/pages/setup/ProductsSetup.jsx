@@ -8,6 +8,8 @@ import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import { useApiResources } from '../../hooks/useApiResources';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
@@ -26,11 +28,9 @@ export default function ProductsSetup() {
   const { notify } = useNotification();
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [busyMsg, setBusyMsg]       = useState('');
   const [search, setSearch]         = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const modal = useDisclosure();
   const [editingProduct, setEditingProduct] = useState(null);
   const [form, setForm]               = useState(EMPTY_FORM);
   const [confirmation, setConfirmation] = useState({ isOpen: false });
@@ -106,8 +106,40 @@ export default function ProductsSetup() {
   const startIdx     = pages.slice(0, currentPage - 1).reduce((s, p) => s + p.reduce((a, [, it]) => a + it.length, 0), 0);
   const endIdx       = startIdx + pageGroups.reduce((s, [, it]) => s + it.length, 0);
 
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+  const { mutate: saveProduct, loading: savingProduct } = useMutation(
+    ({ isEdit, id, payload }) =>
+      isEdit ? api.put(`/products/${id}`, payload) : api.post('/products', { brandId: activeBrandId, ...payload }),
+    {
+      onSuccess: (_res, { isEdit }) => {
+        notify(isEdit ? 'Product updated' : 'Product added', 'success');
+        closeModal();
+        fetchAll();
+      },
+    }
+  );
+
+  const { mutate: archiveProduct, loading: archiving } = useMutation(
+    (p) => api.put(`/products/${p.id}`, { isActive: false }),
+    { successMessage: 'Product archived', onSuccess: fetchAll }
+  );
+
+  const { mutate: toggleShowInReceipt } = useMutation(
+    (p) => api.put(`/products/${p.id}`, { showInStockReceipt: !p.showInStockReceipt }),
+    {
+      onSuccess: (_res, p) => {
+        setProducts(prev => prev.map(x => x.id === p.id ? { ...x, showInStockReceipt: !x.showInStockReceipt } : x));
+      },
+    }
+  );
+
+  const submitting = savingProduct || archiving;
+  const busyMsg    = savingProduct
+    ? (editingProduct ? 'Updating product…' : 'Adding product…')
+    : archiving ? 'Archiving product…' : '';
+
   // ── Modal ─────────────────────────────────────────────────────────────────────
-  const openAdd = () => { setEditingProduct(null); setForm(EMPTY_FORM); setIsModalOpen(true); };
+  const openAdd = () => { setEditingProduct(null); setForm(EMPTY_FORM); modal.open(); };
 
   const openEdit = (p) => {
     const cat = categories.find(c => c.name === p.category);
@@ -116,15 +148,13 @@ export default function ProductsSetup() {
     // pre-filling with the existing (possibly-old) effective date would just
     // bounce off the picker's min constraint.
     setForm({ name: p.name, categoryId: cat?.id ?? '', unitType: p.unitType ?? 'piece', unitSize: p.unitSize ?? '', containerType: p.containerType ?? '', unitsPerContainer: p.unitsPerContainer ?? '', costPrice: Number(p.costPrice), sellingPrice: Number(p.sellingPrice), effectiveFrom: getIndiaDate() });
-    setIsModalOpen(true);
+    modal.open();
   };
 
-  const closeModal = () => { setIsModalOpen(false); setEditingProduct(null); };
+  const closeModal = () => { modal.close(); setEditingProduct(null); };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setBusyMsg(editingProduct ? 'Updating product…' : 'Adding product…');
-    setSubmitting(true);
     const categoryName = categories.find(c => c.id === Number(form.categoryId))?.name ?? null;
     const payload = {
       name:              form.name.trim(),
@@ -137,21 +167,7 @@ export default function ProductsSetup() {
       sellingPrice:      parseFloat(form.sellingPrice) || 0,
       ...(form.effectiveFrom ? { effectiveFrom: form.effectiveFrom, sellingPriceEffectiveFrom: form.effectiveFrom } : {}),
     };
-    try {
-      if (editingProduct) {
-        await api.put(`/products/${editingProduct.id}`, payload);
-        notify('Product updated', 'success');
-      } else {
-        await api.post('/products', { brandId: activeBrandId, ...payload });
-        notify('Product added', 'success');
-      }
-      closeModal();
-      fetchAll();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    saveProduct({ isEdit: !!editingProduct, id: editingProduct?.id, payload });
   };
 
   const confirmArchive = (p) => {
@@ -162,30 +178,6 @@ export default function ProductsSetup() {
       action: () => archiveProduct(p),
       isDanger: true,
     });
-  };
-
-  const archiveProduct = async (p) => {
-    setBusyMsg('Archiving product…');
-    setSubmitting(true);
-    try {
-      await api.put(`/products/${p.id}`, { isActive: false });
-      notify('Product archived', 'success');
-      fetchAll();
-    } catch {
-      notify('Failed to archive product', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-
-  const toggleShowInReceipt = async (p) => {
-    try {
-      await api.put(`/products/${p.id}`, { showInStockReceipt: !p.showInStockReceipt });
-      setProducts(prev => prev.map(x => x.id === p.id ? { ...x, showInStockReceipt: !x.showInStockReceipt } : x));
-    } catch {
-      notify('Failed to update product', 'error');
-    }
   };
 
   const activeBrand = brands.find(b => b.id === activeBrandId);
@@ -368,7 +360,7 @@ export default function ProductsSetup() {
       </div>
 
       {/* Add / Edit Modal */}
-      {isModalOpen && (
+      {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh]" style={{ animation: 'popIn 0.2s ease' }}>
 

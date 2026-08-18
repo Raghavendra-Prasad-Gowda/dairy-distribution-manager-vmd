@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
@@ -12,6 +12,9 @@ import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { useApiResources } from '../../hooks/useApiResources';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
+import { usePaymentFilters } from '../../hooks/usePaymentFilters';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
 import { getBrandColors, PAYMENT_MODES } from '../../utils/constants';
@@ -96,36 +99,21 @@ export default function DairyPayments() {
   // Loading pre-existing dues rewrites brand balances irreversibly — superadmin
   // only, mirroring the requireSuperAdmin guard on the API route.
   const isSuperAdmin = user?.role === 'superadmin';
-  const [topUpOpen, setTopUpOpen] = useState(false);
+  const topUpModal = useDisclosure();
   const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
-  const [saving, setSaving]        = useState(false);
 
   // PIN modal state — single gate for both edit and delete
-  const [pinOpen, setPinOpen]           = useState(false);
+  const pinModal = useDisclosure();
   const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
 
   // Edit modal state
   const [editPayment, setEditPayment]   = useState(null);
   const [editForm, setEditForm]         = useState({});
-  const [editSaving, setEditSaving]     = useState(false);
 
   // Delete confirm state
   const [deleteId, setDeleteId]         = useState(null);
-  const [deleting, setDeleting]         = useState(false);
-
-  // Search + filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterFrom, setFilterFrom]   = useState('');
-  const [filterTo,   setFilterTo]     = useState('');
-  const [filterMode, setFilterMode]   = useState('');
-  const [filterRef,  setFilterRef]    = useState('');
-  const [showFilter, setShowFilter]   = useState(false);
-
-  // Pagination
-  const HISTORY_PER_PAGE = 15;
-  const [historyPage, setHistoryPage] = useState(1);
 
   const today = getIndiaDate();
 
@@ -168,8 +156,11 @@ export default function DairyPayments() {
   // No `?.`/`??` fallback here on purpose — initialData already guarantees
   // this shape, so destructuring directly keeps `payments`'s array
   // reference stable across renders (a fresh `?? []` literal on every
-  // render would invalidate the filteredPayments useMemo below).
+  // render would invalidate the filteredPayments useMemo in usePaymentFilters).
   const { balance, payments } = data;
+
+  // Search + filter + pagination — shared hook
+  const history = usePaymentFilters(payments, { searchable: true, resetDeps: [activeBrandId] });
 
   const fetchBreakdown = useCallback(async () => {
     if (!activeBrandId) return;
@@ -192,42 +183,24 @@ export default function DairyPayments() {
     fetchBreakdown();
   }, [activeBrandId, fetchBreakdown]);
 
-  const handlePayment = async (formData) => {
-    setSaving(true);
-    try {
-      await api.post('/dairy-payments', { ...formData, brandId: activeBrandId });
-      notify('Payment recorded successfully', 'success');
-      fetchAll();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to record payment', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { mutate: recordPayment, loading: saving } = useMutation(
+    (formData) => api.post('/dairy-payments', { ...formData, brandId: activeBrandId }),
+    { successMessage: 'Payment recorded successfully', onSuccess: fetchAll }
+  );
 
-  const handleDelete = async () => {
-    if (!deleteId || deleting) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/dairy-payments/${deleteId}`);
-      notify('Payment deleted', 'success');
-      setDeleteId(null);
-      fetchAll();
-    } catch {
-      notify('Failed to delete payment', 'error');
-    } finally {
-      setDeleting(false);
-    }
-  };
+  const { mutate: deletePayment, loading: deleting } = useMutation(
+    (id) => api.delete(`/dairy-payments/${id}`),
+    { successMessage: 'Payment deleted', onSuccess: () => { setDeleteId(null); fetchAll(); } }
+  );
 
   const openEdit = (p) => {
     setPendingAction({ type: 'edit', payment: p });
-    setPinOpen(true);
+    pinModal.open();
   };
 
   const openDelete = (p) => {
     setPendingAction({ type: 'delete', payment: p });
-    setPinOpen(true);
+    pinModal.open();
   };
 
   const onPinSuccess = () => {
@@ -247,53 +220,12 @@ export default function DairyPayments() {
     setPendingAction(null);
   };
 
-  const handleEditSave = async () => {
-    if (!editPayment) return;
-    setEditSaving(true);
-    try {
-      await api.put(`/dairy-payments/${editPayment.id}`, {
-        ...editForm,
-        amount: parseFloat(editForm.amount),
-      });
-      notify('Payment updated successfully', 'success');
-      setEditPayment(null);
-      fetchAll();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to update payment', 'error');
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  const hasFilters = filterFrom || filterTo || filterMode || filterRef;
-  const hasSearch  = searchQuery.trim().length > 0;
-
-  const filteredPayments = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return payments.filter(p => {
-      const dateStr = p.paymentDate?.slice(0, 10) ?? '';
-      if (filterFrom && dateStr < filterFrom) return false;
-      if (filterTo   && dateStr > filterTo)   return false;
-      if (filterMode && p.paymentMode !== filterMode) return false;
-      if (filterRef  && !(p.reference ?? '').toLowerCase().includes(filterRef.toLowerCase())) return false;
-      if (q) {
-        const amount   = String(p.amount ?? '');
-        const ref      = (p.reference ?? '').toLowerCase();
-        const mode     = (p.paymentMode ?? '').toLowerCase();
-        const date     = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).toLowerCase();
-        if (!amount.includes(q) && !ref.includes(q) && !mode.includes(q) && !date.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [payments, searchQuery, filterFrom, filterTo, filterMode, filterRef]);
-
-  // Reset to page 1 when filters/search change
-  useEffect(() => { setHistoryPage(1); }, [searchQuery, filterFrom, filterTo, filterMode, filterRef, activeBrandId]);
-
-  const historyTotalPages = Math.max(1, Math.ceil(filteredPayments.length / HISTORY_PER_PAGE));
-  const pagedPayments = filteredPayments.slice(
-    (historyPage - 1) * HISTORY_PER_PAGE,
-    historyPage * HISTORY_PER_PAGE,
+  const { mutate: updatePayment, loading: editSaving } = useMutation(
+    () => api.put(`/dairy-payments/${editPayment.id}`, {
+      ...editForm,
+      amount: parseFloat(editForm.amount),
+    }),
+    { successMessage: 'Payment updated successfully', onSuccess: () => { setEditPayment(null); fetchAll(); } }
   );
 
   const activeBrand = brands.find(b => b.id === activeBrandId);
@@ -321,7 +253,7 @@ export default function DairyPayments() {
           Bulk Update Prices on the salesman pricing page). */}
       {isSuperAdmin && (
         <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
-          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
+          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={topUpModal.open}>
             Bulk Top-up
           </Button>
         </div>
@@ -335,8 +267,8 @@ export default function DairyPayments() {
         Deposit report tab instead, backed by its own endpoint/table.
       */}
       <BulkTopUpModal
-        open={topUpOpen}
-        onClose={() => setTopUpOpen(false)}
+        open={topUpModal.isOpen}
+        onClose={topUpModal.close}
         entities={brands}
         notify={notify}
         entryKey="brandId"
@@ -465,7 +397,7 @@ export default function DairyPayments() {
                 <div className="ddm-card p-5">
                   <h3 className="ddm-section-label mb-4">Record Payment</h3>
                   <PaymentForm
-                    onSubmit={handlePayment}
+                    onSubmit={recordPayment}
                     closingBalance={balance?.closingBalance ?? 0}
                     loading={saving}
                     prefill={paymentPrefill}
@@ -484,23 +416,23 @@ export default function DairyPayments() {
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-slate-900 text-sm">
                         Payment History
-                        {(hasSearch || hasFilters) && filteredPayments.length !== payments.length && (
+                        {(history.hasSearch || history.hasFilters) && history.filteredPayments.length !== payments.length && (
                           <span className="ml-2 text-xs font-normal text-slate-400">
-                            ({filteredPayments.length} of {payments.length})
+                            ({history.filteredPayments.length} of {payments.length})
                           </span>
                         )}
                       </h3>
                       <button
-                        onClick={() => setShowFilter(v => !v)}
+                        onClick={history.filterPanel.toggle}
                         className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
-                          showFilter || hasFilters
+                          history.filterPanel.isOpen || history.hasFilters
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
                         }`}
                       >
                         <Filter size={12} />
                         Filter
-                        {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+                        {history.hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
                       </button>
                     </div>
                     {/* Quick search */}
@@ -508,13 +440,13 @@ export default function DairyPayments() {
                       <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       <input
                         type="text"
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
+                        value={history.searchQuery}
+                        onChange={e => history.setSearchQuery(e.target.value)}
                         placeholder="Search by amount, mode, reference, date…"
                         className="w-full pl-8 pr-8 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50 placeholder:text-slate-400"
                       />
-                      {hasSearch && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {history.hasSearch && (
+                        <button onClick={() => history.setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                           <X size={12} />
                         </button>
                       )}
@@ -522,13 +454,13 @@ export default function DairyPayments() {
                   </div>
 
                   {/* Filter controls */}
-                  {showFilter && (
+                  {history.filterPanel.isOpen && (
                     <div className="px-5 py-3 bg-emerald-50/60 border-b border-emerald-100 grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">From</label>
                         <div className="relative">
                           <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
+                          <input type="date" value={history.filterFrom} onChange={e => history.setFilterFrom(e.target.value)} max={today}
                             className="w-full pl-7 pr-2 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none min-h-[34px]" />
                         </div>
                       </div>
@@ -536,13 +468,13 @@ export default function DairyPayments() {
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">To</label>
                         <div className="relative">
                           <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
+                          <input type="date" value={history.filterTo} onChange={e => history.setFilterTo(e.target.value)} max={today}
                             className="w-full pl-7 pr-2 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white appearance-none min-h-[34px]" />
                         </div>
                       </div>
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Mode</label>
-                        <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
+                        <select value={history.filterMode} onChange={e => history.setFilterMode(e.target.value)}
                           className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
                           <option value="">All</option>
                           {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -551,18 +483,18 @@ export default function DairyPayments() {
                       <div>
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Reference</label>
                         <div className="relative">
-                          <input type="text" value={filterRef} onChange={e => setFilterRef(e.target.value)} placeholder="Search…"
+                          <input type="text" value={history.filterRef} onChange={e => history.setFilterRef(e.target.value)} placeholder="Search…"
                             className="w-full pl-2 pr-6 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
-                          {filterRef && (
-                            <button onClick={() => setFilterRef('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          {history.filterRef && (
+                            <button onClick={() => history.setFilterRef('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                               <X size={11} />
                             </button>
                           )}
                         </div>
                       </div>
-                      {hasFilters && (
+                      {history.hasFilters && (
                         <button
-                          onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterMode(''); setFilterRef(''); }}
+                          onClick={history.clearFilters}
                           className="col-span-full text-xs text-red-600 hover:text-red-700 font-semibold text-left"
                         >
                           Clear all filters
@@ -573,7 +505,7 @@ export default function DairyPayments() {
 
                   {payments.length === 0 ? (
                     <div className="text-center py-14 text-slate-400 text-sm">No payments recorded yet</div>
-                  ) : filteredPayments.length === 0 ? (
+                  ) : history.filteredPayments.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 text-sm">No payments match the current filters</div>
                   ) : (
                     <>
@@ -590,7 +522,7 @@ export default function DairyPayments() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-slate-100">
-                            {pagedPayments.map((p) => (
+                            {history.pagedPayments.map((p) => (
                               <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                                 <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap" style={{ verticalAlign: 'top' }}>
                                   {new Date(p.paymentDate?.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
@@ -624,23 +556,23 @@ export default function DairyPayments() {
                           </tbody>
                         </table>
                       </div>
-                      {historyTotalPages > 1 && (
+                      {history.totalPages > 1 && (
                         <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/60">
                           <p className="text-xs text-slate-400">
-                            {(historyPage - 1) * HISTORY_PER_PAGE + 1}–{Math.min(historyPage * HISTORY_PER_PAGE, filteredPayments.length)} of {filteredPayments.length}
+                            {(history.page - 1) * history.perPage + 1}–{Math.min(history.page * history.perPage, history.filteredPayments.length)} of {history.filteredPayments.length}
                           </p>
                           <div className="flex items-center gap-1.5">
                             <button
-                              onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                              disabled={historyPage === 1}
+                              onClick={() => history.setPage(p => Math.max(1, p - 1))}
+                              disabled={history.page === 1}
                               className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                             >
                               Prev
                             </button>
-                            <span className="text-xs text-slate-500 font-medium px-1">{historyPage} / {historyTotalPages}</span>
+                            <span className="text-xs text-slate-500 font-medium px-1">{history.page} / {history.totalPages}</span>
                             <button
-                              onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
-                              disabled={historyPage === historyTotalPages}
+                              onClick={() => history.setPage(p => Math.min(history.totalPages, p + 1))}
+                              disabled={history.page === history.totalPages}
                               className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                             >
                               Next
@@ -659,8 +591,8 @@ export default function DairyPayments() {
 
       {/* ── PIN modal ────────────────────────────────────────── */}
       <PinModal
-        isOpen={pinOpen}
-        onClose={() => { setPinOpen(false); setPendingAction(null); }}
+        isOpen={pinModal.isOpen}
+        onClose={() => { pinModal.close(); setPendingAction(null); }}
         onSuccess={onPinSuccess}
         title="Enter PIN to Edit Payment"
       />
@@ -760,7 +692,7 @@ export default function DairyPayments() {
                 Cancel
               </button>
               <button
-                onClick={handleEditSave}
+                onClick={updatePayment}
                 disabled={editSaving || !editForm.amount}
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
                 {editSaving ? <Loader2 className="animate-spin" size={14} /> : <Pencil size={14} />}
@@ -780,7 +712,7 @@ export default function DairyPayments() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+            <Button variant="danger" onClick={() => deletePayment(deleteId)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
           </>
         }
       >

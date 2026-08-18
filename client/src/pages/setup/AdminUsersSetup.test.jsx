@@ -151,7 +151,7 @@ describe('AdminUsersSetup — add user', () => {
     fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
     fireEvent.click(screen.getByRole('button', { name: /Create/i }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to create user', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('the eye button toggles the new-password field between hidden and visible text', async () => {
@@ -303,7 +303,7 @@ describe('AdminUsersSetup — edit user', () => {
 
     vi.mocked(api.put).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update user', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('the eye button toggles the edit-password field visibility', async () => {
@@ -466,6 +466,6 @@ describe('AdminUsersSetup — delete user', () => {
     fireEvent.click(deleteBtn);
     dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete/i }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to delete user', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });

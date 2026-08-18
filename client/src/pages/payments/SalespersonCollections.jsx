@@ -8,6 +8,9 @@ import StatusBadge from '../../components/StatusBadge';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { useApiResources } from '../../hooks/useApiResources';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
+import { usePaymentFilters } from '../../hooks/usePaymentFilters';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { PAYMENT_MODES } from '../../utils/constants';
 import api from '../../api/axios';
@@ -101,31 +104,18 @@ export default function SalespersonCollections() {
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
   const [selectedSpId, setSelectedSp] = useState(null);
-  const [saving, setSaving]           = useState(false);
   const [search, setSearch]           = useState('');
   const [filter, setFilter]           = useState('all');
 
   // Edit modal state
   const [editPayment, setEditPayment] = useState(null);
   const [editForm,    setEditForm]    = useState({});
-  const [editSaving,  setEditSaving]  = useState(false);
 
   // PIN gate state
-  const [pinOpen, setPinOpen]             = useState(false);
+  const pinModal = useDisclosure();
   const [pendingAction, setPendingAction] = useState(null); // { type: 'edit'|'delete', payment }
-  const [topUpOpen, setTopUpOpen]         = useState(false);
-  const [resetOpen, setResetOpen]         = useState(false);
-
-  // History filter state
-  const [showFilter, setShowFilter]   = useState(false);
-  const [filterFrom, setFilterFrom]   = useState('');
-  const [filterTo,   setFilterTo]     = useState('');
-  const [filterMode, setFilterMode]   = useState('');
-  const [filterRef,  setFilterRef]    = useState('');
-
-  // Pagination
-  const HISTORY_PER_PAGE = 15;
-  const [historyPage, setHistoryPage] = useState(1);
+  const topUpModal = useDisclosure();
+  const resetModal = useDisclosure();
 
   useEffect(() => {
     Promise.all([
@@ -166,6 +156,9 @@ export default function SalespersonCollections() {
   });
   const { balance, payments } = data;
 
+  // History filter + pagination — shared hook
+  const history = usePaymentFilters(payments, { resetDeps: [selectedSpId] });
+
   async function refreshAllBalances() {
     const res = await api.get(`/salesperson-balance?date=${today}`);
     const map = {};
@@ -173,52 +166,34 @@ export default function SalespersonCollections() {
     setAllBalances(map);
   }
 
-  const handlePayment = async (formData) => {
-    setSaving(true);
-    notify('Recording collection…', 'loading');
-    try {
-      await api.post('/salesperson-payments', { ...formData, salespersonId: Number(selectedSpId) });
-      notify('Collection recorded successfully', 'success');
-      // Fetched manually (not via fetchDetail) so `loading` never flips true
-      // here — the panel stays visible and just updates in place, instead of
-      // flashing the full-panel BrandedLoader after every payment.
-      const [balRes, pmtRes] = await Promise.all([
-        api.get(`/salesperson-balance/${selectedSpId}?date=${today}`),
-        api.get(`/salesperson-payments?salespersonId=${selectedSpId}`),
-      ]);
-      setData({ balance: balRes.data.data, payments: pmtRes.data.data ?? [] });
-      await refreshAllBalances();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to record collection', 'error');
-    } finally {
-      setSaving(false);
+  // Record collection — fetches updated data manually (not via fetchDetail) so
+  // `loading` never flips true, keeping the panel visible instead of flashing
+  // the full-panel BrandedLoader after every payment.
+  const { mutate: recordCollection, loading: saving } = useMutation(
+    (formData) => api.post('/salesperson-payments', { ...formData, salespersonId: Number(selectedSpId) }),
+    {
+      successMessage: 'Collection recorded successfully',
+      onSuccess: async () => {
+        const [balRes, pmtRes] = await Promise.all([
+          api.get(`/salesperson-balance/${selectedSpId}?date=${today}`),
+          api.get(`/salesperson-payments?salespersonId=${selectedSpId}`),
+        ]);
+        setData({ balance: balRes.data.data, payments: pmtRes.data.data ?? [] });
+        await refreshAllBalances();
+      },
     }
-  };
+  );
 
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, amount, mode }
-  const [deleting, setDeleting]           = useState(false);
 
   const handleDelete = (id, amount, mode) => {
     setDeleteConfirm({ id, amount, mode });
   };
 
-  const confirmDelete = async () => {
-    if (!deleteConfirm || deleting) return;
-    const { id } = deleteConfirm;
-    setDeleteConfirm(null);
-    setDeleting(true);
-    notify('Deleting record…', 'loading');
-    try {
-      await api.delete(`/salesperson-payments/${id}`);
-      notify('Record deleted', 'success');
-      fetchDetail();
-      refreshAllBalances();
-    } catch {
-      notify('Failed to delete', 'error');
-    } finally {
-      setDeleting(false);
-    }
-  };
+  const { mutate: confirmDelete, loading: deleting } = useMutation(
+    (id) => api.delete(`/salesperson-payments/${id}`),
+    { successMessage: 'Record deleted', onSuccess: () => { setDeleteConfirm(null); fetchDetail(); refreshAllBalances(); } }
+  );
 
   const handleEdit = (p) => {
     setEditPayment(p);
@@ -232,12 +207,12 @@ export default function SalespersonCollections() {
 
   const openEdit = (p) => {
     setPendingAction({ type: 'edit', payment: p });
-    setPinOpen(true);
+    pinModal.open();
   };
 
   const openDelete = (p) => {
     setPendingAction({ type: 'delete', payment: p });
-    setPinOpen(true);
+    pinModal.open();
   };
 
   const onPinSuccess = () => {
@@ -251,25 +226,13 @@ export default function SalespersonCollections() {
     setPendingAction(null);
   };
 
-  const handleEditSave = async () => {
-    if (!editPayment) return;
-    setEditSaving(true);
-    notify('Updating collection…', 'loading');
-    try {
-      await api.put(`/salesperson-payments/${editPayment.id}`, {
-        ...editForm,
-        amount: parseFloat(editForm.amount),
-      });
-      notify('Collection updated', 'success');
-      setEditPayment(null);
-      fetchDetail();
-      refreshAllBalances();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to update', 'error');
-    } finally {
-      setEditSaving(false);
-    }
-  };
+  const { mutate: updateCollection, loading: editSaving } = useMutation(
+    () => api.put(`/salesperson-payments/${editPayment.id}`, {
+      ...editForm,
+      amount: parseFloat(editForm.amount),
+    }),
+    { successMessage: 'Collection updated', onSuccess: () => { setEditPayment(null); fetchDetail(); refreshAllBalances(); } }
+  );
 
   const selectedSp = salespeople.find(sp => sp.id === selectedSpId);
   const pendingCount = Object.values(allBalances).filter(b => (b.closingBalance ?? 0) > 0).length;
@@ -285,27 +248,7 @@ export default function SalespersonCollections() {
     return true;
   });
 
-  // Reset to page 1 when filters or selected SP changes
-  useEffect(() => { setHistoryPage(1); }, [filterFrom, filterTo, filterMode, filterRef, selectedSpId]);
-
-  const hasFilters = filterFrom || filterTo || filterMode || filterRef;
-
-  const filteredPayments = useMemo(() => {
-    return payments.filter(p => {
-      const dateStr = p.paymentDate?.slice(0, 10) ?? '';
-      if (filterFrom && dateStr < filterFrom) return false;
-      if (filterTo   && dateStr > filterTo)   return false;
-      if (filterMode && p.paymentMode !== filterMode) return false;
-      if (filterRef  && !(p.reference ?? '').toLowerCase().includes(filterRef.toLowerCase())) return false;
-      return true;
-    });
-  }, [payments, filterFrom, filterTo, filterMode, filterRef]);
-
-  const historyTotalPages = Math.max(1, Math.ceil(filteredPayments.length / HISTORY_PER_PAGE));
-  const pagedPayments = filteredPayments.slice(
-    (historyPage - 1) * HISTORY_PER_PAGE,
-    historyPage * HISTORY_PER_PAGE,
-  );
+  // filteredPayments, pagedPayments, pagination, hasFilters — all from shared hook above
 
   return (
     <div className="flex flex-col h-full">
@@ -335,11 +278,11 @@ export default function SalespersonCollections() {
           admin-accessible; Reset Ledger stays superadmin-only. */}
       {isAdmin && (
         <div className="flex items-center justify-end gap-2 px-4 md:px-6 py-2.5 bg-white border-b border-slate-200 flex-shrink-0 flex-wrap">
-          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={() => setTopUpOpen(true)}>
+          <Button variant="soft-warning" size="sm" icon={Wallet} onClick={topUpModal.open}>
             Bulk Top-up
           </Button>
           {isSuperAdmin && (
-            <Button variant="soft-danger" size="sm" icon={Eraser} onClick={() => setResetOpen(true)}>
+            <Button variant="soft-danger" size="sm" icon={Eraser} onClick={resetModal.open}>
               Reset Ledger
             </Button>
           )}
@@ -447,7 +390,7 @@ export default function SalespersonCollections() {
                   <div className="ddm-card p-4">
                     <h3 className="ddm-section-label mb-3">Record Collection</h3>
                     <PaymentForm
-                      onSubmit={handlePayment}
+                      onSubmit={recordCollection}
                       closingBalance={balance?.closingBalance ?? 0}
                       loading={saving}
                     />
@@ -462,34 +405,34 @@ export default function SalespersonCollections() {
                     <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-200">
                       <h3 className="font-bold text-slate-800 text-sm">
                         Collection History
-                        {filteredPayments.length !== payments.length && (
+                        {history.filteredPayments.length !== payments.length && (
                           <span className="ml-2 text-xs font-normal text-slate-400">
-                            ({filteredPayments.length} of {payments.length})
+                            ({history.filteredPayments.length} of {payments.length})
                           </span>
                         )}
                       </h3>
                       <button
-                        onClick={() => setShowFilter(v => !v)}
+                        onClick={history.filterPanel.toggle}
                         className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition ${
-                          showFilter || hasFilters
+                          history.filterPanel.isOpen || history.hasFilters
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-white text-slate-500 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600'
                         }`}
                       >
                         <Filter size={12} />
                         Filter
-                        {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+                        {history.hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
                       </button>
                     </div>
 
                     {/* Filter controls */}
-                    {showFilter && (
+                    {history.filterPanel.isOpen && (
                       <div className="px-4 py-3 bg-emerald-50/60 border-b border-emerald-100 grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">From</label>
                           <div className="relative">
                             <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} max={today}
+                            <input type="date" value={history.filterFrom} onChange={e => history.setFilterFrom(e.target.value)} max={today}
                               className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
                           </div>
                         </div>
@@ -497,13 +440,13 @@ export default function SalespersonCollections() {
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">To</label>
                           <div className="relative">
                             <CalendarDays size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} max={today}
+                            <input type="date" value={history.filterTo} onChange={e => history.setFilterTo(e.target.value)} max={today}
                               className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
                           </div>
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Mode</label>
-                          <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
+                          <select value={history.filterMode} onChange={e => history.setFilterMode(e.target.value)}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
                             <option value="">All</option>
                             {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -512,18 +455,18 @@ export default function SalespersonCollections() {
                         <div>
                           <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">Reference</label>
                           <div className="relative">
-                            <input type="text" value={filterRef} onChange={e => setFilterRef(e.target.value)} placeholder="Search…"
+                            <input type="text" value={history.filterRef} onChange={e => history.setFilterRef(e.target.value)} placeholder="Search…"
                               className="w-full pl-2 pr-6 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
-                            {filterRef && (
-                              <button onClick={() => setFilterRef('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            {history.filterRef && (
+                              <button onClick={() => history.setFilterRef('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                                 <X size={11} />
                               </button>
                             )}
                           </div>
                         </div>
-                        {hasFilters && (
+                        {history.hasFilters && (
                           <button
-                            onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterMode(''); setFilterRef(''); }}
+                            onClick={history.clearFilters}
                             className="col-span-full text-xs text-red-600 hover:text-red-700 font-semibold text-left"
                           >
                             Clear all filters
@@ -534,7 +477,7 @@ export default function SalespersonCollections() {
 
                     {payments.length === 0 ? (
                       <div className="text-center py-12 text-slate-400 text-sm">No collections recorded yet</div>
-                    ) : filteredPayments.length === 0 ? (
+                    ) : history.filteredPayments.length === 0 ? (
                       <div className="text-center py-10 text-slate-400 text-sm">No records match the current filters</div>
                     ) : (
                       <>
@@ -550,7 +493,7 @@ export default function SalespersonCollections() {
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
-                              {pagedPayments.map((p) => (
+                              {history.pagedPayments.map((p) => (
                                 <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-3 text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
                                     {new Date(p.paymentDate.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
@@ -581,23 +524,23 @@ export default function SalespersonCollections() {
                             </tbody>
                           </table>
                         </div>
-                        {historyTotalPages > 1 && (
+                        {history.totalPages > 1 && (
                           <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/60">
                             <p className="text-xs text-slate-400">
-                              {(historyPage - 1) * HISTORY_PER_PAGE + 1}–{Math.min(historyPage * HISTORY_PER_PAGE, filteredPayments.length)} of {filteredPayments.length}
+                              {(history.page - 1) * history.perPage + 1}–{Math.min(history.page * history.perPage, history.filteredPayments.length)} of {history.filteredPayments.length}
                             </p>
                             <div className="flex items-center gap-1.5">
                               <button
-                                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                                disabled={historyPage === 1}
+                                onClick={() => history.setPage(p => Math.max(1, p - 1))}
+                                disabled={history.page === 1}
                                 className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                               >
                                 Prev
                               </button>
-                              <span className="text-xs text-slate-500 font-medium px-1">{historyPage} / {historyTotalPages}</span>
+                              <span className="text-xs text-slate-500 font-medium px-1">{history.page} / {history.totalPages}</span>
                               <button
-                                onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
-                                disabled={historyPage === historyTotalPages}
+                                onClick={() => history.setPage(p => Math.min(history.totalPages, p + 1))}
+                                disabled={history.page === history.totalPages}
                                 className="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                               >
                                 Next
@@ -621,8 +564,8 @@ export default function SalespersonCollections() {
 
       {/* ── Bulk top-up modal ────────────────────────────────── */}
       <BulkTopUpModal
-        open={topUpOpen}
-        onClose={() => setTopUpOpen(false)}
+        open={topUpModal.isOpen}
+        onClose={topUpModal.close}
         entities={salespeople}
         notify={notify}
         onSaved={async (payload) => {
@@ -635,8 +578,8 @@ export default function SalespersonCollections() {
 
       {/* ── Reset ledger modal ───────────────────────────────── */}
       <ResetLedgerModal
-        open={resetOpen}
-        onClose={() => setResetOpen(false)}
+        open={resetModal.isOpen}
+        onClose={resetModal.close}
         salespeople={salespeople}
         notify={notify}
         onConfirm={async (salespersonIds) => {
@@ -649,8 +592,8 @@ export default function SalespersonCollections() {
 
       {/* ── PIN modal ────────────────────────────────────────── */}
       <PinModal
-        isOpen={pinOpen}
-        onClose={() => { setPinOpen(false); setPendingAction(null); }}
+        isOpen={pinModal.isOpen}
+        onClose={() => { pinModal.close(); setPendingAction(null); }}
         onSuccess={onPinSuccess}
         title="Enter PIN to Edit Collection"
       />
@@ -723,7 +666,7 @@ export default function SalespersonCollections() {
                 Cancel
               </button>
               <button
-                onClick={handleEditSave}
+                onClick={updateCollection}
                 disabled={editSaving || !editForm.amount || parseFloat(editForm.amount) <= 0}
                 className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
@@ -744,7 +687,7 @@ export default function SalespersonCollections() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDelete} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
+            <Button variant="danger" onClick={() => confirmDelete(deleteConfirm?.id)} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</Button>
           </>
         }
       >

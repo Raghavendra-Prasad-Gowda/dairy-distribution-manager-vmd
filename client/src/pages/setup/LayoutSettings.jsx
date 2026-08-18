@@ -19,6 +19,7 @@ import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import BrandTabs from '../../components/BrandTabs';
 import { useApiResources } from '../../hooks/useApiResources';
+import { useMutation } from '../../hooks/useMutation';
 import api from '../../api/axios';
 
 // ── Category row with up/down buttons ─────────────────────────────────────────
@@ -103,7 +104,6 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
   const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
   const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
   const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
-  const [saving, setSaving]           = useState(false);
   const [dirty, setDirty]             = useState(false);
 
   const sensors = useSensors(
@@ -189,21 +189,13 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
   }, []);
 
   // ── Save layout ─────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await Promise.all([
-        api.patch('/categories/reorder', categories.map((c, i) => ({ id: c.id, displayOrder: i }))),
-        api.patch('/products/reorder', products.map((p, i) => ({ id: p.id, displayOrder: i }))),
-      ]);
-      notify('Layout saved successfully!', 'success');
-      setDirty(false);
-    } catch {
-      notify('Failed to save layout', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { mutate: handleSave, loading: saving } = useMutation(
+    () => Promise.all([
+      api.patch('/categories/reorder', categories.map((c, i) => ({ id: c.id, displayOrder: i }))),
+      api.patch('/products/reorder', products.map((p, i) => ({ id: p.id, displayOrder: i }))),
+    ]),
+    { successMessage: 'Layout saved successfully!', onSuccess: () => setDirty(false) }
+  );
 
   return (
     <div className="flex flex-col h-full bg-slate-100">

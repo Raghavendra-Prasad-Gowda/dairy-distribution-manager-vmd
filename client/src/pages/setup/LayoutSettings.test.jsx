@@ -245,7 +245,7 @@ describe('LayoutSettings — save', () => {
     fireEvent.click(upBtn);
     fireEvent.click(screen.getByText('Save Layout'));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to save layout', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
     // A failed save leaves the change unsaved.
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   });
