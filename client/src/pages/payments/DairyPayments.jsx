@@ -115,9 +115,6 @@ export default function DairyPayments() {
   // Delete confirm state
   const [deleteId, setDeleteId]         = useState(null);
 
-  // Search + filter + pagination — shared hook
-  const history = usePaymentFilters(payments, { searchable: true, resetDeps: [activeBrandId] });
-
   const today = getIndiaDate();
 
   // Breakdown panel state. The loading flag is tracked (set around the fetch
@@ -161,6 +158,9 @@ export default function DairyPayments() {
   // reference stable across renders (a fresh `?? []` literal on every
   // render would invalidate the filteredPayments useMemo in usePaymentFilters).
   const { balance, payments } = data;
+
+  // Search + filter + pagination — shared hook
+  const history = usePaymentFilters(payments, { searchable: true, resetDeps: [activeBrandId] });
 
   const fetchBreakdown = useCallback(async () => {
     if (!activeBrandId) return;

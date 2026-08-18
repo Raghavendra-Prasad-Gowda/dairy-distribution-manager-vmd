@@ -322,7 +322,7 @@ describe('SalespersonCollections — record collection', () => {
     vi.mocked(api.post).mockRejectedValue(new Error('network down'));
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '750' } });
     fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to record collection', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -383,7 +383,7 @@ describe('SalespersonCollections — edit flow (PIN gated)', () => {
 
     vi.mocked(api.put).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByText('Save'));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('the X button and Cancel both close the edit modal without saving', async () => {
@@ -474,7 +474,7 @@ describe('SalespersonCollections — delete flow (PIN gated)', () => {
     const modal = screen.getByRole('dialog');
     fireEvent.click(within(modal).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to delete', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 

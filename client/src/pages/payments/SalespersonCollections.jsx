@@ -117,9 +117,6 @@ export default function SalespersonCollections() {
   const topUpModal = useDisclosure();
   const resetModal = useDisclosure();
 
-  // History filter + pagination — shared hook
-  const history = usePaymentFilters(payments, { resetDeps: [selectedSpId] });
-
   useEffect(() => {
     Promise.all([
       api.get('/salespeople'),
@@ -158,6 +155,9 @@ export default function SalespersonCollections() {
     select: ([bal, pmts]) => ({ balance: bal, payments: pmts ?? [] }),
   });
   const { balance, payments } = data;
+
+  // History filter + pagination — shared hook
+  const history = usePaymentFilters(payments, { resetDeps: [selectedSpId] });
 
   async function refreshAllBalances() {
     const res = await api.get(`/salesperson-balance?date=${today}`);

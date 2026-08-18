@@ -185,7 +185,7 @@ describe('ProductsSetup — Show in Receipt toggle', () => {
     await screen.findByText('Toned Milk');
     fireEvent.click(screen.getByTitle('Hide from Stock Receipt'));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update product', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -255,7 +255,7 @@ describe('ProductsSetup — add product', () => {
 
     vi.mocked(api.post).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByText('Add Product', { selector: 'button[type="submit"]' }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Save failed', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('lets the ml unit size be changed via the size dropdown', async () => {
@@ -356,7 +356,7 @@ describe('ProductsSetup — archive', () => {
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Archive' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to archive product', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 

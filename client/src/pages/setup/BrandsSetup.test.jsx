@@ -165,7 +165,7 @@ describe('BrandsSetup — deposit settings', () => {
     fireEvent.click(screen.getAllByTitle('Deposit settings')[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to save deposit settings', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('pre-fills an empty rate when the brand has no depositPerLitre set', async () => {
@@ -372,7 +372,7 @@ describe('BrandsSetup — add brand', () => {
     fireEvent.change(screen.getByPlaceholderText('e.g. Amul, Nandini, Heritage'), { target: { value: 'Nandini' } });
     fireEvent.click(within(addBrandForm()).getByRole('button', { name: 'Add Brand' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to save brand', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('does not submit when the name is only whitespace', async () => {
@@ -564,7 +564,7 @@ describe('BrandsSetup — enable / disable', () => {
     fireEvent.click(screen.getAllByTitle('Disable brand')[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update brand', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('a disabled brand shows no rename or deposit-settings controls', async () => {
@@ -641,6 +641,6 @@ describe('BrandsSetup — archive', () => {
     fireEvent.click(screen.getAllByTitle('Archive brand')[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to archive brand', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });

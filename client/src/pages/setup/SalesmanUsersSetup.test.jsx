@@ -156,7 +156,7 @@ describe('SalesmanUsersSetup — add salesperson', () => {
 
     vi.mocked(api.post).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByText('Add Salesperson', { selector: 'button[type="submit"]' }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to add salesperson', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('the eye button toggles the new-password field visibility', async () => {
@@ -302,7 +302,7 @@ describe('SalesmanUsersSetup — edit credentials', () => {
 
     vi.mocked(api.put).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByRole('button', { name: /Save Credentials/i }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update credentials', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('Cancel and the X button both close the credentials modal without saving', async () => {
@@ -361,7 +361,7 @@ describe('SalesmanUsersSetup — delete', () => {
     vi.mocked(api.delete).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByTitle('Delete salesperson'));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to delete', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -419,6 +419,6 @@ describe('SalesmanUsersSetup — reorder mode', () => {
 
     vi.mocked(api.put).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByText('Save Order'));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to save order', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });

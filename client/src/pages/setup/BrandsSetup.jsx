@@ -135,13 +135,6 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     }
   );
 
-  const submitting = savingBrand || togglingBrand || archivingBrand || savingDeposit;
-  const busyMsg = savingBrand
-    ? (editingBrand ? 'Renaming brand…' : 'Adding brand…')
-    : togglingBrand ? 'Updating brand…'
-    : archivingBrand ? 'Archiving brand…'
-    : savingDeposit ? 'Saving deposit settings…' : '';
-
   // ── Deposit config (per litre/kg — see depositRules.js) ───────────────────
   const openDepositEdit = (b) => {
     setDepositBrand(b);
@@ -167,6 +160,13 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       },
     }
   );
+
+  const submitting = savingBrand || togglingBrand || archivingBrand || savingDeposit;
+  const busyMsg = savingBrand
+    ? (editingBrand ? 'Renaming brand…' : 'Adding brand…')
+    : togglingBrand ? 'Updating brand…'
+    : archivingBrand ? 'Archiving brand…'
+    : savingDeposit ? 'Saving deposit settings…' : '';
 
   const handleSaveDeposit = () => {
     if (!depositBrand) return;

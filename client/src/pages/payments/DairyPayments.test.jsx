@@ -349,7 +349,7 @@ describe('DairyPayments — record payment', () => {
     vi.mocked(api.post).mockRejectedValue(new Error('network down'));
     fireEvent.change(amountInput, { target: { value: '750' } });
     fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to record payment', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -410,7 +410,7 @@ describe('DairyPayments — edit flow (PIN gated)', () => {
 
     vi.mocked(api.put).mockRejectedValue(new Error('network down'));
     fireEvent.click(screen.getByText('Save Changes'));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to update payment', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 
   it('the X button and Cancel both close the edit modal without saving', async () => {
@@ -517,7 +517,7 @@ describe('DairyPayments — delete flow (PIN gated)', () => {
     const modal = screen.getByRole('dialog');
     fireEvent.click(within(modal).getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to delete payment', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
