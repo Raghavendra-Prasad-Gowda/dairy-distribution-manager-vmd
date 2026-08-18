@@ -6,6 +6,7 @@ const { validateBulkEntities } = require('../services/paymentLedger');
 const { getActingUsername } = require('../utils/actor');
 const logger = require('../config/logger');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { assertRole } = require('../utils/authz');
 
 // Deliberately its own table/endpoint, not a DairyPayment. A deposit top-up
 // loads a crate/container deposit already held with a brand from before the
@@ -19,7 +20,7 @@ const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 // client filters its picker accordingly, but this is enforced server-side
 // too since nothing stops a direct API call otherwise.
 const bulkCreate = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'superadmin') throw new AppError('Super admin access required', 403);
+  assertRole(req, 'superadmin');
 
   const data = validate(schemas.bulkDairyDepositTopUp, req, res);
   if (!data) return;
@@ -77,7 +78,7 @@ const bulkCreate = asyncHandler(async (req, res) => {
 // and re-add, matching the "one-time setup / occasional correction" nature
 // of this ledger rather than the frequent-edit needs of a real payment.
 const remove = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'superadmin') throw new AppError('Super admin access required', 403);
+  assertRole(req, 'superadmin');
 
   const id = parseId(req.params.id, 'Deposit Top-up ID');
   const existing = await prisma.dairyDepositTopUp.findUnique({ where: { id } });

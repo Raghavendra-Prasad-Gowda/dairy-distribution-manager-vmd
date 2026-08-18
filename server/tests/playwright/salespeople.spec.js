@@ -223,6 +223,14 @@ test.describe('PUT /api/v1/salespeople/:id', () => {
     expect(res.status()).toBe(400);
   });
 
+  test('returns 400 when the update payload fails validation (username too short)', async ({ request }) => {
+    const res = await request.put('/api/v1/salespeople/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { username: 'ab' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
   // ── Case-insensitive username uniqueness ─────────────────────────────────
 
   test('returns 409 when updated username collides case-insensitively with another salesperson', async ({ request }) => {

@@ -11,6 +11,7 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useApiResources } from '../../hooks/useApiResources';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { numberToWords } from '../../utils/numberToWords';
 import { getBrandColors, PAYMENT_MODES } from '../../utils/constants';
@@ -99,9 +100,6 @@ export default function DairyPayments() {
   const [searchParams] = useSearchParams();
   const [brands, setBrands]        = useState([]);
   const [activeBrandId, setActive] = useState(null);
-  const [balance, setBalance]      = useState(null);
-  const [payments, setPayments]    = useState([]);
-  const [loading, setLoading]      = useState(false);
   const [saving, setSaving]        = useState(false);
 
   // PIN modal state — single gate for both edit and delete
@@ -160,21 +158,18 @@ export default function DairyPayments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [balRes, pmtRes] = await Promise.all([
-        api.get(`/dairy-balance/${activeBrandId}?date=${today}`),
-        api.get(`/dairy-payments?brandId=${activeBrandId}`),
-      ]);
-      setBalance(balRes.data.data);
-      setPayments(pmtRes.data.data);
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to load data', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeBrandId, today, notify]);
+  const dataUrls = activeBrandId
+    ? [`/dairy-balance/${activeBrandId}?date=${today}`, `/dairy-payments?brandId=${activeBrandId}`]
+    : [];
+  const { data, loading, refetch: fetchAll } = useApiResources(dataUrls, {
+    initialData: { balance: null, payments: [] },
+    select: ([bal, pmts]) => ({ balance: bal, payments: pmts ?? [] }),
+  });
+  // No `?.`/`??` fallback here on purpose — initialData already guarantees
+  // this shape, so destructuring directly keeps `payments`'s array
+  // reference stable across renders (a fresh `?? []` literal on every
+  // render would invalidate the filteredPayments useMemo below).
+  const { balance, payments } = data;
 
   const fetchBreakdown = useCallback(async () => {
     if (!activeBrandId) return;
@@ -189,11 +184,13 @@ export default function DairyPayments() {
     }
   }, [activeBrandId, today]);
 
+  // Balance + payments are fetched automatically by useApiResources whenever
+  // activeBrandId changes (dataUrls updates); only the breakdown needs an
+  // explicit trigger here.
   useEffect(() => {
     if (!activeBrandId) return;
-    fetchAll();
     fetchBreakdown();
-  }, [activeBrandId, fetchAll, fetchBreakdown]);
+  }, [activeBrandId, fetchBreakdown]);
 
   const handlePayment = async (formData) => {
     setSaving(true);

@@ -113,6 +113,56 @@ test.describe('POST /api/v1/products', () => {
     expect(res.status()).toBe(201);
   });
 
+  test('returns 201 and seeds selling price history when sellingPrice > 0', async ({ request }) => {
+    ctx.mockPrisma.product.create.mockResolvedValue(PRODUCT);
+    ctx.mockPrisma.productSellingPrice.create.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, name: 'Milk 500ml', sellingPrice: 30 },
+    });
+
+    expect(res.status()).toBe(201);
+  });
+
+  test('zeroes the denormalized costPrice on create when effectiveFrom is in the future', async ({ request }) => {
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const future = new Date(todayStr);
+    future.setDate(future.getDate() + 10);
+    const futureStr = future.toLocaleDateString('en-CA');
+
+    let createArgs = null;
+    ctx.mockPrisma.product.create.mockImplementation(async (args) => { createArgs = args; return { ...PRODUCT, ...args.data }; });
+    ctx.mockPrisma.productCostPrice.create.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, name: 'Milk 500ml', costPrice: 22, effectiveFrom: futureStr },
+    });
+
+    expect(res.status()).toBe(201);
+    expect(createArgs.data.costPrice).toBe(0);
+  });
+
+  test('zeroes the denormalized sellingPrice on create when sellingPriceEffectiveFrom is in the future', async ({ request }) => {
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const future = new Date(todayStr);
+    future.setDate(future.getDate() + 10);
+    const futureStr = future.toLocaleDateString('en-CA');
+
+    let createArgs = null;
+    ctx.mockPrisma.product.create.mockImplementation(async (args) => { createArgs = args; return { ...PRODUCT, ...args.data }; });
+    ctx.mockPrisma.productSellingPrice.create.mockResolvedValue({});
+
+    const res = await request.post('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { brandId: 1, name: 'Milk 500ml', sellingPrice: 30, sellingPriceEffectiveFrom: futureStr },
+    });
+
+    expect(res.status()).toBe(201);
+    expect(createArgs.data.sellingPrice).toBe(0);
+  });
+
   test('returns 400 when brandId is missing', async ({ request }) => {
     const res = await request.post('/api/v1/products', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -199,6 +249,32 @@ test.describe('PUT /api/v1/products/:id', () => {
     expect(body.data).toHaveProperty('name', 'Updated');
   });
 
+  test('defaults effectiveFrom to today when costPrice changes without one', async ({ request }) => {
+    ctx.mockPrisma.product.update.mockResolvedValue({ ...PRODUCT, costPrice: 21 });
+    ctx.mockPrisma.productCostPrice.upsert.mockResolvedValue({});
+    ctx.mockPrisma.productCostPrice.findFirst.mockResolvedValue({ costPrice: 21 });
+
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { costPrice: 21 },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('defaults sellingPriceEffectiveFrom to today when sellingPrice changes without one', async ({ request }) => {
+    ctx.mockPrisma.product.update.mockResolvedValue({ ...PRODUCT, sellingPrice: 41 });
+    ctx.mockPrisma.productSellingPrice.upsert.mockResolvedValue({});
+    ctx.mockPrisma.productSellingPrice.findFirst.mockResolvedValue({ sellingPrice: 41 });
+
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { sellingPrice: 41 },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
   test('returns 200 and records cost price history when costPrice changes', async ({ request }) => {
     ctx.mockPrisma.product.update.mockResolvedValue({ ...PRODUCT, costPrice: 20 });
     ctx.mockPrisma.productCostPrice.upsert.mockResolvedValue({});
@@ -214,6 +290,44 @@ test.describe('PUT /api/v1/products/:id', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  test('returns 200 and records selling price history when sellingPrice changes', async ({ request }) => {
+    ctx.mockPrisma.product.update.mockResolvedValue({ ...PRODUCT, sellingPrice: 40 });
+    ctx.mockPrisma.productSellingPrice.upsert.mockResolvedValue({});
+    ctx.mockPrisma.productSellingPrice.findFirst.mockResolvedValue({ sellingPrice: 40 });
+
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { sellingPrice: 40, sellingPriceEffectiveFrom: todayIST },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('PUT with FUTURE sellingPriceEffectiveFrom does NOT promote into Product.sellingPrice', async ({ request }) => {
+    const productUpdates = [];
+    ctx.mockPrisma.product.update.mockImplementation(async (args) => {
+      productUpdates.push(args);
+      return { ...PRODUCT, ...args.data };
+    });
+    ctx.mockPrisma.productSellingPrice.upsert.mockResolvedValue({});
+    ctx.mockPrisma.productSellingPrice.findFirst.mockResolvedValue(null);
+
+    const future = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
+    future.setDate(future.getDate() + 30);
+
+    const res = await request.put('/api/v1/products/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { sellingPrice: 999, sellingPriceEffectiveFrom: future.toLocaleDateString('en-CA') },
+    });
+
+    expect(res.status()).toBe(200);
+    const sellUpdates = productUpdates.filter(u => u.data.sellingPrice !== undefined);
+    expect(sellUpdates).toHaveLength(0);
   });
 
   test('returns 404 when product does not exist', async ({ request }) => {
@@ -369,6 +483,23 @@ test.describe('Future-scheduled prices', () => {
     expect(row.upcomingCostPriceFrom).toBeTruthy();
     expect(row.upcomingSellingPrice).toBeNull();
     expect(row.upcomingSellingPriceFrom).toBeNull();
+  });
+
+  test('GET returns upcomingSellingPrice / upcomingSellingPriceFrom when a future row exists', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([PRODUCT]);
+    const future = new Date(futureStr(14));
+    ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.productSellingPrice.findMany.mockResolvedValue([
+      { productId: 1, sellingPrice: 88, effectiveFrom: future },
+    ]);
+
+    const res = await request.get('/api/v1/products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    const row = (await res.json()).data[0];
+    expect(row.upcomingSellingPrice).toBe(88);
+    expect(row.upcomingSellingPriceFrom).toBeTruthy();
   });
 });
 

@@ -4,6 +4,7 @@ import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Button from '../../components/ui/Button';
 import BulkTopUpModal from '../../components/BulkTopUpModal';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { getYesterday, formatCurrency } from '../../utils/dateUtils';
@@ -24,6 +25,21 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
   const [to, setTo]                       = useState(getYesterday());
   const [collapsed, setCollapsed]         = useState(new Set());
   const [topUpOpen, setTopUpOpen]         = useState(false);
+  // Deposit top-up row pending delete confirmation (or null)
+  const [deleteTopUpTarget, setDeleteTopUpTarget] = useState(null);
+
+  const doDeleteTopUp = async () => {
+    const target = deleteTopUpTarget;
+    if (!target) return;
+    notify('Deleting deposit top-up…', 'loading');
+    try {
+      await api.delete(`/dairy-deposit-topups/${target.id}`);
+      notify('Deposit top-up deleted', 'success');
+      fetchDeposit();
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to delete deposit top-up', 'error');
+    }
+  };
 
   // A deposit top-up only makes sense for a brand that actually has deposit
   // configured — the picker only offers those. The button itself is gated on
@@ -182,6 +198,16 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
           if (!widerFrom && !widerTo) await fetchDeposit();
           return res.data.data;
         }}
+      />
+
+      <ConfirmationModal
+        isOpen={!!deleteTopUpTarget}
+        onClose={() => setDeleteTopUpTarget(null)}
+        onConfirm={doDeleteTopUp}
+        title="Delete Deposit Top-up"
+        message="Delete this deposit top-up? This action cannot be undone."
+        confirmText="Delete"
+        isDanger
       />
 
       {/* Deposit not enabled */}
@@ -369,17 +395,7 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
                                         <td className="px-3 py-2 text-right">
                                           {isSuperAdmin && it.id != null && (
                                             <button
-                                              onClick={async () => {
-                                                if (!window.confirm('Delete this deposit top-up?')) return;
-                                                notify('Deleting deposit top-up…', 'loading');
-                                                try {
-                                                  await api.delete(`/dairy-deposit-topups/${it.id}`);
-                                                  notify('Deposit top-up deleted', 'success');
-                                                  fetchDeposit();
-                                                } catch (e) {
-                                                  notify(e.response?.data?.error ?? 'Failed to delete deposit top-up', 'error');
-                                                }
-                                              }}
+                                              onClick={() => setDeleteTopUpTarget(it)}
                                               className="text-[10px] font-semibold text-red-500 hover:text-red-700"
                                             >
                                               Delete

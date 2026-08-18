@@ -41,6 +41,30 @@ test.describe('GET /api/v1/brands', () => {
     expect(body.success).toBe(true);
     expect(body.data).toEqual(brands);
   });
+
+  test('includes inactive (but not archived) brands when an admin passes includeInactive=true', async ({ request }) => {
+    let whereArg = null;
+    ctx.mockPrisma.brand.findMany.mockImplementation(async (args) => { whereArg = args.where; return []; });
+
+    const res = await request.get('/api/v1/brands?includeInactive=true', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(whereArg).toEqual({ isArchived: false });
+  });
+
+  test('ignores includeInactive=true for a salesman (still filters to active brands)', async ({ request }) => {
+    let whereArg = null;
+    ctx.mockPrisma.brand.findMany.mockImplementation(async (args) => { whereArg = args.where; return []; });
+
+    const res = await request.get('/api/v1/brands?includeInactive=true', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(whereArg).toEqual({ isActive: true, isArchived: false });
+  });
 });
 
 // ─── POST /api/v1/brands ──────────────────────────────────────────────────────
@@ -151,6 +175,58 @@ test.describe('PUT /api/v1/brands/:id', () => {
       data: { depositPerLitre: -1 },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('returns 403 when admin (non-superadmin) tries to toggle isActive', async ({ request }) => {
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { isActive: false },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 when superadmin toggles isActive', async ({ request }) => {
+    ctx.mockPrisma.brand.update.mockResolvedValue({ id: 1, name: 'Nandini', isActive: false });
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { isActive: false },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test('returns 403 when admin (non-superadmin) tries to archive a brand', async ({ request }) => {
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { isArchived: true },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when a superadmin tries to un-archive a brand (isArchived: false)', async ({ request }) => {
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { isArchived: false },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/cannot be restored/i);
+  });
+
+  test('returns 200 when superadmin archives a brand (also deactivates it)', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.brand.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { id: 1, name: 'Nandini', isActive: false, isArchived: true };
+    });
+
+    const res = await request.put('/api/v1/brands/1', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { isArchived: true },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data.isActive).toBe(false);
+    expect(updateArgs.data.isArchived).toBe(true);
   });
 });
 
@@ -323,6 +399,49 @@ test.describe('POST /api/v1/brands/:id/copy-products', () => {
     const body = await res.json();
     expect(body.data.copiedProducts).toBe(1);
     expect(body.data.copiedCategories).toBe(1);
+  });
+
+  test('mirrors salesperson product assignments and prices onto the newly created products', async ({ request }) => {
+    const SOURCE_CATS = [{ id: 10, name: 'Toned', brandId: 2, displayOrder: 0, depositEnabled: false }];
+    const SOURCE_PROD = {
+      id: 100, name: 'Toned 500ml', brandId: 2, isActive: true, category: 'Toned',
+      unitType: 'piece', unitSize: null, mlPerCrate: null, containerType: null,
+      unitsPerContainer: null, costPrice: 40, sellingPrice: 45,
+      showInStockReceipt: true, salespersonEnabled: true, depositEnabled: false, displayOrder: 0,
+    };
+
+    const brandQueue = [SOURCE_BRAND, TARGET_BRAND];
+    ctx.mockPrisma.brand.findUnique.mockImplementation(async () => brandQueue.shift());
+    const catQueue = [SOURCE_CATS, []];
+    ctx.mockPrisma.category.findMany.mockImplementation(async () => catQueue.shift());
+    const prodQueue = [[SOURCE_PROD], []];
+    ctx.mockPrisma.product.findMany.mockImplementation(async () => prodQueue.shift());
+    ctx.mockPrisma.category.create.mockResolvedValue({ id: 20, name: 'Toned', brandId: 1 });
+    ctx.mockPrisma.product.create.mockResolvedValue({ id: 200, name: 'Toned 500ml', brandId: 1 });
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([
+      { salespersonId: 1, productId: 100 },
+    ]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { salespersonId: 1, productId: 100, sellingPrice: 45, effectiveFrom: new Date('2026-01-01') },
+    ]);
+    const spCreateCalls = [];
+    ctx.mockPrisma.salespersonProduct.create.mockImplementation(async (args) => { spCreateCalls.push(args); return args.data; });
+    const priceCreateCalls = [];
+    ctx.mockPrisma.salespersonPrice.create.mockImplementation(async (args) => { priceCreateCalls.push(args); return args.data; });
+
+    const res = await request.post('/api/v1/brands/1/copy-products', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { sourceBrandId: 2 },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.copiedSalespersonAssignments).toBe(1);
+    expect(body.data.copiedSalespersonPrices).toBe(1);
+    expect(spCreateCalls).toHaveLength(1);
+    expect(spCreateCalls[0].data).toEqual({ salespersonId: 1, productId: 200, isEnabled: true });
+    expect(priceCreateCalls).toHaveLength(1);
+    expect(priceCreateCalls[0].data.productId).toBe(200);
   });
 });
 

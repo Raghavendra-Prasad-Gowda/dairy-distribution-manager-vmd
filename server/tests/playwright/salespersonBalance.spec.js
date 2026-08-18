@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken, makeDispatcherToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -124,6 +124,20 @@ test.describe('GET /api/v1/salesperson-balance/:id', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('returns 403 when a dispatcher requests a balance', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when a salesman requests another salesperson\'s balance', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-balance/2?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
   });
 
   test('opening balance comes from prior date closing balance', async ({ request }) => {

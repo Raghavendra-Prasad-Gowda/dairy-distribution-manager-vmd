@@ -112,6 +112,18 @@ test.describe('POST /api/v1/salespeople/reset-ledger', () => {
     }
   });
 
+  test('stamps the real acting admin username when the lookup succeeds', async ({ request }) => {
+    mockResetDeps([SALESPEOPLE[0]]);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'super_raghav' });
+
+    const res = await request.post('/api/v1/salespeople/reset-ledger', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { salespersonIds: [1] },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
   test('leaves custom prices and product access untouched', async ({ request }) => {
     mockResetDeps([SALESPEOPLE[0]]);
     let pricesCleared = false;

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { IndianRupee, Globe } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { getIndiaDate } from '../../utils/dateUtils';
@@ -535,19 +536,23 @@ export default function SalesmanPricesSetup() {
     }
   };
 
-  const handleClearCustomPrices = async (productId) => {
+  // Clicking "Clear" opens the confirmation modal; the actual DELETE only
+  // fires from doClearCustomPrices, once the admin confirms.
+  const [clearConfirmProduct, setClearConfirmProduct] = useState(null);
+
+  const handleClearCustomPrices = (productId) => {
     const product = globalProducts.find(p => p.productId === productId);
     if (!product) return;
+    setClearConfirmProduct(product);
+  };
 
-    const confirmed = window.confirm(
-      `Clear all custom prices for "${product.productName}"?\n\nAll salesmen will use the global default of ₹${Number(product.salespersonDefaultPrice).toFixed(2)}.`
-    );
-    if (!confirmed) return;
-
-    setClearingProductId(productId);
+  const doClearCustomPrices = async () => {
+    const product = clearConfirmProduct;
+    if (!product) return;
+    setClearingProductId(product.productId);
     notify('Clearing prices…', 'loading');
     try {
-      const response = await api.delete(`/products/${productId}/salesperson-prices`);
+      const response = await api.delete(`/products/${product.productId}/salesperson-prices`);
       notify(response.data.data.message, 'success');
       fetchGlobal();
     } catch (e) {
@@ -886,6 +891,18 @@ export default function SalesmanPricesSetup() {
         salespeople={salespeople}
         productView={productView}
         onClose={() => setShowAllSalesmenPrices(false)}
+      />
+
+      <ConfirmationModal
+        isOpen={!!clearConfirmProduct}
+        onClose={() => setClearConfirmProduct(null)}
+        onConfirm={doClearCustomPrices}
+        title="Clear Custom Prices"
+        message={clearConfirmProduct
+          ? `Clear all custom prices for "${clearConfirmProduct.productName}"? All salesmen will use the global default of ₹${Number(clearConfirmProduct.salespersonDefaultPrice).toFixed(2)}.`
+          : ''}
+        confirmText="Clear"
+        isDanger
       />
 
       <ClearAllConfirmModal

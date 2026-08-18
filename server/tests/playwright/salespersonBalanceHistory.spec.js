@@ -268,6 +268,23 @@ test.describe('GET /api/v1/salesperson-balance/:id/history — admin top-ups', (
     expect(queried).toBe(false);
   });
 
+  test('defaults to an empty top-ups list if the lookup itself resolves nullish', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([
+      { balanceDate: new Date('2026-05-01'), stockGiven: 500, amountPaid: 0, closingBalance: 5000, topUpAmount: 5000 },
+    ]);
+    ctx.mockPrisma.salespersonBalance.count.mockResolvedValue(1);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue(undefined);
+
+    const res = await request.get('/api/v1/salesperson-balance/1/history', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.items[0].topUps).toEqual([]);
+  });
+
   test('rows without a top-up get topUpAmount 0 and an empty topUps array', async ({ request }) => {
     ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
     ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([ROW_WITH_TOPUP, BALANCE_ROWS[1]]);

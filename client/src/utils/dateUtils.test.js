@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  getIndiaDate,
   getPrevDate,
   getNextDate,
+  getYesterday,
+  getTomorrow,
+  getFirstDayOfMonth,
   formatDateDisplay,
   formatDateShort,
   formatDateShortNoYear,
@@ -20,6 +24,29 @@ describe('dateUtils', () => {
     it('crosses year boundaries correctly', () => {
       expect(getPrevDate('2026-01-01')).toBe('2025-12-31');
       expect(getNextDate('2025-12-31')).toBe('2026-01-01');
+    });
+  });
+
+  describe('getIndiaDate', () => {
+    it('returns a YYYY-MM-DD string', () => {
+      expect(getIndiaDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+  });
+
+  describe('getYesterday / getTomorrow', () => {
+    it('are exactly one day apart, straddling today', () => {
+      const yesterday = getYesterday();
+      const tomorrow = getTomorrow();
+      expect(getNextDate(yesterday)).not.toBe(tomorrow); // sanity: not the same day
+      expect(yesterday < tomorrow).toBe(true);
+    });
+  });
+
+  describe('getFirstDayOfMonth', () => {
+    it('returns the 1st of the current month as YYYY-MM-01', () => {
+      const result = getFirstDayOfMonth();
+      expect(result).toMatch(/^\d{4}-\d{2}-01$/);
+      expect(result.slice(0, 7)).toBe(getIndiaDate().slice(0, 7));
     });
   });
 

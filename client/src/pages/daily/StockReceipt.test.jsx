@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import StockReceipt from './StockReceipt';
 import api from '../../api/axios';
@@ -262,5 +262,397 @@ describe('StockReceipt — crate display precision', () => {
     // None of the old rounding artifacts should be present.
     expect(screen.queryByText((content) => content.includes('1.5 Crate'))).not.toBeInTheDocument();
     expect(screen.queryByText((content) => /^1 Crate/.test(content))).not.toBeInTheDocument();
+  });
+});
+
+// ─── Loading / error states ───────────────────────────────────────────────
+
+describe('StockReceipt — loading and error states', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+
+  it('shows a loader in the table while products/receipts are in flight', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))  return Promise.resolve({ data: { data: [BRAND] } });
+      if (url.includes('/routes')) return Promise.resolve({ data: { data: [route] } });
+      // products/stock-receipts never resolve — keeps `loading` true.
+      if (url.includes('/products') || url.includes('/stock-receipts')) return new Promise(() => {});
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockReceipt />);
+    await screen.findByText('Nandini Stock Receipt');
+    // The table only renders once routes exist; loader occupies the body.
+    expect(screen.queryByText('No active products for Nandini')).not.toBeInTheDocument();
+  });
+
+  it('notifies an error when the brands request fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.reject(new Error('network down'));
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockReceipt />);
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load brands', 'error'));
+  });
+
+  it('falls back to an empty route list (and shows the "no routes" notice) when the routes request fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [BRAND] } });
+      if (url.includes('/routes'))     return Promise.reject(new Error('routes down'));
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockReceipt />);
+    expect(await screen.findByText(/No routes configured for Nandini/i)).toBeInTheDocument();
+  });
+});
+
+// ─── Route selection ─────────────────────────────────────────────────────
+
+describe('StockReceipt — route selection', () => {
+  const routes = [
+    { id: 1, routeNumber: 'R1', displayOrder: 0 },
+    { id: 2, routeNumber: 'R2', displayOrder: 1 },
+  ];
+  const product = makeProduct({ id: 1, name: 'Milk 500ml', category: 'Milk' });
+
+  it('defaults to the first route and switches the table when another route pill is clicked', async () => {
+    const receipts = [
+      { routeId: 1, productId: 1, quantity: 10 },
+      { routeId: 2, productId: 1, quantity: 6 },
+    ];
+    makeApiResponses({ brands: [BRAND], routes, products: [product], receipts });
+    render(<StockReceipt />);
+
+    await screen.findByText('Milk 500ml');
+    // Footer shows the active route's own total (Route R1 = 10 units).
+    expect(screen.getAllByText('10').length).toBeGreaterThan(0);
+
+    const r2Card = screen.getAllByText('Route R2').find(el => el.closest('button')).closest('button');
+    fireEvent.click(r2Card);
+    // Footer now labels R2 and the input reflects R2's saved quantity (6).
+    expect(await screen.findByRole('spinbutton')).toHaveValue(6);
+  });
+
+  it('shows a dash placeholder on a route summary card with no saved data', async () => {
+    makeApiResponses({ brands: [BRAND], routes, products: [product], receipts: [{ routeId: 1, productId: 1, quantity: 10 }] });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    // R2's summary card has no data at all — its Total Units cell is a dash.
+    const r2Card = screen.getAllByText('Route R2').find(el => el.closest('button')).closest('button');
+    expect(r2Card.textContent).toContain('—');
+  });
+});
+
+// ─── Search ──────────────────────────────────────────────────────────────
+
+describe('StockReceipt — search', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+  const products = [
+    makeProduct({ id: 1, name: 'Toned Milk', category: 'Milk' }),
+    makeProduct({ id: 2, name: 'Curd Pot', category: 'Curd' }),
+  ];
+  // Explicit ordering so Milk (containing "Toned Milk") is the first,
+  // already-expanded category group — otherwise the default alphabetical
+  // fallback would expand Curd first and hide Toned Milk from the start.
+  const categories = [
+    { name: 'Milk', displayOrder: 0 },
+    { name: 'Curd', displayOrder: 1 },
+  ];
+
+  function mockSearchData() {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [BRAND] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } });
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: products } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/dairy-balance')) return Promise.resolve({ data: { data: { brands: [] } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('filters products by name or category and the X button clears it', async () => {
+    mockSearchData();
+    render(<StockReceipt />);
+    await screen.findByText('Toned Milk');
+
+    const input = screen.getByPlaceholderText('Search product or category…');
+    fireEvent.change(input, { target: { value: 'curd' } });
+    expect(screen.getByText('Curd Pot')).toBeInTheDocument();
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
+  });
+
+  it('shows "No products match your search" when nothing matches', async () => {
+    mockSearchData();
+    render(<StockReceipt />);
+    await screen.findByText('Toned Milk');
+
+    fireEvent.change(screen.getByPlaceholderText('Search product or category…'), { target: { value: 'zzz-none' } });
+    expect(await screen.findByText('No products match your search.')).toBeInTheDocument();
+  });
+});
+
+// ─── Expand / collapse categories ─────────────────────────────────────────
+
+describe('StockReceipt — expand / collapse categories', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+  const products = [
+    makeProduct({ id: 1, name: 'Toned Milk', category: 'Milk' }),
+    makeProduct({ id: 2, name: 'Curd Pot', category: 'Curd' }),
+  ];
+  const categories = [
+    { name: 'Milk', displayOrder: 0 },
+    { name: 'Curd', displayOrder: 1 },
+  ];
+
+  function mockTwoCategoryData() {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [BRAND] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } });
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: products } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/dairy-balance')) return Promise.resolve({ data: { data: { brands: [] } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('starts with only the first category expanded', async () => {
+    mockTwoCategoryData();
+    render(<StockReceipt />);
+    await screen.findByText('Toned Milk');
+    expect(screen.queryByText('Curd Pot')).not.toBeInTheDocument();
+  });
+
+  it('clicking a collapsed category header expands it', async () => {
+    mockTwoCategoryData();
+    render(<StockReceipt />);
+    await screen.findByText('Toned Milk');
+
+    fireEvent.click(screen.getByText('Curd').closest('tr'));
+    expect(screen.getByText('Curd Pot')).toBeInTheDocument();
+  });
+
+  it('Expand All reveals every category, Collapse All hides them again', async () => {
+    mockTwoCategoryData();
+    render(<StockReceipt />);
+    await screen.findByText('Toned Milk');
+    expect(screen.queryByText('Curd Pot')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Expand'));
+    expect(screen.getByText('Curd Pot')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Collapse'));
+    expect(screen.queryByText('Curd Pot')).not.toBeInTheDocument();
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+  });
+});
+
+// ─── Quantity entry ────────────────────────────────────────────────────────
+
+describe('StockReceipt — quantity entry', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+
+  it('typing a quantity updates the line amount and keyboard-Enter moves focus to the next input', async () => {
+    const products = [
+      makeProduct({ id: 1, name: 'A Milk', category: 'Milk', displayOrder: 0, costPrice: '10' }),
+      makeProduct({ id: 2, name: 'B Milk', category: 'Milk', displayOrder: 1, costPrice: '10' }),
+    ];
+    makeApiResponses({ brands: [BRAND], routes: [route], products, receipts: [] });
+    render(<StockReceipt />);
+    await screen.findByText('A Milk');
+
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '5' } });
+    // ₹50.00 (5 × 10) shows up at the line, category badge, and footer levels
+    // simultaneously — assert it appears rather than pin a single node.
+    await waitFor(() => expect(screen.getAllByText('₹50.00').length).toBeGreaterThan(0));
+
+    inputs[0].focus();
+    fireEvent.keyDown(inputs[0], { key: 'Enter' });
+    expect(inputs[1]).toHaveFocus();
+  });
+});
+
+// ─── Deposit display ────────────────────────────────────────────────────────
+
+describe('StockReceipt — deposit display', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+  const depositBrand = { id: 1, name: 'Nandini', depositEnabled: true, depositPerLitre: '2', depositCalcMethod: 'unit' };
+  const categories = [{ name: 'Milk', displayOrder: 0, depositEnabled: true }];
+
+  it('adds a live deposit line once a deposit-eligible product has quantity entered', async () => {
+    const product = makeProduct({
+      id: 1, name: 'Milk 500ml', category: 'Milk', costPrice: '20',
+      depositEnabled: true, unitType: 'ml', unitSize: 500, containerType: 'crate', unitsPerContainer: 20,
+    });
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [depositBrand] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } });
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: [product] } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/dairy-balance')) return Promise.resolve({ data: { data: { brands: [] } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    expect(screen.queryByText('Deposit')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '20' } });
+    // 20 units × 0.5L × ₹2/L = ₹20.00 deposit
+    expect(await screen.findByText('Deposit')).toBeInTheDocument();
+  });
+
+  it('computes deposit per whole crate when depositCalcMethod is "crate"', async () => {
+    const crateBrand = { ...depositBrand, depositCalcMethod: 'crate' };
+    const product = makeProduct({
+      id: 1, name: 'Milk 500ml', category: 'Milk', costPrice: '20',
+      depositEnabled: true, unitType: 'ml', unitSize: 500, containerType: 'crate', unitsPerContainer: 20,
+    });
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [crateBrand] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } });
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: [product] } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/dairy-balance')) return Promise.resolve({ data: { data: { brands: [] } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    // 25 units → floor(25/20)=1 whole crate × (20 × 0.5L) × ₹2/L = ₹20.00,
+    // NOT the per-unit rate (25 × 0.5 × 2 = ₹25.00) — proves the crate-floor
+    // branch, not the default per-unit branch, is what ran.
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '25' } });
+    expect(await screen.findByText('₹20.00')).toBeInTheDocument();
+    expect(screen.queryByText('₹25.00')).not.toBeInTheDocument();
+  });
+
+  it('excludes a product from the deposit total when its category has deposit disabled', async () => {
+    const product = makeProduct({
+      id: 1, name: 'Milk 500ml', category: 'Curd', costPrice: '20', // category not in `categories` (deposit-enabled list)
+      depositEnabled: true, unitType: 'ml', unitSize: 500, containerType: 'crate', unitsPerContainer: 20,
+    });
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands'))     return Promise.resolve({ data: { data: [depositBrand] } });
+      if (url.includes('/routes'))     return Promise.resolve({ data: { data: [route] } });
+      if (url.includes('/categories')) return Promise.resolve({ data: { data: categories } }); // only "Milk" is deposit-enabled
+      if (url.includes('/products'))   return Promise.resolve({ data: { data: [product] } });
+      if (url.includes('/stock-receipts')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/dairy-balance')) return Promise.resolve({ data: { data: { brands: [] } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '20' } });
+    await waitFor(() => expect(screen.getAllByText('₹400.00').length).toBeGreaterThan(0)); // stock only, 20 × 20
+    expect(screen.queryByText('Deposit')).not.toBeInTheDocument();
+  });
+});
+
+// ─── Save flow ──────────────────────────────────────────────────────────────
+
+describe('StockReceipt — save', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+  const product = makeProduct({ id: 1, name: 'Milk 500ml', category: 'Milk', costPrice: '20' });
+
+  it('the Save button is disabled until a quantity is entered', async () => {
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts: [] });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+    expect(screen.getByRole('button', { name: /Save Route R1/ })).toBeDisabled();
+  });
+
+  it('saves the entered quantities and refreshes the balance', async () => {
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts: [] });
+    vi.mocked(api.post).mockResolvedValue({ data: {} });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Route R1/ }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stock-receipts/bulk', {
+      brandId: 1,
+      date: '2026-05-03',
+      items: [{ productId: 1, quantity: 3, unitPrice: 20 }],
+      routeId: 1,
+    }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Route R1 receipt saved!', 'success'));
+  });
+
+  it('shows the server error message when saving fails', async () => {
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts: [] });
+    vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Duplicate receipt' } } });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Route R1/ }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Duplicate receipt', 'error'));
+  });
+
+  it('falls back to a generic error message when saving fails with no server error', async () => {
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts: [] });
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Route R1/ }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Save failed.', 'error'));
+  });
+
+  it('allows saving an emptied-out route that already had saved data (clearing it)', async () => {
+    const receipts = [{ routeId: 1, productId: 1, quantity: 3 }];
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts });
+    vi.mocked(api.post).mockResolvedValue({ data: {} });
+    render(<StockReceipt />);
+    await screen.findByText('Milk 500ml');
+
+    const input = screen.getByRole('spinbutton');
+    expect(input).toHaveValue(3);
+    fireEvent.change(input, { target: { value: '' } });
+    // Not disabled — this route already has savedRouteIds data, so the
+    // "nothing filled" guard doesn't block re-saving an emptied route.
+    expect(screen.getByRole('button', { name: /Save Route R1/ })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Save Route R1/ }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/stock-receipts/bulk', {
+      brandId: 1,
+      date: '2026-05-03',
+      items: [],
+      routeId: 1,
+    }));
+  });
+});
+
+// ─── Balance card ────────────────────────────────────────────────────────
+
+describe('StockReceipt — balance card', () => {
+  const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };
+  const product = makeProduct({ id: 1, name: 'Milk 500ml', category: 'Milk' });
+
+  it('shows "You Owe" with the outstanding amount when closingBalance is positive', async () => {
+    const balance = { brandId: 1, openingBalance: 100, stockValue: 200, depositValue: 0, amountPaid: 50, closingBalance: 250 };
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts: [], balance });
+    render(<StockReceipt />);
+    expect(await screen.findByText('You Owe')).toBeInTheDocument();
+    expect(screen.getByText('₹250.00')).toBeInTheDocument();
+  });
+
+  it('shows "Settled" when there is no outstanding balance', async () => {
+    makeApiResponses({ brands: [BRAND], routes: [route], products: [product], receipts: [], balance: null });
+    render(<StockReceipt />);
+    expect(await screen.findByText('Settled')).toBeInTheDocument();
   });
 });

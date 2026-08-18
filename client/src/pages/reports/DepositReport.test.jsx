@@ -198,3 +198,230 @@ describe('DepositReport — Deposit Top-up button visibility', () => {
     expect(within(dialog).queryByText('Jersey')).toBeNull();
   });
 });
+
+describe('DepositReport — deleting a manual top-up row (superadmin only)', () => {
+  function reportWithTopUpRow() {
+    return emptyReport({
+      totalDeposit: 500,
+      rows: [{
+        date: '2026-08-08', dailyDeposit: 500, runningTotal: 500,
+        items: [{
+          isTopUp: true, id: 5, category: 'Deposits',
+          productName: 'Manual Top-up', depositAmount: 500,
+          notes: 'Opening balance', createdBy: 'admin',
+        }],
+      }],
+    });
+  }
+
+  it('asks for confirmation before deleting, without calling DELETE yet', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText(/Delete this deposit top-up/)).toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('does NOT delete when the confirmation is cancelled', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('calls DELETE and refreshes the report when confirmed', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    vi.mocked(api.delete).mockResolvedValue({ data: { success: true } });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/dairy-deposit-topups/5'));
+    expect(notify).toHaveBeenCalledWith('Deposit top-up deleted', 'success');
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithTopUpRow() } });
+    });
+    vi.mocked(api.delete).mockRejectedValue({ response: { data: { error: 'Locked' } } });
+    await renderPage();
+
+    await screen.findByText('Manual Top-up');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    let dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Locked', 'error'));
+
+    vi.mocked(api.delete).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to delete deposit top-up', 'error'));
+  });
+});
+
+// ─── Row expand/collapse ─────────────────────────────────────────────────────
+
+describe('DepositReport — row expand/collapse', () => {
+  function reportWithRows() {
+    return emptyReport({
+      totalDeposit: 100,
+      rows: [
+        {
+          date: '2026-08-08', dailyDeposit: 100, runningTotal: 100,
+          items: [
+            { isTopUp: false, category: 'Milk', productName: 'Toned Milk', unitType: 'ml', unitSize: 500,
+              quantity: 10, volumeOrWeight: 5, depositAmount: 50 },
+            { isTopUp: false, category: 'Curd', productName: 'Curd Pot', unitType: 'gram', unitSize: 200,
+              quantity: 5, volumeOrWeight: 1, depositAmount: 50 },
+          ],
+        },
+        { date: '2026-08-07', dailyDeposit: 0, runningTotal: 0, items: [] },
+      ],
+    });
+  }
+
+  it('a deposit day starts collapsed on a multi-day range (from !== to) and expands on click', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithRows() } });
+    });
+    const { container } = await renderPage();
+    fireEvent.change(getPageDateInputs(container)[0], { target: { value: '2026-08-01' } }); // widen range
+
+    await screen.findByText('2 products'); // collapsed summary shows item count
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('2 products').closest('tr'));
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(screen.getByText('Curd Pot')).toBeInTheDocument();
+    // Category sub-headers
+    expect(screen.getByText('Milk')).toBeInTheDocument();
+    expect(screen.getByText('Curd')).toBeInTheDocument();
+    // Volume/weight units
+    expect(screen.getByText('5.00 L')).toBeInTheDocument();
+    expect(screen.getByText('1.00 kg')).toBeInTheDocument();
+  });
+
+  it('a same-day range (from === to) starts fully expanded, no click needed', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithRows() } });
+    });
+    await renderPage(); // default from === to
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
+  });
+
+  it('Expand All / Collapse All toggles every deposit-day row at once', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithRows() } });
+    });
+    const { container } = await renderPage();
+    fireEvent.change(getPageDateInputs(container)[0], { target: { value: '2026-08-01' } });
+    await screen.findByText('2 products'); // collapsed
+
+    fireEvent.click(screen.getByText('Expand All'));
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Collapse All'));
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+  });
+
+  it('a non-deposit day within a mixed report shows "No qualifying receipts"', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: reportWithRows() } });
+    });
+    await renderPage();
+    expect(await screen.findByText('No qualifying receipts')).toBeInTheDocument();
+  });
+});
+
+// ─── Print, opening balance, empty state ─────────────────────────────────────
+
+describe('DepositReport — print, opening balance, and empty state', () => {
+  it('opens the print URL with the current brand/date filters', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: emptyReport({
+        totalDeposit: 100,
+        rows: [{ date: '2026-08-08', dailyDeposit: 100, runningTotal: 100, items: [] }],
+      }) } });
+    });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
+    await renderPage();
+    fireEvent.click(await screen.findByText('Print'));
+
+    expect(openSpy).toHaveBeenCalledWith('/print/deposit?brandId=1&from=2026-08-08&to=2026-08-08', '_blank');
+    openSpy.mockRestore();
+  });
+
+  it('shows the opening-deposit-carried-forward row when there is a prior balance', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: emptyReport({ openingDeposit: 500, totalDeposit: 500 }) } });
+    });
+    await renderPage();
+    expect(await screen.findByText(/Opening deposit carried forward/)).toBeInTheDocument();
+  });
+
+  it('shows the empty state when there are no rows and no opening balance', async () => {
+    await renderPage();
+    expect(await screen.findByText('No stock receipts found for this period.')).toBeInTheDocument();
+  });
+
+  it('shows the "deposit not enabled" notice for a brand without deposit configured', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [JERSEY] } });
+      return Promise.resolve({ data: { data: emptyReport({ depositEnabled: false, brandName: 'Jersey' }) } });
+    });
+    await renderPage();
+    expect(await screen.findByText('Deposit not enabled for Jersey')).toBeInTheDocument();
+  });
+
+  it('changing the "To" date re-fetches with the new range', async () => {
+    const { container } = await renderPage();
+    fireEvent.change(getPageDateInputs(container)[1], { target: { value: '2026-08-09' } });
+    await waitFor(() => {
+      const calls = vi.mocked(api.get).mock.calls.map(c => c[0]);
+      expect(calls.some(u => u.includes('to=2026-08-09'))).toBe(true);
+    });
+  });
+
+  it('shows the summary cards (total, days-with-deposit, average) once data loads', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.resolve({ data: { data: [BRAND] } });
+      return Promise.resolve({ data: { data: emptyReport({
+        totalDeposit: 200,
+        rows: [{ date: '2026-08-08', dailyDeposit: 200, runningTotal: 200, items: [] }],
+      }) } });
+    });
+    await renderPage();
+    expect(await screen.findByText('Total Deposit')).toBeInTheDocument();
+    expect(screen.getByText('Days with Deposit')).toBeInTheDocument();
+    expect(screen.getByText('Avg / Active Day')).toBeInTheDocument();
+  });
+});
