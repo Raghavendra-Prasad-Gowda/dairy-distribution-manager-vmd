@@ -11,7 +11,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalesmanUsersSetup from './SalesmanUsersSetup';
 import api from '../../api/axios';
@@ -193,6 +193,10 @@ describe('SalesmanUsersSetup — active toggle', () => {
 
     fireEvent.click(screen.getByText('Disable'));
 
+    // Toggling opens a confirmation dialog first — the PUT only fires once confirmed.
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Disable' }));
+
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/salespeople/1', { isActive: false }));
     expect(notify).toHaveBeenCalledWith('Salesperson deactivated', 'success');
     expect(screen.getByText('Enable')).toBeInTheDocument();
@@ -207,7 +211,22 @@ describe('SalesmanUsersSetup — active toggle', () => {
     await screen.findByText('Ramu K');
     fireEvent.click(screen.getByText('Disable'));
 
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Disable' }));
+
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Cannot disable', 'error'));
+  });
+
+  it('closing the confirmation dialog without confirming does not toggle', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson({ isActive: true })] } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByText('Disable'));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(api.put).not.toHaveBeenCalled();
   });
 });
 
