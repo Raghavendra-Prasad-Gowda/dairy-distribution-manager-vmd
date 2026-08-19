@@ -58,9 +58,17 @@ export default function DepositReport({ shellActiveBrandId, shellBrands } = {}) 
     }).catch(() => {});
   }, [inShell]);
 
-  useEffect(() => {
-    if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId, shellBrands, inShell]);
+  // Sync local state from shell props when embedded. Adjusted during render
+  // (rather than in an Effect) since this is just state derived from props —
+  // see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevShellActiveBrandId, setPrevShellActiveBrandId] = useState(shellActiveBrandId);
+  const [prevShellBrands, setPrevShellBrands] = useState(shellBrands);
+  if (inShell && (shellActiveBrandId !== prevShellActiveBrandId || shellBrands !== prevShellBrands)) {
+    setPrevShellActiveBrandId(shellActiveBrandId);
+    setPrevShellBrands(shellBrands);
+    setActiveBrandId(shellActiveBrandId);
+    setBrands(shellBrands ?? []);
+  }
 
   // Deposit summary fetch. Previously this silently swallowed fetch errors
   // (.catch(() => setData(null)), no notify) — that's the "no silent

@@ -16,9 +16,15 @@ const authenticate = (req, res, next) => {
     if (err) {
       return next(new AppError('Unauthorized. Token is invalid or expired.', 401));
     }
+    // Fail-closed: a JWT without an explicit role claim is rejected rather
+    // than defaulting to a privileged role. All login paths set the role
+    // explicitly, so this only triggers on malformed or legacy tokens.
+    if (!decoded.role) {
+      return next(new AppError('Invalid token: missing role claim.', 401));
+    }
     req.user = {
       id:            decoded.id,
-      role:          decoded.role ?? 'admin',
+      role:          decoded.role,
       salespersonId: decoded.salespersonId ?? null,
       adminUserId:   decoded.adminUserId   ?? null,
     };
