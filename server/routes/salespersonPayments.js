@@ -4,13 +4,13 @@ const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.post('/',            controller.create);
+router.post('/',            requireAdmin, controller.create);
 // Loading pre-existing dues rewrites what salespeople owe — any admin can do
 // this for salesmen (unlike the dairy/deposit top-ups and ledger reset,
 // which stay superadmin-only).
 router.post('/bulk-topup',  requireAdmin, controller.bulkTopUp);
 router.get('/',             controller.getAll);
-router.put('/:id',    controller.update);
-router.delete('/:id', controller.remove);
+router.put('/:id',    requireAdmin, controller.update);
+router.delete('/:id', requireAdmin, controller.remove);
 
 module.exports = router;

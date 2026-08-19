@@ -8,6 +8,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Pagination from '../../components/Pagination';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
@@ -52,6 +53,7 @@ export default function SalesmanUsersSetup() {
   const pwModal = useDisclosure();
   const deleteModal = useDisclosure();
   const [deletingSpId, setDeletingSpId]     = useState(null);
+  const [confirmToggle, setConfirmToggle]   = useState(null); // salesperson pending enable/disable
   const [editingSp, setEditingSp]           = useState(null);
   const [newSp, setNewSp]                   = useState({ name: '', phone: '', route: '', username: '', password: '' });
   const [showNewPw, setShowNewPw]           = useState(false);
@@ -154,6 +156,8 @@ export default function SalesmanUsersSetup() {
     notify(sp.isActive ? 'Deactivating salesperson…' : 'Activating salesperson…', 'loading');
     toggleActive(sp);
   };
+
+  const confirmToggleActive = (sp) => setConfirmToggle(sp);
 
   const openDeleteConfirm = (sp) => {
     setDeletingSpId(sp.id);
@@ -399,6 +403,21 @@ export default function SalesmanUsersSetup() {
         </div>
       )}
 
+      {/* Enable / disable confirmation */}
+      <ConfirmationModal
+        isOpen={!!confirmToggle}
+        onClose={() => setConfirmToggle(null)}
+        onConfirm={() => handleToggleActive(confirmToggle)}
+        title={confirmToggle?.isActive ? 'Disable Salesperson' : 'Enable Salesperson'}
+        message={
+          confirmToggle?.isActive
+            ? `Disable "${confirmToggle?.name}"? They will be hidden from stock entry, dispatch, and reports. Their data stays safe and reappears if you enable them again.`
+            : `Enable "${confirmToggle?.name}"? They will reappear across stock entry, dispatch, and reports.`
+        }
+        confirmText={confirmToggle?.isActive ? 'Disable' : 'Enable'}
+        tone={confirmToggle?.isActive ? 'warning' : 'success'}
+      />
+
       {/* Page header */}
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3.5 bg-emerald-800 flex-shrink-0">
         <div className="flex items-center gap-2.5">
@@ -537,7 +556,7 @@ export default function SalesmanUsersSetup() {
                               <Edit2 size={15} />
                             </button>
                             <button
-                              onClick={() => handleToggleActive(sp)}
+                              onClick={() => confirmToggleActive(sp)}
                               className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition ${
                                 sp.isActive
                                   ? 'bg-white border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600'
