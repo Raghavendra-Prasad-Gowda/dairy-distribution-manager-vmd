@@ -32,9 +32,12 @@ export default function PaymentForm({
 
   const [form, setForm] = useState(blankForm);
 
-  // When parent passes a prefill (e.g. after delete+edit), reinitialise the form
+  // When parent passes a prefill (e.g. after delete+edit), reinitialise the form.
+  // Stays a real Effect (not derived-during-render) because it also calls the
+  // parent's onClearPrefill — calling a parent callback during render is unsafe.
   useEffect(() => {
     if (!prefill) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm({
       amount:      String(prefill.amount ?? ''),
       paymentDate: prefill.paymentDate ?? getIndiaDate(),

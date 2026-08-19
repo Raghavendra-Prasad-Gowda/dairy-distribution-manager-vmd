@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, X, Check, AlertTriangle, Wallet } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -53,16 +53,21 @@ export default function BulkTopUpModal({
   const [saving, setSaving]   = useState(false);
 
   // Reset every time the modal is reopened so a previous run never leaks in.
-  useEffect(() => {
-    if (!open) return;
-    setStep('pick');
-    setSearch('');
-    setPicked([]);
-    setAmounts({});
-    setDate(getIndiaDate());
-    setNotes('');
-    setSaving(false);
-  }, [open]);
+  // Adjusted during render (rather than in an Effect) since this is just
+  // state derived from other state — see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setStep('pick');
+      setSearch('');
+      setPicked([]);
+      setAmounts({});
+      setDate(getIndiaDate());
+      setNotes('');
+      setSaving(false);
+    }
+  }
 
   // Memoised so the derived useMemos below don't re-run on every render
   // just because `?? []` allocates a fresh array each time.

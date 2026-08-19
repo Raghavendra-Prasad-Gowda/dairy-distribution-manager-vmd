@@ -201,7 +201,10 @@ export default function SalesmanPricesSetup() {
 
   useEffect(() => {
     if (!selectedSpId) return;
+    // fetchGlobal/fetchProductView/fetchPrices set loading/data state — a
+    // genuine fetch-on-dep-change effect, not state derived from render.
     if (isGlobal) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchGlobal();
       fetchProductView();
     } else {
@@ -211,12 +214,21 @@ export default function SalesmanPricesSetup() {
     setCurrentPage(1);
   }, [selectedSpId, activeBrandId, isGlobal, fetchGlobal, fetchProductView, fetchPrices]);
 
-  useEffect(() => {
+  // Reset search + pagination on brand change; reset pagination on search
+  // change. Adjusted during render (rather than in Effects) since this is
+  // just state derived from other state — see
+  // https://react.dev/learn/you-might-not-need-an-effect
+  const [prevActiveBrandId, setPrevActiveBrandId] = useState(activeBrandId);
+  if (activeBrandId !== prevActiveBrandId) {
+    setPrevActiveBrandId(activeBrandId);
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
+  }
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
+  }
 
   // ── Salesperson selection (sidebar) ─────────────────────────────────────────
   const handleSelectSp = (id) => {

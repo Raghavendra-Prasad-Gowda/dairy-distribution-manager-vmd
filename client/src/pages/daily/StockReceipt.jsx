@@ -73,8 +73,10 @@ export default function StockReceipt() {
   }, [brandName, notify]);
 
   // ─── Routes (all brands) ──────────────────────────────────────────────────
+  // Genuine fetch-on-dependency-change effect, not state derived from render.
   useEffect(() => {
     if (!activeBrand) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRoutesLoading(true);
     api.get(`/routes?brandId=${activeBrand.id}`)
       .then(r => { setRoutes(r.data.data ?? []); setActiveRouteIdx(0); })
@@ -162,7 +164,11 @@ export default function StockReceipt() {
     });
   }
 
-  const groupedData = useMemo(filteredGrouped, [products, categories, search]);
+  const groupedData = useMemo(
+    () => filteredGrouped(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, categories, search]
+  );
 
   const handleKeyDown = (e, productId) => {
     if (e.key !== 'Enter' && e.key !== 'Tab') return;

@@ -35,13 +35,21 @@ export default function DairyPriceSetup() {
     { initialData: [] }
   );
 
-  useEffect(() => {
-    if (!activeBrandId) return;
+  // Reset search + pagination on brand change; reset pagination on search
+  // change. Adjusted during render (rather than in Effects) since this is
+  // just state derived from other state — see
+  // https://react.dev/learn/you-might-not-need-an-effect
+  const [prevActiveBrandId, setPrevActiveBrandId] = useState(activeBrandId);
+  if (activeBrandId !== prevActiveBrandId) {
+    setPrevActiveBrandId(activeBrandId);
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
+  }
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
+  }
 
   const openEdit = (p) => {
     setEditingProduct(p);

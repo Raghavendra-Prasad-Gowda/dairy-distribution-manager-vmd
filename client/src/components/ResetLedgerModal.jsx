@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { AlertTriangle, Search, X, Check, Eraser } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -29,13 +29,18 @@ export default function ResetLedgerModal({ open, onClose, salespeople, onConfirm
   const justPassedRef = useRef(false);
 
   // Re-arm the PIN gate and clear any prior selection each time it reopens.
-  useEffect(() => {
-    if (!open) return;
-    setPinPassed(false);
-    setSearch('');
-    setPicked([]);
-    setBusy(false);
-  }, [open]);
+  // Adjusted during render (rather than in an Effect) since this is just
+  // state derived from other state — see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setPinPassed(false);
+      setSearch('');
+      setPicked([]);
+      setBusy(false);
+    }
+  }
 
   // Memoised so the derived useMemos below don't re-run on every render
   // just because `?? []` allocates a fresh array each time.
