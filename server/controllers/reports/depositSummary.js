@@ -75,7 +75,7 @@ const depositSummary = asyncHandler(async (req, res) => {
 
   for (const { date, items, topUps: dayTopUps } of sortedDates) {
     const depositItems = [];
-    let dailyDeposit = 0;
+    let dailyDeposit;
 
     for (const r of items) {
       const { name, category, unitType, unitSize, displayOrder } = r.product;
