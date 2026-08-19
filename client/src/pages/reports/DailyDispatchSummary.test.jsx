@@ -88,7 +88,7 @@ describe('DailyDispatchSummary — sidebar', () => {
     // Sidebar entry + right-panel header both show the name once selected.
     await waitFor(() => expect(screen.getAllByText('Ramu K').length).toBeGreaterThanOrEqual(2));
     expandBrand('Nandini');
-    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
   });
 
   it('synthesizes a blank "No entry" row for a salesperson with no dispatch that date', async () => {
@@ -129,7 +129,7 @@ describe('DailyDispatchSummary — product table', () => {
     await screen.findByText('Nandini');
     expect(screen.queryByText('Toned Milk')).toBeNull();
     expandBrand('Nandini');
-    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
   });
 
   it('hides zero-qty products by default and reveals them via "All products"', async () => {
@@ -140,18 +140,18 @@ describe('DailyDispatchSummary — product table', () => {
     render(<DailyDispatchSummary />);
     await screen.findByText('Nandini');
     expandBrand('Nandini');
-    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
     expect(screen.queryByText('Curd 200g')).toBeNull();
 
     fireEvent.click(screen.getByText('Entered only'));
-    expect(screen.getByText('Curd 200g')).toBeInTheDocument();
+    expect(await screen.findByText('Curd 200g')).toBeInTheDocument();
   });
 
   it('shows quantity, crates, rate, and amount for an entered product', async () => {
     render(<DailyDispatchSummary />);
     await screen.findByText('Nandini');
     expandBrand('Nandini');
-    const tr = screen.getByText('Toned Milk').closest('tr');
+    const tr = (await screen.findByText('Toned Milk')).closest('tr');
     expect(within(tr).getByText('40')).toBeInTheDocument();
     expect(within(tr).getByText('2')).toBeInTheDocument(); // crates: 40 / 20
     expect(within(tr).getByText('₹20.00')).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe('DailyDispatchSummary — product table', () => {
     render(<DailyDispatchSummary />);
     await screen.findByText('Nandini');
     expandBrand('Nandini');
-    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
 
     expandBrand('Nandini'); // toggles back to collapsed
     expect(screen.queryByText('Toned Milk')).toBeNull();
@@ -173,7 +173,7 @@ describe('DailyDispatchSummary — product table', () => {
     expect(within(brandRow).getByText('2 crates')).toBeInTheDocument();
 
     expandBrand('Nandini');
-    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+    expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
   });
 
   it('shows the grand total bar for the selected salesperson', async () => {
@@ -207,7 +207,7 @@ describe('DailyDispatchSummary — crate display precision', () => {
     expect(within(brandRow).getByText('1.46 crates')).toBeInTheDocument();
 
     expandBrand('Nandini');
-    const productRow = screen.getByText('Toned Milk').closest('tr');
+    const productRow = (await screen.findByText('Toned Milk')).closest('tr');
     expect(within(productRow).getByText('1.46')).toBeInTheDocument();
 
     // No floored "1" crate figure anywhere.
