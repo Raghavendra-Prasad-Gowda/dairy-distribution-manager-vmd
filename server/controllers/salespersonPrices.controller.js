@@ -280,7 +280,7 @@ const bulkUpdateMultipleSalesmen = asyncHandler(async (req, res) => {
   const totalUpdates = salespersonIds.length * productPrices.length;
 
   const by = await getActingUsername(req);
-  let productName = null;
+  let productName;
   let price = null;
   if (productPrices.length === 1) {
     const product = await prisma.product.findUnique({ where: { id: productPrices[0].productId }, select: { name: true } });
