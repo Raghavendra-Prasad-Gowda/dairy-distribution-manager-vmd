@@ -53,13 +53,21 @@ export default function ProductsSetup() {
     setData(([prods, cats]) => [typeof updater === 'function' ? updater(prods) : updater, cats]);
   };
 
-  useEffect(() => {
-    if (!activeBrandId) return;
+  // Reset search + pagination when the active brand changes, and pagination
+  // alone when the search term changes. Adjusted during render (rather than
+  // in an Effect) since this is just state derived from other state —
+  // see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevActiveBrandId, setPrevActiveBrandId] = useState(activeBrandId);
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (activeBrandId && activeBrandId !== prevActiveBrandId) {
+    setPrevActiveBrandId(activeBrandId);
+    setPrevSearch('');
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
+  } else if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
+  }
 
   // ── Filter + category-aware pagination ────────────────────────────────────────
   const filteredGrouped = useMemo(() => {

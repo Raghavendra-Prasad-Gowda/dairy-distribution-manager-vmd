@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -66,7 +66,14 @@ export default function SalesmanUsersSetup() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  useEffect(() => { setCurrentPage(1); }, [search]);
+  // Reset pagination when the search term changes. Adjusted during render
+  // (rather than in an Effect) since this is just state derived from other
+  // state — see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
+  }
 
   const enterReorderMode = () => {
     setReorderList([...salespeople]);

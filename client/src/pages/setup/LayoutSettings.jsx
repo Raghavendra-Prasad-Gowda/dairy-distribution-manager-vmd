@@ -99,12 +99,18 @@ function SortableProductRow({ product }) {
 export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]           = useState(shellBrands ?? []);
-  const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
+  // Only used in standalone (non-shell) mode — in shell mode the active brand
+  // and brand list are derived directly from the shell props below, instead
+  // of being mirrored into state via an effect.
+  const [ownBrands, setBrands]               = useState([]);
+  const [ownActiveBrandId, setActiveBrandId] = useState(null);
   const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
   const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
   const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
   const [dirty, setDirty]             = useState(false);
+
+  const brands        = inShell ? (shellBrands ?? []) : ownBrands;
+  const activeBrandId = inShell ? shellActiveBrandId : ownActiveBrandId;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -118,10 +124,6 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
   }, [inShell, notify]);
-
-  useEffect(() => {
-    if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId, shellBrands, inShell]);
 
   // Load categories + products for active brand. select() runs once per
   // successful fetch (inside the async continuation, not a render effect),

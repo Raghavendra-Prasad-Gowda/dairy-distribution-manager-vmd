@@ -16,8 +16,11 @@ const ITEMS_PER_PAGE = 10;
 export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]         = useState(shellBrands ?? []);
-  const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
+  // Only used in standalone (non-shell) mode — in shell mode the active brand
+  // and brand list are derived directly from the shell props below, instead
+  // of being mirrored into state via an effect.
+  const [ownBrands, setBrands]        = useState([]);
+  const [ownActiveBrandId, setActive] = useState(null);
   const [search, setSearch]         = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const modal = useDisclosure();
@@ -25,16 +28,15 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
   const [formName, setFormName]       = useState('');
   const [confirmation, setConfirmation] = useState({ isOpen: false });
 
+  const brands        = inShell ? (shellBrands ?? []) : ownBrands;
+  const activeBrandId = inShell ? shellActiveBrandId : ownActiveBrandId;
+
   useEffect(() => {
     if (inShell) return;
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
   }, [inShell, notify]);
-
-  useEffect(() => {
-    if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId, shellBrands, inShell]);
 
   const { data: categories, loading, refetch: fetchCategories } = useApiResource(
     activeBrandId ? `/categories?brandId=${activeBrandId}` : null,
@@ -63,13 +65,21 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
     ? (editingCat ? 'Updating category…' : 'Adding category…')
     : deletingCategory ? 'Deleting category…' : '';
 
-  useEffect(() => {
-    if (!activeBrandId) return;
+  // Reset search + pagination when the active brand changes, and pagination
+  // alone when the search term changes. Adjusted during render (rather than
+  // in an Effect) since this is just state derived from other state —
+  // see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevActiveBrandId, setPrevActiveBrandId] = useState(activeBrandId);
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (activeBrandId && activeBrandId !== prevActiveBrandId) {
+    setPrevActiveBrandId(activeBrandId);
+    setPrevSearch('');
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
+  } else if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
+  }
 
   const openAdd = () => { setEditingCat(null); setFormName(''); modal.open(); };
   const openEdit = (cat) => { setEditingCat(cat); setFormName(cat.name); modal.open(); };
