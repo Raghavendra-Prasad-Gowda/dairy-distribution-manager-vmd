@@ -23,7 +23,7 @@ const jwt = require('jsonwebtoken');
 const { test, ctx } = setupSuite();
 
 const SECRET = 'test-secret-for-ci';
-const adminToken      = () => jwt.sign({ id: 1 }, SECRET, { expiresIn: '1h' });
+const adminToken      = () => jwt.sign({ id: 1, role: 'admin', adminUserId: 1 }, SECRET, { expiresIn: '1h' });
 const salesmanToken   = (sid) => jwt.sign({ id: 100, role: 'salesman', salespersonId: sid }, SECRET, { expiresIn: '1h' });
 const dispatcherToken = () => jwt.sign({ id: 2, role: 'dispatcher', adminUserId: 2 }, SECRET, { expiresIn: '1h' });
 const expiredToken    = () => jwt.sign({ id: 1 }, SECRET, { expiresIn: '-1h' });
@@ -388,12 +388,11 @@ test.describe('RBAC — JWT lifecycle', () => {
     expect(res.status()).toBe(401);
   });
 
-  test('token with no role defaults to admin', async ({ request }) => {
-    // JWT only contains { id: 1 } — controller derives role='admin' via auth middleware default
-    ctx.mockPrisma.brand.findMany.mockResolvedValue([]);
+  test('token with no role claim is rejected (fail-closed)', async ({ request }) => {
+    // JWT only contains { id: 1 } — auth middleware rejects tokens without a role
     const res = await request.get('/api/v1/brands', {
       headers: { Authorization: `Bearer ${jwt.sign({ id: 1 }, SECRET, { expiresIn: '1h' })}` },
     });
-    expect(res.status()).toBe(200);
+    expect(res.status()).toBe(401);
   });
 });

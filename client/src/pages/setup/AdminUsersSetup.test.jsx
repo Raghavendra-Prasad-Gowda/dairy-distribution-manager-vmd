@@ -202,6 +202,10 @@ describe('AdminUsersSetup — toggle active', () => {
     const [toggleBtn] = within(row).getAllByRole('button');
     fireEvent.click(toggleBtn);
 
+    // Toggling opens a confirmation dialog first — the PUT only fires once confirmed.
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Disable' }));
+
     await waitFor(() =>
       expect(api.put).toHaveBeenCalledWith('/admin-users/5', { username: 'raghav', role: 'admin', isActive: false })
     );
@@ -220,7 +224,26 @@ describe('AdminUsersSetup — toggle active', () => {
     const [toggleBtn] = within(row).getAllByRole('button');
     fireEvent.click(toggleBtn);
 
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Disable' }));
+
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Cannot disable last admin', 'error'));
+  });
+
+  it('closing the confirmation dialog without confirming does not toggle', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', isActive: true })] },
+    });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [toggleBtn] = within(row).getAllByRole('button');
+    fireEvent.click(toggleBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(api.put).not.toHaveBeenCalled();
   });
 });
 
