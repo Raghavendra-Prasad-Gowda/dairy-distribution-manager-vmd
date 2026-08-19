@@ -115,9 +115,10 @@ app.use('/api/v1/errors/client', clientErrorsRoutes);
 // ─── Protected routes (all require authenticate) ─────────────────────────────
 app.use('/api/v1', authenticate);
 
-// Shared (admin + salesman)
+// Shared (admin + salesman) — role gating is per-route inside each router;
+// salesman/dispatcher access the narrow slices they need (own dispatches,
+// own balance, own prices), everything else returns 403 from the controller.
 app.use('/api/v1/salesperson-statement', salespersonStatementRoutes);
-app.use('/api/v1/brands',               brandsRoutes);
 app.use('/api/v1/dispatches',           dispatchesRoutes);
 app.use('/api/v1/salesperson-balance',  salespersonBalanceRoutes);
 app.use('/api/v1/salesperson-payments', salespersonPaymentsRoutes);
@@ -126,12 +127,10 @@ app.use('/api/v1/salespeople',          salespersonPricesRoutes);
 // Admin-only salesperson sub-resources (bulk writes — rate-limited)
 app.use('/api/v1/salespeople',          requireAdmin, bulkWriteLimiter, salespersonProductsRoutes);
 
-// Admin-only routes
-// products/categories: no salesman page ever calls these directly — the
-// salesman product/price screen goes through /salespeople/:id/prices
-// instead. The base CRUD (create/update/delete/reorder) had no route-level
-// gate before, relying only on a couple of manual in-controller checks on
-// specific sub-routes — moved the whole router behind requireAdmin.
+// Admin-only routes — every route in these routers carries requireAdmin
+// (or stricter) at the route level, so no blanket mount-level guard is
+// needed for brands; the rest use the blanket pattern for consistency.
+app.use('/api/v1/brands',               brandsRoutes);
 app.use('/api/v1/products',             requireAdmin, productsRoutes);
 app.use('/api/v1/categories',           requireAdmin, categoriesRoutes);
 // stock-receipts and reports: most routes stay admin-only, but each router
