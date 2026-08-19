@@ -180,6 +180,9 @@ export default function DairyPayments() {
   // explicit trigger here.
   useEffect(() => {
     if (!activeBrandId) return;
+    // fetchBreakdown sets loading/breakdown state — a genuine fetch-on-dep-
+    // change effect, not state derived from render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchBreakdown();
   }, [activeBrandId, fetchBreakdown]);
 

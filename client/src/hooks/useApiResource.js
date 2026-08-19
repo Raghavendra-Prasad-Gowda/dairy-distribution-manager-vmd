@@ -60,6 +60,9 @@ export function useApiResource(url, opts = {}) {
   }, [url, paramsKey]);
 
   useEffect(() => {
+    // refetch sets loading/data/error state — a genuine fetch-on-mount/
+    // dep-change effect, not state derived from render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (enabled && url) refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, refetch]);
