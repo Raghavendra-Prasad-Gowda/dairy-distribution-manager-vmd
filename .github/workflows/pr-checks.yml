@@ -3,6 +3,8 @@ name: PR Checks
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [environment/test]
 
 jobs:
   lint-timezone:
@@ -18,8 +20,8 @@ jobs:
           node-version: 20
       - run: node scripts/check-timezone-safety.js
 
-  api-tests:
-    name: API Tests (server)
+  lint-server:
+    name: Lint (server)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,14 +34,10 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
-      - run: npm test
-        env:
-          NODE_ENV: test
-          JWT_SECRET: test-secret-for-ci
-          EDIT_PIN: '123456'
+      - run: npm run lint
 
-  ui-tests:
-    name: UI Tests (client)
+  lint-client:
+    name: Lint (client)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -52,4 +50,94 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
       - run: npm ci
-      - run: npm test
+      - run: npm run lint
+
+  api-tests:
+    name: API Tests + coverage gate (server)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      # test:coverage runs the full suite under c8 and fails the job if coverage
+      # drops below the thresholds in .c8rc.json (90/75/85/90 stmts/branches/funcs/lines).
+      - run: npm run test:coverage
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-for-ci
+          EDIT_PIN: '123456'
+
+  ui-tests:
+    name: UI Tests + coverage gate (client)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      # test:coverage runs the full suite under Vitest's v8 coverage and fails
+      # the job if coverage drops below the thresholds in vite.config.js
+      # (78/68/70/80 stmts/branches/funcs/lines).
+      - run: npm run test:coverage
+
+  ui-build:
+    name: Build (client)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  lint-api-spec:
+    name: Lint OpenAPI spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx --yes @redocly/cli lint docs/openapi.yaml
+
+  security-audit:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [server, client]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - run: npm ci
+      # Fails the PR on any moderate-or-worse known vulnerability. Both
+      # packages are clean as of this writing — this is a regression gate,
+      # not a backlog. Dependabot (.github/dependabot.yml) keeps deps current
+      # so this stays green.
+      - run: npm audit --audit-level=moderate

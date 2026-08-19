@@ -11,9 +11,9 @@ export default function ColdStartScreen() {
   useEffect(() => subscribe(setWaking), []);
 
   useEffect(() => {
-    if (!waking) { setDotIdx(0); return; }
+    if (!waking) return;
     const t = setInterval(() => setDotIdx(i => (i + 1) % DOTS.length), 600);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); setDotIdx(0); };
   }, [waking]);
 
   if (!waking) return null;

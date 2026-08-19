@@ -35,15 +35,32 @@ vi.mock('../../utils/dateUtils', async () => {
 });
 
 vi.mock('../../components/PinModal', () => ({
-  default: ({ isOpen, onSuccess }) => isOpen ? <button onClick={onSuccess}>Confirm PIN</button> : null,
+  default: ({ isOpen, onSuccess, onClose }) => isOpen ? (
+    <>
+      <button onClick={onSuccess}>Confirm PIN</button>
+      <button onClick={onClose}>Cancel PIN</button>
+    </>
+  ) : null,
 }));
 
 vi.mock('../../components/BulkTopUpModal', () => ({
-  default: ({ open }) => open ? <div data-testid="bulk-topup-modal" /> : null,
+  default: ({ open, onSaved, onClose }) => open ? (
+    <div data-testid="bulk-topup-modal">
+      <button onClick={() => onSaved({ paymentDate: '2026-08-09', entries: [{ salespersonId: 1, amount: 500 }] })}>
+        Confirm Top-up
+      </button>
+      <button onClick={onClose}>Close Top-up</button>
+    </div>
+  ) : null,
 }));
 
 vi.mock('../../components/ResetLedgerModal', () => ({
-  default: ({ open }) => open ? <div data-testid="reset-ledger-modal" /> : null,
+  default: ({ open, onConfirm, onClose }) => open ? (
+    <div data-testid="reset-ledger-modal">
+      <button onClick={() => onConfirm([1])}>Confirm Reset</button>
+      <button onClick={onClose}>Close Reset</button>
+    </div>
+  ) : null,
 }));
 
 const SALESPEOPLE = [
@@ -86,6 +103,14 @@ async function renderPage() {
   return utils;
 }
 
+describe('SalespersonCollections — initial load failure', () => {
+  it('notifies an error when the initial salespeople/balance fetch fails', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('network down'));
+    render(<SalespersonCollections />);
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load salespeople', 'error'));
+  });
+});
+
 describe('SalespersonCollections — salesperson selection', () => {
   it('defaults to the first salesperson', async () => {
     await renderPage();
@@ -122,6 +147,18 @@ describe('SalespersonCollections — salesperson selection', () => {
     fireEvent.click(screen.getByText('Cleared'));
     expect(within(sidebar).queryByText('K Pandu')).toBeNull();
     expect(within(sidebar).getByText('Mahesh')).toBeInTheDocument();
+  });
+
+  it('the X button clears the sidebar search and restores the full list', async () => {
+    const { container } = await renderPage();
+    const sidebar = container.querySelector('.w-64');
+    const input = screen.getByPlaceholderText(/Search name or route/i);
+    fireEvent.change(input, { target: { value: 'Route B' } });
+    expect(within(sidebar).queryByText('K Pandu')).toBeNull();
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(within(sidebar).getByText('K Pandu')).toBeInTheDocument();
   });
 });
 
@@ -209,13 +246,54 @@ describe('SalespersonCollections — collection history', () => {
     expect(screen.getByText('₹2,000.00')).toBeInTheDocument();
   });
 
-  it('paginates history beyond 15 rows', async () => {
+  it('paginates history beyond 15 rows, Prev/Next both work', async () => {
     const payments = Array.from({ length: 16 }, (_, i) => payment({ id: i + 1, amount: 100 + i }));
     mockApi({ payments });
     await renderPage();
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled();
+
     fireEvent.click(screen.getByText('Next'));
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+
+    fireEvent.click(screen.getByText('Prev'));
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+  });
+
+  it('filters by "To" date via the filter panel', async () => {
+    mockApi({
+      payments: [
+        payment({ id: 1, amount: 1000, paymentDate: '2026-08-01T00:00:00.000Z' }),
+        payment({ id: 2, amount: 2000, paymentDate: '2026-08-09T00:00:00.000Z' }),
+      ],
+    });
+    const { container } = await renderPage();
+    fireEvent.click(screen.getByText('Filter'));
+    // date inputs: [0] PaymentForm's own date, [1] From, [2] To
+    const [, , toInput] = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(toInput, { target: { value: '2026-08-05' } });
+    expect(screen.getByText('₹1,000.00')).toBeInTheDocument();
+    expect(screen.queryByText('₹2,000.00')).toBeNull();
+  });
+
+  it('filters by reference text, and the X button clears it', async () => {
+    mockApi({
+      payments: [
+        payment({ id: 1, amount: 1000, reference: 'CHQ-100' }),
+        payment({ id: 2, amount: 2000, reference: 'UPI-XYZ' }),
+      ],
+    });
+    await renderPage();
+    fireEvent.click(screen.getByText('Filter'));
+    const refInput = screen.getByPlaceholderText('Search…');
+    fireEvent.change(refInput, { target: { value: 'chq' } });
+    expect(screen.getByText('₹1,000.00')).toBeInTheDocument();
+    expect(screen.queryByText('₹2,000.00')).toBeNull();
+
+    fireEvent.click(refInput.parentElement.querySelector('button'));
+    expect(refInput).toHaveValue('');
+    expect(screen.getByText('₹2,000.00')).toBeInTheDocument();
   });
 });
 
@@ -230,6 +308,21 @@ describe('SalespersonCollections — record collection', () => {
       expect(api.post).toHaveBeenCalledWith('/salesperson-payments', expect.objectContaining({ amount: 750, salespersonId: 1 }))
     );
     expect(notify).toHaveBeenCalledWith('Collection recorded successfully', 'success');
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Stock guard failed' } } });
+    await renderPage();
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '750' } });
+    fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Stock guard failed', 'error'));
+
+    // PaymentForm resets its own fields immediately on submit (regardless of
+    // outcome), so the amount must be re-entered before retrying.
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '750' } });
+    fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -259,6 +352,67 @@ describe('SalespersonCollections — edit flow (PIN gated)', () => {
       expect(api.put).toHaveBeenCalledWith('/salesperson-payments/7', expect.objectContaining({ amount: 1800 }))
     );
   });
+
+  it('editing the date, mode, and reference fields updates the save payload', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500, paymentMode: 'Cash', reference: '' })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Collection');
+
+    const modal = screen.getByText('Edit Collection').closest('div.bg-white');
+    fireEvent.change(within(modal).getByDisplayValue('2026-08-09'), { target: { value: '2026-08-05' } });
+    fireEvent.change(within(modal).getByDisplayValue('Cash'), { target: { value: 'UPI' } });
+    fireEvent.change(screen.getByPlaceholderText('UPI ref / cheque no.'), { target: { value: 'TXN-99' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/salesperson-payments/7', expect.objectContaining({
+      paymentDate: '2026-08-05', paymentMode: 'UPI', reference: 'TXN-99',
+    })));
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Locked' } } });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Collection');
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Locked', 'error'));
+
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+
+  it('the X button and Cancel both close the edit modal without saving', async () => {
+    mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Collection');
+
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByText('Edit Collection')).not.toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Edit Collection');
+    // The X button is the lone icon-only button next to the "Edit Collection" heading.
+    fireEvent.click(screen.getByText('Edit Collection').parentElement.querySelector('button'));
+    expect(screen.queryByText('Edit Collection')).not.toBeInTheDocument();
+  });
+
+  it('cancelling the PIN prompt never reaches the edit form', async () => {
+    mockApi({ payments: [payment({ id: 7 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Cancel PIN'));
+    expect(screen.queryByText('Confirm PIN')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edit Collection')).not.toBeInTheDocument();
+  });
 });
 
 describe('SalespersonCollections — delete flow (PIN gated)', () => {
@@ -284,6 +438,44 @@ describe('SalespersonCollections — delete flow (PIN gated)', () => {
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/salesperson-payments/9'));
     expect(notify).toHaveBeenCalledWith('Record deleted', 'success');
   });
+
+  it('the X (close dialog) button also dismisses the delete confirmation', async () => {
+    mockApi({ payments: [payment({ id: 9 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Delete collection record?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByText('Delete collection record?')).not.toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('Cancel closes the confirmation without deleting', async () => {
+    mockApi({ payments: [payment({ id: 9 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Delete collection record?');
+
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Delete collection record?')).not.toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('shows an error notification when the delete fails', async () => {
+    mockApi({ payments: [payment({ id: 9 })] });
+    vi.mocked(api.delete).mockRejectedValue(new Error('network down'));
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+    await screen.findByText('Delete collection record?');
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
 });
 
 describe('SalespersonCollections — admin vs superadmin toolbar', () => {
@@ -306,5 +498,47 @@ describe('SalespersonCollections — admin vs superadmin toolbar', () => {
     await renderPage();
     expect(screen.getByText('Bulk Top-up')).toBeInTheDocument();
     expect(screen.getByText('Reset Ledger')).toBeInTheDocument();
+  });
+
+  it('opens the Bulk Top-up modal and confirming posts the top-up and refreshes', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { data: { count: 1, total: 500 } } });
+    await renderPage();
+    fireEvent.click(screen.getByText('Bulk Top-up'));
+    expect(screen.getByTestId('bulk-topup-modal')).toBeInTheDocument();
+
+    const priorBalanceCalls = vi.mocked(api.get).mock.calls.filter(c => c[0].includes('/salesperson-balance?')).length;
+    fireEvent.click(screen.getByText('Confirm Top-up'));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salesperson-payments/bulk-topup', {
+      paymentDate: '2026-08-09', entries: [{ salespersonId: 1, amount: 500 }],
+    }));
+    await waitFor(() => {
+      const newCalls = vi.mocked(api.get).mock.calls.filter(c => c[0].includes('/salesperson-balance?')).length;
+      expect(newCalls).toBeGreaterThan(priorBalanceCalls);
+    });
+  });
+
+  it('opens the Reset Ledger modal and confirming resets and refreshes', async () => {
+    mockRole = 'superadmin';
+    vi.mocked(api.post).mockResolvedValue({ data: { data: { count: 1 } } });
+    await renderPage();
+    fireEvent.click(screen.getByText('Reset Ledger'));
+    expect(screen.getByTestId('reset-ledger-modal')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Confirm Reset'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salespeople/reset-ledger', { salespersonIds: [1] }));
+  });
+
+  it('closing the Bulk Top-up and Reset Ledger modals dismisses them without side effects', async () => {
+    mockRole = 'superadmin';
+    await renderPage();
+    fireEvent.click(screen.getByText('Bulk Top-up'));
+    fireEvent.click(screen.getByText('Close Top-up'));
+    expect(screen.queryByTestId('bulk-topup-modal')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Reset Ledger'));
+    fireEvent.click(screen.getByText('Close Reset'));
+    expect(screen.queryByTestId('reset-ledger-modal')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

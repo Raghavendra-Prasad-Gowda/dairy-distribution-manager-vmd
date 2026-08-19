@@ -76,6 +76,21 @@ describe('SalesmanUsersSetup — list', () => {
     expect(screen.getByText('Suresh M')).toBeInTheDocument();
     expect(screen.queryByText('Ramu K')).toBeNull();
   });
+
+  it('the X button clears the search and restores the full list', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [salesperson({ id: 1, name: 'Ramu K' }), salesperson({ id: 2, name: 'Suresh M', route: 'South Zone' })] },
+    });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    const input = screen.getByPlaceholderText(/Search by name, route, phone or username/i);
+    fireEvent.change(input, { target: { value: 'south' } });
+    expect(screen.queryByText('Ramu K')).toBeNull();
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(screen.getByText('Ramu K')).toBeInTheDocument();
+  });
 });
 
 describe('SalesmanUsersSetup — add salesperson', () => {
@@ -131,14 +146,41 @@ describe('SalesmanUsersSetup — add salesperson', () => {
     await waitFor(() => expect(api.get.mock.calls.length).toBeGreaterThan(getCallsBefore));
   });
 
-  it('shows the server error on a failed create', async () => {
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Name is required' } } });
     await renderPage();
     fireEvent.click(screen.getByText('Add Salesperson'));
     fireEvent.change(screen.getByPlaceholderText('e.g. Ramu'), { target: { value: 'New Guy' } });
     fireEvent.click(screen.getByText('Add Salesperson', { selector: 'button[type="submit"]' }));
-
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Name is required', 'error'));
+
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByText('Add Salesperson', { selector: 'button[type="submit"]' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+
+  it('the eye button toggles the new-password field visibility', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Add Salesperson'));
+    const pwInput = screen.getByPlaceholderText('Min 6 characters');
+    expect(pwInput).toHaveAttribute('type', 'password');
+
+    fireEvent.click(pwInput.parentElement.querySelector('button'));
+    expect(pwInput).toHaveAttribute('type', 'text');
+  });
+
+  it('Cancel and the X button both close the Add modal without posting', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Add Salesperson'));
+    fireEvent.change(screen.getByPlaceholderText('e.g. Ramu'), { target: { value: 'New Guy' } });
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByPlaceholderText('e.g. Ramu')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Add Salesperson'));
+    fireEvent.click(screen.getByText('New Salesperson').closest('div.bg-emerald-800').querySelector('button'));
+    expect(screen.queryByPlaceholderText('e.g. Ramu')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 });
 
@@ -156,6 +198,16 @@ describe('SalesmanUsersSetup — active toggle', () => {
     expect(screen.getByText('Enable')).toBeInTheDocument();
     // No extra GETs — the toggle updates React state directly.
     expect(api.get.mock.calls.length).toBe(getCallsBefore);
+  });
+
+  it('shows an error notification when the toggle fails', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson({ isActive: true })] } });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Cannot disable' } } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByText('Disable'));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Cannot disable', 'error'));
   });
 });
 
@@ -221,6 +273,51 @@ describe('SalesmanUsersSetup — edit credentials', () => {
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/salespeople/3', { password: 'secret1' }));
   });
+
+  it('the eye button toggles both password and confirm fields together', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson()] } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByTitle('Edit credentials'));
+
+    const pwInput = screen.getByPlaceholderText('Leave blank to keep existing');
+    const confirmInput = screen.getByPlaceholderText('Repeat new password');
+    expect(pwInput).toHaveAttribute('type', 'password');
+    expect(confirmInput).toHaveAttribute('type', 'password');
+
+    fireEvent.click(pwInput.parentElement.querySelector('button'));
+    expect(pwInput).toHaveAttribute('type', 'text');
+    expect(confirmInput).toHaveAttribute('type', 'text');
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson({ id: 3, username: 'ramu.k' })] } });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Username taken' } } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByTitle('Edit credentials'));
+    fireEvent.change(screen.getByDisplayValue('ramu.k'), { target: { value: 'ramu.new' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Credentials/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Username taken', 'error'));
+
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByRole('button', { name: /Save Credentials/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+
+  it('Cancel and the X button both close the credentials modal without saving', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson()] } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByTitle('Edit credentials'));
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByText('Login Credentials')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Edit credentials'));
+    fireEvent.click(screen.getByText('Login Credentials').closest('div.bg-emerald-800').querySelector('button'));
+    expect(screen.queryByText('Login Credentials')).not.toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+  });
 });
 
 describe('SalesmanUsersSetup — delete', () => {
@@ -250,6 +347,21 @@ describe('SalesmanUsersSetup — delete', () => {
 
     expect(screen.queryByText('Delete Ramu K?')).toBeNull();
     expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson({ id: 9, name: 'Ramu K' })] } });
+    vi.mocked(api.delete).mockRejectedValue({ response: { data: { error: 'In use' } } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByTitle('Delete salesperson'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('In use', 'error'));
+
+    vi.mocked(api.delete).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByTitle('Delete salesperson'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -292,5 +404,21 @@ describe('SalesmanUsersSetup — reorder mode', () => {
     );
     expect(notify).toHaveBeenCalledWith('Display order saved', 'success');
     await waitFor(() => expect(screen.getByPlaceholderText(/Search by name, route, phone or username/i)).toBeInTheDocument());
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [salesperson({ id: 1, name: 'Ramu K' })] } });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Order locked' } } });
+    await renderPage();
+    await screen.findByText('Ramu K');
+    fireEvent.click(screen.getByText('Reorder'));
+    fireEvent.click(screen.getByText('Save Order'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Order locked', 'error'));
+    // Stays in reorder mode so the admin can retry.
+    expect(screen.getByText('Save Order')).toBeInTheDocument();
+
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByText('Save Order'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });

@@ -200,6 +200,22 @@ test.describe('PUT /api/v1/categories/:id', () => {
     expect(body.data).toHaveProperty('depositEnabled', false);
   });
 
+  test('returns 200 when both name and depositEnabled are updated together', async ({ request }) => {
+    ctx.mockPrisma.category.findUnique.mockResolvedValue(CATEGORY);
+    // Mirror the real transaction's shape: [updatedCategory, updateManyResult]
+    ctx.mockPrisma.$transaction.mockResolvedValue([{ ...CATEGORY, name: 'Renamed', depositEnabled: true }, { count: 0 }]);
+
+    const res = await request.put('/api/v1/categories/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { name: 'Renamed', depositEnabled: true },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('name', 'Renamed');
+    expect(body.data).toHaveProperty('depositEnabled', true);
+  });
+
   test('returns 400 when neither name nor depositEnabled is provided', async ({ request }) => {
     const res = await request.put('/api/v1/categories/1', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },

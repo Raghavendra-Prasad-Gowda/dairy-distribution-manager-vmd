@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Save, Loader2, Package, TrendingUp, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, AlertCircle } from 'lucide-react';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResources } from '../../hooks/useApiResources';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -31,22 +32,17 @@ export default function StockReceipt() {
 
   const [date, setDate]                         = useState(getIndiaDate());
   const [activeBrand, setActiveBrand]           = useState(null);
-  const [products, setProducts]                 = useState([]);
   const [categories, setCategories]             = useState([]);
-  const [routeQty, setRouteQty]                 = useState({}); // { productId: { routeId: qty } }
-  const [savedRouteIds, setSavedRouteIds]       = useState(new Set()); // route IDs that have saved receipts
   const [routes, setRoutes]                     = useState([]);
   const [routesLoading, setRoutesLoading]       = useState(false);
   const [activeRouteIdx, setActiveRouteIdx]     = useState(0);
   const [balance, setBalance]                   = useState({ opening: 0, stockValue: 0, depositValue: 0, paid: 0, closing: 0 });
   const [collapsedCategories, setCollapsedCategories] = useState({});
-  const [loading, setLoading]                   = useState(false);
   const [saving, setSaving]                     = useState(false);
   const [search, setSearch]                     = useState('');
   const inputRefs = useRef({});
 
   const COL_COUNT  = 5;
-  const today       = getIndiaDate();
   const activeRoute = routes[activeRouteIdx] ?? null;
   const activeColor = ROUTE_COLORS[activeRouteIdx % ROUTE_COLORS.length];
   const hasRoutes   = routes.length > 0;
@@ -74,7 +70,7 @@ export default function StockReceipt() {
         setActiveBrand(matched ?? null);
       })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, [brandName]);
+  }, [brandName, notify]);
 
   // ─── Routes (all brands) ──────────────────────────────────────────────────
   useEffect(() => {
@@ -108,36 +104,36 @@ export default function StockReceipt() {
   }, [activeBrand]);
 
   // ─── Products + Receipts ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!activeBrand) return;
-    setLoading(true);
-    Promise.all([
-      api.get(`/products?brandId=${activeBrand.id}&date=${date}`),
-      api.get(`/stock-receipts?date=${date}&brandId=${activeBrand.id}`),
-    ])
-      .then(([prodRes, receiptRes]) => {
-        const prods    = prodRes.data.data.filter(p => p.showInStockReceipt !== false);
-        const receipts = receiptRes.data.data;
+  const dataUrls = activeBrand
+    ? [`/products?brandId=${activeBrand.id}&date=${date}`, `/stock-receipts?date=${date}&brandId=${activeBrand.id}`]
+    : [];
+  const { data, loading, setData } = useApiResources(dataUrls, {
+    initialData: { products: [], routeQty: {}, savedRouteIds: new Set() },
+    select: ([prodPayload, receiptPayload]) => {
+      const prods    = (prodPayload ?? []).filter(p => p.showInStockReceipt !== false);
+      const receipts = receiptPayload ?? [];
 
-        setProducts(prods);
-
-        // Map saved receipts back into routeQty (keyed by actual route DB id)
-        const rqty = {};
-        for (const p of prods) rqty[p.id] = {};
-        const routeIdsWithData = new Set();
-        for (const r of receipts) {
-          if (r.routeId && r.routeId !== 0 && rqty[r.productId] !== undefined) {
-            rqty[r.productId][r.routeId] = String(r.quantity);
-            routeIdsWithData.add(r.routeId);
-          }
+      // Map saved receipts back into routeQty (keyed by actual route DB id)
+      const rqty = {};
+      for (const p of prods) rqty[p.id] = {};
+      const routeIdsWithData = new Set();
+      for (const r of receipts) {
+        if (r.routeId && r.routeId !== 0 && rqty[r.productId] !== undefined) {
+          rqty[r.productId][r.routeId] = String(r.quantity);
+          routeIdsWithData.add(r.routeId);
         }
-        setRouteQty(rqty);
-        setSavedRouteIds(routeIdsWithData);
-        setCollapsedCategories({});
-      })
-      .catch(() => notify('Failed to load products', 'error'))
-      .finally(() => setLoading(false));
-  }, [activeBrand, date]);
+      }
+      setCollapsedCategories({});
+      return { products: prods, routeQty: rqty, savedRouteIds: routeIdsWithData };
+    },
+  });
+  const { products, routeQty, savedRouteIds } = data;
+  // Drop-in replacement for the old `setRouteQty` useState setter — updates
+  // just the routeQty slot, leaving products/savedRouteIds untouched. Used by
+  // the quantity input's onChange (a local edit, not a refetch).
+  const setRouteQty = (updater) => {
+    setData(prev => ({ ...prev, routeQty: typeof updater === 'function' ? updater(prev.routeQty) : updater }));
+  };
 
   // ─── Keyboard nav ─────────────────────────────────────────────────────────
   const allFiltered = useMemo(
@@ -166,7 +162,7 @@ export default function StockReceipt() {
     });
   }
 
-  const groupedData = useMemo(filteredGrouped, [products, categories, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groupedData = useMemo(filteredGrouped, [products, categories, search]);
 
   const handleKeyDown = (e, productId) => {
     if (e.key !== 'Enter' && e.key !== 'Tab') return;
@@ -220,7 +216,6 @@ export default function StockReceipt() {
   // ─── Derived totals ───────────────────────────────────────────────────────
   // Balance card — sum across ALL routes
   const totalAmount = products.reduce((s, p) => s + getEffectiveQty(p.id) * Number(p.costPrice), 0);
-  const filledCount = products.filter(p => getEffectiveQty(p.id) > 0).length;
 
   // Live deposit — recomputes as quantities are entered, mirrors balance service logic
   const liveDepositValue = React.useMemo(() => {

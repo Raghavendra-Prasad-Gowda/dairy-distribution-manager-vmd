@@ -75,6 +75,21 @@ describe('AdminUsersSetup — list', () => {
     expect(screen.getByText('mahesh')).toBeInTheDocument();
     expect(screen.queryByText('raghav')).toBeNull();
   });
+
+  it('the X button clears the search and restores the full list', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 2, username: 'raghav' }), adminUser({ id: 3, username: 'mahesh' })] },
+    });
+    await renderPage();
+    await screen.findByText('raghav');
+    const input = screen.getByPlaceholderText(/Search by username or role/i);
+    fireEvent.change(input, { target: { value: 'mahesh' } });
+    expect(screen.queryByText('raghav')).toBeNull();
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(screen.getByText('raghav')).toBeInTheDocument();
+  });
 });
 
 describe('AdminUsersSetup — add user', () => {
@@ -127,6 +142,44 @@ describe('AdminUsersSetup — add user', () => {
       expect(api.post).toHaveBeenCalledWith('/admin-users', { username: 'dispatcher1', password: 'secret1', role: 'dispatcher' })
     );
   });
+
+  it('falls back to a generic error message when create fails with no server error', async () => {
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    await renderPage();
+    fireEvent.click(screen.getByText('Add User'));
+    fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'newadmin' } });
+    fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+
+  it('the eye button toggles the new-password field between hidden and visible text', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Add User'));
+    const pwInput = screen.getByPlaceholderText(/Min 6 characters/);
+    expect(pwInput).toHaveAttribute('type', 'password');
+
+    fireEvent.click(pwInput.parentElement.querySelector('button'));
+    expect(pwInput).toHaveAttribute('type', 'text');
+  });
+
+  it('Cancel closes the Add User modal without posting', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Add User'));
+    fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'newadmin' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByPlaceholderText(/john_admin/)).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('the X (close dialog) button also dismisses the Add User modal', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText('Add User'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByPlaceholderText(/john_admin/)).not.toBeInTheDocument();
+  });
 });
 
 describe('AdminUsersSetup — toggle active', () => {
@@ -154,6 +207,20 @@ describe('AdminUsersSetup — toggle active', () => {
     );
     // isActive was true → disabling → 'Admin "raghav" disabled'
     expect(notify).toHaveBeenCalledWith('Admin "raghav" disabled', 'success');
+  });
+
+  it('shows an error notification when the toggle fails', async () => {
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Cannot disable last admin' } } });
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav' })] },
+    });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [toggleBtn] = within(row).getAllByRole('button');
+    fireEvent.click(toggleBtn);
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Cannot disable last admin', 'error'));
   });
 });
 
@@ -223,6 +290,90 @@ describe('AdminUsersSetup — edit user', () => {
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Admin "raghav" updated', 'success'));
   });
 
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Duplicate username' } } });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [, editBtn] = within(row).getAllByRole('button');
+    fireEvent.click(editBtn);
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Duplicate username', 'error'));
+
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+
+  it('the eye button toggles the edit-password field visibility', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+
+    const pwInput = screen.getByPlaceholderText(/Min 6 characters/);
+    expect(pwInput).toHaveAttribute('type', 'password');
+    fireEvent.click(pwInput.parentElement.querySelector('button'));
+    expect(pwInput).toHaveAttribute('type', 'text');
+  });
+
+  it('the Active toggle flips isActive, included in the save payload', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', isActive: true })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+
+    // Active toggle is the lone unlabeled button inside the modal footer-less form area.
+    const dialog = screen.getByRole('dialog');
+    const activeToggle = within(dialog).getByText('Active').nextElementSibling;
+    fireEvent.click(activeToggle);
+    fireEvent.click(within(dialog).getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin-users/5', {
+      username: 'raghav', role: 'admin', isActive: false,
+    }));
+  });
+
+  it('Cancel closes the Edit modal without saving', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    expect(screen.getByText('Edit — raghav')).toBeInTheDocument();
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Edit — raghav')).not.toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  it('the X (close dialog) button also dismisses the Edit modal', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    expect(screen.getByText('Edit — raghav')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByText('Edit — raghav')).not.toBeInTheDocument();
+  });
+
+  it('editing the username field and role select updates the save payload', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+
+    fireEvent.change(screen.getByDisplayValue('raghav'), { target: { value: 'raghav2' } });
+    fireEvent.change(screen.getByDisplayValue('Admin'), { target: { value: 'superadmin' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin-users/5', {
+      username: 'raghav2', role: 'superadmin', isActive: true,
+    }));
+  });
+
   it('disables the role select and active toggle when editing your own account', async () => {
     // useAuth mock's adminUserId is 1 — this user IS the logged-in admin.
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 1, username: 'me' })] } });
@@ -268,5 +419,53 @@ describe('AdminUsersSetup — delete user', () => {
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin-users/5'));
     // ROLE_LABEL['admin'] is 'Admin', so the message is 'Admin "raghav" deleted'
     expect(notify).toHaveBeenCalledWith('Admin "raghav" deleted', 'success');
+  });
+
+  it('Cancel closes the confirmation modal without deleting', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [,, deleteBtn] = within(row).getAllByRole('button');
+    fireEvent.click(deleteBtn);
+    await screen.findByText('Delete admin user?');
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Delete admin user?')).not.toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('the X (close dialog) button also dismisses the delete confirmation', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [,, deleteBtn] = within(row).getAllByRole('button');
+    fireEvent.click(deleteBtn);
+    await screen.findByText('Delete admin user?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByText('Delete admin user?')).not.toBeInTheDocument();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    vi.mocked(api.delete).mockRejectedValue({ response: { data: { error: 'In use' } } });
+    await renderPage();
+    await screen.findByText('raghav');
+    const row = screen.getByText('raghav').closest('tr');
+    const [,, deleteBtn] = within(row).getAllByRole('button');
+    fireEvent.click(deleteBtn);
+    let dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('In use', 'error'));
+
+    vi.mocked(api.delete).mockRejectedValue(new Error('network down'));
+    fireEvent.click(deleteBtn);
+    dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });

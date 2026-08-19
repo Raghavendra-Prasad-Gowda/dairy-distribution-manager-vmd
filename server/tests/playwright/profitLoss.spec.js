@@ -282,4 +282,19 @@ test.describe('GET /api/v1/reports/profit-loss — response shape', () => {
     const { data } = await (await get(request, 'from=2026-04-01&to=2026-04-30')).json();
     expect(data).toMatchObject({ from: '2026-04-01', to: '2026-04-30' });
   });
+
+  test('defaults brand, category and display order when the product row has none', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [
+        item(1, 100, 25, 20, 'Mystery Item', { category: null, displayOrder: null, brand: null }),
+      ])],
+    });
+
+    const { data } = await (await get(request)).json();
+    const product = data.salespeople.find(s => s.salespersonId === 1).products[0];
+    expect(product.brandName).toBeNull();
+    expect(product.brandDisplayOrder).toBe(0);
+    expect(product.category).toBe('Other');
+    expect(product.displayOrder).toBe(0);
+  });
 });

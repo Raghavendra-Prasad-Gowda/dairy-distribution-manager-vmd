@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -11,6 +11,9 @@ import Pagination from '../../components/Pagination';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 function SortableSpRow({ sp }) {
@@ -43,41 +46,31 @@ const ITEMS_PER_PAGE = 10;
 
 export default function SalesmanUsersSetup() {
   const { notify } = useNotification();
-  const [salespeople, setSalespeople]       = useState([]);
-  const [loading, setLoading]               = useState(false);
-  const [showAddModal, setShowAddModal]     = useState(false);
-  const [showPwModal, setShowPwModal]       = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { data: salespeople, loading, refetch: loadSalespeople, setData: setSalespeople } =
+    useApiResource('/salespeople?all=true', { initialData: [] });
+  const addModal = useDisclosure();
+  const pwModal = useDisclosure();
+  const deleteModal = useDisclosure();
   const [deletingSpId, setDeletingSpId]     = useState(null);
   const [editingSp, setEditingSp]           = useState(null);
   const [newSp, setNewSp]                   = useState({ name: '', phone: '', route: '', username: '', password: '' });
   const [showNewPw, setShowNewPw]           = useState(false);
   const [pwForm, setPwForm]                 = useState({ username: '', password: '', confirmPassword: '' });
   const [showPw, setShowPw]                 = useState(false);
-  const [submitting, setSubmitting]         = useState(false);
-  const [savingPw, setSavingPw]             = useState(false);
-  const [deleting, setDeleting]             = useState(false);
   const [search, setSearch]                 = useState('');
   const [currentPage, setCurrentPage]       = useState(1);
   const [reorderMode, setReorderMode]       = useState(false);
   const [reorderList, setReorderList]       = useState([]);
-  const [savingOrder, setSavingOrder]       = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  useEffect(() => { loadSalespeople(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function loadSalespeople() {
-    setLoading(true);
-    try {
-      const r = await api.get('/salespeople?all=true');
-      setSalespeople(r.data.data);
-    } catch {
-      notify('Failed to load salespeople', 'error');
-    } finally {
-      setLoading(false);
-    }
+  // Reset pagination when the search term changes. Adjusted during render
+  // (rather than in an Effect) since this is just state derived from other
+  // state — see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
   }
 
   const enterReorderMode = () => {
@@ -94,19 +87,17 @@ export default function SalesmanUsersSetup() {
     });
   };
 
-  const handleSaveOrder = async () => {
-    setSavingOrder(true);
-    notify('Saving display order…', 'loading');
-    try {
-      await api.put('/salespeople/reorder', reorderList.map((sp, i) => ({ id: sp.id, displayOrder: i })));
-      notify('Display order saved', 'success');
-      setReorderMode(false);
-      loadSalespeople();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to save order', 'error');
-    } finally {
-      setSavingOrder(false);
+  const { mutate: saveOrder, loading: savingOrder } = useMutation(
+    (list) => api.put('/salespeople/reorder', list.map((sp, i) => ({ id: sp.id, displayOrder: i }))),
+    {
+      successMessage: 'Display order saved',
+      onSuccess: () => { setReorderMode(false); loadSalespeople(); },
     }
+  );
+
+  const handleSaveOrder = () => {
+    notify('Saving display order…', 'loading');
+    saveOrder(reorderList);
   };
 
   const filtered = useMemo(() => {
@@ -126,89 +117,88 @@ export default function SalesmanUsersSetup() {
   const endIdx        = Math.min(startIdx + ITEMS_PER_PAGE, totalFiltered);
   const paged         = filtered.slice(startIdx, endIdx);
 
-  const handleAddSalesperson = async (e) => {
+  const { mutate: addSalesperson, loading: submitting } = useMutation(
+    (payload) => api.post('/salespeople', payload),
+    {
+      successMessage: 'Salesperson added',
+      onSuccess: () => {
+        setNewSp({ name: '', phone: '', route: '', username: '', password: '' });
+        setShowNewPw(false);
+        addModal.close();
+        loadSalespeople();
+      },
+    }
+  );
+
+  const handleAddSalesperson = (e) => {
     e.preventDefault();
     if (newSp.username && !newSp.password) { notify('Password is required when setting a username', 'warning'); return; }
     if (!newSp.username && newSp.password) { notify('Username is required when setting a password', 'warning'); return; }
-    setSubmitting(true);
     notify('Adding salesperson…', 'loading');
-    try {
-      const payload = { name: newSp.name, phone: newSp.phone || undefined, route: newSp.route || undefined };
-      if (newSp.username) { payload.username = newSp.username; payload.password = newSp.password; }
-      await api.post('/salespeople', payload);
-      notify('Salesperson added', 'success');
-      setNewSp({ name: '', phone: '', route: '', username: '', password: '' });
-      setShowNewPw(false);
-      setShowAddModal(false);
-      loadSalespeople();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to add salesperson', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    const payload = { name: newSp.name, phone: newSp.phone || undefined, route: newSp.route || undefined };
+    if (newSp.username) { payload.username = newSp.username; payload.password = newSp.password; }
+    addSalesperson(payload);
   };
 
-  const handleToggleActive = async (sp) => {
-    notify(sp.isActive ? 'Deactivating salesperson…' : 'Activating salesperson…', 'loading');
-    try {
-      await api.put(`/salespeople/${sp.id}`, { isActive: !sp.isActive });
-      setSalespeople(prev => prev.map(s => s.id === sp.id ? { ...s, isActive: !s.isActive } : s));
-      notify(sp.isActive ? 'Salesperson deactivated' : 'Salesperson activated', 'success');
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to update', 'error');
+  const { mutate: toggleActive } = useMutation(
+    (sp) => api.put(`/salespeople/${sp.id}`, { isActive: !sp.isActive }),
+    {
+      onSuccess: (_res, sp) => {
+        setSalespeople(prev => prev.map(s => s.id === sp.id ? { ...s, isActive: !s.isActive } : s));
+        notify(sp.isActive ? 'Salesperson deactivated' : 'Salesperson activated', 'success');
+      },
     }
+  );
+
+  const handleToggleActive = (sp) => {
+    notify(sp.isActive ? 'Deactivating salesperson…' : 'Activating salesperson…', 'loading');
+    toggleActive(sp);
   };
 
   const openDeleteConfirm = (sp) => {
     setDeletingSpId(sp.id);
-    setShowDeleteModal(true);
+    deleteModal.open();
   };
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    notify('Deleting salesperson…', 'loading');
-    try {
-      await api.delete(`/salespeople/${deletingSpId}`);
-      notify('Salesperson deleted', 'success');
-      setShowDeleteModal(false);
-      setDeletingSpId(null);
-      loadSalespeople();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to delete', 'error');
-    } finally {
-      setDeleting(false);
+  const { mutate: deleteSalesperson, loading: deleting } = useMutation(
+    (id) => api.delete(`/salespeople/${id}`),
+    {
+      successMessage: 'Salesperson deleted',
+      onSuccess: () => { deleteModal.close(); setDeletingSpId(null); loadSalespeople(); },
     }
+  );
+
+  const handleDelete = () => {
+    notify('Deleting salesperson…', 'loading');
+    deleteSalesperson(deletingSpId);
   };
 
   const openCredentials = (sp) => {
     setEditingSp(sp);
     setPwForm({ username: sp.username ?? '', password: '', confirmPassword: '' });
     setShowPw(false);
-    setShowPwModal(true);
+    pwModal.open();
   };
 
-  const handleSaveCredentials = async (e) => {
+  const { mutate: saveCredentials, loading: savingPw } = useMutation(
+    ({ id, payload }) => api.put(`/salespeople/${id}`, payload),
+    {
+      successMessage: 'Credentials updated',
+      onSuccess: () => { pwModal.close(); setEditingSp(null); loadSalespeople(); },
+    }
+  );
+
+  const handleSaveCredentials = (e) => {
     e.preventDefault();
     if (pwForm.password && pwForm.password !== pwForm.confirmPassword) {
       notify('Passwords do not match', 'warning'); return;
     }
-    setSavingPw(true);
     notify('Updating credentials…', 'loading');
-    try {
-      const payload = {};
-      if (pwForm.username !== (editingSp.username ?? '')) payload.username = pwForm.username || null;
-      if (pwForm.password) payload.password = pwForm.password;
-      if (Object.keys(payload).length === 0) { notify('No changes to save', 'warning'); setSavingPw(false); return; }
-      await api.put(`/salespeople/${editingSp.id}`, payload);
-      notify('Credentials updated', 'success');
-      setShowPwModal(false);
-      setEditingSp(null);
-      loadSalespeople();
-    } catch (e) {
-      notify(e.response?.data?.error ?? 'Failed to update credentials', 'error');
-    } finally {
-      setSavingPw(false);
-    }
+    const payload = {};
+    if (pwForm.username !== (editingSp.username ?? '')) payload.username = pwForm.username || null;
+    if (pwForm.password) payload.password = pwForm.password;
+    if (Object.keys(payload).length === 0) { notify('No changes to save', 'warning'); return; }
+    saveCredentials({ id: editingSp.id, payload });
   };
 
   const deletingSp = salespeople.find(s => s.id === deletingSpId);
@@ -219,7 +209,7 @@ export default function SalesmanUsersSetup() {
       <LoadingOverlay open={submitting} message="Adding salesperson…" />
 
       {/* Add salesperson modal */}
-      {showAddModal && (
+      {addModal.isOpen && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[92vh]" style={{ animation: 'popIn 0.2s ease' }}>
             <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl flex-shrink-0">
@@ -232,7 +222,7 @@ export default function SalesmanUsersSetup() {
                   <p className="text-emerald-300 text-[11px]">Fill in the details below</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddModal(false)} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+              <button onClick={addModal.close} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
                 <X size={15} />
               </button>
             </div>
@@ -293,7 +283,7 @@ export default function SalesmanUsersSetup() {
                 </div>
               </div>
               <div className="flex gap-3 px-5 pb-5 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition">
+                <button type="button" onClick={addModal.close} className="flex-1 px-4 py-2.5 text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition">
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="ddm-btn-primary flex-1 justify-center">
@@ -306,7 +296,7 @@ export default function SalesmanUsersSetup() {
       )}
 
       {/* Edit credentials modal */}
-      {showPwModal && editingSp && (
+      {pwModal.isOpen && editingSp && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" style={{ animation: 'popIn 0.2s ease' }}>
             <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl">
@@ -319,7 +309,7 @@ export default function SalesmanUsersSetup() {
                   <p className="text-emerald-300 text-[11px]">{editingSp.name}</p>
                 </div>
               </div>
-              <button onClick={() => setShowPwModal(false)} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
+              <button onClick={pwModal.close} className="p-1.5 text-emerald-300 hover:text-white hover:bg-emerald-700 rounded-lg transition">
                 <X size={15} />
               </button>
             </div>
@@ -363,7 +353,7 @@ export default function SalesmanUsersSetup() {
                 />
               </div>
               <div className="flex gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setShowPwModal(false)} className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
+                <button type="button" onClick={pwModal.close} className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm">
                   Cancel
                 </button>
                 <button type="submit" disabled={savingPw} className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
@@ -377,7 +367,7 @@ export default function SalesmanUsersSetup() {
       )}
 
       {/* Delete confirmation modal */}
-      {showDeleteModal && deletingSp && (
+      {deleteModal.isOpen && deletingSp && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
             <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
@@ -391,7 +381,7 @@ export default function SalesmanUsersSetup() {
             </div>
             <div className="flex gap-3 px-6 pb-6">
               <button
-                onClick={() => { setShowDeleteModal(false); setDeletingSpId(null); }}
+                onClick={() => { deleteModal.close(); setDeletingSpId(null); }}
                 className="flex-1 border border-slate-200 text-slate-700 font-medium py-2.5 rounded-xl hover:bg-slate-50 transition text-sm"
               >
                 Cancel
@@ -446,7 +436,7 @@ export default function SalesmanUsersSetup() {
               <ArrowUpDown size={14} /> Reorder
             </button>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={addModal.open}
               className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition"
             >
               <Plus size={14} /> Add Salesperson

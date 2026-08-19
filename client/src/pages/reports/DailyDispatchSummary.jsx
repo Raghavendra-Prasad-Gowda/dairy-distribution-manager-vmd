@@ -3,6 +3,7 @@ import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, Chevrons
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import { useApiResources } from '../../hooks/useApiResources';
 import api from '../../api/axios';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
@@ -20,9 +21,6 @@ export default function DailyDispatchSummary() {
   const isDispatcher = user?.role === 'dispatcher';
 
   const [date, setDate]                       = useState(getIndiaDate());
-  const [data, setData]                       = useState(null);
-  const [loading, setLoading]                 = useState(false);
-  const [error, setError]                     = useState('');
   const [selectedSpId, setSelectedSpId]       = useState(null);
   const [search, setSearch]                   = useState('');
   const [showZeroQty, setShowZeroQty]         = useState(false);
@@ -36,57 +34,49 @@ export default function DailyDispatchSummary() {
   const [unfinalizeLoading, setUnfinalizeLoading] = useState(false);
   const [unfinalizeConfirm, setUnfinalizeConfirm] = useState(false);
 
+  useEffect(() => { setCollapsedBrands({}); }, [selectedSpId]);
+
+  // Dispatchers can't open blank rows for entry, so skip the /salespeople
+  // call — it's admin-only and would return 403 for a dispatcher.
+  const { data, loading, error, refetch: fetchData } = useApiResources(
+    [`/reports/daily-dispatch?date=${date}`, isDispatcher ? null : '/salespeople'],
+    {
+      notifyOnError: false,
+      select: ([d, sp]) => {
+        // Salespeople with no dispatch row for this date don't appear in
+        // d.rows at all — surface them as blank rows so an admin can still
+        // select them and open the date for entry. Dispatchers don't get
+        // this: they can't open dates for entry, and they don't have
+        // access to /salespeople.
+        const blankRows = sp
+          ? (sp ?? [])
+              .filter(s => !new Set(d.rows.map(r => r.salespersonId)).has(s.id))
+              .map(s => ({
+                salespersonId:   s.id,
+                salespersonName: s.name,
+                items:           {},
+                totalAmount:     0,
+                dispatchId:      null,
+                isSubmitted:     false,
+                isAdminUnlocked: false,
+                isLocked:        date < getIndiaDate(),
+              }))
+          : [];
+        const merged = { ...d, rows: [...d.rows, ...blankRows] };
+        const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
+                       ?? merged.rows[0]?.salespersonId ?? null;
+        setSelectedSpId(autoId);
+        return merged;
+      },
+    }
+  );
+
   const isPastDate = date < getIndiaDate();
   const isToday     = date === getIndiaDate();
   const dayFinalized = data?.isDayFinalized ?? false;
   // Dispatcher's lock/unlock is only actionable today, before finalization —
   // admin/superadmin are completely unrestricted, unchanged.
   const canToggleLock = !isDispatcher || (isToday && !dayFinalized);
-
-  useEffect(() => { fetchData(); }, [date]);
-
-  useEffect(() => { setCollapsedBrands({}); }, [selectedSpId]);
-
-  async function fetchData() {
-    setLoading(true); setError('');
-    setSelectedSpId(null);
-    try {
-      // Dispatchers can't open blank rows for entry, so skip the /salespeople
-      // call — it's admin-only and would return 403 for a dispatcher.
-      const [dispatchRes, spRes] = await Promise.all([
-        api.get(`/reports/daily-dispatch?date=${date}`),
-        isDispatcher ? Promise.resolve(null) : api.get('/salespeople'),
-      ]);
-      const d = dispatchRes.data.data;
-      // Salespeople with no dispatch row for this date don't appear in d.rows
-      // at all — surface them as blank rows so an admin can still select them
-      // and open the date for entry. Dispatchers don't get this: they can't
-      // open dates for entry, and they don't have access to /salespeople.
-      const blankRows = spRes
-        ? (spRes.data.data ?? [])
-            .filter(sp => !new Set(d.rows.map(r => r.salespersonId)).has(sp.id))
-            .map(sp => ({
-              salespersonId:   sp.id,
-              salespersonName: sp.name,
-              items:           {},
-              totalAmount:     0,
-              dispatchId:      null,
-              isSubmitted:     false,
-              isAdminUnlocked: false,
-              isLocked:        date < getIndiaDate(),
-            }))
-        : [];
-      const merged = { ...d, rows: [...d.rows, ...blankRows] };
-      setData(merged);
-      const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
-                     ?? merged.rows[0]?.salespersonId ?? null;
-      setSelectedSpId(autoId);
-    } catch (e) {
-      setError(e.response?.data?.error ?? 'Failed to load dispatch summary');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function confirmOpenForEntry() {
     if (!openConfirm) return;
@@ -97,7 +87,7 @@ export default function DailyDispatchSummary() {
       await api.post('/dispatches/open-for-entry', { salespersonId, dispatchDate: date });
       await fetchData();
       setSelectedSpId(salespersonId);
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setOpenLoading(false);
@@ -110,7 +100,7 @@ export default function DailyDispatchSummary() {
     try {
       await api.post('/dispatches/finalize-day');
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setFinalizeLoading(false);
@@ -123,7 +113,7 @@ export default function DailyDispatchSummary() {
     try {
       await api.delete('/dispatches/finalize-day');
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setUnfinalizeLoading(false);
@@ -202,7 +192,7 @@ export default function DailyDispatchSummary() {
       const action = isLocked ? 'unlock' : 'lock';
       await api.patch(`/dispatches/${dispatchId}/${action}`);
       await fetchData();
-    } catch (e) {
+    } catch {
       // fetchData will reset state
     } finally {
       setLockLoading(false);
@@ -259,7 +249,7 @@ export default function DailyDispatchSummary() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <DateSelector date={date} onChange={setDate} dark />
+          <DateSelector date={date} onChange={d => { setDate(d); setSelectedSpId(null); }} dark />
         </div>
       </div>
 

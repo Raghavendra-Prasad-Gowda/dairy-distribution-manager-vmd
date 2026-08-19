@@ -21,8 +21,9 @@ vi.mock('../../api/axios', () => ({
   default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
 }));
 
+const notify = vi.fn();
 vi.mock('../../context/NotificationContext', () => ({
-  useNotification: () => ({ notify: vi.fn() }),
+  useNotification: () => ({ notify }),
 }));
 
 vi.mock('../../context/AuthContext', () => ({
@@ -186,5 +187,464 @@ describe('StockEntry — crate display precision', () => {
     // all numerically identical — every one of them must read "1.46 Crates".
     expect(screen.getAllByText('1.46 Crates').length).toBeGreaterThanOrEqual(4);
     expect(screen.queryByText(/^1\.5 /)).toBeNull(); // the old 1-decimal rounding must not reappear
+  });
+});
+
+// ─── Empty / loading states ─────────────────────────────────────────────────
+
+describe('StockEntry — empty and loading states', () => {
+  it('shows a loader while the initial fetch is in flight', () => {
+    vi.mocked(api.get).mockImplementation(() => new Promise(() => {}));
+    render(<StockEntry />);
+    expect(screen.queryByText('Expand All')).not.toBeInTheDocument();
+  });
+
+  it('shows "No products enabled" when the salesman has no priced products at all', async () => {
+    mockApiFor([]);
+    render(<StockEntry />);
+    await screen.findByText('No products enabled for your account');
+  });
+
+  it('shows "No products match your search" when a search matches nothing', async () => {
+    mockApiFor([product({ productId: 1, productName: 'Toned Milk', brandName: 'Nandini' })]);
+    render(<StockEntry />);
+    await waitFor(() => expect(api.get).toHaveBeenCalled());
+    fireEvent.change(await screen.findByPlaceholderText(/Search product/), { target: { value: 'zzz-no-match' } });
+    await screen.findByText('No products match your search.');
+  });
+
+  it('search matches by product name, category, or brand name', async () => {
+    mockApiFor([
+      product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk' }),
+      product({ productId: 2, productName: 'Curd Pot',   brandId: 2, brandName: 'Jersey',  category: 'Curd' }),
+    ]);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByPlaceholderText(/Search product/), { target: { value: 'jersey' } });
+    expect(screen.getByText('Curd Pot')).toBeInTheDocument();
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+  });
+
+  it('clearing the search (X button) restores the full list', async () => {
+    mockApiFor([product({ productId: 1, productName: 'Toned Milk' })]);
+    await renderExpanded();
+
+    const input = screen.getByPlaceholderText(/Search product/);
+    fireEvent.change(input, { target: { value: 'zzz' } });
+    await screen.findByText('No products match your search.');
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+  });
+});
+
+// ─── Expand / collapse ───────────────────────────────────────────────────────
+
+describe('StockEntry — expand / collapse', () => {
+  const PRODUCTS = [
+    product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk' }),
+  ];
+
+  it('starts fully collapsed', async () => {
+    mockApiFor(PRODUCTS);
+    render(<StockEntry />);
+    // "Nandini" also appears in the always-visible "Today's Stock Cost" box —
+    // only the brand header copy lives inside a <button>.
+    await waitFor(() => {
+      const matches = screen.getAllByText('Nandini');
+      expect(matches.some(el => el.closest('button'))).toBe(true);
+    });
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+  });
+
+  it('clicking a brand header expands just that brand', async () => {
+    mockApiFor(PRODUCTS);
+    render(<StockEntry />);
+    let brandHeader;
+    await waitFor(() => {
+      brandHeader = screen.getAllByText('Nandini').find(el => el.closest('button'));
+      expect(brandHeader).toBeTruthy();
+    });
+    fireEvent.click(brandHeader.closest('button'));
+    expect(screen.getByText('Milk')).toBeInTheDocument();
+  });
+
+  it('Collapse All re-collapses everything after Expand All', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Collapse All'));
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+  });
+
+  it('clicking a category header collapses just that category, leaving the brand expanded', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Milk').closest('button'));
+    expect(screen.queryByText('Toned Milk')).not.toBeInTheDocument();
+    // Brand header itself stays expanded — the category header is still shown.
+    expect(screen.getByText('Milk')).toBeInTheDocument();
+  });
+});
+
+// ─── Quantity entry ──────────────────────────────────────────────────────────
+
+describe('StockEntry — quantity entry', () => {
+  const PRODUCTS = [
+    product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', sellingPrice: 25 }),
+  ];
+
+  it('typing a quantity shows the line amount', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '4' } });
+    // ₹100.00 (4 × 25) shows up at the line, category, brand, and grand-total
+    // levels simultaneously — assert it appears rather than pin a single node.
+    await waitFor(() => expect(screen.getAllByText('₹100.00').length).toBeGreaterThan(0));
+  });
+
+  it('the increment stepper adds one unit at a time', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    const input = screen.getByRole('spinbutton');
+    const incrementBtn = screen.getAllByRole('button').find(b => b.querySelector('svg.lucide-plus'));
+    // Steppers swallow pointerdown (to avoid stealing focus from the input)
+    // before the click actually fires — exercise both.
+    fireEvent.pointerDown(incrementBtn);
+    fireEvent.click(incrementBtn);
+    expect(input).toHaveValue(1);
+    fireEvent.click(incrementBtn);
+    expect(input).toHaveValue(2);
+  });
+
+  it('the decrement stepper subtracts, clearing to empty (not "0") at zero', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    const input = screen.getByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '1' } });
+    const decrementBtn = screen.getAllByRole('button').find(b => b.querySelector('svg.lucide-minus'));
+    fireEvent.pointerDown(decrementBtn);
+    fireEvent.click(decrementBtn);
+    expect(input).toHaveValue(null);
+  });
+
+  it('the decrement stepper is disabled at zero (cannot go negative)', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    const decrementBtn = screen.getAllByRole('button').find(b => b.querySelector('svg.lucide-minus'));
+    expect(decrementBtn).toBeDisabled();
+  });
+
+  it('pressing Enter moves focus to the next product\'s quantity input', async () => {
+    mockApiFor([
+      product({ productId: 1, productName: 'A Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', displayOrder: 0 }),
+      product({ productId: 2, productName: 'B Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', displayOrder: 1 }),
+    ]);
+    await renderExpanded();
+
+    const inputs = screen.getAllByRole('spinbutton');
+    inputs[0].focus();
+    fireEvent.keyDown(inputs[0], { key: 'Enter' });
+    expect(inputs[1]).toHaveFocus();
+  });
+
+  it('a product with no price shows "No price set" and disabled controls', async () => {
+    mockApiFor([product({ productId: 1, productName: 'Mystery Item', brandId: 1, brandName: 'Nandini', sellingPrice: null })]);
+    await renderExpanded();
+
+    expect(screen.getByText('No price set')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton')).toBeDisabled();
+  });
+
+  it('shows litres for an ml product once quantity is entered', async () => {
+    mockApiFor([product({
+      productId: 1, productName: 'Toned 500ml', brandId: 1, brandName: 'Nandini',
+      unitType: 'ml', unitSize: 500, sellingPrice: 25,
+    })]);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '4' } });
+    expect(await screen.findByText('2 L')).toBeInTheDocument(); // 4 × 500ml = 2L
+  });
+
+  it('shows kg for a gram product once quantity is entered', async () => {
+    mockApiFor([product({
+      productId: 1, productName: 'Curd 400g', brandId: 1, brandName: 'Nandini',
+      unitType: 'gram', unitSize: 400, sellingPrice: 25,
+    })]);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '5' } });
+    expect(await screen.findByText('2 kg')).toBeInTheDocument(); // 5 × 400g = 2kg
+  });
+
+  it('shows the grand total footer once at least one product is filled', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    expect(screen.queryByText('Grand Total')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    expect(await screen.findByText('Grand Total')).toBeInTheDocument();
+  });
+});
+
+// ─── Balance card ────────────────────────────────────────────────────────────
+
+describe('StockEntry — balance card', () => {
+  function mockApiWithBalance(products, balance) {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))              return Promise.resolve({ data: { data: products } });
+      if (url.includes('/dispatches'))          return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: balance } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('shows "Settled" with no outstanding balance', async () => {
+    mockApiWithBalance([], { openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0 });
+    render(<StockEntry />);
+    await screen.findByText('Settled');
+  });
+
+  it('shows "Balance Due" when the salesman owes money', async () => {
+    mockApiWithBalance([], { openingBalance: 500, stockGiven: 1000, amountPaid: 200, closingBalance: 1300 });
+    render(<StockEntry />);
+    await screen.findByText('Balance Due');
+    expect(screen.getByText('₹1,300.00')).toBeInTheDocument();
+  });
+
+  it('defaults to a zeroed balance when the API returns no row for the date', async () => {
+    mockApiWithBalance([], null);
+    render(<StockEntry />);
+    await screen.findByText('Settled');
+  });
+});
+
+// ─── Save flow ───────────────────────────────────────────────────────────────
+
+describe('StockEntry — save (draft)', () => {
+  const PRODUCTS = [
+    product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', sellingPrice: 25 }),
+  ];
+
+  // Note: handleSave's "nothing filled and no dispatch" warning branch is
+  // unreachable through the UI — the Save button is disabled by the exact
+  // same condition (`filledCount === 0 && !dispatch`), so a click never
+  // reaches the handler in that state. Confirmed dead/defensive code, not
+  // covered here for the same reason BrandsSetup's analogous guard isn't.
+  it('disables the Save button when nothing is filled and there is no existing dispatch', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    expect(screen.getByRole('button', { name: /Save/ })).toBeDisabled();
+  });
+
+  it('saves a draft with the entered quantities', async () => {
+    mockApiFor(PRODUCTS);
+    vi.mocked(api.post).mockResolvedValue({ data: { data: { id: 1 } } });
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/ }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/dispatches', {
+      dispatchDate: '2026-08-09',
+      items: [{ productId: 1, quantity: 3, unitPrice: 25 }],
+    }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Stock entry saved as draft.', 'success'));
+  });
+
+  it('shows an error notification when saving fails', async () => {
+    mockApiFor(PRODUCTS);
+    vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Stock guard failed' } } });
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/ }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Stock guard failed', 'error'));
+  });
+
+  it('falls back to a generic error message when save fails with no server error', async () => {
+    mockApiFor(PRODUCTS);
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/ }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Save failed.', 'error'));
+  });
+
+  it('clears an existing draft when quantities are emptied and saved ("Clear" button)', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))     return Promise.resolve({ data: { data: PRODUCTS } });
+      if (url.includes('/dispatches')) return Promise.resolve({ data: { data: [{ id: 9, isSubmitted: false, items: [{ productId: 1, quantity: 3, unitPrice: 25 }] }] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: null } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    vi.mocked(api.post).mockResolvedValue({ data: { data: null } });
+    await renderExpanded();
+
+    // Existing dispatch pre-fills 3; clear it back to empty.
+    const input = screen.getByRole('spinbutton');
+    expect(input).toHaveValue(3);
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/dispatches', { dispatchDate: '2026-08-09', items: [] }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Stock entry cleared.', 'success'));
+  });
+});
+
+// ─── Submit flow ─────────────────────────────────────────────────────────────
+
+describe('StockEntry — submit (finalize)', () => {
+  const PRODUCTS = [
+    product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', sellingPrice: 25 }),
+  ];
+
+  it('the Finalize & Submit button is disabled until something is filled', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+    expect(screen.getByRole('button', { name: /Finalize/ })).toBeDisabled();
+  });
+
+  it('opens a confirmation modal before submitting', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Finalize/ }));
+
+    expect(screen.getByText('Finalize stock entry?')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('cancel on the confirmation modal does not submit', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Finalize/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText('Finalize stock entry?')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('closing the confirmation modal via the X button does not submit', async () => {
+    mockApiFor(PRODUCTS);
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Finalize/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+
+    expect(screen.queryByText('Finalize stock entry?')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('confirming submits, locks, and shows success', async () => {
+    mockApiFor(PRODUCTS);
+    vi.mocked(api.post).mockResolvedValue({ data: { data: { id: 5 } } });
+    vi.mocked(api.patch).mockResolvedValue({ data: { data: {} } });
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Finalize/ }));
+    fireEvent.click(screen.getAllByText(/Finalize.*Submit/).at(-1));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/dispatches', {
+      dispatchDate: '2026-08-09',
+      items: [{ productId: 1, quantity: 2, unitPrice: 25 }],
+      submitting: true,
+    }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/dispatches/5/submit'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Stock entry submitted and locked.', 'success'));
+  });
+
+  it('falls back to the existing dispatch id when the save response has none', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))     return Promise.resolve({ data: { data: PRODUCTS } });
+      if (url.includes('/dispatches')) return Promise.resolve({ data: { data: [{ id: 7, isSubmitted: false, items: [] }] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: null } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    vi.mocked(api.post).mockResolvedValue({ data: { data: null } });
+    vi.mocked(api.patch).mockResolvedValue({ data: { data: {} } });
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Finalize/ }));
+    fireEvent.click(screen.getAllByText(/Finalize.*Submit/).at(-1));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/dispatches/7/submit'));
+  });
+
+  it('shows an error notification when submitting fails', async () => {
+    mockApiFor(PRODUCTS);
+    vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Submit blocked' } } });
+    await renderExpanded();
+
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Finalize/ }));
+    fireEvent.click(screen.getAllByText(/Finalize.*Submit/).at(-1));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Submit blocked', 'error'));
+  });
+});
+
+// ─── Locked states ───────────────────────────────────────────────────────────
+
+describe('StockEntry — locked entries', () => {
+  const PRODUCTS = [
+    product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', sellingPrice: 25 }),
+  ];
+
+  function mockLockedDispatch(dispatchOverrides) {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))     return Promise.resolve({ data: { data: PRODUCTS } });
+      if (url.includes('/dispatches')) return Promise.resolve({ data: { data: [{ id: 1, items: [{ productId: 1, quantity: 2, unitPrice: 25 }], ...dispatchOverrides }] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: null } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('shows "Submitted & locked" and disables the quantity input when submitted and not admin-unlocked', async () => {
+    mockLockedDispatch({ isLocked: true, isSubmitted: true, isAdminUnlocked: false });
+    await renderExpanded();
+
+    expect(screen.getByText('Submitted & locked')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Save/ })).not.toBeInTheDocument();
+  });
+
+  it('an admin-unlocked entry stays editable even though isSubmitted is true', async () => {
+    mockLockedDispatch({ isLocked: false, isSubmitted: true, isAdminUnlocked: true });
+    await renderExpanded();
+
+    expect(screen.getByRole('spinbutton')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /Save/ })).toBeInTheDocument();
+  });
+
+  it('shows "Past date — locked" for an implicitly-locked past date with no dispatch row', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))     return Promise.resolve({ data: { data: PRODUCTS } });
+      if (url.includes('/dispatches')) return Promise.resolve({ data: { data: [] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: null } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<StockEntry />);
+    fireEvent.change(await screen.findByDisplayValue('2026-08-09'), { target: { value: '2020-01-01' } });
+    await screen.findByText('Past date — locked');
   });
 });

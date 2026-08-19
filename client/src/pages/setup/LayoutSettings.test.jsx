@@ -73,6 +73,15 @@ describe('LayoutSettings — standalone mode', () => {
     fireEvent.click(screen.getByText('Jersey'));
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('categories?brandId=2')));
   });
+
+  it('notifies an error when the brands fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.reject(new Error('network down'));
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<LayoutSettings />);
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load brands', 'error'));
+  });
 });
 
 describe('LayoutSettings — shell mode', () => {
@@ -156,6 +165,24 @@ describe('LayoutSettings — category reordering (up/down)', () => {
     expect(headers.map(h => h.textContent)).toEqual(['Curd', 'Milk']);
   });
 
+  it('moving the first category down swaps the order and marks the layout dirty', async () => {
+    mockApi({
+      categories: [category({ id: 1, name: 'Milk' }), category({ id: 2, name: 'Curd' })],
+      products: [product({ id: 1, category: 'Milk' }), product({ id: 2, name: 'Curd 200g', category: 'Curd' })],
+    });
+    render(<LayoutSettings />);
+    await screen.findByText('Toned Milk');
+
+    // The down-arrow on the first category row (Milk) moves it below Curd.
+    const milkRow = screen.getByText('Milk').closest('div').parentElement;
+    const [, downBtn] = milkRow.querySelectorAll('button');
+    fireEvent.click(downBtn);
+
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    const headers = screen.getAllByText(/Milk|Curd/).filter(el => el.tagName === 'SPAN' && el.className.includes('font-bold'));
+    expect(headers.map(h => h.textContent)).toEqual(['Curd', 'Milk']);
+  });
+
   it('disables the up arrow on the first category and the down arrow on the last', async () => {
     mockApi({
       categories: [category({ id: 1, name: 'Milk' }), category({ id: 2, name: 'Curd' })],
@@ -218,7 +245,7 @@ describe('LayoutSettings — save', () => {
     fireEvent.click(upBtn);
     fireEvent.click(screen.getByText('Save Layout'));
 
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to save layout', 'error'));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
     // A failed save leaves the change unsaved.
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   });

@@ -22,6 +22,11 @@ vi.mock('../../api/axios', () => ({
   default: { get: vi.fn() },
 }));
 
+const notify = vi.fn();
+vi.mock('../../context/NotificationContext', () => ({
+  useNotification: () => ({ notify }),
+}));
+
 vi.mock('../../utils/dateUtils', async () => {
   const actual = await vi.importActual('../../utils/dateUtils');
   return { ...actual, getIndiaDate: () => '2026-08-09', getFirstDayOfMonth: () => '2026-08-01' };

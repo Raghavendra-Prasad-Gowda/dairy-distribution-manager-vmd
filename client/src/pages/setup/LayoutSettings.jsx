@@ -18,6 +18,8 @@ import { useNotification } from '../../context/NotificationContext';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import BrandTabs from '../../components/BrandTabs';
+import { useApiResources } from '../../hooks/useApiResources';
+import { useMutation } from '../../hooks/useMutation';
 import api from '../../api/axios';
 
 // ── Category row with up/down buttons ─────────────────────────────────────────
@@ -97,14 +99,18 @@ function SortableProductRow({ product }) {
 export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]           = useState(shellBrands ?? []);
-  const [activeBrandId, setActiveBrandId] = useState(shellActiveBrandId ?? null);
+  // Only used in standalone (non-shell) mode — in shell mode the active brand
+  // and brand list are derived directly from the shell props below, instead
+  // of being mirrored into state via an effect.
+  const [ownBrands, setBrands]               = useState([]);
+  const [ownActiveBrandId, setActiveBrandId] = useState(null);
   const [categories, setCategories]   = useState([]);   // [{ id, name, displayOrder }]
   const [products, setProducts]       = useState([]);   // [{ id, name, category, displayOrder, showInStockReceipt, ... }]
   const [expanded, setExpanded]       = useState({});   // { categoryName: bool }
-  const [loading, setLoading]         = useState(false);
-  const [saving, setSaving]           = useState(false);
   const [dirty, setDirty]             = useState(false);
+
+  const brands        = inShell ? (shellBrands ?? []) : ownBrands;
+  const activeBrandId = inShell ? shellActiveBrandId : ownActiveBrandId;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -117,32 +123,29 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
       setBrands(b);
       if (b.length) setActiveBrandId(b[0].id);
     }).catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [inShell, notify]);
 
-  useEffect(() => {
-    if (inShell) { setActiveBrandId(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
-
-  // Load categories + products for active brand
-  useEffect(() => {
-    if (!activeBrandId) return;
-    setLoading(true);
-    Promise.all([
-      api.get(`/categories?brandId=${activeBrandId}`),
-      api.get(`/products?brandId=${activeBrandId}&all=true`),
-    ]).then(([catRes, prodRes]) => {
-      const cats = catRes.data.data ?? [];
-      const prods = (prodRes.data.data ?? []).filter(p => p.isActive && p.showInStockReceipt);
-      setCategories(cats);
-      setProducts(prods);
-      // Expand all categories by default
-      const exp = {};
-      cats.forEach(c => { exp[c.name] = true; });
-      setExpanded(exp);
-      setDirty(false);
-    }).catch(() => notify('Failed to load data', 'error'))
-      .finally(() => setLoading(false));
-  }, [activeBrandId]);
+  // Load categories + products for active brand. select() runs once per
+  // successful fetch (inside the async continuation, not a render effect),
+  // so deriving categories/products/expanded/dirty together here mirrors
+  // exactly what the old Promise.all().then() callback did.
+  const { loading } = useApiResources(
+    activeBrandId ? [`/categories?brandId=${activeBrandId}`, `/products?brandId=${activeBrandId}&all=true`] : null,
+    {
+      select: ([catsPayload, prodsPayload]) => {
+        const cats = catsPayload ?? [];
+        const prods = (prodsPayload ?? []).filter(p => p.isActive && p.showInStockReceipt);
+        setCategories(cats);
+        setProducts(prods);
+        // Expand all categories by default
+        const exp = {};
+        cats.forEach(c => { exp[c.name] = true; });
+        setExpanded(exp);
+        setDirty(false);
+        return [cats, prods];
+      },
+    }
+  );
 
   // Products grouped by category, sorted by the current index in the categories array
   const grouped = React.useMemo(() => {
@@ -188,21 +191,13 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
   }, []);
 
   // ── Save layout ─────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await Promise.all([
-        api.patch('/categories/reorder', categories.map((c, i) => ({ id: c.id, displayOrder: i }))),
-        api.patch('/products/reorder', products.map((p, i) => ({ id: p.id, displayOrder: i }))),
-      ]);
-      notify('Layout saved successfully!', 'success');
-      setDirty(false);
-    } catch {
-      notify('Failed to save layout', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { mutate: handleSave, loading: saving } = useMutation(
+    () => Promise.all([
+      api.patch('/categories/reorder', categories.map((c, i) => ({ id: c.id, displayOrder: i }))),
+      api.patch('/products/reorder', products.map((p, i) => ({ id: p.id, displayOrder: i }))),
+    ]),
+    { successMessage: 'Layout saved successfully!', onSuccess: () => setDirty(false) }
+  );
 
   return (
     <div className="flex flex-col h-full bg-slate-100">

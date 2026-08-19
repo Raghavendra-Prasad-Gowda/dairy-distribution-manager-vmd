@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
-import { useAuth } from '../../context/AuthContext';
+import { useMutation } from '../../hooks/useMutation';
 import api from '../../api/axios';
 
 export default function ChangePassword() {
-  const { user } = useAuth();
   const { notify } = useNotification();
-  const [loading, setLoading] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
@@ -42,6 +40,18 @@ export default function ChangePassword() {
 
   const allValidationsPassed = Object.values(validation).every(v => v);
   const passwordsMatch = form.newPassword && form.newPassword === form.confirmPassword;
+
+  const { mutate: submitPasswordChange, loading } = useMutation(
+    (payload) => api.post('/auth/change-password', payload),
+    {
+      successMessage: 'Password changed successfully',
+      onSuccess: () => {
+        setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setValidation({ minLength: false, hasUppercase: false, hasLowercase: false, hasNumber: false });
+      },
+    }
+  );
+
   const canSubmit = form.currentPassword && allValidationsPassed && passwordsMatch && !loading;
 
   const handleSubmit = async (e) => {
@@ -62,22 +72,11 @@ export default function ChangePassword() {
       return;
     }
 
-    setLoading(true);
     notify('Updating password…', 'loading');
-    try {
-      await api.post('/auth/change-password', {
-        currentPassword: form.currentPassword,
-        newPassword: form.newPassword,
-      });
-
-      notify('Password changed successfully', 'success');
-      setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setValidation({ minLength: false, hasUppercase: false, hasLowercase: false, hasNumber: false });
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to change password', 'error');
-    } finally {
-      setLoading(false);
-    }
+    await submitPasswordChange({
+      currentPassword: form.currentPassword,
+      newPassword: form.newPassword,
+    });
   };
 
   return (

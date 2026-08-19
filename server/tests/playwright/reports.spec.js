@@ -119,6 +119,37 @@ test.describe('GET /api/v1/reports/dairy-statement', () => {
     expect(body.data[0].payments[0]).toHaveProperty('amount', 1000);
   });
 
+  test('resolves routeNumber from the route map for a route-scoped receipt (routeId != 0)', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 1000, stockValue: 2200, depositValue: 0, amountPaid: 1000, closingBalance: 2200,
+      brand: { name: 'Nandini' },
+    };
+    const receiptOnMappedRoute = {
+      receiptDate: new Date('2026-04-30'), quantity: 100, unitPrice: 22, routeId: 7,
+      product: { name: 'Milk 500ml' },
+    };
+    const receiptOnUnmappedRoute = {
+      receiptDate: new Date('2026-04-30'), quantity: 50, unitPrice: 30, routeId: 99,
+      product: { name: 'Curd 200g' },
+    };
+
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([receiptOnMappedRoute, receiptOnUnmappedRoute]);
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([{ id: 7, routeNumber: 'R3' }]);
+
+    const res = await request.get('/api/v1/reports/dairy-statement?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const receipts = (await res.json()).data[0].receipts;
+    expect(receipts.find(r => r.productName === 'Milk 500ml').routeNumber).toBe('R3');
+    // routeId 99 has no matching route row — falls back to null, not "undefined".
+    expect(receipts.find(r => r.productName === 'Curd 200g').routeNumber).toBeNull();
+  });
+
   test('includes depositValue in dairy statement rows', async ({ request }) => {
     const balance = {
       balanceDate: new Date('2026-04-30'),
@@ -302,6 +333,63 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
     expect(items[0].productName).toBe('Milk 500ml');
     expect(items[1].productName).toBe('Curd 200g');
   });
+
+  test('falls back to name order when brand, category and displayOrder are all missing or tied', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 5000, amountPaid: 0, closingBalance: 5000,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      items: [
+        // Same brand (tied), no category (nullable field, doesn't match any
+        // categories row), and no displayOrder — every `?? 999` fallback in
+        // the comparator applies to both, so the sort falls through to name.
+        { product: { name: 'Zebra Milk', brandId: 1, category: null, displayOrder: null, brand: { name: 'Nandini', displayOrder: 1 } }, quantity: 5, unitPrice: 10, totalAmount: 50 },
+        { product: { name: 'Apple Milk', brandId: 1, category: null, displayOrder: null, brand: { name: 'Nandini', displayOrder: 1 } }, quantity: 5, unitPrice: 10, totalAmount: 50 },
+      ],
+    };
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const items = (await res.json()).data[0].items;
+    expect(items.map(i => i.productName)).toEqual(['Apple Milk', 'Zebra Milk']);
+  });
+
+  test('sorts by brand display order when it differs', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 5000, amountPaid: 0, closingBalance: 5000,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      items: [
+        { product: { name: 'Jersey Item', brandId: 2, category: 'Milk', displayOrder: 1, brand: { name: 'Jersey', displayOrder: 2 } }, quantity: 5, unitPrice: 10, totalAmount: 50 },
+        { product: { name: 'Nandini Item', brandId: 1, category: 'Milk', displayOrder: 1, brand: { name: 'Nandini', displayOrder: 1 } }, quantity: 5, unitPrice: 10, totalAmount: 50 },
+      ],
+    };
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const items = (await res.json()).data[0].items;
+    expect(items.map(i => i.productName)).toEqual(['Nandini Item', 'Jersey Item']);
+  });
 });
 
 // ─── GET /api/v1/reports/stock-summary ───────────────────────────────────────
@@ -446,6 +534,38 @@ test.describe('GET /api/v1/reports/stock-summary', () => {
 
     expect(res.status()).toBe(200);
     expect((await res.json()).data.rows[0].receipts[0].routeNumber).toBeNull();
+  });
+
+  test('reports unitSize for ml products and unitSizeGrams for gram products, and defaults a missing costPrice to 0', async ({ request }) => {
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      {
+        receiptDate: new Date('2026-04-30'), quantity: 50, unitPrice: 30, routeId: 1,
+        product: { name: 'Milk 500ml', unitsPerContainer: 20, costPrice: null, displayOrder: 1, unitType: 'ml', unitSize: 500, containerType: 'crate', category: 'Milk' },
+        brand:   { name: 'Nandini', displayOrder: 1 },
+      },
+      {
+        receiptDate: new Date('2026-04-30'), quantity: 30, unitPrice: 40, routeId: 1,
+        product: { name: 'Curd 400g', unitsPerContainer: 12, costPrice: 35, displayOrder: 2, unitType: 'gram', unitSize: 400, containerType: 'crate', category: 'Curd' },
+        brand:   { name: 'Nandini', displayOrder: 1 },
+      },
+    ]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.route.findMany.mockResolvedValue([{ id: 1, routeNumber: 'R1' }]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/stock-summary?brandId=1&from=2026-04-30&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const receipts = (await res.json()).data.rows[0].receipts;
+    const milk = receipts.find(r => r.productName === 'Milk 500ml');
+    const curd = receipts.find(r => r.productName === 'Curd 400g');
+    expect(milk.unitSize).toBe(500);
+    expect(milk.unitSizeGrams).toBeNull();
+    expect(milk.costPrice).toBe(0);
+    expect(curd.unitSize).toBeNull();
+    expect(curd.unitSizeGrams).toBe(400);
   });
 });
 
@@ -760,6 +880,43 @@ test.describe('GET /api/v1/reports/deposit-summary', () => {
     expect(body.data.rows).toHaveLength(1);
     expect(body.data.rows[0].items).toHaveLength(2); // top-up line + the receipt line
     expect(body.data.rows[0].dailyDeposit).toBeCloseTo(150, 2);
+  });
+
+  test('sorts multiple deposit items by category order, then product display order', async ({ request }) => {
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(DEPOSIT_BRAND);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { name: 'Curd', depositEnabled: true, displayOrder: 2 },
+      { name: 'Milk', depositEnabled: true, displayOrder: 1 },
+    ]);
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
+      // Same category (Milk), different productDisplayOrder — exercises the
+      // "categoryDisplayOrder equal, compare productDisplayOrder" branch.
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 100, unitPrice: 22,
+        product: { name: 'Milk 1L', category: 'Milk', unitType: 'ml', unitSize: 1000, containerType: 'crate', depositEnabled: true, displayOrder: 2 },
+      },
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 200, unitPrice: 22,
+        product: { name: 'Milk 500ml', category: 'Milk', unitType: 'ml', unitSize: 500, containerType: 'crate', depositEnabled: true, displayOrder: 1 },
+      },
+      // Different category (Curd, displayOrder 2 > Milk's 1) — exercises the
+      // "categoryDisplayOrder differs" branch.
+      {
+        receiptDate: new Date('2026-04-15'), quantity: 300, unitPrice: 30,
+        product: { name: 'Curd 400g', category: 'Curd', unitType: 'gram', unitSize: 400, containerType: 'crate', depositEnabled: true, displayOrder: 1 },
+      },
+    ]);
+
+    const res = await request.get('/api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const names = body.data.rows[0].items.map(i => i.productName);
+    // Milk (category order 1) before Curd (category order 2); within Milk,
+    // 500ml (displayOrder 1) before 1L (displayOrder 2).
+    expect(names).toEqual(['Milk 500ml', 'Milk 1L', 'Curd 400g']);
   });
 });
 

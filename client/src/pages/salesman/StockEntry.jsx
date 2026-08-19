@@ -6,6 +6,7 @@ import {
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useApiResources } from '../../hooks/useApiResources';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -143,13 +144,9 @@ export default function SalespersonStockEntry() {
   const { user } = useAuth();
 
   const [date, setDate]               = useState(getIndiaDate());
-  const [products, setProducts]       = useState([]);
-  const [qty, setQty]                 = useState({});
-  const [dispatch, setDispatch]       = useState(null);
   const [balance, setBalance]         = useState({ opening: 0, stockGiven: 0, paid: 0, closing: 0 });
   const [collapsedBrands, setCollapsedBrands] = useState({});
   const [collapsedCats, setCollapsedCats]     = useState({});
-  const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [search, setSearch]           = useState('');
@@ -159,33 +156,34 @@ export default function SalespersonStockEntry() {
   const salespersonId = user?.salespersonId;
 
   // ─── Load products + dispatch ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!salespersonId) return;
-    setLoading(true);
-    Promise.all([
-      api.get(`/salespeople/${salespersonId}/prices`),
-      api.get(`/dispatches?date=${date}`),
-    ])
-      .then(([priceRes, dispatchRes]) => {
-        const priceItems    = priceRes.data.data ?? [];
-        const todayDispatch = (dispatchRes.data.data ?? [])[0] ?? null;
-        setProducts(priceItems);
-        setDispatch(todayDispatch);
+  const dataUrls = salespersonId
+    ? [`/salespeople/${salespersonId}/prices`, `/dispatches?date=${date}`]
+    : [];
+  const { data, loading, setData } = useApiResources(dataUrls, {
+    initialData: { products: [], dispatch: null, qty: {} },
+    select: ([priceItems, dispatches]) => {
+      const items          = priceItems ?? [];
+      const todayDispatch  = (dispatches ?? [])[0] ?? null;
 
-        const qtyMap = {};
-        for (const item of todayDispatch?.items ?? []) {
-          qtyMap[item.productId] = String(item.quantity);
-        }
-        setQty(qtyMap);
+      const qtyMap = {};
+      for (const item of todayDispatch?.items ?? []) {
+        qtyMap[item.productId] = String(item.quantity);
+      }
 
-        const allBrandIds = [...new Set(priceItems.map(p => p.brandId))];
-        setCollapsedBrands(Object.fromEntries(allBrandIds.map(id => [id, true])));
-        const allCatKeys = [...new Set(priceItems.map(p => `${p.brandId}:${p.category || 'General'}`))];
-        setCollapsedCats(Object.fromEntries(allCatKeys.map(k => [k, true])));
-      })
-      .catch(() => notify('Failed to load products', 'error'))
-      .finally(() => setLoading(false));
-  }, [salespersonId, date]);
+      const allBrandIds = [...new Set(items.map(p => p.brandId))];
+      setCollapsedBrands(Object.fromEntries(allBrandIds.map(id => [id, true])));
+      const allCatKeys = [...new Set(items.map(p => `${p.brandId}:${p.category || 'General'}`))];
+      setCollapsedCats(Object.fromEntries(allCatKeys.map(k => [k, true])));
+
+      return { products: items, dispatch: todayDispatch, qty: qtyMap };
+    },
+  });
+  const { products, dispatch, qty } = data;
+  // Drop-in replacements for the old useState setters — each updates just
+  // its own slot of the combined data object.
+  const setQty = (updater) => {
+    setData(prev => ({ ...prev, qty: typeof updater === 'function' ? updater(prev.qty) : updater }));
+  };
 
   // ─── Load balance ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -337,7 +335,7 @@ export default function SalespersonStockEntry() {
       api.get(`/salesperson-balance/${salespersonId}?date=${date}`),
     ]);
     const d = dispatchRes.data.data?.[0] ?? null;
-    setDispatch(d);
+    setData(prev => ({ ...prev, dispatch: d }));
     const b = balRes.data.data;
     setBalance({
       opening:    Number(b?.openingBalance ?? 0),

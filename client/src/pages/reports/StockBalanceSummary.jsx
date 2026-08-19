@@ -4,6 +4,7 @@ import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate } from '../../utils/dateUtils';
+import { useApiResources } from '../../hooks/useApiResources';
 import api from '../../api/axios';
 
 // Whole crate counts render plain; a partial crate shows to 2 decimal
@@ -16,10 +17,7 @@ export default function StockBalanceSummary() {
   const [date, setDate]                   = useState(getIndiaDate());
   const [brands, setBrands]               = useState([]);
   const [activeBrandId, setActiveBrandId] = useState(null);
-  const [availData, setAvailData]         = useState([]);
-  const [dispatchData, setDispatchData]   = useState(null);
-  const [loading, setLoading]             = useState(false);
-  const [error, setError]                 = useState('');
+  const [brandsError, setBrandsError]     = useState('');
   const [showEmptyProducts, setShowEmptyProducts] = useState(false);
 
   useEffect(() => {
@@ -29,23 +27,18 @@ export default function StockBalanceSummary() {
         setBrands(b);
         if (b.length > 0) setActiveBrandId(b[0].id);
       })
-      .catch(() => setError('Failed to load brands'));
+      .catch(() => setBrandsError('Failed to load brands'));
   }, []);
 
-  useEffect(() => {
-    setLoading(true);
-    setError('');
-    Promise.all([
-      api.get(`/stock-receipts/availability?date=${date}`),
-      api.get(`/reports/daily-dispatch?date=${date}&includeReceipts=1`),
-    ])
-      .then(([availRes, dispRes]) => {
-        setAvailData(availRes.data.data ?? []);
-        setDispatchData(dispRes.data.data ?? null);
-      })
-      .catch(e => setError(e.response?.data?.error ?? 'Failed to load data'))
-      .finally(() => setLoading(false));
-  }, [date]);
+  // A monotonic request-id inside useApiResources drops a slow, now-stale
+  // response if the date changes again before it lands — the same
+  // protection the old cancelled-flag effect gave, now built into the hook.
+  const { data, loading, error: fetchError } = useApiResources(
+    [`/stock-receipts/availability?date=${date}`, `/reports/daily-dispatch?date=${date}&includeReceipts=1`],
+    { initialData: [[], null], notifyOnError: false }
+  );
+  const [availData, dispatchData] = data;
+  const error = fetchError || brandsError;
 
   // Column definitions — products for the active brand
   const products = useMemo(() => {

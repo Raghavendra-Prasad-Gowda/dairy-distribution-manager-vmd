@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck } from 'lucide-react';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -6,6 +6,9 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 const ROLE_LABEL = { admin: 'Admin', superadmin: 'Super Admin', dispatcher: 'Dispatcher' };
@@ -19,38 +22,20 @@ export default function AdminUsersSetup() {
   const { notify } = useNotification();
   const { user: me } = useAuth();
 
-  const [users, setUsers]               = useState([]);
-  const [loading, setLoading]           = useState(false);
+  const { data: users, loading, refetch: load } = useApiResource('/admin-users', { initialData: [] });
   const [search, setSearch]             = useState('');
 
-  const [showAddModal, setShowAddModal] = useState(false);
+  const addModal = useDisclosure();
   const [newUser, setNewUser]           = useState({ username: '', password: '', role: 'admin' });
   const [showNewPw, setShowNewPw]       = useState(false);
-  const [submitting, setSubmitting]     = useState(false);
 
   const [editUser, setEditUser]         = useState(null);
   const [editForm, setEditForm]         = useState({ username: '', password: '', role: 'admin', isActive: true });
   const [showEditPw, setShowEditPw]     = useState(false);
-  const [saving, setSaving]             = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting]         = useState(false);
 
   const [togglingId, setTogglingId]     = useState(null);
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const r = await api.get('/admin-users');
-      setUsers(r.data.data);
-    } catch {
-      notify('Failed to load admin users', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -62,42 +47,39 @@ export default function AdminUsersSetup() {
   }, [users, search]);
 
   // ── Create ──────────────────────────────────────────────────────────────────
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await api.post('/admin-users', newUser);
-      notify(`${ROLE_LABEL[newUser.role] ?? 'User'} created successfully`, 'success');
-      setNewUser({ username: '', password: '', role: 'admin' });
-      setShowNewPw(false);
-      setShowAddModal(false);
-      load();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to create user', 'error');
-    } finally {
-      setSubmitting(false);
+  const { mutate: createUser, loading: submitting } = useMutation(
+    (data) => api.post('/admin-users', data),
+    {
+      onSuccess: (_res, data) => {
+        notify(`${ROLE_LABEL[data.role] ?? 'User'} created successfully`, 'success');
+        setNewUser({ username: '', password: '', role: 'admin' });
+        setShowNewPw(false);
+        addModal.close();
+        load();
+      },
     }
+  );
+
+  const handleCreate = (e) => {
+    e.preventDefault();
+    createUser(newUser);
   };
 
   // ── Quick enable / disable ───────────────────────────────────────────────────
-  const handleToggleActive = async (u) => {
-    setTogglingId(u.id);
-    try {
-      await api.put(`/admin-users/${u.id}`, {
-        username: u.username,
-        role:     u.role,
-        isActive: !u.isActive,
-      });
-      notify(
-        `${ROLE_LABEL[u.role] ?? 'User'} "${u.username}" ${!u.isActive ? 'enabled' : 'disabled'}`,
-        'success'
-      );
-      load();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to update user', 'error');
-    } finally {
-      setTogglingId(null);
+  const { mutate: toggleActive, loading: toggling } = useMutation(
+    (u) => api.put(`/admin-users/${u.id}`, { username: u.username, role: u.role, isActive: !u.isActive }),
+    {
+      onSuccess: (_res, u) => {
+        notify(`${ROLE_LABEL[u.role] ?? 'User'} "${u.username}" ${!u.isActive ? 'enabled' : 'disabled'}`, 'success');
+        setTogglingId(null);
+        load();
+      },
     }
+  );
+
+  const handleToggleActive = (u) => {
+    setTogglingId(u.id);
+    toggleActive(u);
   };
 
   // ── Edit ────────────────────────────────────────────────────────────────────
@@ -107,41 +89,37 @@ export default function AdminUsersSetup() {
     setShowEditPw(false);
   }
 
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const payload = {
-        username: editForm.username,
-        role:     editForm.role,
-        isActive: editForm.isActive,
-      };
-      if (editForm.password) payload.password = editForm.password;
-      await api.put(`/admin-users/${editUser.id}`, payload);
-      notify(`${ROLE_LABEL[editForm.role] ?? 'User'} "${editForm.username}" updated`, 'success');
-      setEditUser(null);
-      load();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to update user', 'error');
-    } finally {
-      setSaving(false);
+  const { mutate: updateUser, loading: saving } = useMutation(
+    ({ id, payload }) => api.put(`/admin-users/${id}`, payload),
+    {
+      onSuccess: (_res, { payload }) => {
+        notify(`${ROLE_LABEL[payload.role] ?? 'User'} "${payload.username}" updated`, 'success');
+        setEditUser(null);
+        load();
+      },
     }
+  );
+
+  const handleUpdate = (e) => {
+    e.preventDefault();
+    const payload = { username: editForm.username, role: editForm.role, isActive: editForm.isActive };
+    if (editForm.password) payload.password = editForm.password;
+    updateUser({ id: editUser.id, payload });
   };
 
   // ── Delete ──────────────────────────────────────────────────────────────────
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      await api.delete(`/admin-users/${deleteTarget.id}`);
-      notify(`${ROLE_LABEL[deleteTarget.role] ?? 'User'} "${deleteTarget.username}" deleted`, 'success');
-      setDeleteTarget(null);
-      load();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to delete user', 'error');
-    } finally {
-      setDeleting(false);
+  const { mutate: deleteUser, loading: deleting } = useMutation(
+    () => api.delete(`/admin-users/${deleteTarget.id}`),
+    {
+      onSuccess: () => {
+        notify(`${ROLE_LABEL[deleteTarget.role] ?? 'User'} "${deleteTarget.username}" deleted`, 'success');
+        setDeleteTarget(null);
+        load();
+      },
     }
-  };
+  );
+
+  const handleDelete = () => deleteUser();
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -162,7 +140,7 @@ export default function AdminUsersSetup() {
           </div>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={addModal.open}
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition"
         >
           <Plus size={14} /> Add User
@@ -233,7 +211,7 @@ export default function AdminUsersSetup() {
                                 : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
                             }`}
                           >
-                            {togglingId === u.id
+                            {togglingId === u.id && toggling
                               ? <Loader2 size={14} className="animate-spin" />
                               : u.isActive
                               ? <UserX size={14} />
@@ -268,13 +246,13 @@ export default function AdminUsersSetup() {
 
       {/* ── Add modal ─────────────────────────────────────────────────────────── */}
       <Modal
-        open={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        open={addModal.isOpen}
+        onClose={addModal.close}
         title="Add User"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={addModal.close}>Cancel</Button>
             <Button variant="primary" onClick={handleCreate} disabled={submitting || !newUser.username || !newUser.password}>
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               Create

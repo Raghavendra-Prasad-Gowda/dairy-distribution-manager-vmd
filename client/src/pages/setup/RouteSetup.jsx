@@ -5,74 +5,76 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]         = useState(shellBrands ?? []);
-  const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
-  const [routes, setRoutes]         = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [busyMsg, setBusyMsg]       = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Only used in standalone (non-shell) mode — in shell mode the active brand
+  // and brand list are derived directly from the shell props below, instead
+  // of being mirrored into state via an effect.
+  const [ownBrands, setBrands]        = useState([]);
+  const [ownActiveBrandId, setActive] = useState(null);
+  const modal = useDisclosure();
   const [editingRoute, setEditingRoute] = useState(null);
   const [formNumber, setFormNumber]   = useState('');
   const [confirmation, setConfirmation] = useState({ isOpen: false });
+
+  const brands        = inShell ? (shellBrands ?? []) : ownBrands;
+  const activeBrandId = inShell ? shellActiveBrandId : ownActiveBrandId;
 
   useEffect(() => {
     if (inShell) return;
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [inShell, notify]);
 
-  useEffect(() => {
-    if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  const { data: routes, loading, refetch: fetchRoutes } = useApiResource(
+    activeBrandId ? `/routes?brandId=${activeBrandId}` : null,
+    { initialData: [] }
+  );
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchRoutes();
-  }, [activeBrandId]);
-
-  async function fetchRoutes() {
-    setLoading(true);
-    try {
-      const r = await api.get(`/routes?brandId=${activeBrandId}`);
-      setRoutes(r.data.data);
-    } catch {
-      notify('Failed to load routes', 'error');
-    } finally {
-      setLoading(false);
+  const { mutate: saveRoute, loading: savingRoute } = useMutation(
+    ({ isEdit, id, routeNumber, displayOrder }) =>
+      isEdit
+        ? api.put(`/routes/${id}`, { routeNumber })
+        : api.post('/routes', { brandId: activeBrandId, routeNumber, displayOrder }),
+    {
+      onSuccess: (_res, { isEdit }) => {
+        notify(isEdit ? 'Route updated' : 'Route added', 'success');
+        closeModal();
+        fetchRoutes();
+      },
     }
-  }
+  );
 
-  const openAdd  = () => { setEditingRoute(null); setFormNumber(''); setIsModalOpen(true); };
-  const openEdit = (route) => { setEditingRoute(route); setFormNumber(route.routeNumber); setIsModalOpen(true); };
-  const closeModal = () => { setIsModalOpen(false); setEditingRoute(null); setFormNumber(''); };
+  const { mutate: deleteRoute, loading: deletingRoute } = useMutation(
+    (id) => api.delete(`/routes/${id}`),
+    { successMessage: 'Route deleted', onSuccess: fetchRoutes }
+  );
 
-  const handleSubmit = async (e) => {
+  const submitting = savingRoute || deletingRoute;
+  const busyMsg    = savingRoute
+    ? (editingRoute ? 'Updating route…' : 'Adding route…')
+    : deletingRoute ? 'Deleting route…' : '';
+
+  const openAdd  = () => { setEditingRoute(null); setFormNumber(''); modal.open(); };
+  const openEdit = (route) => { setEditingRoute(route); setFormNumber(route.routeNumber); modal.open(); };
+  const closeModal = () => { modal.close(); setEditingRoute(null); setFormNumber(''); };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!formNumber.trim()) return;
-    setBusyMsg(editingRoute ? 'Updating route…' : 'Adding route…');
-    setSubmitting(true);
-    try {
-      if (editingRoute) {
-        await api.put(`/routes/${editingRoute.id}`, { routeNumber: formNumber.trim() });
-        notify('Route updated', 'success');
-      } else {
-        await api.post('/routes', { brandId: activeBrandId, routeNumber: formNumber.trim(), displayOrder: routes.length });
-        notify('Route added', 'success');
-      }
-      closeModal();
-      fetchRoutes();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to save route', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    saveRoute({
+      isEdit: !!editingRoute,
+      id: editingRoute?.id,
+      routeNumber: formNumber.trim(),
+      displayOrder: routes.length,
+    });
   };
 
   const confirmDelete = (route) => {
@@ -80,23 +82,9 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
       isOpen: true,
       title: 'Delete Route',
       message: `Delete route "${route.routeNumber}"? This will remove it from the stock receipt screen.`,
-      action: () => handleDelete(route.id),
+      action: () => deleteRoute(route.id),
       isDanger: true,
     });
-  };
-
-  const handleDelete = async (id) => {
-    setBusyMsg('Deleting route…');
-    setSubmitting(true);
-    try {
-      await api.delete(`/routes/${id}`);
-      notify('Route deleted', 'success');
-      fetchRoutes();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to delete route', 'error');
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const activeBrand = brands.find(b => b.id === activeBrandId);
@@ -200,7 +188,7 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
       </div>
 
       {/* Add / Edit Modal */}
-      {isModalOpen && (
+      {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
             <div className="flex items-center justify-between px-5 py-4 bg-emerald-800 rounded-t-2xl">

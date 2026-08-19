@@ -203,6 +203,32 @@ test.describe('GET /api/v1/dairy-payments', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
   });
+
+  test('returns a paginated envelope when ?page/?limit is supplied', async ({ request }) => {
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([PAYMENT]);
+    ctx.mockPrisma.dairyPayment.count.mockResolvedValue(42);
+
+    const res = await request.get('/api/v1/dairy-payments?page=2&limit=10', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.pagination).toEqual({ total: 42, page: 2, limit: 10, pages: 5, hasMore: true });
+  });
+
+  test('returns a flat array (no pagination) when neither page nor limit is given', async ({ request }) => {
+    ctx.mockPrisma.dairyPayment.findMany.mockResolvedValue([PAYMENT]);
+
+    const res = await request.get('/api/v1/dairy-payments', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    const body = await res.json();
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data).toHaveLength(1);
+  });
 });
 
 // ─── PUT /api/v1/dairy-payments/:id ──────────────────────────────────────────

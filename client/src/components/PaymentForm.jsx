@@ -42,7 +42,13 @@ export default function PaymentForm({
       reference:   prefill.reference   ?? '',
     });
     onClearPrefill?.();
-  }, [prefill]);
+    // onClearPrefill is intentionally excluded: DairyPayments passes it as a
+    // fresh inline arrow function every render, so including it would re-run
+    // this effect (and reset the form mid-edit) whenever the parent re-renders
+    // for any reason while prefill is still set — not just when prefill itself
+    // changes. defaultMode is a primitive string, safe either way, included.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill, defaultMode]);
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 

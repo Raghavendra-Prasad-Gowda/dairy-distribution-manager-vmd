@@ -6,6 +6,9 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 const ITEMS_PER_PAGE = 10;
@@ -13,75 +16,79 @@ const ITEMS_PER_PAGE = 10;
 export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]         = useState(shellBrands ?? []);
-  const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [busyMsg, setBusyMsg]       = useState('');
+  // Only used in standalone (non-shell) mode — in shell mode the active brand
+  // and brand list are derived directly from the shell props below, instead
+  // of being mirrored into state via an effect.
+  const [ownBrands, setBrands]        = useState([]);
+  const [ownActiveBrandId, setActive] = useState(null);
   const [search, setSearch]         = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const modal = useDisclosure();
   const [editingCat, setEditingCat]   = useState(null);
   const [formName, setFormName]       = useState('');
   const [confirmation, setConfirmation] = useState({ isOpen: false });
+
+  const brands        = inShell ? (shellBrands ?? []) : ownBrands;
+  const activeBrandId = inShell ? shellActiveBrandId : ownActiveBrandId;
 
   useEffect(() => {
     if (inShell) return;
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
-  }, []);
+  }, [inShell, notify]);
 
-  useEffect(() => {
-    if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId]);
+  const { data: categories, loading, refetch: fetchCategories } = useApiResource(
+    activeBrandId ? `/categories?brandId=${activeBrandId}` : null,
+    { initialData: [] }
+  );
 
-  useEffect(() => {
-    if (!activeBrandId) return;
-    fetchCategories();
+  const { mutate: saveCategory, loading: savingCategory } = useMutation(
+    ({ isEdit, id, name }) =>
+      isEdit ? api.put(`/categories/${id}`, { name }) : api.post('/categories', { brandId: activeBrandId, name }),
+    {
+      onSuccess: (_res, { isEdit }) => {
+        notify(isEdit ? 'Category updated' : 'Category added', 'success');
+        closeModal();
+        fetchCategories();
+      },
+    }
+  );
+
+  const { mutate: deleteCategory, loading: deletingCategory } = useMutation(
+    (id) => api.delete(`/categories/${id}`),
+    { successMessage: 'Category deleted', onSuccess: fetchCategories }
+  );
+
+  const submitting = savingCategory || deletingCategory;
+  const busyMsg    = savingCategory
+    ? (editingCat ? 'Updating category…' : 'Adding category…')
+    : deletingCategory ? 'Deleting category…' : '';
+
+  // Reset search + pagination when the active brand changes, and pagination
+  // alone when the search term changes. Adjusted during render (rather than
+  // in an Effect) since this is just state derived from other state —
+  // see https://react.dev/learn/you-might-not-need-an-effect
+  const [prevActiveBrandId, setPrevActiveBrandId] = useState(activeBrandId);
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (activeBrandId && activeBrandId !== prevActiveBrandId) {
+    setPrevActiveBrandId(activeBrandId);
+    setPrevSearch('');
     setSearch('');
     setCurrentPage(1);
-  }, [activeBrandId]);
-
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  async function fetchCategories() {
-    setLoading(true);
-    try {
-      const r = await api.get(`/categories?brandId=${activeBrandId}`);
-      setCategories(r.data.data);
-    } catch {
-      notify('Failed to load categories', 'error');
-    } finally {
-      setLoading(false);
-    }
+  } else if (search !== prevSearch) {
+    setPrevSearch(search);
+    setCurrentPage(1);
   }
 
-  const openAdd = () => { setEditingCat(null); setFormName(''); setIsModalOpen(true); };
-  const openEdit = (cat) => { setEditingCat(cat); setFormName(cat.name); setIsModalOpen(true); };
-  const closeModal = () => { setIsModalOpen(false); setEditingCat(null); setFormName(''); };
+  const openAdd = () => { setEditingCat(null); setFormName(''); modal.open(); };
+  const openEdit = (cat) => { setEditingCat(cat); setFormName(cat.name); modal.open(); };
+  const closeModal = () => { modal.close(); setEditingCat(null); setFormName(''); };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!formName.trim()) return;
-    setBusyMsg(editingCat ? 'Updating category…' : 'Adding category…');
-    setSubmitting(true);
-    try {
-      if (editingCat) {
-        await api.put(`/categories/${editingCat.id}`, { name: formName.trim() });
-        notify('Category updated', 'success');
-      } else {
-        await api.post('/categories', { brandId: activeBrandId, name: formName.trim() });
-        notify('Category added', 'success');
-      }
-      closeModal();
-      fetchCategories();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to save category', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    saveCategory({ isEdit: !!editingCat, id: editingCat?.id, name: formName.trim() });
   };
 
   const confirmDelete = (cat) => {
@@ -89,23 +96,9 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
       isOpen: true,
       title: 'Delete Category',
       message: `Delete "${cat.name}"? Products using this category will become uncategorised.`,
-      action: () => handleDelete(cat.id),
+      action: () => deleteCategory(cat.id),
       isDanger: true,
     });
-  };
-
-  const handleDelete = async (id) => {
-    setBusyMsg('Deleting category…');
-    setSubmitting(true);
-    try {
-      await api.delete(`/categories/${id}`);
-      notify('Category deleted', 'success');
-      fetchCategories();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to delete', 'error');
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const filtered = categories.filter(c =>
@@ -226,7 +219,7 @@ export default function CategorySetup({ shellActiveBrandId, shellBrands } = {}) 
       </div>
 
       {/* Add / Edit Modal */}
-      {isModalOpen && (
+      {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
 

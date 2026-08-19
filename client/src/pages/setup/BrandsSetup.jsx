@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Store, Plus, Pencil, X, EyeOff, Eye, Archive, Droplet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -6,6 +6,9 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { getBrandColors } from '../../utils/constants';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useMutation } from '../../hooks/useMutation';
+import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 // ── Small deposit toggle pill ─────────────────────────────────────────────────
@@ -36,13 +39,10 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   // reaching this page (it's not superAdminOnly-routed) can use it.
   const isAdmin      = user?.role === 'admin' || isSuperAdmin;
 
-  const [brands, setBrands]       = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [busyMsg, setBusyMsg]       = useState('');
+  const { data: brands, loading, setData: setBrands } = useApiResource('/brands?includeInactive=true', { initialData: [] });
 
   // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const modal = useDisclosure();
   const [editingBrand, setEditingBrand] = useState(null); // null = add mode
   const [formName, setFormName]         = useState('');
   const [copyFromId, setCopyFromId]     = useState(null);
@@ -54,113 +54,86 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositRate, setDepositRate]       = useState('');
 
-  useEffect(() => {
-    setLoading(true);
-    api.get('/brands?includeInactive=true')
-      .then(r => setBrands(r.data.data ?? []))
-      .catch(() => notify('Failed to load brands', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
-
   const openAdd = () => {
     setEditingBrand(null);
     setFormName('');
     setCopyFromId(null);
-    setIsModalOpen(true);
+    modal.open();
   };
 
   const openEdit = (b) => {
     setEditingBrand(b);
     setFormName(b.name);
     setCopyFromId(null);
-    setIsModalOpen(true);
+    modal.open();
   };
 
   const closeModal = () => {
-    setIsModalOpen(false);
+    modal.close();
     setEditingBrand(null);
     setFormName('');
     setCopyFromId(null);
   };
 
   // ── Add / Rename brand ────────────────────────────────────────────────────
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const name = formName.trim();
-    if (!name) return;
-    setBusyMsg(editingBrand ? 'Renaming brand…' : 'Adding brand…');
-    setSubmitting(true);
-
-    try {
-      if (editingBrand) {
-        const original    = brands.find(b => b.id === editingBrand.id);
-        const nameChanged = name !== original?.name;
-
-        if (nameChanged) {
-          await api.put(`/brands/${editingBrand.id}`, { name });
-          setBrands(prev => prev.map(b => b.id === editingBrand.id ? { ...b, name } : b));
+  const { mutate: saveBrand, loading: savingBrand } = useMutation(
+    async ({ editingBrand: eb, name, copyFromId: cfId }) => {
+      if (eb) {
+        const original = brands.find(b => b.id === eb.id);
+        if (name !== original?.name) {
+          await api.put(`/brands/${eb.id}`, { name });
+          setBrands(prev => prev.map(b => b.id === eb.id ? { ...b, name } : b));
           notify(`Brand renamed to "${name}"`, 'success');
         }
-        closeModal();
       } else {
-        // Add flow
         const res = await api.post('/brands', { name });
         const created = res.data.data;
         setBrands(prev => [...prev, created]);
-
-        if (copyFromId) {
+        if (cfId) {
           try {
-            const copyRes = await api.post(`/brands/${created.id}/copy-products`, { sourceBrandId: copyFromId });
+            const copyRes = await api.post(`/brands/${created.id}/copy-products`, { sourceBrandId: cfId });
             const { copiedProducts } = copyRes.data.data;
-            notify(
-              `Brand "${created.name}" added with ${copiedProducts} product${copiedProducts !== 1 ? 's' : ''} copied`,
-              'success'
-            );
+            notify(`Brand "${created.name}" added with ${copiedProducts} product${copiedProducts !== 1 ? 's' : ''} copied`, 'success');
           } catch {
             notify(`Brand "${created.name}" added, but product copy failed`, 'error');
           }
         } else {
           notify(`Brand "${created.name}" added`, 'success');
         }
-        closeModal();
       }
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to save brand', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    },
+    { onSuccess: closeModal }
+  );
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const name = formName.trim();
+    if (!name) return;
+    saveBrand({ editingBrand, name, copyFromId });
   };
 
   // ── Enable / Disable brand ────────────────────────────────────────────────
-  const handleToggleActive = async (b) => {
-    const nextActive = !b.isActive;
-    setBusyMsg(nextActive ? 'Enabling brand…' : 'Disabling brand…');
-    setSubmitting(true);
-    try {
-      await api.put(`/brands/${b.id}`, { isActive: nextActive });
-      setBrands(prev => prev.map(x => x.id === b.id ? { ...x, isActive: nextActive } : x));
-      notify(`Brand "${b.name}" ${nextActive ? 'enabled' : 'disabled'}`, 'success');
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to update brand', 'error');
-    } finally {
-      setSubmitting(false);
+  const { mutate: handleToggleActive, loading: togglingBrand } = useMutation(
+    (b) => api.put(`/brands/${b.id}`, { isActive: !b.isActive }),
+    {
+      onSuccess: (_res, b) => {
+        const nextActive = !b.isActive;
+        setBrands(prev => prev.map(x => x.id === b.id ? { ...x, isActive: nextActive } : x));
+        notify(`Brand "${b.name}" ${nextActive ? 'enabled' : 'disabled'}`, 'success');
+      },
     }
-  };
+  );
 
   // ── Archive brand (permanent — no restore from UI) ────────────────────────
-  const handleArchive = async (b) => {
-    setBusyMsg('Archiving brand…');
-    setSubmitting(true);
-    try {
-      await api.put(`/brands/${b.id}`, { isArchived: true });
-      setBrands(prev => prev.filter(x => x.id !== b.id));
-      notify(`Brand "${b.name}" archived`, 'success');
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to archive brand', 'error');
-    } finally {
-      setSubmitting(false);
+  const { mutate: handleArchive, loading: archivingBrand } = useMutation(
+    (b) => api.put(`/brands/${b.id}`, { isArchived: true }),
+    {
+      onSuccess: (_res, b) => {
+        setBrands(prev => prev.filter(x => x.id !== b.id));
+        notify(`Brand "${b.name}" archived`, 'success');
+      },
     }
-  };
+  );
 
   // ── Deposit config (per litre/kg — see depositRules.js) ───────────────────
   const openDepositEdit = (b) => {
@@ -175,29 +148,34 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
     setDepositRate('');
   };
 
-  const handleSaveDeposit = async () => {
+  const { mutate: saveDeposit, loading: savingDeposit } = useMutation(
+    ({ id, depositEnabled: de, depositPerLitre }) =>
+      api.put(`/brands/${id}`, { depositEnabled: de, depositPerLitre }),
+    {
+      onSuccess: (res) => {
+        const updated = res.data.data;
+        setBrands(prev => prev.map(b => b.id === depositBrand.id ? { ...b, ...updated } : b));
+        notify(`Deposit settings saved for "${depositBrand.name}"`, 'success');
+        closeDepositModal();
+      },
+    }
+  );
+
+  const submitting = savingBrand || togglingBrand || archivingBrand || savingDeposit;
+  const busyMsg = savingBrand
+    ? (editingBrand ? 'Renaming brand…' : 'Adding brand…')
+    : togglingBrand ? 'Updating brand…'
+    : archivingBrand ? 'Archiving brand…'
+    : savingDeposit ? 'Saving deposit settings…' : '';
+
+  const handleSaveDeposit = () => {
     if (!depositBrand) return;
     const rate = parseFloat(depositRate) || 0;
     if (depositEnabled && rate <= 0) {
       notify('Enter a deposit rate greater than 0 to enable deposit', 'warning');
       return;
     }
-    setBusyMsg('Saving deposit settings…');
-    setSubmitting(true);
-    try {
-      const res = await api.put(`/brands/${depositBrand.id}`, {
-        depositEnabled,
-        depositPerLitre: rate,
-      });
-      const updated = res.data.data;
-      setBrands(prev => prev.map(b => b.id === depositBrand.id ? { ...b, ...updated } : b));
-      notify(`Deposit settings saved for "${depositBrand.name}"`, 'success');
-      closeDepositModal();
-    } catch (err) {
-      notify(err.response?.data?.error ?? 'Failed to save deposit settings', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    saveDeposit({ id: depositBrand.id, depositEnabled, depositPerLitre: rate });
   };
 
   return (
@@ -332,7 +310,7 @@ export default function BrandsSetup({ shellActiveBrandId } = {}) {
       </div>
 
       {/* ── Add / Rename Modal ────────────────────────────────────────────────── */}
-      {isModalOpen && (
+      {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: 'popIn 0.2s ease' }}>
 

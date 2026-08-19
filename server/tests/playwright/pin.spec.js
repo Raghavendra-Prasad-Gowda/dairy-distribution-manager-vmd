@@ -8,7 +8,7 @@
 const { expect } = require('@playwright/test');
 const { setupSuite } = require('../helpers/test-setup');
 
-const { test, makeAuthToken } = setupSuite();
+const { test, ctx, makeAuthToken } = setupSuite();
 
 // ─── POST /api/v1/pin/verify ──────────────────────────────────────────────────
 
@@ -60,6 +60,20 @@ test.describe('POST /api/v1/pin/verify', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  test('reports the failing admin\'s username and "Super Admin" role label on a wrong PIN', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'root', role: 'superadmin' });
+
+    const res = await request.post('/api/v1/pin/verify', {
+      headers: {
+        Authorization: `Bearer ${makeAuthToken()}`,
+        'x-forwarded-for': '203.0.113.5, 10.0.0.1',
+      },
+      data: { pin: '000000' },
+    });
+
+    expect(res.status()).toBe(400);
   });
 
   // Placed last in the file: the rate limiter is shared across every test in

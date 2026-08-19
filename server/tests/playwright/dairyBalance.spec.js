@@ -36,8 +36,8 @@ test.describe('GET /api/v1/dairy-balance', () => {
 
   test('returns 200 with balance for all brands', async ({ request }) => {
     ctx.mockPrisma.brand.findMany.mockResolvedValue([BRAND]);
-    // getOrBuildBalance: existing balance found — returns early
-    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(BALANCE);
+    // getAll batch-fetches persisted rows in one findMany — existing row found.
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([BALANCE]);
 
     const res = await request.get('/api/v1/dairy-balance?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -52,9 +52,11 @@ test.describe('GET /api/v1/dairy-balance', () => {
 
   test('returns 200 with computed balance when no existing record', async ({ request }) => {
     ctx.mockPrisma.brand.findMany.mockResolvedValue([BRAND]);
-    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null); // no existing
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]); // batch: no persisted rows
     ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(null);  // no prev
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
     ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
 
     const res = await request.get('/api/v1/dairy-balance?date=2026-04-30', {
@@ -66,8 +68,35 @@ test.describe('GET /api/v1/dairy-balance', () => {
     expect(body.data.brands[0]).toHaveProperty('closingBalance', 0);
   });
 
+  test('batch-fetches balances in one query, not one findUnique per brand (N+1 regression)', async ({ request }) => {
+    let findManyCalls = 0;
+    let findUniqueCalled = false;
+    ctx.mockPrisma.brand.findMany.mockResolvedValue([
+      { id: 1, name: 'Nandini' }, { id: 2, name: 'Jersey' },
+    ]);
+    ctx.mockPrisma.dairyBalance.findMany.mockImplementation(async () => {
+      findManyCalls += 1;
+      return [{ ...BALANCE, brandId: 1 }, { ...BALANCE, id: 2, brandId: 2 }];
+    });
+    ctx.mockPrisma.dairyBalance.findUnique.mockImplementation(async () => {
+      findUniqueCalled = true;
+      return null;
+    });
+
+    const res = await request.get('/api/v1/dairy-balance?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect((await res.json()).data.brands).toHaveLength(2);
+    // One batched read for two brands; no per-brand findUnique.
+    expect(findManyCalls).toBe(1);
+    expect(findUniqueCalled).toBe(false);
+  });
+
   test('returns 200 with empty brands array when no brands', async ({ request }) => {
     ctx.mockPrisma.brand.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dairyBalance.findMany.mockResolvedValue([]);
 
     const res = await request.get('/api/v1/dairy-balance?date=2026-04-30', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
@@ -138,6 +167,20 @@ test.describe('GET /api/v1/dairy-balance/:brandId', () => {
     const body = await res.json();
     expect(body.data.depositValue).toBe(100);
     expect(body.data.closingBalance).toBe(4100);
+  });
+
+  test('defaults depositValue to 0 when the saved record has none set', async ({ request }) => {
+    const { depositValue, ...balanceWithoutDeposit } = BALANCE;
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue(BRAND);
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(balanceWithoutDeposit);
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.depositValue).toBe(0);
   });
 
   test('calculates depositValue on-the-fly for deposit-enabled brand', async ({ request }) => {
@@ -227,6 +270,7 @@ test.describe('GET /api/v1/dairy-balance/:brandId', () => {
     ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null); // no record for today
     ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue(priorBalance);
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
     ctx.mockPrisma.dairyPayment.aggregate.mockResolvedValue({ _sum: { amount: null } });
 
     const res = await request.get('/api/v1/dairy-balance/1?date=2026-05-01', {
@@ -239,6 +283,31 @@ test.describe('GET /api/v1/dairy-balance/:brandId', () => {
     expect(body.data.stockValue).toBe(0);
     expect(body.data.amountPaid).toBe(0);
     expect(body.data.closingBalance).toBe(8000);
+  });
+
+  test('computed fallback ADDS top-ups (regression: must match balanceService)', async ({ request }) => {
+    // No persisted row → falls back to balanceService.computeDairyBalance.
+    // opening=8000, stock=0, deposit=0, topUp=+500, realPaid=-200 → closing=8300.
+    // Guards against the old fallback that dropped topUpAmount from the formula.
+    ctx.mockPrisma.brand.findUnique.mockResolvedValue({ id: 1, name: 'Nandini', depositEnabled: false, depositPerLitre: 0 });
+    ctx.mockPrisma.dairyBalance.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.dairyBalance.findFirst.mockResolvedValue({ closingBalance: 8000 });
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.dairyPayment.aggregate.mockImplementation(({ where }) =>
+      Promise.resolve({ _sum: { amount: where.isTopUp ? 500 : 200 } })
+    );
+
+    const res = await request.get('/api/v1/dairy-balance/1?date=2026-05-01', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.openingBalance).toBe(8000);
+    expect(body.data.topUpAmount).toBe(500);
+    expect(body.data.amountPaid).toBe(200);
+    expect(body.data.closingBalance).toBe(8300);
   });
 
   test('formula: closingBalance = openingBalance + stockValue + depositValue - amountPaid', async ({ request }) => {
@@ -357,5 +426,33 @@ test.describe('GET /api/v1/dairy-balance/route-breakdown', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data[0]).toHaveProperty('routeNumber', 'General');
+  });
+
+  test('defaults displayOrder to 0 when the query returns none', async ({ request }) => {
+    ctx.mockPrisma.$queryRaw.mockResolvedValue([
+      { routeId: 1n, routeNumber: 'R1', displayOrder: null, totalAmount: '1000.00', totalQuantity: '20.00' },
+    ]);
+
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('displayOrder', 0);
+  });
+
+  test('falls back to "Route {id}" when no route number but routeId is non-zero', async ({ request }) => {
+    ctx.mockPrisma.$queryRaw.mockResolvedValue([
+      { routeId: 3n, routeNumber: null, displayOrder: 3n, totalAmount: '5000.00', totalQuantity: '100.00' },
+    ]);
+
+    const res = await request.get('/api/v1/dairy-balance/route-breakdown?brandId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data[0]).toHaveProperty('routeNumber', 'Route 3');
   });
 });

@@ -29,3 +29,9 @@ server/node_modules/.prisma/
 test-results/
 server/test-results/
 playwright-report/
+
+# Coverage reports
+coverage/
+server/coverage/
+client/coverage/
+.nyc_output/

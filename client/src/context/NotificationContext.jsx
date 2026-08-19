@@ -104,4 +104,9 @@ export function NotificationProvider({ children }) {
   );
 }
 
+// Co-locating the hook with its Provider only costs Fast Refresh granularity
+// (an edit here triggers a full reload instead of an HMR patch) — no runtime
+// or correctness impact. Splitting into a separate useNotification.js file
+// would mean updating ~20 import sites for a dev-experience-only gain.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNotification = () => useContext(Ctx);

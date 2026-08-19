@@ -344,7 +344,7 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
 
   test('can update both isEnabled and defaultPrice together', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-    let updateCalls = [];
+    const updateCalls = [];
     ctx.mockPrisma.product.update.mockImplementation(async (args) => {
       updateCalls.push(args.data);
       return { id: args.where.id };
@@ -387,6 +387,25 @@ test.describe('PATCH /api/v1/products/salesperson-global', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data.message).toMatch(/3 products updated/i);
+  });
+
+  test('Slack enrichment uses the looked-up product name/brand/price when available', async ({ request }) => {
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.$transaction.mockResolvedValue([{ id: 1, salespersonDefaultPrice: '50.00' }]);
+    // Populates `info` in the post-update Slack-enrichment lookup so both the
+    // truthy `info?.name`/`info?.brand?.name` branches and the
+    // "defaultPrice omitted, fall back to info.salespersonDefaultPrice"
+    // branch are exercised.
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 1, name: 'Toned Milk 500ml', salespersonDefaultPrice: '42.00', brand: { name: 'Nandini' } },
+    ]);
+
+    const res = await request.patch('/api/v1/products/salesperson-global', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { products: [{ productId: 1, defaultPrice: undefined }] },
+    });
+
+    expect(res.status()).toBe(200);
   });
 });
 

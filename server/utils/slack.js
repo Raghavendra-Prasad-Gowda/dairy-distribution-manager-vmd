@@ -1,9 +1,10 @@
 'use strict';
 const logger = require('../config/logger');
 const prisma  = require('../lib/prisma');
+const env = require('../config/env');
 
-const WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
-const APP_URL     = process.env.APP_URL || '';
+const WEBHOOK_URL = env.SLACK_WEBHOOK_URL;
+const APP_URL     = env.APP_URL || '';
 
 // ─── Event catalogue ──────────────────────────────────────────────────────────
 const SLACK_EVENTS = {

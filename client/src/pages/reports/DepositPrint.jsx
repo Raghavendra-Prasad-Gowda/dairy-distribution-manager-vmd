@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
-import { formatCurrency } from '../../utils/dateUtils';
+import { formatCurrency, getIndiaDateTimeStr, parseLocalDate } from '../../utils/dateUtils';
 
 const BUSINESS = 'Vikas Milk Dairy';
 
@@ -18,14 +18,14 @@ export default function DepositPrint() {
     api.get(`/reports/deposit-summary?brandId=${brandId}&from=${from}&to=${to}`)
       .then(r => setData(r.data.data))
       .catch(() => setError('Failed to load report'));
-  }, []);
+  }, [brandId, from, to]);
 
   useEffect(() => {
     if (data) setTimeout(() => window.print(), 400);
   }, [data]);
 
   const dateLabel = from === to ? from : `${from} to ${to}`;
-  const printedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const printedAt = getIndiaDateTimeStr();
 
   const depositRows = data?.rows.filter(r => r.dailyDeposit > 0) ?? [];
   const daysWithDeposit = depositRows.length;
@@ -111,7 +111,7 @@ export default function DepositPrint() {
                 </tr>
               )}
               {data.rows.map(row => {
-                const dateStr    = new Date(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
+                const dateStr    = parseLocalDate(row.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', weekday: 'short' });
                 const hasDeposit = row.dailyDeposit > 0;
 
                 if (!hasDeposit) {

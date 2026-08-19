@@ -28,10 +28,19 @@ server/
 - Never put business logic in route files.
 
 ### Error Handling
-- All controller methods wrapped in try/catch.
-- Use `logger.error(msg, { message: err.message })` — never `console.log`.
-- Return `{ success: false, error: 'human-readable message' }` with appropriate HTTP status.
-- Never leak stack traces or Prisma internals to the client.
+- **Never** wrap controller bodies in try/catch. Wrap every handler in `asyncHandler`
+  (`middleware/asyncHandler.js`) so rejected promises propagate to the single global
+  error handler in `app.js`.
+- Throw `AppError(message, statusCode)` for operational errors — never `throw new Error()`
+  (the global handler only trusts `err.isOperational`).
+- The global handler maps Prisma `P2002`/`P2025`/`P2003` to clean client messages and, in
+  production, never leaks stack traces or Prisma internals.
+- Use the Winston logger (`config/logger.js`) — never `console.log`. Logging of request
+  errors is centralized in the global handler; controllers should not log-and-swallow.
+- Success responses use the `{ success: true, data }` envelope; failures are produced by the
+  global handler as `{ success: false, error, code? }`.
+- Validate all input at the boundary with `validate(schemas.xxx, req, res)` and `return`
+  immediately if it yields `null`.
 
 ### Balance Invariant
 > Every balance record = sum of all prior + current transactions for that entity/date.
@@ -54,8 +63,11 @@ server/
 ### Security
 - PIN endpoint: rate-limited to 5 attempts per 15 min (express-rate-limit).
 - Payload limit: `express.json({ limit: '10kb' })`.
-- JWT expiry: 12 hours. Client session timeout must match.
-- No secrets in code. All secrets via environment variables.
+- JWT expiry: 2 hours (`JWT_EXPIRES_IN: 7200`). Client session timeout must match (`SESSION_MS = 2 * 60 * 60 * 1000`).
+- No secrets in code, and **no insecure fallback defaults for secrets**. All config is read
+  through `config/env.js`, which validates `process.env` with Zod at boot and **fails closed
+  in production** (missing/short `JWT_SECRET`, `EDIT_PIN`, `DATABASE_URL`, `ADMIN_PASSWORD`
+  refuse to boot). Never read `process.env` for a secret directly — import `config/env.js`.
 
 ### Logging
 - Use Winston logger (`config/logger.js`) — never `console.log/error`.

@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite, makeSalesmanToken, makeSuperAdminToken } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken, makeSuperAdminToken, makeDispatcherToken } = require('../helpers/test-setup');
 const { mockSalespersonCascade } = require('../helpers/mock-cascade');
 
 const { test, ctx, makeAuthToken } = setupSuite();
@@ -177,6 +177,53 @@ test.describe('GET /api/v1/salesperson-payments', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveLength(0);
+  });
+
+  test('a salesman only sees their own payments (scoped by token, ignores ?salespersonId=)', async ({ request }) => {
+    let whereArg = null;
+    ctx.mockPrisma.salespersonPayment.findMany.mockImplementation(async (args) => { whereArg = args.where; return []; });
+
+    const res = await request.get('/api/v1/salesperson-payments?salespersonId=99', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(7)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(whereArg.salespersonId).toBe(7);
+  });
+
+  test('filters by from/to date range', async ({ request }) => {
+    let whereArg = null;
+    ctx.mockPrisma.salespersonPayment.findMany.mockImplementation(async (args) => { whereArg = args.where; return []; });
+
+    const res = await request.get('/api/v1/salesperson-payments?from=2026-08-01&to=2026-08-10', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(whereArg.paymentDate.gte).toBeInstanceOf(Date);
+    expect(whereArg.paymentDate.lte).toBeInstanceOf(Date);
+  });
+
+  test('returns a paginated envelope when ?page/?limit is supplied', async ({ request }) => {
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([PAYMENT]);
+    ctx.mockPrisma.salespersonPayment.count.mockResolvedValue(1);
+
+    const res = await request.get('/api/v1/salesperson-payments?page=1&limit=10', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('items');
+    expect(body.data).toHaveProperty('pagination');
+    expect(body.data.pagination.total).toBe(1);
+  });
+
+  test('returns 403 when a dispatcher tries to list payments', async ({ request }) => {
+    const res = await request.get('/api/v1/salesperson-payments', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
   });
 });
 

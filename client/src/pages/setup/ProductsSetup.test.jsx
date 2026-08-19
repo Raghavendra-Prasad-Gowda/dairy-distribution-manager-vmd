@@ -118,6 +118,49 @@ describe('ProductsSetup — listing', () => {
     await screen.findByText('Toned Milk');
     expect(screen.getByText(/22\.00/)).toBeInTheDocument();
   });
+
+  it('shows the last cost/selling price change date and time when history exists', async () => {
+    mockApi({ products: [product({
+      costPrices:    [{ createdAt: '2026-08-01T10:30:00.000Z' }],
+      sellingPrices: [{ createdAt: '2026-08-02T14:15:00.000Z' }],
+    })] });
+    render(<ProductsSetup />);
+    await screen.findByText('Toned Milk');
+    // 24-hour → 12-hour-with-AM/PM conversion is locale-driven; just assert
+    // the date portion (day-month-year) rendered for each price history badge.
+    expect(screen.getByText('01 Aug 26')).toBeInTheDocument();
+    expect(screen.getByText('02 Aug 26')).toBeInTheDocument();
+  });
+
+  it('the X button clears the search and restores the full list', async () => {
+    mockApi({ products: [product({ id: 1, name: 'Toned Milk' }), product({ id: 2, name: 'Curd 200g', category: 'Curd' })] });
+    render(<ProductsSetup />);
+    await screen.findByText('Toned Milk');
+    const input = screen.getByPlaceholderText(/Search by name or category/i);
+    fireEvent.change(input, { target: { value: 'curd' } });
+    expect(screen.queryByText('Toned Milk')).toBeNull();
+
+    fireEvent.click(input.parentElement.querySelector('button'));
+    expect(input).toHaveValue('');
+    expect(screen.getByText('Toned Milk')).toBeInTheDocument();
+  });
+
+  it('notifies an error when the brands fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/brands')) return Promise.reject(new Error('network down'));
+      return Promise.resolve({ data: { data: [] } });
+    });
+    render(<ProductsSetup />);
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load brands', 'error'));
+  });
+
+  it('refetches when switching brand tabs', async () => {
+    mockApi({ brands: [{ id: 1, name: 'Nandini' }, { id: 2, name: 'Jersey' }] });
+    render(<ProductsSetup />);
+    await screen.findByTestId('brand-tabs');
+    fireEvent.click(screen.getByText('Jersey'));
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('products?brandId=2')));
+  });
 });
 
 describe('ProductsSetup — Show in Receipt toggle', () => {
@@ -133,6 +176,16 @@ describe('ProductsSetup — Show in Receipt toggle', () => {
     // No extra GETs — the toggle updates React state directly.
     expect(api.get.mock.calls.length).toBe(getCallsBefore);
     expect(screen.getByTitle('Show in Stock Receipt')).toBeInTheDocument();
+  });
+
+  it('shows an error notification when the toggle fails', async () => {
+    mockApi({ products: [product({ id: 4, showInStockReceipt: true })] });
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    render(<ProductsSetup />);
+    await screen.findByText('Toned Milk');
+    fireEvent.click(screen.getByTitle('Hide from Stock Receipt'));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
 
@@ -192,14 +245,53 @@ describe('ProductsSetup — add product', () => {
     expect(api.post.mock.calls[0][1]).toMatchObject({ category: 'Milk' });
   });
 
-  it('shows the server error on a failed create', async () => {
+  it('shows the server error, and falls back to a generic message with no server error', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Name already exists' } } });
     render(<ProductsSetup />);
     await screen.findByText(/No products yet for Nandini/);
     await openAddAndFillBasics();
     fireEvent.click(screen.getByText('Add Product', { selector: 'button[type="submit"]' }));
-
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Name already exists', 'error'));
+
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'));
+    fireEvent.click(screen.getByText('Add Product', { selector: 'button[type="submit"]' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+
+  it('lets the ml unit size be changed via the size dropdown', async () => {
+    render(<ProductsSetup />);
+    await screen.findByText(/No products yet for Nandini/);
+    await openAddAndFillBasics();
+    fireEvent.change(screen.getByDisplayValue('500 ml'), { target: { value: '1000' } });
+    fireEvent.click(screen.getByText('Add Product', { selector: 'button[type="submit"]' }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    expect(api.post.mock.calls[0][1]).toMatchObject({ unitSize: 1000 });
+  });
+
+  it('shows the "Scheduled" banner when the effective date is in the future', async () => {
+    render(<ProductsSetup />);
+    await screen.findByText(/No products yet for Nandini/);
+    fireEvent.click(screen.getByText('Add Product'));
+    expect(screen.queryByText(/Scheduled — kicks in/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue('2026-08-09'), { target: { value: '2026-09-01' } });
+    expect(screen.getByText(/Scheduled — kicks in on 1 Sept?\s*2026/)).toBeInTheDocument();
+  });
+
+  it('Cancel and the X button both close the Add modal without posting', async () => {
+    render(<ProductsSetup />);
+    await screen.findByText(/No products yet for Nandini/);
+    fireEvent.click(screen.getByText('Add Product'));
+    fireEvent.change(screen.getByPlaceholderText(/Homogenised Milk/), { target: { value: 'New Product' } });
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByPlaceholderText(/Homogenised Milk/)).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Add Product'));
+    fireEvent.click(screen.getByText('Add New Product').closest('div.bg-emerald-800').querySelector('button'));
+    expect(screen.queryByPlaceholderText(/Homogenised Milk/)).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 });
 
@@ -253,5 +345,30 @@ describe('ProductsSetup — archive', () => {
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/products/8', { isActive: false }));
     expect(notify).toHaveBeenCalledWith('Product archived', 'success');
+  });
+
+  it('shows an error notification when archiving fails', async () => {
+    mockApi({ products: [product({ id: 8, name: 'Toned Milk' })] });
+    vi.mocked(api.put).mockRejectedValue(new Error('network down'));
+    render(<ProductsSetup />);
+    await screen.findByText('Toned Milk');
+    fireEvent.click(screen.getByTitle('Archive'));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Archive' }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+  });
+});
+
+describe('ProductsSetup — pagination overflow', () => {
+  it('splits into a second page once a category group pushes past 10 items', async () => {
+    const milk = Array.from({ length: 6 }, (_, i) => product({ id: i + 1, name: `Milk ${i}`, category: 'Milk' }));
+    const curd = Array.from({ length: 6 }, (_, i) => product({ id: i + 100, name: `Curd ${i}`, category: 'Curd' }));
+    mockApi({ products: [...milk, ...curd], categories: [{ id: 10, name: 'Milk', displayOrder: 1 }, { id: 11, name: 'Curd', displayOrder: 2 }] });
+    render(<ProductsSetup />);
+    await screen.findByText('Milk 0');
+    // Curd's whole group (6 items) would push the running count to 12 > 10,
+    // so it spills entirely onto page 2 rather than being split mid-category.
+    expect(screen.queryByText('Curd 0')).not.toBeInTheDocument();
   });
 });

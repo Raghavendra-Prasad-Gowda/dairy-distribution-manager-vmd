@@ -6,7 +6,7 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
+const { setupSuite, makeSalesmanToken, makeDispatcherToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -65,6 +65,20 @@ test.describe('GET /api/v1/salespeople/:id/prices', () => {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('returns 403 when a dispatcher requests prices', async ({ request }) => {
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when a salesman requests another salesperson\'s prices', async ({ request }) => {
+    const res = await request.get('/api/v1/salespeople/2/prices', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
   });
 
   test('GET splits price rows into current (latest <= today) and upcoming (earliest > today)', async ({ request }) => {
@@ -586,5 +600,151 @@ test.describe('Global default price fallback behavior', () => {
     const body = await res.json();
     expect(body.data[0].salespersonEnabled).toBe(true);
     expect(body.data[0].isEnabled).toBe(true);
+  });
+});
+
+// ─── POST /api/v1/salespeople/bulk-update ────────────────────────────────────
+
+test.describe('POST /api/v1/salespeople/bulk-update', () => {
+  const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const futureStr = (days = 10) => {
+    const d = new Date(todayStr());
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString('en-CA');
+  };
+
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/bulk-update', {
+      data: { salespersonIds: [1], productPrices: [{ productId: 1, sellingPrice: 30 }], effectiveFrom: todayStr() },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when a salesman calls it', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/bulk-update', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+      data: { salespersonIds: [1], productPrices: [{ productId: 1, sellingPrice: 30 }], effectiveFrom: todayStr() },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when salespersonIds is empty', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/bulk-update', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { salespersonIds: [], productPrices: [{ productId: 1, sellingPrice: 30 }], effectiveFrom: todayStr() },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 and updates a single product for multiple salesmen (today-dated, no deleteMany)', async ({ request }) => {
+    ctx.mockPrisma.product.findUnique.mockResolvedValue({ name: 'Toned Milk' });
+
+    const res = await request.post('/api/v1/salespeople/bulk-update', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        salespersonIds: [1, 2],
+        productPrices: [{ productId: 1, sellingPrice: 32 }],
+        effectiveFrom: todayStr(),
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/2 salesmen and 1 products/);
+  });
+
+  test('returns 200 for multiple products (Slack card uses the "N products" summary, not a single name)', async ({ request }) => {
+    const res = await request.post('/api/v1/salespeople/bulk-update', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        salespersonIds: [1],
+        productPrices: [{ productId: 1, sellingPrice: 32 }, { productId: 2, sellingPrice: 40 }],
+        effectiveFrom: todayStr(),
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/1 salesmen and 2 products/);
+  });
+
+  test('future-dated effectiveFrom clears any other future rows before upserting', async ({ request }) => {
+    let deleteManyArgs = null;
+    ctx.mockPrisma.salespersonPrice.deleteMany.mockImplementation(async (args) => { deleteManyArgs = args; return { count: 1 }; });
+    ctx.mockPrisma.product.findUnique.mockResolvedValue({ name: 'Toned Milk' });
+
+    const res = await request.post('/api/v1/salespeople/bulk-update', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: {
+        salespersonIds: [1],
+        productPrices: [{ productId: 1, sellingPrice: 32 }],
+        effectiveFrom: futureStr(),
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(deleteManyArgs).not.toBeNull();
+    expect(deleteManyArgs.where.salespersonId).toBe(1);
+  });
+});
+
+// ─── Per-salesman exception overrides — both directions ──────────────────────
+
+test.describe('GET /api/v1/salespeople/:id/prices — exception overrides', () => {
+  const enabledProduct = (overrides = {}) => ({
+    id: 1, brandId: 1, name: 'Nandini Milk', isActive: true, showInStockReceipt: true,
+    salespersonEnabled: true, salespersonDefaultPrice: '50.00', costPrice: '30.00', sellingPrice: '45.00',
+    brand: { id: 1, name: 'Nandini' },
+    ...overrides,
+  });
+
+  test('an explicit isEnabled:false override hides a globally-enabled product', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([enabledProduct()]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: false }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(0);
+  });
+
+  test('an explicit isEnabled:true override shows a globally-disabled product', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([enabledProduct({ salespersonEnabled: false })]);
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([{ productId: 1, isEnabled: true }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salespeople/1/prices', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(1);
+  });
+});
+
+// ─── POST /api/v1/salespeople/:id/prices/copy-from/:sourceId — Slack fallback names ──
+
+test.describe('POST /api/v1/salespeople/:id/prices/copy-from/:sourceId — Slack card fallback names', () => {
+  test('falls back to "Salesperson #id" when the source/target lookup finds nothing', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1 }]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([
+      { productId: 1, sellingPrice: 30, effectiveFrom: new Date('2026-04-01') },
+    ]);
+    ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(null);
+
+    const res = await request.post('/api/v1/salespeople/2/prices/copy-from/1?brandId=1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.message).toMatch(/prices copied/i);
   });
 });

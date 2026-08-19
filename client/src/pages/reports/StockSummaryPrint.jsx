@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
-import { formatCurrency } from '../../utils/dateUtils';
+import { formatCurrency, getIndiaDateTimeStr } from '../../utils/dateUtils';
 
 const BUSINESS = 'Vikas Milk Dairy';
 
@@ -13,18 +13,6 @@ function fmtCrates(qty, upc) {
 function fmtPrice(p) {
   if (!p) return '—';
   return `₹${p % 1 === 0 ? p : Number(p).toFixed(2)}`;
-}
-
-function fmtLiters(qty, unitSize) {
-  if (!unitSize) return null;
-  const l = (qty * unitSize) / 1000;
-  return Number.isInteger(l) ? String(l) : l.toFixed(2);
-}
-
-function fmtKgs(qty, unitSizeGrams) {
-  if (!unitSizeGrams) return null;
-  const k = (qty * unitSizeGrams) / 1000;
-  return Number.isInteger(k) ? String(k) : k.toFixed(2);
 }
 
 export default function StockSummaryPrint() {
@@ -45,7 +33,7 @@ export default function StockSummaryPrint() {
     api.get(`/reports/stock-summary?from=${from}&to=${to}${q}`)
       .then(r => setData(r.data.data))
       .catch(() => setError('Failed to load report'));
-  }, []);
+  }, [brandId, from, routeId, to]);
 
   useEffect(() => {
     if (data) setTimeout(() => window.print(), 400);
@@ -124,7 +112,7 @@ export default function StockSummaryPrint() {
     ? productSummary.reduce((s, b) => s + (b.totalKgs ?? 0), 0)
     : null;
   const dateLabel = from === to ? from : `${from} to ${to}`;
-  const printedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const printedAt = getIndiaDateTimeStr();
 
   return (
     <>

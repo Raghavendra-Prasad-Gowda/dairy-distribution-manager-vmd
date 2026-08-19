@@ -5,17 +5,12 @@ const { BCRYPT_ROUNDS } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { getActingUsername } = require('../utils/actor');
 
 // Stamped on every card so the affected/superadmin roster knows who made the
 // change — this endpoint is superadmin-only, so req.user.adminUserId is
-// always the acting superadmin's own id.
-async function resolveActingUsername(req) {
-  const actor = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
-    select: { username: true },
-  });
-  return actor?.username ?? 'superadmin';
-}
+// always the acting superadmin's own id. Falls back to 'superadmin'.
+const resolveActingUsername = (req) => getActingUsername(req, 'superadmin');
 
 const SAFE_SELECT = {
   id: true, username: true, role: true, isActive: true, createdAt: true,

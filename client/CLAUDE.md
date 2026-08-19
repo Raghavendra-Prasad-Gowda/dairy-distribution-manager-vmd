@@ -10,7 +10,7 @@ client/src/
 │   ├── Layout.jsx          # App shell with sidebar navigation
 │   └── ErrorBoundary.jsx   # Catches ChunkLoadError + unexpected render errors
 ├── context/
-│   ├── AuthContext.jsx     # JWT auth state, session timeout (12h)
+│   ├── AuthContext.jsx     # JWT auth state, session timeout (2h)
 │   └── NotificationContext.jsx
 ├── pages/
 │   ├── Dashboard.jsx
@@ -40,8 +40,8 @@ client/src/
 - Do not remove or bypass the ErrorBoundary.
 
 ### Session Timeout
-- `AuthContext` clears auth state after 12 hours (`SESSION_MS = 12 * 60 * 60 * 1000`).
-- Must match JWT expiry on the server. If JWT expiry changes, update `SESSION_MS` too.
+- `AuthContext` clears auth state after 2 hours (`SESSION_MS = 2 * 60 * 60 * 1000` in `src/utils/session.js`).
+- Must match JWT expiry on the server (`JWT_EXPIRES_IN: 7200`). If JWT expiry changes, update `SESSION_MS` too.
 
 ### State Management
 - No global state library. React context only for cross-cutting concerns (auth, notifications).
@@ -62,4 +62,4 @@ client/src/
 - Do not store JWT or sensitive data in `localStorage` (auth context uses memory + httpOnly cookie flow).
 - Do not add global state management (Redux, Zustand) without discussion — context has been sufficient.
 - Do not remove the `ErrorBoundary` wrapper.
-- Do not hardcode API base URLs — use the axios instance which reads from `VITE_API_URL`.
+- Do not hardcode API base URLs — use the axios instance which reads from `VITE_API_BASE_URL`.

@@ -137,6 +137,14 @@ test.describe('PUT /api/v1/routes/:id', () => {
     });
     expect(res.status()).toBe(400);
   });
+
+  test('returns 400 when routeNumber is an empty string', async ({ request }) => {
+    const res = await request.put('/api/v1/routes/1', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { routeNumber: '' },
+    });
+    expect(res.status()).toBe(400);
+  });
 });
 
 // ─── DELETE /api/v1/routes/:id ────────────────────────────────────────────────
