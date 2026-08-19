@@ -54,16 +54,12 @@ test.describe('GET /api/v1/brands', () => {
     expect(whereArg).toEqual({ isArchived: false });
   });
 
-  test('ignores includeInactive=true for a salesman (still filters to active brands)', async ({ request }) => {
-    let whereArg = null;
-    ctx.mockPrisma.brand.findMany.mockImplementation(async (args) => { whereArg = args.where; return []; });
-
-    const res = await request.get('/api/v1/brands?includeInactive=true', {
+  test('returns 403 for a salesman (brands are admin-only)', async ({ request }) => {
+    const res = await request.get('/api/v1/brands', {
       headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
     });
 
-    expect(res.status()).toBe(200);
-    expect(whereArg).toEqual({ isActive: true, isArchived: false });
+    expect(res.status()).toBe(403);
   });
 });
 
