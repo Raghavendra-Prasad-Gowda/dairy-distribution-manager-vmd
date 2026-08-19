@@ -4,6 +4,7 @@ import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { useApiResource } from '../../hooks/useApiResource';
@@ -36,6 +37,7 @@ export default function AdminUsersSetup() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [togglingId, setTogglingId]     = useState(null);
+  const [confirmToggle, setConfirmToggle] = useState(null); // user pending enable/disable
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -81,6 +83,8 @@ export default function AdminUsersSetup() {
     setTogglingId(u.id);
     toggleActive(u);
   };
+
+  const confirmToggleActive = (u) => setConfirmToggle(u);
 
   // ── Edit ────────────────────────────────────────────────────────────────────
   function openEdit(u) {
@@ -200,9 +204,9 @@ export default function AdminUsersSetup() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* Quick enable / disable — one click, no modal */}
+                          {/* Enable / disable — confirmed, since disabling revokes login immediately */}
                           <button
-                            onClick={() => handleToggleActive(u)}
+                            onClick={() => confirmToggleActive(u)}
                             disabled={u.id === me?.adminUserId || togglingId === u.id}
                             title={u.isActive ? `Disable ${u.username}` : `Enable ${u.username}`}
                             className={`p-1.5 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
@@ -396,6 +400,21 @@ export default function AdminUsersSetup() {
           </p>
         </div>
       </Modal>
+
+      {/* ── Enable / Disable confirmation ─────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={!!confirmToggle}
+        onClose={() => setConfirmToggle(null)}
+        onConfirm={() => handleToggleActive(confirmToggle)}
+        title={confirmToggle?.isActive ? 'Disable Admin User' : 'Enable Admin User'}
+        message={
+          confirmToggle?.isActive
+            ? `Disable "${confirmToggle?.username}"? They will lose login access immediately. Their account and data stay safe and can be re-enabled anytime.`
+            : `Enable "${confirmToggle?.username}"? They will regain login access immediately.`
+        }
+        confirmText={confirmToggle?.isActive ? 'Disable' : 'Enable'}
+        tone={confirmToggle?.isActive ? 'warning' : 'success'}
+      />
     </div>
   );
 }

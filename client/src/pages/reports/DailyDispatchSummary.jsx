@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlertCircle, LayoutGrid, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, LockOpen, FlagTriangleRight, RotateCcw } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
@@ -34,7 +34,14 @@ export default function DailyDispatchSummary() {
   const [unfinalizeLoading, setUnfinalizeLoading] = useState(false);
   const [unfinalizeConfirm, setUnfinalizeConfirm] = useState(false);
 
-  useEffect(() => { setCollapsedBrands({}); }, [selectedSpId]);
+  // Collapse state resets whenever the selected salesperson changes — paired
+  // directly with each setSelectedSpId call below (rather than a generic
+  // useEffect keyed on selectedSpId) so the reset lands in the same commit
+  // as the selection change. A passive effect here would flush on its own
+  // macrotask, leaving a window where the DOM already reflects a freshly
+  // auto-selected salesperson but the reset hasn't run yet — a click to
+  // expand a brand row landing in that window would get silently reverted
+  // when the stale effect finally fired.
 
   // Dispatchers can't open blank rows for entry, so skip the /salespeople
   // call — it's admin-only and would return 403 for a dispatcher.
@@ -66,6 +73,7 @@ export default function DailyDispatchSummary() {
         const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
                        ?? merged.rows[0]?.salespersonId ?? null;
         setSelectedSpId(autoId);
+        setCollapsedBrands({});
         return merged;
       },
     }
@@ -87,6 +95,7 @@ export default function DailyDispatchSummary() {
       await api.post('/dispatches/open-for-entry', { salespersonId, dispatchDate: date });
       await fetchData();
       setSelectedSpId(salespersonId);
+      setCollapsedBrands({});
     } catch {
       // fetchData will reset state
     } finally {
@@ -205,7 +214,7 @@ export default function DailyDispatchSummary() {
       <li>
         <button
           type="button"
-          onClick={() => setSelectedSpId(row.salespersonId)}
+          onClick={() => { setSelectedSpId(row.salespersonId); setCollapsedBrands({}); }}
           className={`w-full text-left px-3 py-2.5 border-l-4 transition-colors ${
             isSelected
               ? 'bg-emerald-50 border-emerald-600'
@@ -249,7 +258,7 @@ export default function DailyDispatchSummary() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <DateSelector date={date} onChange={d => { setDate(d); setSelectedSpId(null); }} dark />
+          <DateSelector date={date} onChange={d => { setDate(d); setSelectedSpId(null); setCollapsedBrands({}); }} dark />
         </div>
       </div>
 
