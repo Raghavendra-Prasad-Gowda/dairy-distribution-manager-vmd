@@ -13,12 +13,18 @@ import api from '../../api/axios';
 export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
   const inShell = shellActiveBrandId != null;
   const { notify } = useNotification();
-  const [brands, setBrands]         = useState(shellBrands ?? []);
-  const [activeBrandId, setActive]  = useState(shellActiveBrandId ?? null);
+  // Only used in standalone (non-shell) mode — in shell mode the active brand
+  // and brand list are derived directly from the shell props below, instead
+  // of being mirrored into state via an effect.
+  const [ownBrands, setBrands]        = useState([]);
+  const [ownActiveBrandId, setActive] = useState(null);
   const modal = useDisclosure();
   const [editingRoute, setEditingRoute] = useState(null);
   const [formNumber, setFormNumber]   = useState('');
   const [confirmation, setConfirmation] = useState({ isOpen: false });
+
+  const brands        = inShell ? (shellBrands ?? []) : ownBrands;
+  const activeBrandId = inShell ? shellActiveBrandId : ownActiveBrandId;
 
   useEffect(() => {
     if (inShell) return;
@@ -26,10 +32,6 @@ export default function RouteSetup({ shellActiveBrandId, shellBrands } = {}) {
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
       .catch(() => notify('Failed to load brands', 'error'));
   }, [inShell, notify]);
-
-  useEffect(() => {
-    if (inShell) { setActive(shellActiveBrandId); setBrands(shellBrands ?? []); }
-  }, [shellActiveBrandId, shellBrands, inShell]);
 
   const { data: routes, loading, refetch: fetchRoutes } = useApiResource(
     activeBrandId ? `/routes?brandId=${activeBrandId}` : null,
