@@ -49,7 +49,7 @@ export function usePaymentFilters(payments, { searchable = false, resetDeps = []
   }, [payments, searchQuery, filterFrom, filterTo, filterMode, filterRef, searchable]);
 
   // Reset to page 1 when filters, search, or caller-specified deps change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   useEffect(() => { setPage(1); }, [searchQuery, filterFrom, filterTo, filterMode, filterRef, ...resetDeps]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPayments.length / PER_PAGE));

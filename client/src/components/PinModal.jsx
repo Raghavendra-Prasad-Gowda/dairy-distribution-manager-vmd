@@ -49,23 +49,36 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
   const [digits, setDigits]       = useState(Array(PIN_LENGTH).fill(''));
   const [error, setError]         = useState('');
   const [loading, setLoading]     = useState(false);
-  const [remaining, setRemaining] = useState(0);  // lockout ms remaining
-  const [attempts, setAttempts]   = useState(0);  // failed attempts this session
+  // Lazy initializers so the very first render (mounted with isOpen already
+  // true) reflects the real lockout state, matching what the effect used to
+  // compute on mount — not just on a later isOpen flip.
+  const [remaining, setRemaining] = useState(() => (isOpen ? getLockoutRemaining() : 0));  // lockout ms remaining
+  const [attempts, setAttempts]   = useState(() => (isOpen ? parseInt(localStorage.getItem(ATTEMPTS_KEY) || '0') : 0));  // failed attempts this session
   const inputRefs                 = useRef([]);
   const timerRef                  = useRef(null);
 
-  // Check lockout + reset on open
+  // Check lockout + reset on open. Adjusted during render (rather than in an
+  // Effect) since this is just state derived from other state — see
+  // https://react.dev/learn/you-might-not-need-an-effect
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setDigits(Array(PIN_LENGTH).fill(''));
+      setError('');
+      setAttempts(parseInt(localStorage.getItem(ATTEMPTS_KEY) || '0'));
+      setRemaining(getLockoutRemaining());
+    }
+  }
+
+  // Focus the first box on open, unless already locked out. Stays a real
+  // Effect (not derived-during-render) — focusing a DOM ref is an
+  // external-system side effect, not state.
   useEffect(() => {
     if (!isOpen) return;
-    setDigits(Array(PIN_LENGTH).fill(''));
-    setError('');
-    setAttempts(parseInt(localStorage.getItem(ATTEMPTS_KEY) || '0'));
-
-    const rem = getLockoutRemaining();
-    setRemaining(rem);
-
-    if (rem <= 0) {
-      setTimeout(() => inputRefs.current[0]?.focus(), 80);
+    if (getLockoutRemaining() <= 0) {
+      const t = setTimeout(() => inputRefs.current[0]?.focus(), 80);
+      return () => clearTimeout(t);
     }
   }, [isOpen]);
 
