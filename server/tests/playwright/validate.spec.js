@@ -98,7 +98,11 @@ test.describe('validate() — failure path', () => {
     const req = { body: {} }; // fields entirely absent, not empty strings
     const res = fakeRes();
     validate(schemas.login, req, res);
-    expect(res.body.error).toBe('Required; Required'); // NOT the custom "Username/Password is required" text
+    // In Zod v4 the absent-field message is "Invalid input: expected string, received undefined"
+    // (v3 used 'Required'). Either way, it must NOT be the custom .min() message.
+    expect(res.body.error).not.toContain('Username is required');
+    expect(res.body.error).not.toContain('Password is required');
+    expect(res.body.error).toBeTruthy(); // some error message must be present
   });
 
   test('joins every field error into one "; "-separated message, not just the first', () => {

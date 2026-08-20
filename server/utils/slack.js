@@ -22,6 +22,7 @@ const SLACK_EVENTS = {
   FAILED_LOGIN:     'FAILED_LOGIN',
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
   PIN_FAILED:       'PIN_FAILED',
+  PIN_UPDATED:      'PIN_UPDATED',
   // Salesman self-service "view" actions — informational only, fired from
   // endpoints that are exclusively reachable by the salesman's own pages
   // (see the controllers for why each specific handler was chosen).
@@ -138,6 +139,7 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.PROCESS_CRASH]:      COLORS.RED,
   [SLACK_EVENTS.PASSWORD_CHANGED]:   COLORS.AMBER,
   [SLACK_EVENTS.PIN_FAILED]:         COLORS.RED,
+  [SLACK_EVENTS.PIN_UPDATED]:        COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.DISPATCH_SUBMITTED]:      COLORS.GREEN,
@@ -370,6 +372,14 @@ function buildCard(event, data) {
           ['🌐 IP Address',   data.ip       || 'unknown'],
         ]),
       ], `Wrong PIN — ${data.username}`);
+
+    case SLACK_EVENTS.PIN_UPDATED:
+      return card(event, [
+        headerBlock('🔑 Edit PIN Changed'),
+        fieldsBlock([
+          ['👤 Changed By', data.username || 'unknown'],
+        ]),
+      ], `Edit PIN changed by ${data.username}`);
 
     // ── Salesman "view" actions (informational) ────────────────────────────
     case SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED:

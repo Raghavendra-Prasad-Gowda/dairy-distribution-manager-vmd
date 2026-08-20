@@ -390,3 +390,16 @@ model DispatchDayFinalization {
 
   @@map("dispatch_day_finalizations")
 }
+
+// ─── App Settings ─────────────────────────────────────────────────────────────
+// Generic key-value store for app-wide configuration managed via the UI.
+// Currently used for the edit PIN (key = 'edit_pin', value = bcrypt hash).
+// PIN changes made through the superadmin UI are persisted here; the EDIT_PIN
+// env var is only consulted by seed.js on the very first deploy.
+model AppSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}

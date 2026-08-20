@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck } from 'lucide-react';
+import { useState, useMemo, useRef, useCallback } from 'react';
+import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck, Lock } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
@@ -13,6 +14,136 @@ import { useDisclosure } from '../../hooks/useDisclosure';
 import api from '../../api/axios';
 
 const ROLE_LABEL = { admin: 'Admin', superadmin: 'Super Admin', dispatcher: 'Dispatcher' };
+
+const PIN_LENGTH = 6;
+
+/** Reusable row of 6 digit PIN input boxes, styled to match PinModal */
+function PinInputRow({ value, onChange, disabled, hasError, label }) {
+  const refs = useRef([]);
+
+  const handleKey = useCallback((e, idx) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      const next = [...value];
+      if (next[idx]) {
+        next[idx] = '';
+        onChange(next);
+      } else if (idx > 0) {
+        next[idx - 1] = '';
+        onChange(next);
+        refs.current[idx - 1]?.focus();
+      }
+      return;
+    }
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      const next = [...value];
+      next[idx] = e.key;
+      onChange(next);
+      if (idx < PIN_LENGTH - 1) refs.current[idx + 1]?.focus();
+    }
+  }, [value, onChange]);
+
+  return (
+    <div>
+      {label && <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{label}</p>}
+      <div className="flex gap-2">
+        {value.map((d, i) => (
+          <input
+            key={i}
+            ref={el => refs.current[i] = el}
+            type="password"
+            inputMode="numeric"
+            maxLength={1}
+            value={d}
+            onChange={() => {}}
+            onKeyDown={e => handleKey(e, i)}
+            disabled={disabled}
+            className={`w-10 h-12 text-center text-lg font-bold border-2 rounded-xl outline-none transition
+              ${d ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-800'}
+              ${hasError ? 'border-red-400 bg-red-50' : ''}
+              focus:border-emerald-500 focus:bg-emerald-50
+              disabled:opacity-50`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const emptyPin = () => Array(PIN_LENGTH).fill('');
+
+/** Card for changing the edit PIN — superadmin only */
+function ChangePinSection() {
+  const { notify } = useNotification();
+  const [current, setCurrent] = useState(emptyPin());
+  const [next,    setNext]    = useState(emptyPin());
+  const [confirm, setConfirm] = useState(emptyPin());
+  const [error,   setError]   = useState('');
+  const [saving,  setSaving]  = useState(false);
+
+  const currentPin = current.join('');
+  const nextPin    = next.join('');
+  const confirmPin = confirm.join('');
+  const allFilled  = currentPin.length === PIN_LENGTH && nextPin.length === PIN_LENGTH && confirmPin.length === PIN_LENGTH;
+  const mismatch   = allFilled && nextPin !== confirmPin;
+  const canSubmit  = allFilled && !mismatch && !saving;
+
+  const handleChange = async (e) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setError('');
+    setSaving(true);
+    try {
+      await api.put('/pin/update', { currentPin, newPin: nextPin });
+      notify('Edit PIN changed successfully', 'success');
+      setCurrent(emptyPin());
+      setNext(emptyPin());
+      setConfirm(emptyPin());
+    } catch (err) {
+      const msg = err?.response?.data?.error ?? 'Failed to change PIN';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="ddm-card p-5">
+      <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
+        <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+          <Lock size={15} className="text-emerald-700" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-800">Change Edit PIN</p>
+          <p className="text-xs text-slate-400">The PIN used to edit or delete payments</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleChange} className="space-y-4">
+        <PinInputRow label="Current PIN" value={current} onChange={setCurrent} disabled={saving} hasError={!!error} />
+        <PinInputRow label="New PIN (6 digits)" value={next} onChange={setNext} disabled={saving} />
+        <PinInputRow label="Confirm New PIN" value={confirm} onChange={setConfirm} disabled={saving} hasError={mismatch} />
+
+        {mismatch && (
+          <p className="text-xs font-semibold text-red-600">New PIN and confirmation do not match</p>
+        )}
+        {error && !mismatch && (
+          <p className="text-xs font-semibold text-red-600">{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+        >
+          {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
+          Change PIN
+        </button>
+      </form>
+    </div>
+  );
+}
 const ROLE_BADGE = {
   admin:      'bg-slate-100 text-slate-700',
   superadmin: 'bg-amber-100 text-amber-700',
@@ -151,8 +282,9 @@ export default function AdminUsersSetup() {
         </button>
       </div>
 
-      {/* Outer wrapper: flex-col so search stays pinned and table fills the rest */}
-      <div className="flex-1 overflow-hidden flex flex-col gap-4 p-4 md:p-6 max-w-3xl mx-auto w-full">
+      {/* Outer wrapper: scrollable column */}
+      <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col gap-4 p-4 md:p-6 max-w-3xl mx-auto w-full">
 
         {/* Search — never scrolls away */}
         <div className="relative flex-shrink-0">
@@ -171,11 +303,11 @@ export default function AdminUsersSetup() {
           )}
         </div>
 
-        {/* User list — takes remaining height and scrolls internally */}
+        {/* User list */}
         {loading ? (
           <BrandedLoader />
         ) : (
-          <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             {filtered.length === 0 ? (
               <p className="text-center text-slate-400 text-sm py-10">No admin users found</p>
             ) : (
@@ -246,6 +378,11 @@ export default function AdminUsersSetup() {
             )}
           </div>
         )}
+
+        {/* ── Change edit PIN — superadmin only ──────────────────────────────── */}
+        <ChangePinSection />
+
+      </div>
       </div>
 
       {/* ── Add modal ─────────────────────────────────────────────────────────── */}

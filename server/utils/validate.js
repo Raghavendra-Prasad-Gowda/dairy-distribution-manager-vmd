@@ -43,6 +43,13 @@ const schemas = {
     pin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'PIN is required')),
   }),
 
+  updatePin: z.object({
+    currentPin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'Current PIN is required')),
+    newPin: z.union([z.string(), z.number()]).transform(String).pipe(
+      z.string().length(6, 'New PIN must be exactly 6 digits').regex(/^\d{6}$/, 'New PIN must be digits only')
+    ),
+  }),
+
   // Brands
   createBrand: z.object({
     name: z.string().min(1, 'Brand name is required'),
@@ -335,7 +342,10 @@ const schemas = {
 function validate(schema, req, res) {
   const result = schema.safeParse(req.body);
   if (!result.success) {
-    const message = result.error.errors.map((e) => e.message).join('; ');
+    // Zod v4 uses `.issues`; `.errors` was removed. Use `issues` with a
+    // fallback so this survives if the alias ever gets restored.
+    const issues = result.error.issues ?? result.error.errors ?? [];
+    const message = issues.map((e) => e.message).join('; ');
     res.status(400).json({ success: false, error: message, code: 'VALIDATION_ERROR' });
     return null;
   }

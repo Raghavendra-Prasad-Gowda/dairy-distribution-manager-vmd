@@ -168,6 +168,11 @@ function createMockPrisma() {
       createMany: mockFn(),
       updateMany: mockFn(),
     },
+    appSettings: {
+      findUnique: mockFn(),
+      create:     mockFn(),
+      upsert:     mockFn(),
+    },
     $transaction: mockFn(),
     $queryRaw:    mockFn(),
   };
