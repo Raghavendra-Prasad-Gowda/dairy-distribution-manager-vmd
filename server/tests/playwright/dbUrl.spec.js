@@ -76,12 +76,20 @@ test.describe('buildProdSsl', () => {
 
   test('does not warn when a CA cert is provided', () => {
     const warnings = [];
-    buildProdSsl('some-cert', { warn: (msg) => warnings.push(msg) });
+    buildProdSsl('some-cert', { warn: (msg) => warnings.push(msg), info: () => {} });
     expect(warnings).toHaveLength(0);
+  });
+
+  test('logs a positive confirmation when pinning succeeds — the signal to watch for at boot', () => {
+    const infos = [];
+    buildProdSsl('some-cert', { info: (msg) => infos.push(msg), warn: () => {} });
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toContain('pinned CA certificate');
   });
 
   test('tolerates a missing logger', () => {
     expect(() => buildProdSsl(undefined)).not.toThrow();
+    expect(() => buildProdSsl('some-cert')).not.toThrow();
   });
 });
 
