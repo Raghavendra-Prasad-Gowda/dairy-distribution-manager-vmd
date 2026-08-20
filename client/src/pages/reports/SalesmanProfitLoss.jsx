@@ -58,7 +58,7 @@ export default function SalesmanProfitLoss() {
   const [from, setFrom]         = useState(today);
   const [to, setTo]             = useState(today);
   const [data, setData]         = useState(null);
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [selected, setSelected] = useState(ALL);
 
@@ -152,19 +152,21 @@ export default function SalesmanProfitLoss() {
       </div>
 
       {/* Summary cards — the overall figure for the selected period */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 md:px-6 py-3 bg-slate-50 border-b border-slate-200 flex-shrink-0">
-        {[
-          { label: 'Cost (Dairy Paid)',      value: formatCurrency(totals.cost),    cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
-          { label: 'Revenue (Dairy Earned)', value: formatCurrency(totals.revenue), cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
-          { label: 'Profit/Loss', value: formatCurrency(totals.profit), cls: totalTone.text, bg: totalTone.bg },
-          { label: 'Margin', value: `${totals.marginPct}%`, cls: totalTone.text, bg: totalTone.bg },
-        ].map(({ label, value, cls, bg }) => (
-          <div key={label} className={`rounded-xl border px-4 py-2.5 ${bg}`}>
-            <p className="text-[11px] text-slate-500 font-medium mb-0.5">{label}</p>
-            <p className={`text-lg font-bold tabular-nums ${cls}`}>{value}</p>
-          </div>
-        ))}
-      </div>
+      {!loading && data && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 md:px-6 py-3 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+          {[
+            { label: 'Cost (Dairy Paid)',      value: formatCurrency(totals.cost),    cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
+            { label: 'Revenue (Dairy Earned)', value: formatCurrency(totals.revenue), cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
+            { label: 'Profit/Loss', value: formatCurrency(totals.profit), cls: totalTone.text, bg: totalTone.bg },
+            { label: 'Margin', value: `${totals.marginPct}%`, cls: totalTone.text, bg: totalTone.bg },
+          ].map(({ label, value, cls, bg }) => (
+            <div key={label} className={`rounded-xl border px-4 py-2.5 ${bg}`}>
+              <p className="text-[11px] text-slate-500 font-medium mb-0.5">{label}</p>
+              <p className={`text-lg font-bold tabular-nums ${cls}`}>{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex-1"><BrandedLoader /></div>

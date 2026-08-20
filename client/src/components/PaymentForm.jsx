@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CreditCard } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
+import { TumblerSpinner } from './ui/BrandedLoader';
 import { PAYMENT_MODES } from '../utils/constants';
 import { getIndiaDate, formatCurrency } from '../utils/dateUtils';
 import { numberToWords } from '../utils/numberToWords';
@@ -162,7 +163,7 @@ export default function PaymentForm({
       </div>
 
       <button type="submit" disabled={loading || !form.amount} className="ddm-btn-primary w-full justify-center">
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard size={15} />}
+        {loading ? <TumblerSpinner size={16} /> : <CreditCard size={15} />}
         {loading ? 'Recording…' : submitLabel}
       </button>
     </form>

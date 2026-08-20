@@ -1,4 +1,5 @@
-import { Package, Loader2 } from 'lucide-react';
+import { Package } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 
 /**
  * Bulk enable/disable products modal — flips the per-salesperson access
@@ -171,7 +172,7 @@ export default function BulkProductAccessModal({
             disabled={updatingBulkProducts || bulkProductForm.selectedSalesmen.size === 0 || bulkProductForm.selectedProducts.size === 0}
             className="flex-1 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {updatingBulkProducts && <Loader2 size={16} className="animate-spin" />}
+            {updatingBulkProducts && <TumblerSpinner size={16} />}
             {updatingBulkProducts ? 'Updating...' : 'Confirm'}
           </button>
         </div>

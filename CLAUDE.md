@@ -538,7 +538,7 @@ await notifySlack(...);
 **Import:** `import BrandedLoader from '../../components/ui/BrandedLoader';`
 
 **Use `BrandedLoader`** for any full-page, section, or overlay loading state.
-**Use `Loader2` from lucide-react** only for in-button spinners.
+**Use `TumblerSpinner`** (exported from `BrandedLoader.jsx`) for in-button and inline spinners — never use `Loader2` from lucide-react.
 
 | Situation | Usage |
 |-----------|-------|
@@ -547,6 +547,14 @@ await notifySlack(...);
 | Section/card loading | `<BrandedLoader size="sm" />` |
 | Saving with dim backdrop | `<BrandedLoader overlay tone="transparent" open={saving} label="Saving…" />` |
 | App brand screen (cold start) | `<BrandedLoader overlay tone="brand" lively />` |
+| In-button / inline spinner | `<TumblerSpinner size={14} />` (named export from the same file) |
+
+**`TumblerSpinner`** is a bare 🥛 emoji with `animate-bounce` sized to match the surrounding icon. Import it alongside `BrandedLoader`:
+```js
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
+// usage:
+{saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
+```
 
 **Props reference:**
 
@@ -786,6 +794,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 |----------|:---:|---------|
 | `DATABASE_URL` | Yes | Prisma connection string |
 | `DIRECT_URL` | Yes | Direct connection for migrations |
+| `DATABASE_CA_CERT` | No | Managed Postgres CA cert (PEM) — pins TLS verification in production. Unset falls back to unverified TLS with a boot-time warning. See `server/utils/dbUrl.js` |
 | `JWT_SECRET` | Yes | Min 32 chars |
 | `ADMIN_PASSWORD` | Yes | Initial admin password |
 | `EDIT_PIN` | Yes | 6-digit PIN for protected edits |

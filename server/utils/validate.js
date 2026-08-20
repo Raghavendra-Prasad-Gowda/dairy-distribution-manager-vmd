@@ -342,10 +342,7 @@ const schemas = {
 function validate(schema, req, res) {
   const result = schema.safeParse(req.body);
   if (!result.success) {
-    // Zod v4 uses `.issues`; `.errors` was removed. Use `issues` with a
-    // fallback so this survives if the alias ever gets restored.
-    const issues = result.error.issues ?? result.error.errors ?? [];
-    const message = issues.map((e) => e.message).join('; ');
+    const message = result.error.issues.map((e) => e.message).join('; ');
     res.status(400).json({ success: false, error: message, code: 'VALIDATION_ERROR' });
     return null;
   }

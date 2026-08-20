@@ -13,7 +13,8 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, LayoutGrid, Save, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { GripVertical, LayoutGrid, Save, ChevronUp, ChevronDown } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -279,7 +280,7 @@ export default function LayoutSettings({ shellActiveBrandId, shellBrands } = {})
             disabled={saving || !dirty}
             className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-5 py-2.5 rounded-xl transition text-sm shadow-sm"
           >
-            {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+            {saving ? <TumblerSpinner size={15} /> : <Save size={15} />}
             {saving ? 'Saving…' : 'Save Layout'}
           </button>
         </div>

@@ -1,16 +1,15 @@
 'use strict';
 
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const logger = require('../config/logger');
 const env = require('../config/env');
 
-let _ownClient = null;
-function getClient(externalClient) {
-  if (externalClient) return externalClient;
-  if (!_ownClient) _ownClient = new PrismaClient();
-  return _ownClient;
-}
+// Always use the singleton Prisma client — it has the PrismaPg driver adapter
+// configured with DATABASE_URL. In Prisma 7, a bare new PrismaClient() fails
+// because the datasource URL was moved from schema.prisma to prisma.config.ts
+// (which only the Prisma CLI reads, not the runtime client).
+const defaultPrisma = require('../lib/prisma');
+
 const BCRYPT_ROUNDS = 10;
 
 /**
@@ -18,7 +17,7 @@ const BCRYPT_ROUNDS = 10;
  * If SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD are not set, nothing is created.
  */
 async function seedFoundationData(externalPrisma) {
-  const prisma = getClient(externalPrisma);
+  const prisma = externalPrisma || defaultPrisma;
 
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
   // Env vars are authoritative — always sync username + password on every boot.
@@ -62,5 +61,5 @@ module.exports = { seedFoundationData };
 if (require.main === module) {
   seedFoundationData()
     .catch((e) => { logger.error('Seed failed', { message: e.message, stack: e.stack }); process.exit(1); })
-    .finally(() => { if (_ownClient) _ownClient.$disconnect(); });
+    .finally(() => defaultPrisma.$disconnect());
 }

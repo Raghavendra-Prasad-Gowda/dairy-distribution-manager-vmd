@@ -363,6 +363,7 @@ Runs on every PR to `main` and push to `environment/test`. Eight parallel jobs:
 |----------|:---:|---------|
 | `DATABASE_URL` | prod | Prisma connection string |
 | `DIRECT_URL` | — | Direct connection for migrations |
+| `DATABASE_CA_CERT` | — | Managed Postgres provider's CA cert (PEM). Pins TLS verification in production; unset falls back to unverified TLS with a boot warning — see `server/utils/dbUrl.js` |
 | `JWT_SECRET` | prod | Min 32 chars (enforced at boot in production) |
 | `ADMIN_PASSWORD` | prod | Initial admin password |
 | `EDIT_PIN` | prod | 4–12 char PIN for protected edits |
