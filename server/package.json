@@ -50,5 +50,8 @@
   },
   "prisma": {
     "seed": "node prisma/seed.js"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
   }
 }
