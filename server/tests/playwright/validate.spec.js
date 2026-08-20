@@ -98,7 +98,11 @@ test.describe('validate() — failure path', () => {
     const req = { body: {} }; // fields entirely absent, not empty strings
     const res = fakeRes();
     validate(schemas.login, req, res);
-    expect(res.body.error).toBe('Required; Required'); // NOT the custom "Username/Password is required" text
+    // NOT the custom "Username/Password is required" text — Zod's own base
+    // type-check message (Zod 4 phrasing) fires first for an absent field.
+    expect(res.body.error).toBe(
+      'Invalid input: expected string, received undefined; Invalid input: expected string, received undefined'
+    );
   });
 
   test('joins every field error into one "; "-separated message, not just the first', () => {
