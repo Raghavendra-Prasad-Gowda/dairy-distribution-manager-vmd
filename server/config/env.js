@@ -26,8 +26,8 @@ const requiredInProd = (prodSchema, devDefault) =>
   isProd ? prodSchema : prodSchema.or(z.string()).optional().default(devDefault);
 
 const schema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3001),
+  NODE_ENV: z.enum(['development', 'test', 'production']).optional().default('development'),
+  PORT: z.coerce.number().int().positive().optional().default(3001),
 
   // Database
   DATABASE_URL: isProd ? z.string().min(1, 'DATABASE_URL is required in production') : z.string().optional(),
@@ -54,7 +54,7 @@ const schema = z.object({
   SUPERADMIN_PASSWORD: z.string().optional(),
 
   // CORS / links
-  CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
+  CLIENT_ORIGIN: z.string().optional().default('http://localhost:5173'),
   APP_URL: z.string().optional().default(''),
 
   // Optional integrations
