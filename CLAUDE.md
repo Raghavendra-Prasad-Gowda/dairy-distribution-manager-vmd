@@ -794,6 +794,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 |----------|:---:|---------|
 | `DATABASE_URL` | Yes | Prisma connection string |
 | `DIRECT_URL` | Yes | Direct connection for migrations |
+| `DATABASE_CA_CERT` | No | Managed Postgres CA cert (PEM) — pins TLS verification in production. Unset falls back to unverified TLS with a boot-time warning. See `server/utils/dbUrl.js` |
 | `JWT_SECRET` | Yes | Min 32 chars |
 | `ADMIN_PASSWORD` | Yes | Initial admin password |
 | `EDIT_PIN` | Yes | 6-digit PIN for protected edits |

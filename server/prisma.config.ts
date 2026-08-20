@@ -1,6 +1,6 @@
 import { defineConfig } from 'prisma/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-const { withInsecureSsl } = require('./utils/dbUrl');
+const { stripSslParams, buildProdSsl } = require('./utils/dbUrl');
 
 // Prisma 7 requires datasource URLs to be configured here rather than in
 // schema.prisma. We use the pg driver adapter for both the client (pooled
@@ -10,11 +10,12 @@ const { withInsecureSsl } = require('./utils/dbUrl');
 // certificate signed by their own project-specific CA, which node-postgres
 // won't trust by default ("self-signed certificate in certificate chain").
 // A plain `ssl:` option gets silently clobbered by node-postgres's own
-// sslmode parsing, so the connection string itself must carry
-// sslmode=no-verify. Local/dev Postgres has no TLS at all, so this stays
-// prod-only — see lib/prisma.js.
+// sslmode parsing unless sslmode is stripped from the string first. Local/
+// dev Postgres has no TLS at all, so this stays prod-only — see lib/prisma.js.
+const isProd = process.env.NODE_ENV === 'production';
 const rawUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
-const dbUrl = process.env.NODE_ENV === 'production' ? withInsecureSsl(rawUrl) : rawUrl;
+const dbUrl = isProd ? stripSslParams(rawUrl) : rawUrl;
+const pgSsl = isProd ? buildProdSsl(process.env.DATABASE_CA_CERT, console) : undefined;
 
 export default defineConfig({
   earlyAccess: true,
@@ -26,6 +27,7 @@ export default defineConfig({
     adapter: () =>
       new PrismaPg({
         connectionString: dbUrl,
+        ssl: pgSsl,
       }),
   },
 });

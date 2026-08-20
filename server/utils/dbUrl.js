@@ -1,34 +1,50 @@
 'use strict';
 
 /**
- * Forces `sslmode=no-verify` onto a Postgres connection string.
+ * Strips SSL-related query params (sslmode, sslcert, sslkey, sslrootcert)
+ * off a Postgres connection string.
  *
- * `pg` (the runtime behind @prisma/adapter-pg) resolves SSL config with:
+ * node-postgres resolves SSL config with:
  *   config = Object.assign({}, config, parse(config.connectionString))
- * — whatever `sslmode` the connection string carries always wins, even
- * over an explicit `ssl: {...}` option passed alongside it, because the
- * parsed string is merged in last.
- *
- * Aiven's own recommended connection string uses `sslmode=require`. As of
- * the pg-connection-string version pulled in by the Prisma 7 migration,
- * `require`/`prefer`/`verify-ca` are treated as aliases for `verify-full`
- * — full chain + hostname verification — which parses to `ssl: {}` and
- * rejects Aiven's project-specific CA ("self-signed certificate in
- * certificate chain"). Passing `ssl: { rejectUnauthorized: false }` as a
- * separate option does NOT help; it gets clobbered by the merge above.
- *
- * The only reliable fix is to make the string itself say `no-verify`,
- * which pg-connection-string maps to `{ rejectUnauthorized: false }`.
+ * — whatever the connection string's `sslmode` produces is merged in LAST,
+ * silently overwriting any explicit `ssl: {...}` option passed alongside
+ * it. So a pinned CA (or any other explicit ssl option) only survives if
+ * the string itself carries no sslmode at all — this must run before any
+ * explicit `ssl` option is attached.
  */
-function withInsecureSsl(connectionString) {
+function stripSslParams(connectionString) {
   if (!connectionString) return connectionString;
   try {
     const url = new URL(connectionString);
-    url.searchParams.set('sslmode', 'no-verify');
+    ['sslmode', 'sslcert', 'sslkey', 'sslrootcert'].forEach((p) => url.searchParams.delete(p));
     return url.toString();
   } catch {
     return connectionString; // malformed URL — let pg surface the real error
   }
 }
 
-module.exports = { withInsecureSsl };
+/**
+ * Builds the `ssl` option for a production Postgres connection.
+ *
+ * Preferred path: `caCert` (DATABASE_CA_CERT) holds the provider's CA
+ * certificate PEM — full chain + hostname verification against the real
+ * CA. This is the correct long-term state.
+ *
+ * Fallback: if `caCert` is unset, disables verification
+ * (`rejectUnauthorized: false` — still encrypted, but no server-identity
+ * check) and logs a warning via `logger` so this never fails silently.
+ * Only ever called for production — local/CI Postgres has no TLS at all.
+ */
+function buildProdSsl(caCert, logger) {
+  if (caCert) {
+    return { ca: caCert };
+  }
+  logger?.warn(
+    'DATABASE_CA_CERT is not set — production Postgres connection is using ' +
+    'unverified TLS (rejectUnauthorized: false). Set DATABASE_CA_CERT to the ' +
+    "provider's CA certificate to restore full certificate verification."
+  );
+  return { rejectUnauthorized: false };
+}
+
+module.exports = { stripSslParams, buildProdSsl };
