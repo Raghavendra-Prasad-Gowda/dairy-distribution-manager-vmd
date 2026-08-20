@@ -1,4 +1,5 @@
-import { Search, X, Copy, Package, Unlock, Loader2, Save } from 'lucide-react';
+import { Search, X, Copy, Package, Unlock, Save } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 
 /**
  * Search box + per-mode action buttons (per-person: enabled-only toggle,
@@ -124,7 +125,7 @@ export default function PriceToolbar({
         disabled={saving || !hasDirty}
         className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-2 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
       >
-        {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+        {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
         {saving ? 'Saving…' : 'Save'}
       </button>
     </div>

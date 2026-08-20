@@ -1,4 +1,5 @@
-import { Edit2, X, Save, Loader2 } from 'lucide-react';
+import { Edit2, X, Save } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 import { getIndiaDate, formatDateShort } from '../../../utils/dateUtils';
 
 /**
@@ -151,7 +152,7 @@ export default function PriceEditModal({
               Cancel
             </button>
             <button type="submit" disabled={savingPrice} className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
-              {savingPrice ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              {savingPrice ? <TumblerSpinner size={14} /> : <Save size={14} />}
               {savingPrice ? 'Saving…' : 'Save Price'}
             </button>
           </div>

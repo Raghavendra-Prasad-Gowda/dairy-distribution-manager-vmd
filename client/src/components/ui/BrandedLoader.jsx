@@ -13,8 +13,8 @@
  *   <BrandedLoader size="sm" />           smaller emoji + tighter spacing
  *   <BrandedLoader tone="brand" />        brand gradient background (overlay only)
  *
- * For tiny in-button spinners, keep using Loader2 — this loader is for moments
- * the user is waiting on the screen, not micro-interactions.
+ * For tiny in-button spinners use TumblerSpinner (also exported from this file):
+ *   <TumblerSpinner size={14} />          inline 🥛 emoji, no ring/halo, animate-bounce
  */
 
 const SIZE = {
@@ -124,5 +124,27 @@ export default function BrandedLoader({
     <div role="status" aria-live="polite" className={`flex items-center justify-center ${inlinePadY}`}>
       <LoaderCore label={label} hideBrand={hideBrand} size={size} />
     </div>
+  );
+}
+
+/**
+ * TumblerSpinner — VMD's in-button loading indicator.
+ *
+ * A bare 🥛 emoji with animate-bounce, sized to match the surrounding icon.
+ * Use anywhere a circular spinner (Loader2) would have been used inside a button
+ * or compact inline context. No ring, no halo, no label, no brand title.
+ *
+ *   {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
+ */
+export function TumblerSpinner({ size = 14, className = '' }) {
+  return (
+    <span
+      role="img"
+      aria-label="Loading"
+      className={`inline-block animate-bounce select-none leading-none ${className}`}
+      style={{ fontSize: size, animationDuration: '0.9s' }}
+    >
+      🥛
+    </span>
   );
 }

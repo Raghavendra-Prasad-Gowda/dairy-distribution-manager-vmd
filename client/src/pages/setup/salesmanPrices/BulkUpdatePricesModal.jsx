@@ -1,4 +1,5 @@
-import { IndianRupee, X, Search, Loader2 } from 'lucide-react';
+import { IndianRupee, X, Search } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 import { getIndiaDate } from '../../../utils/dateUtils';
 
 /**
@@ -284,7 +285,7 @@ export default function BulkUpdatePricesModal({
               disabled={updatingBulkPrices || bulkUpdateForm.selectedSalesmen.size === 0 || bulkUpdateForm.productPrices.length === 0}
               className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
             >
-              {updatingBulkPrices ? <Loader2 className="animate-spin" size={14} /> : <IndianRupee size={14} />}
+              {updatingBulkPrices ? <TumblerSpinner size={14} /> : <IndianRupee size={14} />}
               {updatingBulkPrices ? 'Updating…' : `Update (${bulkUpdateForm.selectedSalesmen.size} salesmen, ${bulkUpdateForm.productPrices.length} products)`}
             </button>
           </div>
