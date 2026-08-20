@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Save, Loader2, Package, TrendingUp, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, AlertCircle } from 'lucide-react';
+import { Save, Package, TrendingUp, Search, X, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, AlertCircle } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
 import { useApiResources } from '../../hooks/useApiResources';
@@ -451,7 +452,7 @@ export default function StockReceipt() {
               disabled={saving || loading || !activeRoute || (displayTotalUnits === 0 && !savedRouteIds.has(activeRoute?.id))}
               className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-4 py-1.5 rounded-xl transition text-sm shadow-sm whitespace-nowrap"
             >
-              {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
               {saving ? 'Saving…' : `Save Route ${activeRoute?.routeNumber ?? '—'}`}
             </button>
           </div>

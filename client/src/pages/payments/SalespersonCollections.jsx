@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
+import { Trash2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import BulkTopUpModal from '../../components/BulkTopUpModal';
@@ -670,7 +671,7 @@ export default function SalespersonCollections() {
                 disabled={editSaving || !editForm.amount || parseFloat(editForm.amount) <= 0}
                 className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {editSaving && <Loader2 size={14} className="animate-spin" />}
+                {editSaving && <TumblerSpinner size={14} />}
                 Save
               </button>
             </div>

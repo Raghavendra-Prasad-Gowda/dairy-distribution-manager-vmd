@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react';
+import { TumblerSpinner } from './BrandedLoader';
 
 const VARIANT_CLASSES = {
   primary:   'bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white border border-transparent shadow-sm',
@@ -46,7 +46,7 @@ export default function Button({
       {...rest}
     >
       {loading
-        ? <Loader2 size={iconSize} className="animate-spin" />
+        ? <TumblerSpinner size={iconSize} />
         : Icon && !iconRight ? <Icon size={iconSize} /> : null}
       {children}
       {!loading && Icon && iconRight ? <Icon size={iconSize} /> : null}

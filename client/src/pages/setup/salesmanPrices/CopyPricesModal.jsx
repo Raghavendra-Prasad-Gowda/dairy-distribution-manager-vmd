@@ -1,4 +1,5 @@
-import { Copy, X, Search, Loader2 } from 'lucide-react';
+import { Copy, X, Search } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 
 /**
  * Copy prices modal — copies all of another salesperson's prices for the
@@ -99,7 +100,7 @@ export default function CopyPricesModal({
               disabled={copyingPrices || !copyFromSpId}
               className="flex-1 px-4 py-2.5 text-sm font-semibold bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
             >
-              {copyingPrices ? <Loader2 className="animate-spin" size={14} /> : <Copy size={14} />}
+              {copyingPrices ? <TumblerSpinner size={14} /> : <Copy size={14} />}
               {copyingPrices ? 'Copying…' : 'Copy Prices'}
             </button>
           </div>

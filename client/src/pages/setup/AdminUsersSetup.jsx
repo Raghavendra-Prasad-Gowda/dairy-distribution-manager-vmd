@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import Modal from '../../components/ui/Modal';
@@ -216,7 +217,7 @@ export default function AdminUsersSetup() {
                             }`}
                           >
                             {togglingId === u.id && toggling
-                              ? <Loader2 size={14} className="animate-spin" />
+                              ? <TumblerSpinner size={14} />
                               : u.isActive
                               ? <UserX size={14} />
                               : <UserCheck size={14} />
@@ -258,7 +259,7 @@ export default function AdminUsersSetup() {
           <>
             <Button variant="secondary" onClick={addModal.close}>Cancel</Button>
             <Button variant="primary" onClick={handleCreate} disabled={submitting || !newUser.username || !newUser.password}>
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              {submitting ? <TumblerSpinner size={14} /> : <Plus size={14} />}
               Create
             </Button>
           </>
@@ -316,7 +317,7 @@ export default function AdminUsersSetup() {
           <>
             <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
             <Button variant="primary" onClick={handleUpdate} disabled={saving || !editForm.username}>
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
               Save
             </Button>
           </>
@@ -386,7 +387,7 @@ export default function AdminUsersSetup() {
           <>
             <Button variant="secondary" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="danger" onClick={handleDelete} disabled={deleting}>
-              {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              {deleting ? <TumblerSpinner size={14} /> : <Trash2 size={14} />}
               Delete
             </Button>
           </>

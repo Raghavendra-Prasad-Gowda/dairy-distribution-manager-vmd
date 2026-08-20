@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Lock, X, Loader2, ShieldAlert } from 'lucide-react';
+import { Lock, X, ShieldAlert } from 'lucide-react';
+import { TumblerSpinner } from './ui/BrandedLoader';
 import api from '../api/axios';
 
 const LOCK_KEY     = 'vmd_pin_lockout_until';
@@ -225,7 +226,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
               disabled={loading || digits.some(d => !d)}
               className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-2.5 rounded-xl transition text-sm"
             >
-              {loading ? <Loader2 size={15} className="animate-spin" /> : <Lock size={14} />}
+              {loading ? <TumblerSpinner size={15} /> : <Lock size={14} />}
               {loading ? 'Verifying…' : 'Confirm'}
             </button>
           </>
