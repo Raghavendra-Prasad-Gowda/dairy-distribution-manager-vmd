@@ -59,6 +59,7 @@ vi.mock('../../components/ui/LoadingOverlay', () => ({
 
 vi.mock('../../components/ui/BrandedLoader', () => ({
   default: () => <div data-testid="loader" />,
+  TumblerSpinner: () => <span data-testid="tumbler" />,
 }));
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────

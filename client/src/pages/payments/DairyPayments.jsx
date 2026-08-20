@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trash2, Loader2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
+import { Trash2, Pencil, Filter, X, CalendarDays, CreditCard, Search, ListOrdered, Wallet } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import BrandTabs from '../../components/BrandTabs';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
@@ -698,7 +699,7 @@ export default function DairyPayments() {
                 onClick={updatePayment}
                 disabled={editSaving || !editForm.amount}
                 className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
-                {editSaving ? <Loader2 className="animate-spin" size={14} /> : <Pencil size={14} />}
+                {editSaving ? <TumblerSpinner size={14} /> : <Pencil size={14} />}
                 {editSaving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>

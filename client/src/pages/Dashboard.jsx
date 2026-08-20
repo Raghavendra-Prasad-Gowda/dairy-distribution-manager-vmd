@@ -103,67 +103,64 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── 1. Quick Actions — always visible, no API dependency ── */}
+      <section>
+        <p className="ddm-section-label mb-2.5">Quick Actions</p>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-blue-600' },
+            { to: '/salesman/payments',   icon: Truck,      label: 'Collections',   color: 'bg-emerald-600' },
+            { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments',color: 'bg-emerald-600' },
+          ].map(({ to, icon: Icon, label, color }) => (
+            <Link
+              key={to}
+              to={to}
+              className="ddm-card p-3 md:p-4 flex flex-col items-center gap-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all group text-center"
+            >
+              <span className={`w-11 h-11 rounded-2xl ${color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                <Icon className="text-white" size={19} />
+              </span>
+              <p className="font-semibold text-xs md:text-sm text-slate-700 group-hover:text-blue-700 transition-colors leading-tight">
+                {label}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 2. Dairy Payables — waits for balance data ── */}
       {loading ? (
         <BrandedLoader />
       ) : (
-        <>
-          {/* ── 1. Quick Actions ────────────────────────────── */}
-          <section>
-            <p className="ddm-section-label mb-2.5">Quick Actions</p>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { to: '/dairy/stock/nandini', icon: Package,    label: 'Stock Receipt', color: 'bg-blue-600' },
-                { to: '/salesman/payments',   icon: Truck,      label: 'Collections',   color: 'bg-emerald-600' },
-                { to: '/dairy/payments',      icon: CreditCard, label: 'Dairy Payments',color: 'bg-emerald-600' },
-              ].map(({ to, icon: Icon, label, color }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className="ddm-card p-3 md:p-4 flex flex-col items-center gap-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all group text-center"
-                >
-                  <span className={`w-11 h-11 rounded-2xl ${color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                    <Icon className="text-white" size={19} />
-                  </span>
-                  <p className="font-semibold text-xs md:text-sm text-slate-700 group-hover:text-blue-700 transition-colors leading-tight">
-                    {label}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          {/* ── 2. Dairy Payables ────────────────────────────── */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <p className="ddm-section-label">Dairy Payables</p>
-              {totalDairyOwing > 0 && (
-                <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                  {formatCurrency(totalDairyOwing)} total
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {dairyBalances.map(b => (
-                <DairyPayableCard
-                  key={b.brandId}
-                  brandId={b.brandId}
-                  brandName={b.brandName}
-                  opening={b.openingBalance}
-                  stockValue={b.stockValue}
-                  depositValue={b.depositValue ?? 0}
-                  paid={b.amountPaid}
-                  closing={b.closingBalance}
-                />
-              ))}
-              {dairyBalances.length === 0 && (
-                <div className="col-span-full ddm-card p-6 text-center text-slate-400 text-sm">
-                  No dairy brands configured.
-                </div>
-              )}
-            </div>
-          </section>
-
-        </>
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <p className="ddm-section-label">Dairy Payables</p>
+            {totalDairyOwing > 0 && (
+              <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                {formatCurrency(totalDairyOwing)} total
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {dairyBalances.map(b => (
+              <DairyPayableCard
+                key={b.brandId}
+                brandId={b.brandId}
+                brandName={b.brandName}
+                opening={b.openingBalance}
+                stockValue={b.stockValue}
+                depositValue={b.depositValue ?? 0}
+                paid={b.amountPaid}
+                closing={b.closingBalance}
+              />
+            ))}
+            {dairyBalances.length === 0 && (
+              <div className="col-span-full ddm-card p-6 text-center text-slate-400 text-sm">
+                No dairy brands configured.
+              </div>
+            )}
+          </div>
+        </section>
       )}
     </div>
     </div>

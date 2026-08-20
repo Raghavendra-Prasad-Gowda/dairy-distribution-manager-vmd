@@ -37,6 +37,7 @@ vi.mock('../../components/DateSelector', () => ({
 
 vi.mock('../../components/ui/BrandedLoader', () => ({
   default: () => <div data-testid="loader" />,
+  TumblerSpinner: () => <span data-testid="tumbler" />,
 }));
 
 const BALANCES = [

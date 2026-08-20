@@ -1,4 +1,5 @@
-import { Unlock, X, Search, Loader2 } from 'lucide-react';
+import { Unlock, X, Search } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 import { getIndiaDate } from '../../../utils/dateUtils';
 
 /**
@@ -361,7 +362,7 @@ export default function ExceptionManagerModal({
               className="flex-1 px-4 py-2.5 text-sm font-semibold bg-violet-700 hover:bg-violet-800 disabled:bg-violet-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
             >
               {savingExceptions
-                ? <Loader2 className="animate-spin" size={14} />
+                ? <TumblerSpinner size={14} />
                 : <Unlock size={14} />
               }
               {savingExceptions

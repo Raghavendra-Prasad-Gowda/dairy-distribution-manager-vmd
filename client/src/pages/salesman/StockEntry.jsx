@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  Save, Loader2, ShoppingCart, TrendingUp, Search, X,
+  Save, ShoppingCart, TrendingUp, Search, X,
   ChevronDown, ChevronRight, AlertCircle, Minus, Plus, Lock,
 } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
@@ -395,7 +396,7 @@ export default function SalespersonStockEntry() {
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  const isBusy    = saving || submitting || loading;
+  const isBusy    = saving || submitting;
   const isOwing   = balance.closing > 0;
   const isPast    = date < today;
   // Locked: submitted or past date, unless admin explicitly unlocked it
@@ -408,7 +409,7 @@ export default function SalespersonStockEntry() {
     <div className="flex flex-col h-full bg-slate-100">
 
       {/* Fullscreen loading overlay */}
-      <LoadingOverlay open={isBusy} message={submitting ? 'Submitting entry…' : loading ? 'Loading…' : 'Saving entry…'} />
+      <LoadingOverlay open={isBusy} message={submitting ? 'Submitting entry…' : 'Saving entry…'} />
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3.5 bg-emerald-800">
@@ -767,7 +768,7 @@ export default function SalespersonStockEntry() {
                 disabled={isBusy || (filledCount === 0 && !dispatch)}
                 className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-slate-800 text-white font-bold text-sm disabled:bg-slate-300 disabled:text-slate-500 hover:bg-slate-900 active:bg-slate-900 transition shadow-sm"
               >
-                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                {saving ? <TumblerSpinner size={16} /> : <Save size={16} />}
                 {filledCount === 0 && dispatch ? 'Clear' : 'Save'}
               </button>
               <button
@@ -775,7 +776,7 @@ export default function SalespersonStockEntry() {
                 disabled={isBusy || filledCount === 0}
                 className="flex-1 flex items-center justify-center gap-2 h-13 min-h-[52px] rounded-2xl bg-emerald-700 text-white font-bold text-sm disabled:bg-emerald-300 active:bg-emerald-800 transition shadow-sm"
               >
-                {submitting ? <Loader2 className="animate-spin" size={16} /> : <Lock size={16} strokeWidth={2.5} />}
+                {submitting ? <TumblerSpinner size={16} /> : <Lock size={16} strokeWidth={2.5} />}
                 Finalize &amp; Submit
               </button>
             </div>

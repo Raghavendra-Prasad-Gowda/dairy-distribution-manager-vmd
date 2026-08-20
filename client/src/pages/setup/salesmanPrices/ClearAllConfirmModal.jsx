@@ -1,4 +1,5 @@
-import { Trash2, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Trash2, X, AlertCircle } from 'lucide-react';
+import { TumblerSpinner } from '../../../components/ui/BrandedLoader';
 
 /**
  * Confirmation modal for wiping every custom salesman price in the active
@@ -59,7 +60,7 @@ export default function ClearAllConfirmModal({
               disabled={clearingAllPrices}
               className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-700 hover:bg-red-800 disabled:bg-red-300 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
             >
-              {clearingAllPrices ? <Loader2 className="animate-spin" size={14} /> : <AlertCircle size={14} />}
+              {clearingAllPrices ? <TumblerSpinner size={14} /> : <AlertCircle size={14} />}
               {clearingAllPrices ? 'Clearing…' : 'Clear All Prices'}
             </button>
           </div>

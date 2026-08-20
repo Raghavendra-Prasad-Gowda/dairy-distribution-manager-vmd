@@ -34,6 +34,7 @@ vi.mock('../../components/BrandTabs', () => ({
 
 vi.mock('../../components/ui/BrandedLoader', () => ({
   default: () => <div data-testid="loader" />,
+  TumblerSpinner: () => <span data-testid="tumbler" />,
 }));
 
 const BRAND = { id: 1, name: 'Nandini' };

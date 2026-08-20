@@ -538,7 +538,7 @@ await notifySlack(...);
 **Import:** `import BrandedLoader from '../../components/ui/BrandedLoader';`
 
 **Use `BrandedLoader`** for any full-page, section, or overlay loading state.
-**Use `Loader2` from lucide-react** only for in-button spinners.
+**Use `TumblerSpinner`** (exported from `BrandedLoader.jsx`) for in-button and inline spinners — never use `Loader2` from lucide-react.
 
 | Situation | Usage |
 |-----------|-------|
@@ -547,6 +547,14 @@ await notifySlack(...);
 | Section/card loading | `<BrandedLoader size="sm" />` |
 | Saving with dim backdrop | `<BrandedLoader overlay tone="transparent" open={saving} label="Saving…" />` |
 | App brand screen (cold start) | `<BrandedLoader overlay tone="brand" lively />` |
+| In-button / inline spinner | `<TumblerSpinner size={14} />` (named export from the same file) |
+
+**`TumblerSpinner`** is a bare 🥛 emoji with `animate-bounce` sized to match the surrounding icon. Import it alongside `BrandedLoader`:
+```js
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
+// usage:
+{saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
+```
 
 **Props reference:**
 

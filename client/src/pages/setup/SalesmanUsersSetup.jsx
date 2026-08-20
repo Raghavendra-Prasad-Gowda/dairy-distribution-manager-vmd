@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Loader2, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Save, X, Users, Search, Trash2, AlertTriangle, GripVertical, ArrowUpDown } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
@@ -361,7 +362,7 @@ export default function SalesmanUsersSetup() {
                   Cancel
                 </button>
                 <button type="submit" disabled={savingPw} className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
-                  {savingPw ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  {savingPw ? <TumblerSpinner size={14} /> : <Save size={14} />}
                   Save Credentials
                 </button>
               </div>
@@ -395,7 +396,7 @@ export default function SalesmanUsersSetup() {
                 disabled={deleting}
                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2"
               >
-                {deleting ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                {deleting ? <TumblerSpinner size={14} /> : <Trash2 size={14} />}
                 Delete
               </button>
             </div>
@@ -442,7 +443,7 @@ export default function SalesmanUsersSetup() {
               disabled={savingOrder}
               className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-white hover:bg-emerald-50 disabled:opacity-60 px-3 py-1.5 rounded-lg transition"
             >
-              {savingOrder ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {savingOrder ? <TumblerSpinner size={14} /> : <Save size={14} />}
               Save Order
             </button>
           </div>

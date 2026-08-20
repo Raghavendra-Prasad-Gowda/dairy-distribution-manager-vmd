@@ -26,8 +26,17 @@ const requiredInProd = (prodSchema, devDefault) =>
   isProd ? prodSchema : prodSchema.or(z.string()).optional().default(devDefault);
 
 const schema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3001),
+  // z.preprocess guarantees the fn runs before ZodEnum/ZodCoerce sees the value,
+  // which is necessary in Zod v4 where ZodDefault no longer short-circuits
+  // undefined before the inner type validates.
+  NODE_ENV: z.preprocess(
+    (val) => val || 'development',
+    z.enum(['development', 'test', 'production'])
+  ),
+  PORT: z.preprocess(
+    (val) => val ?? '3001',
+    z.coerce.number().int().positive()
+  ),
 
   // Database
   DATABASE_URL: isProd ? z.string().min(1, 'DATABASE_URL is required in production') : z.string().optional(),
@@ -54,7 +63,10 @@ const schema = z.object({
   SUPERADMIN_PASSWORD: z.string().optional(),
 
   // CORS / links
-  CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
+  CLIENT_ORIGIN: z.preprocess(
+    (val) => val || 'http://localhost:5173',
+    z.string()
+  ),
   APP_URL: z.string().optional().default(''),
 
   // Optional integrations

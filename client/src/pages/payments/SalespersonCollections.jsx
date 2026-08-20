@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Loader2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
+import { Trash2, Search, Pencil, Filter, X, CalendarDays, Users, Wallet, Eraser } from 'lucide-react';
+import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import PaymentForm from '../../components/PaymentForm';
 import PinModal from '../../components/PinModal';
 import BulkTopUpModal from '../../components/BulkTopUpModal';
@@ -104,6 +105,7 @@ export default function SalespersonCollections() {
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
   const [selectedSpId, setSelectedSp] = useState(null);
+  const [spLoading, setSpLoading]     = useState(true);
   const [search, setSearch]           = useState('');
   const [filter, setFilter]           = useState('all');
 
@@ -130,7 +132,8 @@ export default function SalespersonCollections() {
         setAllBalances(map);
         if (sps.length) setSelectedSp(sps[0].id);
       })
-      .catch(() => notify('Failed to load salespeople', 'error'));
+      .catch(() => notify('Failed to load salespeople', 'error'))
+      .finally(() => setSpLoading(false));
     // Mount-only: captures "today" once for the initial load. Adding `today`
     // would add a real (if rare) new trigger — refetching if the tab is left
     // open across midnight — so it's intentionally excluded to keep current
@@ -330,7 +333,9 @@ export default function SalespersonCollections() {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto">
-            {filteredSps.map(sp => {
+            {spLoading ? (
+              <BrandedLoader size="sm" hideBrand inlinePadY="py-8" />
+            ) : filteredSps.map(sp => {
               const isSelected = sp.id === selectedSpId;
               const bal        = allBalances[sp.id];
               const closing    = bal?.closingBalance ?? 0;
@@ -670,7 +675,7 @@ export default function SalespersonCollections() {
                 disabled={editSaving || !editForm.amount || parseFloat(editForm.amount) <= 0}
                 className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {editSaving && <Loader2 size={14} className="animate-spin" />}
+                {editSaving && <TumblerSpinner size={14} />}
                 Save
               </button>
             </div>
