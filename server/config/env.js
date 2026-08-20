@@ -41,6 +41,12 @@ const schema = z.object({
   // Database
   DATABASE_URL: isProd ? z.string().min(1, 'DATABASE_URL is required in production') : z.string().optional(),
   DIRECT_URL: z.string().optional(),
+  // PEM contents of the managed Postgres provider's CA certificate (Aiven,
+  // etc.) — pins TLS verification to the real CA instead of falling back to
+  // unverified TLS. See utils/dbUrl.js for why this can't just be a query
+  // param on DATABASE_URL. Optional: unset means unverified-TLS fallback,
+  // with a boot-time warning (not a fail-closed secret like JWT_SECRET).
+  DATABASE_CA_CERT: z.string().optional(),
 
   // Auth secrets — fail closed in production
   JWT_SECRET: requiredInProd(

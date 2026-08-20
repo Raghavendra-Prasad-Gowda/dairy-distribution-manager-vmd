@@ -5,7 +5,7 @@ const app = require('./app');
 const env = require('./config/env');
 const logger = require('./config/logger');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
-const { withInsecureSsl } = require('./utils/dbUrl');
+const { stripSslParams, buildProdSsl } = require('./utils/dbUrl');
 
 /**
  * Resolve any migrations that started but never finished.
@@ -17,9 +17,9 @@ async function resolveFailedMigrations() {
   const { Client } = require('pg');
   const client = new Client({
     // See utils/dbUrl.js — a plain `ssl:` option is silently clobbered by
-    // node-postgres's own sslmode parsing, so the connection string itself
-    // must carry sslmode=no-verify.
-    connectionString: env.isProd ? withInsecureSsl(env.DATABASE_URL) : env.DATABASE_URL,
+    // node-postgres's own sslmode parsing unless sslmode is stripped first.
+    connectionString: env.isProd ? stripSslParams(env.DATABASE_URL) : env.DATABASE_URL,
+    ssl: env.isProd ? buildProdSsl(env.DATABASE_CA_CERT, logger) : undefined,
     connectionTimeoutMillis: 5000,
   });
   try {
