@@ -17,6 +17,9 @@ async function resolveFailedMigrations() {
   const client = new Client({
     connectionString: env.DATABASE_URL,
     connectionTimeoutMillis: 5000,
+    // See lib/prisma.js — managed Postgres providers present a CA node's
+    // default trust store won't verify; local Postgres has no TLS at all.
+    ssl: env.isProd ? { rejectUnauthorized: false } : undefined,
   });
   try {
     await client.connect();
