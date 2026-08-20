@@ -105,6 +105,7 @@ export default function SalespersonCollections() {
   const [salespeople, setSalespeople] = useState([]);
   const [allBalances, setAllBalances] = useState({});
   const [selectedSpId, setSelectedSp] = useState(null);
+  const [spLoading, setSpLoading]     = useState(true);
   const [search, setSearch]           = useState('');
   const [filter, setFilter]           = useState('all');
 
@@ -131,7 +132,8 @@ export default function SalespersonCollections() {
         setAllBalances(map);
         if (sps.length) setSelectedSp(sps[0].id);
       })
-      .catch(() => notify('Failed to load salespeople', 'error'));
+      .catch(() => notify('Failed to load salespeople', 'error'))
+      .finally(() => setSpLoading(false));
     // Mount-only: captures "today" once for the initial load. Adding `today`
     // would add a real (if rare) new trigger — refetching if the tab is left
     // open across midnight — so it's intentionally excluded to keep current
@@ -331,7 +333,9 @@ export default function SalespersonCollections() {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto">
-            {filteredSps.map(sp => {
+            {spLoading ? (
+              <BrandedLoader size="sm" hideBrand inlinePadY="py-8" />
+            ) : filteredSps.map(sp => {
               const isSelected = sp.id === selectedSpId;
               const bal        = allBalances[sp.id];
               const closing    = bal?.closingBalance ?? 0;

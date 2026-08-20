@@ -28,6 +28,7 @@ export default function ProductsSetup() {
   const { notify } = useNotification();
   const [brands, setBrands]         = useState([]);
   const [activeBrandId, setActive]  = useState(null);
+  const [brandsLoading, setBrandsLoading] = useState(true);
   const [search, setSearch]         = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const modal = useDisclosure();
@@ -38,7 +39,8 @@ export default function ProductsSetup() {
   useEffect(() => {
     api.get('/brands')
       .then(r => { const b = r.data.data; setBrands(b); if (b.length) setActive(b[0].id); })
-      .catch(() => notify('Failed to load brands', 'error'));
+      .catch(() => notify('Failed to load brands', 'error'))
+      .finally(() => setBrandsLoading(false));
   }, [notify]);
 
   const { data, loading, refetch: fetchAll, setData } = useApiResources(
@@ -263,7 +265,7 @@ export default function ProductsSetup() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-100">
-              {loading ? (
+              {(brandsLoading || loading) ? (
                 <tr><td colSpan={13}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : pageGroups.length === 0 ? (
                 <tr>

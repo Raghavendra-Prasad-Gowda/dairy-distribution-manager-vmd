@@ -460,6 +460,14 @@ export default function StockReceipt() {
         </div>
       )}
 
+      {/* ── Routes loading indicator ── */}
+      {routesLoading && activeBrand && (
+        <div className="mx-4 mt-4 flex items-center gap-2 text-slate-500 text-sm px-1">
+          <TumblerSpinner size={16} />
+          <span>Loading routes…</span>
+        </div>
+      )}
+
       {/* ── No routes configured ── */}
       {!routesLoading && activeBrand && !hasRoutes && (
         <div className="mx-4 mt-4 bg-white rounded-2xl border border-amber-200 px-5 py-6 flex items-start gap-3">
