@@ -37,6 +37,7 @@ function stripSslParams(connectionString) {
  */
 function buildProdSsl(caCert, logger) {
   if (caCert) {
+    logger?.info?.('Postgres TLS: verifying against pinned CA certificate (DATABASE_CA_CERT set).');
     return { ca: caCert };
   }
   logger?.warn(
