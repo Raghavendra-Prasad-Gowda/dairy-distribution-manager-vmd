@@ -49,6 +49,9 @@ const schemas = {
       z.string().length(6, 'New PIN must be exactly 6 digits').regex(/^\d{6}$/, 'New PIN must be digits only')
     ),
   }),
+  updatePinSettings: z.object({
+    plPinEnabled: z.boolean(),
+  }),
 
   // Brands
   createBrand: z.object({

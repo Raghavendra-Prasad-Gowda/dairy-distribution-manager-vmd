@@ -21,8 +21,9 @@ const SLACK_EVENTS = {
   LOGOUT:           'LOGOUT',
   FAILED_LOGIN:     'FAILED_LOGIN',
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
-  PIN_FAILED:       'PIN_FAILED',
-  PIN_UPDATED:      'PIN_UPDATED',
+  PIN_FAILED:            'PIN_FAILED',
+  PIN_UPDATED:           'PIN_UPDATED',
+  PIN_SETTINGS_UPDATED:  'PIN_SETTINGS_UPDATED',
   // Salesman self-service "view" actions — informational only, fired from
   // endpoints that are exclusively reachable by the salesman's own pages
   // (see the controllers for why each specific handler was chosen).
@@ -138,8 +139,9 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.SERVER_BOOT_FAILED]: COLORS.RED,
   [SLACK_EVENTS.PROCESS_CRASH]:      COLORS.RED,
   [SLACK_EVENTS.PASSWORD_CHANGED]:   COLORS.AMBER,
-  [SLACK_EVENTS.PIN_FAILED]:         COLORS.RED,
-  [SLACK_EVENTS.PIN_UPDATED]:        COLORS.GREEN,
+  [SLACK_EVENTS.PIN_FAILED]:           COLORS.RED,
+  [SLACK_EVENTS.PIN_UPDATED]:          COLORS.GREEN,
+  [SLACK_EVENTS.PIN_SETTINGS_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.DISPATCH_SUBMITTED]:      COLORS.GREEN,
@@ -380,6 +382,15 @@ function buildCard(event, data) {
           ['👤 Changed By', data.username || 'unknown'],
         ]),
       ], `Edit PIN changed by ${data.username}`);
+
+    case SLACK_EVENTS.PIN_SETTINGS_UPDATED:
+      return card(event, [
+        headerBlock('⚙️ PIN Settings Updated'),
+        fieldsBlock([
+          ['👤 Changed By',   data.username   || 'unknown'],
+          ['🔒 P&L PIN Gate', data.plPinEnabled ? 'Enabled' : 'Disabled'],
+        ]),
+      ], `P&L PIN gate ${data.plPinEnabled ? 'enabled' : 'disabled'} by ${data.username}`);
 
     // ── Salesman "view" actions (informational) ────────────────────────────
     case SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED:

@@ -5,6 +5,7 @@ updates:
     directory: "/server"
     schedule:
       interval: "weekly"
+    target-branch: "environment/test"
     open-pull-requests-limit: 10
     groups:
       # Bundle low-risk patch/minor bumps into one PR per week instead of
@@ -17,6 +18,7 @@ updates:
     directory: "/client"
     schedule:
       interval: "weekly"
+    target-branch: "environment/test"
     open-pull-requests-limit: 10
     groups:
       minor-and-patch:
@@ -27,3 +29,4 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "environment/test"

@@ -47,12 +47,30 @@ export default function SalesmanProfitLoss() {
   const navigate = useNavigate();
   const today = getIndiaDate();
 
+  // Settings gate — fetch whether the P&L PIN is required before rendering.
+  // Fail-closed: plPinEnabled defaults to true so the gate stays visible
+  // if the request fails.
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [plPinEnabled,    setPlPinEnabled]    = useState(true);
+
   // PIN gate — admin must verify PIN once per browser session.
   // sessionStorage is tab-scoped: remembered within the same tab,
   // cleared when the tab is closed or the session ends.
   const [pinPassed, setPinPassed] = useState(
     () => sessionStorage.getItem(PIN_SESSION_KEY) === '1'
   );
+
+  // Fetch the PIN gate setting once on mount.
+  useEffect(() => {
+    api.get('/pin/settings')
+      .then(r => setPlPinEnabled(r.data.data.plPinEnabled))
+      .catch(() => {}) // fail-closed: plPinEnabled stays true
+      .finally(() => setSettingsLoading(false));
+  }, []);
+
+  // needsPin is the single source of truth: gate is only active when the
+  // feature is enabled AND the admin hasn't already entered the PIN this session.
+  const needsPin = plPinEnabled && !pinPassed;
 
   // Opens on "today's P&L"; widening the range gives the range view.
   const [from, setFrom]         = useState(today);
@@ -67,7 +85,7 @@ export default function SalesmanProfitLoss() {
   // dates change again before it lands — otherwise an earlier, slower request
   // could overwrite the newer range's figures.
   useEffect(() => {
-    if (!pinPassed) return;
+    if (settingsLoading || needsPin) return;
     let cancelled = false;
 
     (async () => {
@@ -85,7 +103,7 @@ export default function SalesmanProfitLoss() {
     })();
 
     return () => { cancelled = true; };
-  }, [from, to, notify, pinPassed]);
+  }, [from, to, notify, settingsLoading, needsPin]);
 
   const salespeople = useMemo(() => data?.salespeople ?? [], [data]);
 
@@ -101,8 +119,11 @@ export default function SalesmanProfitLoss() {
   const totals     = data?.totals ?? { revenue: 0, cost: 0, profit: 0, marginPct: 0 };
   const totalTone  = toneFor(totals.profit);
 
+  // Wait for the settings fetch before deciding whether to show the gate.
+  if (settingsLoading) return <BrandedLoader />;
+
   // PIN gate — render PinModal and nothing else until PIN is verified
-  if (!pinPassed) {
+  if (needsPin) {
     return (
       <PinModal
         isOpen

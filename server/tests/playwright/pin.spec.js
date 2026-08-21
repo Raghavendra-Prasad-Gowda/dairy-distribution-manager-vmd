@@ -3,8 +3,10 @@
 /**
  * PIN API Tests
  * Covers:
- *   POST /api/v1/pin/verify  — verify the current PIN (admin + superadmin)
- *   PUT  /api/v1/pin/update  — change the PIN (superadmin only)
+ *   POST /api/v1/pin/verify   — verify the current PIN (admin + superadmin)
+ *   PUT  /api/v1/pin/update   — change the PIN (superadmin only)
+ *   GET  /api/v1/pin/settings — get P&L PIN gate setting (any admin)
+ *   PUT  /api/v1/pin/settings — update P&L PIN gate setting (superadmin only)
  *
  * The PIN is now stored as a bcrypt hash in AppSettings (key='edit_pin').
  * The test server uses a mock bcrypt (compare always returns false by default).
@@ -18,7 +20,8 @@ const { test, ctx, makeAuthToken, makeSuperAdminToken } = setupSuite();
 
 // A dummy row returned by appSettings.findUnique for tests that need a non-null row.
 // The actual value doesn't matter since mock bcrypt ignores the hash.
-const DUMMY_PIN_ROW = { key: 'edit_pin', value: '$2b$10$dummyhashvalue' };
+const DUMMY_PIN_ROW    = { key: 'edit_pin',      value: '$2b$10$dummyhashvalue' };
+const DUMMY_PL_PIN_ROW = { key: 'pl_pin_enabled', value: 'true' };
 
 // ─── POST /api/v1/pin/verify ──────────────────────────────────────────────────
 
@@ -204,5 +207,123 @@ test.describe('PUT /api/v1/pin/update', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     // upsert was called (we got 200 and the mock returned the row without error)
+  });
+});
+
+// ─── GET /api/v1/pin/settings ─────────────────────────────────────────────────
+
+test.describe('GET /api/v1/pin/settings', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.get('/api/v1/pin/settings');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 with plPinEnabled: true when the DB row exists and is "true"', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue(DUMMY_PL_PIN_ROW);
+
+    const res = await request.get('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.plPinEnabled).toBe(true);
+  });
+
+  test('returns plPinEnabled: false when the DB row has value "false"', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue({ key: 'pl_pin_enabled', value: 'false' });
+
+    const res = await request.get('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.plPinEnabled).toBe(false);
+  });
+
+  test('returns plPinEnabled: true (fail-closed) when the DB row does not exist', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue(null);
+
+    const res = await request.get('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // null row → default to enabled (fail-closed)
+    expect(body.data.plPinEnabled).toBe(true);
+  });
+
+  test('is accessible by a regular admin (not superadmin-only)', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue(DUMMY_PL_PIN_ROW);
+
+    const res = await request.get('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` }, // admin token, not superadmin
+    });
+
+    expect(res.status()).toBe(200);
+  });
+});
+
+// ─── PUT /api/v1/pin/settings ─────────────────────────────────────────────────
+
+test.describe('PUT /api/v1/pin/settings', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/settings', {
+      data: { plPinEnabled: false },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when a regular admin (not superadmin) calls it', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` }, // admin, not superadmin
+      data: { plPinEnabled: false },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when plPinEnabled is missing from the body', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: {},
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when plPinEnabled is not a boolean', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { plPinEnabled: 'yes' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('happy path: superadmin can disable the P&L PIN gate', async ({ request }) => {
+    ctx.mockPrisma.appSettings.upsert.mockResolvedValue({ key: 'pl_pin_enabled', value: 'false' });
+
+    const res = await request.put('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { plPinEnabled: false },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('happy path: superadmin can re-enable the P&L PIN gate', async ({ request }) => {
+    ctx.mockPrisma.appSettings.upsert.mockResolvedValue({ key: 'pl_pin_enabled', value: 'true' });
+
+    const res = await request.put('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { plPinEnabled: true },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
   });
 });

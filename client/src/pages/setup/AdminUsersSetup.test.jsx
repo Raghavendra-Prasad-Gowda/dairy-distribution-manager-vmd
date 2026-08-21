@@ -492,3 +492,139 @@ describe('AdminUsersSetup — delete user', () => {
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
+
+describe('AdminUsersSetup — tabs', () => {
+  it('starts on the Admin Users tab by default', async () => {
+    await renderPage();
+    // Search input and user table are visible on the default tab
+    expect(screen.getByPlaceholderText(/Search by username or role/i)).toBeInTheDocument();
+    // PIN form is NOT visible yet
+    expect(screen.queryByText('Change Edit PIN')).not.toBeInTheDocument();
+  });
+
+  it('switching to the PIN tab shows the Change Edit PIN card', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    expect(await screen.findByText('Change Edit PIN')).toBeInTheDocument();
+    // Users list is gone
+    expect(screen.queryByPlaceholderText(/Search by username or role/i)).not.toBeInTheDocument();
+  });
+
+  it('hides the Add User button when on the PIN tab', async () => {
+    await renderPage();
+    expect(screen.getByText('Add User')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    expect(screen.queryByText('Add User')).not.toBeInTheDocument();
+  });
+
+  it('switching back to Admin Users tab restores the user list', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Admin Users/i }));
+    expect(screen.getByPlaceholderText(/Search by username or role/i)).toBeInTheDocument();
+    expect(screen.queryByText('Change Edit PIN')).not.toBeInTheDocument();
+  });
+
+  it('PIN tab: Change PIN button is disabled until all 18 digits are filled', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    await screen.findByText('Change Edit PIN');
+    expect(screen.getByRole('button', { name: /Change PIN/i })).toBeDisabled();
+  });
+
+  it('PIN tab: does not call PUT while any digit box is unfilled', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    await screen.findByText('Change Edit PIN');
+    // The Change PIN button is disabled so clicking it must not call PUT
+    fireEvent.click(screen.getByRole('button', { name: /Change PIN/i }));
+    expect(api.put).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdminUsersSetup — P&L PIN toggle', () => {
+  // Helper to navigate to the PIN tab, waiting for both settings sections to appear.
+  async function openPinTab() {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    await screen.findByText('Change Edit PIN');
+    // Wait for PlPinToggleSection to finish loading its setting.
+    return screen.findByText('Profit & Loss PIN Gate');
+  }
+
+  beforeEach(() => {
+    // Mock settings endpoint to return "enabled" by default for toggle tests.
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: true } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  });
+
+  it('renders the P&L PIN Gate card in the PIN tab', async () => {
+    await openPinTab();
+    expect(screen.getByText('Profit & Loss PIN Gate')).toBeInTheDocument();
+    expect(screen.getByText(/Require PIN for Profit/)).toBeInTheDocument();
+  });
+
+  it('shows "Admins must enter the PIN" label when gate is enabled', async () => {
+    await openPinTab();
+    expect(screen.getByText('Admins must enter the PIN to view P&L data.')).toBeInTheDocument();
+  });
+
+  it('shows "open to all admins" label when gate is disabled', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await openPinTab();
+    expect(screen.getByText('P&L report is open to all admins without a PIN.')).toBeInTheDocument();
+  });
+
+  it('calls PUT /pin/settings with false when toggling off', async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { success: true } });
+    await openPinTab();
+
+    const toggle = screen.getByRole('button', { name: /Disable P&L PIN gate/i });
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/pin/settings', { plPinEnabled: false })
+    );
+  });
+
+  it('calls PUT /pin/settings with true when toggling on', async () => {
+    // Start with gate disabled
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    vi.mocked(api.put).mockResolvedValue({ data: { success: true } });
+    await openPinTab();
+
+    const toggle = screen.getByRole('button', { name: /Enable P&L PIN gate/i });
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/pin/settings', { plPinEnabled: true })
+    );
+  });
+
+  it('shows a success notification after toggling', async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { success: true } });
+    await openPinTab();
+
+    fireEvent.click(screen.getByRole('button', { name: /Disable P&L PIN gate/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith(expect.stringMatching(/disabled/i), 'success'));
+  });
+
+  it('shows an error notification when the PUT fails', async () => {
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Forbidden' } } });
+    await openPinTab();
+
+    fireEvent.click(screen.getByRole('button', { name: /Disable P&L PIN gate/i }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Forbidden', 'error'));
+  });
+});

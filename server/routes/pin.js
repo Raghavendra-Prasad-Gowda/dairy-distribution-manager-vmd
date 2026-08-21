@@ -1,7 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const controller = require('../controllers/pin.controller');
-const { requireSuperAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireSuperAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -13,7 +13,9 @@ const pinLimiter = rateLimit({
   message: { success: false, error: 'Too many PIN attempts. Try again in 15 minutes.' },
 });
 
-router.post('/verify',  pinLimiter,      controller.verify);
-router.put('/update',   requireSuperAdmin, controller.update);
+router.post('/verify',   pinLimiter,                          controller.verify);
+router.put('/update',    requireSuperAdmin,                   controller.update);
+router.get('/settings',  authenticate, requireAdmin,          controller.getSettings);
+router.put('/settings',  authenticate, requireSuperAdmin,     controller.updateSettings);
 
 module.exports = router;
