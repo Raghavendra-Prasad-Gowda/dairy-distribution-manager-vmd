@@ -41,6 +41,18 @@ async function seedFoundationData(externalPrisma) {
   } else {
     logger.info('SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD not set — skipping superadmin seed');
   }
+
+  // ─── Edit PIN (AppSettings table) ─────────────────────────────────────────
+  // Only seed a PIN row if none exists yet. This preserves any PIN the
+  // superadmin has already changed via the UI on subsequent deploys.
+  // On the very first deploy, falls back to EDIT_PIN env var (or '123456').
+  const existingPin = await prisma.appSettings.findUnique({ where: { key: 'edit_pin' } });
+  if (!existingPin) {
+    const source = env.EDIT_PIN ?? '123456';
+    const pinHash = await bcrypt.hash(source, BCRYPT_ROUNDS);
+    await prisma.appSettings.create({ data: { key: 'edit_pin', value: pinHash } });
+    logger.info('Seeded edit PIN from env var (first deploy)');
+  }
 }
 
 module.exports = { seedFoundationData };

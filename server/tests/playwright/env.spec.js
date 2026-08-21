@@ -43,10 +43,13 @@ test.describe('config/env.js', () => {
     ).toThrow(/Invalid environment configuration/);
   });
 
-  test('throws in production when EDIT_PIN is missing (no insecure default)', () => {
+  test('boots in production even when EDIT_PIN is missing (PIN now stored in DB, not env)', () => {
+    // EDIT_PIN is now optional — the PIN is managed via the superadmin UI and
+    // stored as a bcrypt hash in AppSettings. The env var is only used by
+    // seed.js on the very first deploy to initialise the DB row.
     expect(() =>
       loadEnv({ NODE_ENV: 'production', DATABASE_URL: 'postgres://x', ADMIN_PASSWORD: 'x', JWT_SECRET: 'a'.repeat(32), EDIT_PIN: undefined })
-    ).toThrow(/Invalid environment configuration/);
+    ).not.toThrow();
   });
 
   test('boots in production with all required secrets present', () => {
@@ -64,7 +67,8 @@ test.describe('config/env.js', () => {
   test('applies safe defaults outside production', () => {
     const env = loadEnv({ NODE_ENV: 'development', JWT_SECRET: undefined, EDIT_PIN: undefined, DATABASE_URL: undefined });
     expect(env.isDev).toBe(true);
-    expect(env.EDIT_PIN).toBe('123456');
+    // EDIT_PIN is optional — no default required now that PIN lives in the DB
+    expect(env.EDIT_PIN).toBeUndefined();
     expect(env.JWT_SECRET.length).toBeGreaterThanOrEqual(32);
     expect(env.allowedOrigins).toContain('http://localhost:5173');
   });

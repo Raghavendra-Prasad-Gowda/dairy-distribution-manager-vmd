@@ -13,7 +13,7 @@ import SalesmanProfitLoss from './SalesmanProfitLoss';
 import api from '../../api/axios';
 
 vi.mock('../../api/axios', () => ({
-  default: { get: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }));
 
 const notify = vi.fn();
@@ -25,6 +25,23 @@ vi.mock('../../utils/dateUtils', async () => {
   const actual = await vi.importActual('../../utils/dateUtils');
   return { ...actual, getIndiaDate: () => '2026-08-09' };
 });
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+// Mock PinModal so PIN gate tests don't need a real modal implementation.
+vi.mock('../../components/PinModal', () => ({
+  default: ({ isOpen, onClose, onSuccess, title }) =>
+    isOpen ? (
+      <div data-testid="pin-modal">
+        <p>{title}</p>
+        <button onClick={onClose}>Close</button>
+        <button onClick={onSuccess}>Verify</button>
+      </div>
+    ) : null,
+}));
 
 const REPORT = {
   from: '2026-08-09', to: '2026-08-09',
@@ -59,9 +76,13 @@ const REPORT = {
   ],
 };
 
+const PIN_SESSION_KEY = 'vmd_pl_pin_verified';
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.get).mockResolvedValue({ data: { data: REPORT } });
+  // Pre-set the PIN gate so existing tests render the page content directly.
+  sessionStorage.setItem(PIN_SESSION_KEY, '1');
 });
 
 async function renderPage() {
@@ -70,6 +91,53 @@ async function renderPage() {
   await screen.findByText('K Pandu');
   return utils;
 }
+
+// ─── PIN gate tests ────────────────────────────────────────────────────────────
+
+describe('SalesmanProfitLoss — PIN gate', () => {
+  beforeEach(() => {
+    // Clear the verified flag so the PIN gate appears for these tests.
+    sessionStorage.removeItem(PIN_SESSION_KEY);
+  });
+
+  it('shows the PinModal when sessionStorage has no verified flag', () => {
+    render(<SalesmanProfitLoss />);
+    expect(screen.getByTestId('pin-modal')).toBeInTheDocument();
+    expect(screen.getByText('Enter PIN to view Profit & Loss')).toBeInTheDocument();
+  });
+
+  it('does NOT call the API before PIN is verified', () => {
+    render(<SalesmanProfitLoss />);
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it('renders page content after onSuccess fires and sets sessionStorage', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: REPORT } });
+    render(<SalesmanProfitLoss />);
+
+    // Click the mock Verify button — triggers onSuccess
+    fireEvent.click(screen.getByText('Verify'));
+
+    // PIN modal should be gone; page content should load
+    await waitFor(() => expect(screen.queryByTestId('pin-modal')).toBeNull());
+    await screen.findByText('K Pandu');
+    expect(sessionStorage.getItem(PIN_SESSION_KEY)).toBe('1');
+  });
+
+  it('calls navigate(-1) when the PIN modal is closed without verifying', () => {
+    render(<SalesmanProfitLoss />);
+    fireEvent.click(screen.getByText('Close'));
+    expect(mockNavigate).toHaveBeenCalledWith(-1);
+  });
+
+  it('skips the PIN modal when sessionStorage already has the verified flag', async () => {
+    sessionStorage.setItem(PIN_SESSION_KEY, '1');
+    vi.mocked(api.get).mockResolvedValue({ data: { data: REPORT } });
+    render(<SalesmanProfitLoss />);
+    expect(screen.queryByTestId('pin-modal')).toBeNull();
+    await screen.findByText('K Pandu');
+  });
+});
 
 describe('SalesmanProfitLoss — summary + range', () => {
   it('requests today for both ends of the range on first load', async () => {

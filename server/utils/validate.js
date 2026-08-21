@@ -43,6 +43,13 @@ const schemas = {
     pin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'PIN is required')),
   }),
 
+  updatePin: z.object({
+    currentPin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'Current PIN is required')),
+    newPin: z.union([z.string(), z.number()]).transform(String).pipe(
+      z.string().length(6, 'New PIN must be exactly 6 digits').regex(/^\d{6}$/, 'New PIN must be digits only')
+    ),
+  }),
+
   // Brands
   createBrand: z.object({
     name: z.string().min(1, 'Brand name is required'),
