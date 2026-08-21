@@ -492,3 +492,52 @@ describe('AdminUsersSetup — delete user', () => {
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
   });
 });
+
+describe('AdminUsersSetup — tabs', () => {
+  it('starts on the Admin Users tab by default', async () => {
+    await renderPage();
+    // Search input and user table are visible on the default tab
+    expect(screen.getByPlaceholderText(/Search by username or role/i)).toBeInTheDocument();
+    // PIN form is NOT visible yet
+    expect(screen.queryByText('Change Edit PIN')).not.toBeInTheDocument();
+  });
+
+  it('switching to the PIN tab shows the Change Edit PIN card', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    expect(await screen.findByText('Change Edit PIN')).toBeInTheDocument();
+    // Users list is gone
+    expect(screen.queryByPlaceholderText(/Search by username or role/i)).not.toBeInTheDocument();
+  });
+
+  it('hides the Add User button when on the PIN tab', async () => {
+    await renderPage();
+    expect(screen.getByText('Add User')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    expect(screen.queryByText('Add User')).not.toBeInTheDocument();
+  });
+
+  it('switching back to Admin Users tab restores the user list', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Admin Users/i }));
+    expect(screen.getByPlaceholderText(/Search by username or role/i)).toBeInTheDocument();
+    expect(screen.queryByText('Change Edit PIN')).not.toBeInTheDocument();
+  });
+
+  it('PIN tab: Change PIN button is disabled until all 18 digits are filled', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    await screen.findByText('Change Edit PIN');
+    expect(screen.getByRole('button', { name: /Change PIN/i })).toBeDisabled();
+  });
+
+  it('PIN tab: does not call PUT while any digit box is unfilled', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    await screen.findByText('Change Edit PIN');
+    // The Change PIN button is disabled so clicking it must not call PUT
+    fireEvent.click(screen.getByRole('button', { name: /Change PIN/i }));
+    expect(api.put).not.toHaveBeenCalled();
+  });
+});

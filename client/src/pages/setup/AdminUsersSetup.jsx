@@ -150,9 +150,16 @@ const ROLE_BADGE = {
   dispatcher: 'bg-blue-100 text-blue-700',
 };
 
+const TABS = [
+  { id: 'users', label: 'Admin Users' },
+  { id: 'pin',   label: 'Edit PIN'    },
+];
+
 export default function AdminUsersSetup() {
   const { notify } = useNotification();
   const { user: me } = useAuth();
+
+  const [activeTab, setActiveTab] = useState('users');
 
   const { data: users, loading, refetch: load } = useApiResource('/admin-users', { initialData: [] });
   const [search, setSearch]             = useState('');
@@ -274,113 +281,139 @@ export default function AdminUsersSetup() {
             <p className="text-emerald-300 text-xs">Manage admin, super admin and dispatcher accounts</p>
           </div>
         </div>
-        <button
-          onClick={addModal.open}
-          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition"
-        >
-          <Plus size={14} /> Add User
-        </button>
+        {activeTab === 'users' && (
+          <button
+            onClick={addModal.open}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition"
+          >
+            <Plus size={14} /> Add User
+          </button>
+        )}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex-shrink-0 px-4 md:px-6 pt-3 bg-white border-b border-slate-200">
+        <div className="flex gap-1 max-w-3xl mx-auto">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-t-lg border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-emerald-600 text-emerald-700 bg-emerald-50'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {tab.id === 'pin' && <Lock size={12} />}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Outer wrapper: scrollable column */}
       <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-4 p-4 md:p-6 max-w-3xl mx-auto w-full">
 
-        {/* Search — never scrolls away */}
-        <div className="relative flex-shrink-0">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by username or role…"
-            className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <X size={14} />
-            </button>
-          )}
-        </div>
+        {activeTab === 'users' && (
+          <>
+            {/* Search — never scrolls away */}
+            <div className="relative flex-shrink-0">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by username or role…"
+                className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
 
-        {/* User list */}
-        {loading ? (
-          <BrandedLoader />
-        ) : (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-            {filtered.length === 0 ? (
-              <p className="text-center text-slate-400 text-sm py-10">No admin users found</p>
+            {/* User list */}
+            {loading ? (
+              <BrandedLoader />
             ) : (
-              <table className="min-w-full text-sm">
-                <thead className="bg-emerald-700 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Username</th>
-                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Role</th>
-                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((u, idx) => (
-                    <tr key={u.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
-                      <td className="px-4 py-3 font-medium text-slate-800">{u.username}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
-                          {ROLE_LABEL[u.role] ?? u.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {/* Enable / disable — confirmed, since disabling revokes login immediately */}
-                          <button
-                            onClick={() => confirmToggleActive(u)}
-                            disabled={u.id === me?.adminUserId || togglingId === u.id}
-                            title={u.isActive ? `Disable ${u.username}` : `Enable ${u.username}`}
-                            className={`p-1.5 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
-                              u.isActive
-                                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                                : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
-                            }`}
-                          >
-                            {togglingId === u.id && toggling
-                              ? <TumblerSpinner size={14} />
-                              : u.isActive
-                              ? <UserX size={14} />
-                              : <UserCheck size={14} />
-                            }
-                          </button>
-                          <button
-                            onClick={() => openEdit(u)}
-                            title="Edit user"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(u)}
-                            disabled={u.id === me?.adminUserId}
-                            title="Delete user"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                {filtered.length === 0 ? (
+                  <p className="text-center text-slate-400 text-sm py-10">No admin users found</p>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-emerald-700 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Username</th>
+                        <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Role</th>
+                        <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((u, idx) => (
+                        <tr key={u.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
+                          <td className="px-4 py-3 font-medium text-slate-800">{u.username}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {ROLE_LABEL[u.role] ?? u.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                              {u.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Enable / disable — confirmed, since disabling revokes login immediately */}
+                              <button
+                                onClick={() => confirmToggleActive(u)}
+                                disabled={u.id === me?.adminUserId || togglingId === u.id}
+                                title={u.isActive ? `Disable ${u.username}` : `Enable ${u.username}`}
+                                className={`p-1.5 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
+                                  u.isActive
+                                    ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                    : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                              >
+                                {togglingId === u.id && toggling
+                                  ? <TumblerSpinner size={14} />
+                                  : u.isActive
+                                  ? <UserX size={14} />
+                                  : <UserCheck size={14} />
+                                }
+                              </button>
+                              <button
+                                onClick={() => openEdit(u)}
+                                title="Edit user"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteTarget(u)}
+                                disabled={u.id === me?.adminUserId}
+                                title="Delete user"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
 
-        {/* ── Change edit PIN — superadmin only ──────────────────────────────── */}
-        <ChangePinSection />
+        {/* ── PIN tab ─────────────────────────────────────────────────────────── */}
+        {activeTab === 'pin' && <ChangePinSection />}
 
       </div>
       </div>
