@@ -67,4 +67,34 @@ const update = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-module.exports = { verify, update };
+/**
+ * GET /pin/settings
+ * Returns the current P&L PIN gate setting. Any admin may call this.
+ */
+const getSettings = asyncHandler(async (_req, res) => {
+  const row = await prisma.appSettings.findUnique({ where: { key: 'pl_pin_enabled' } });
+  res.json({ success: true, data: { plPinEnabled: row ? row.value === 'true' : true } });
+});
+
+/**
+ * PUT /pin/settings
+ * Superadmin only — toggles whether the P&L page requires a PIN.
+ */
+const updateSettings = asyncHandler(async (req, res) => {
+  const data = validate(schemas.updatePinSettings, req, res);
+  if (!data) return;
+
+  await prisma.appSettings.upsert({
+    where:  { key: 'pl_pin_enabled' },
+    update: { value: String(data.plPinEnabled) },
+    create: { key: 'pl_pin_enabled', value: String(data.plPinEnabled) },
+  });
+
+  void notifySlack(SLACK_EVENTS.PIN_SETTINGS_UPDATED, {
+    username:      req.user?.username ?? 'unknown',
+    plPinEnabled:  data.plPinEnabled,
+  });
+  res.json({ success: true });
+});
+
+module.exports = { verify, update, getSettings, updateSettings };

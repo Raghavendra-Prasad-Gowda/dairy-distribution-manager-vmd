@@ -53,6 +53,14 @@ async function seedFoundationData(externalPrisma) {
     await prisma.appSettings.create({ data: { key: 'edit_pin', value: pinHash } });
     logger.info('Seeded edit PIN from env var (first deploy)');
   }
+
+  // ─── P&L PIN gate toggle (AppSettings table) ──────────────────────────────
+  // Default: enabled. The superadmin can toggle this off via the UI.
+  const existingPlPinSetting = await prisma.appSettings.findUnique({ where: { key: 'pl_pin_enabled' } });
+  if (!existingPlPinSetting) {
+    await prisma.appSettings.create({ data: { key: 'pl_pin_enabled', value: 'true' } });
+    logger.info('Seeded pl_pin_enabled = true (default on)');
+  }
 }
 
 module.exports = { seedFoundationData };

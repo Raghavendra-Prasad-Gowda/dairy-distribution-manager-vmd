@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck, Lock } from 'lucide-react';
 import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
@@ -144,6 +144,75 @@ function ChangePinSection() {
     </div>
   );
 }
+
+// ─── P&L PIN gate toggle ──────────────────────────────────────────────────────
+
+function PlPinToggleSection() {
+  const { notify } = useNotification();
+  const [enabled,  setEnabled]  = useState(true);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+
+  // Load current setting on mount.
+  useEffect(() => {
+    api.get('/pin/settings')
+      .then(r => setEnabled(r.data.data.plPinEnabled))
+      .catch(() => notify('Failed to load PIN settings', 'error'))
+      .finally(() => setLoading(false));
+  }, [notify]);
+
+  const handleToggle = async () => {
+    setSaving(true);
+    try {
+      await api.put('/pin/settings', { plPinEnabled: !enabled });
+      setEnabled(v => !v);
+      notify(`P&L PIN gate ${!enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch (err) {
+      notify(err?.response?.data?.error ?? 'Failed to update setting', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="ddm-card p-5">
+      <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
+        <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+          <Lock size={15} className="text-amber-700" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-800">Profit &amp; Loss PIN Gate</p>
+          <p className="text-xs text-slate-400">Control whether a PIN is required to view P&amp;L data</p>
+        </div>
+      </div>
+      {loading ? (
+        <BrandedLoader size="sm" hideBrand inlinePadY="py-4" />
+      ) : (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-700">Require PIN for Profit &amp; Loss</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {enabled
+                ? 'Admins must enter the PIN to view P&L data.'
+                : 'P&L report is open to all admins without a PIN.'}
+            </p>
+          </div>
+          {/* Toggle switch */}
+          <button
+            onClick={handleToggle}
+            disabled={saving}
+            aria-pressed={enabled}
+            aria-label={enabled ? 'Disable P&L PIN gate' : 'Enable P&L PIN gate'}
+            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 disabled:opacity-50 ${enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ROLE_BADGE = {
   admin:      'bg-slate-100 text-slate-700',
   superadmin: 'bg-amber-100 text-amber-700',
@@ -413,7 +482,12 @@ export default function AdminUsersSetup() {
         )}
 
         {/* ── PIN tab ─────────────────────────────────────────────────────────── */}
-        {activeTab === 'pin' && <ChangePinSection />}
+        {activeTab === 'pin' && (
+          <>
+            <ChangePinSection />
+            <PlPinToggleSection />
+          </>
+        )}
 
       </div>
       </div>
