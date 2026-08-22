@@ -1,13 +1,10 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
-
-const PIN_SESSION_KEY = 'vmd_pl_pin_verified';
 
 // Matches the avatar treatment on the Collections page so the two salesman
 // sidebars read as the same component family.
@@ -44,7 +41,6 @@ function groupByBrand(products) {
 
 export default function SalesmanProfitLoss() {
   const { notify } = useNotification();
-  const navigate = useNavigate();
   const today = getIndiaDate();
 
   // Settings gate — fetch whether the P&L PIN is required before rendering.
@@ -53,12 +49,9 @@ export default function SalesmanProfitLoss() {
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [plPinEnabled,    setPlPinEnabled]    = useState(true);
 
-  // PIN gate — admin must verify PIN once per browser session.
-  // sessionStorage is tab-scoped: remembered within the same tab,
-  // cleared when the tab is closed or the session ends.
-  const [pinPassed, setPinPassed] = useState(
-    () => sessionStorage.getItem(PIN_SESSION_KEY) === '1'
-  );
+  // PIN gate — mount-scoped: resets to false every time the page mounts,
+  // so the PIN is required on every visit (no sessionStorage caching).
+  const [pinVerified, setPinVerified] = useState(false);
 
   // Fetch the PIN gate setting once on mount.
   useEffect(() => {
@@ -69,8 +62,8 @@ export default function SalesmanProfitLoss() {
   }, []);
 
   // needsPin is the single source of truth: gate is only active when the
-  // feature is enabled AND the admin hasn't already entered the PIN this session.
-  const needsPin = plPinEnabled && !pinPassed;
+  // feature is enabled AND the admin hasn't verified the PIN this visit.
+  const needsPin = plPinEnabled && !pinVerified;
 
   // Opens on "today's P&L"; widening the range gives the range view.
   const [from, setFrom]         = useState(today);
@@ -127,11 +120,8 @@ export default function SalesmanProfitLoss() {
     return (
       <PinModal
         isOpen
-        onClose={() => navigate(-1)}
-        onSuccess={() => {
-          sessionStorage.setItem(PIN_SESSION_KEY, '1');
-          setPinPassed(true);
-        }}
+        onClose={() => {}}
+        onSuccess={() => setPinVerified(true)}
         title="Enter PIN to view Profit & Loss"
       />
     );

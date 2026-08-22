@@ -5,7 +5,7 @@ import api from '../api/axios';
 
 const LOCK_KEY     = 'vmd_pin_lockout_until';
 const ATTEMPTS_KEY = 'vmd_pin_attempts';
-const MAX_ATTEMPTS = 4;
+const MAX_ATTEMPTS = 15;
 const LOCKOUT_MS   = 60 * 60 * 1000; // 1 hour
 const PIN_LENGTH   = 6;
 

@@ -115,10 +115,10 @@ test.describe('POST /api/v1/pin/verify', () => {
   // Placed last: rate limiter is shared across the whole file (one server instance
   // per file). This test deliberately exhausts the remaining quota so nothing
   // after it can call /pin/verify successfully.
-  test('rate-limits after 5 attempts in the 15-minute window', async ({ request }) => {
+  test('rate-limits after 20 attempts in the 15-minute window', async ({ request }) => {
     ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin', role: 'admin' });
     let sawRateLimited = false;
-    for (let i = 0; i < 10 && !sawRateLimited; i++) {
+    for (let i = 0; i < 25 && !sawRateLimited; i++) {
       const res = await request.post('/api/v1/pin/verify', {
         headers: { Authorization: `Bearer ${makeAuthToken()}` },
         data: { pin: '000000' },

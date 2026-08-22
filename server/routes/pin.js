@@ -7,7 +7,7 @@ const router = express.Router();
 
 const pinLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many PIN attempts. Try again in 15 minutes.' },
