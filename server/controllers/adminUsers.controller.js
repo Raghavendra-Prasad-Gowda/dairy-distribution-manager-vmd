@@ -6,6 +6,8 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { getActingUsername } = require('../utils/actor');
+const mfaService = require('../services/mfaService');
+const mfaCrypto = require('../utils/mfaCrypto');
 
 // Stamped on every card so the affected/superadmin roster knows who made the
 // change — this endpoint is superadmin-only, so req.user.adminUserId is
@@ -111,4 +113,84 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Admin user deleted' } });
 });
 
-module.exports = { getAll, create, update, remove };
+// ─── MFA (self-service — always acts on the calling superadmin's own row) ──
+// These sit on the same superadmin-only router as the rest of Admin Users,
+// but deliberately never take a target :id — a superadmin enrolls/disables
+// their OWN second factor here, never someone else's.
+
+const mfaStatus = asyncHandler(async (req, res) => {
+  const me = await prisma.adminUser.findUnique({
+    where:  { id: req.user.adminUserId },
+    select: { mfaEnabled: true },
+  });
+  if (!me) throw new AppError('Admin user not found', 404);
+  res.json({ success: true, data: { mfaEnabled: me.mfaEnabled } });
+});
+
+const mfaSetup = asyncHandler(async (req, res) => {
+  const me = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId } });
+  if (!me) throw new AppError('Admin user not found', 404);
+  if (me.role !== 'superadmin') throw new AppError('MFA is available for super admin accounts only', 400);
+  if (me.mfaEnabled) throw new AppError('MFA is already enabled. Disable it first to re-enroll.', 400);
+
+  const secret = mfaService.generateSecret();
+  const { otpauth, qrCodeDataUrl } = await mfaService.buildEnrollment(me.username, secret);
+
+  // Stored encrypted immediately, but mfaEnabled stays false until confirm()
+  // proves a live code — an abandoned setup just leaves an unused secret.
+  await prisma.adminUser.update({
+    where: { id: me.id },
+    data:  { mfaSecret: mfaCrypto.encrypt(secret) },
+  });
+
+  res.json({ success: true, data: { otpauth, qrCodeDataUrl } });
+});
+
+const mfaConfirm = asyncHandler(async (req, res) => {
+  const data = validate(schemas.confirmMfa, req, res);
+  if (!data) return;
+
+  const me = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId } });
+  if (!me) throw new AppError('Admin user not found', 404);
+  if (!me.mfaSecret) throw new AppError('Start MFA setup first', 400);
+  if (me.mfaEnabled) throw new AppError('MFA is already enabled', 400);
+
+  const secret = mfaCrypto.decrypt(me.mfaSecret);
+  if (!(await mfaService.verifyEnrollmentCode(secret, data.code))) {
+    throw new AppError('Invalid code. Please try again.', 400);
+  }
+
+  const backupCodes = mfaService.generateBackupCodes();
+  const hashedCodes = await mfaService.hashBackupCodes(backupCodes);
+
+  await prisma.adminUser.update({
+    where: { id: me.id },
+    data:  { mfaEnabled: true, mfaBackupCodes: hashedCodes },
+  });
+
+  void notifySlack(SLACK_EVENTS.MFA_ENABLED, { username: me.username });
+  // Backup codes are returned once, in plaintext — the hashed copy in the DB
+  // can never be shown again after this response.
+  res.json({ success: true, data: { backupCodes } });
+});
+
+const mfaDisable = asyncHandler(async (req, res) => {
+  const data = validate(schemas.disableMfa, req, res);
+  if (!data) return;
+
+  const me = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId } });
+  if (!me) throw new AppError('Admin user not found', 404);
+
+  const valid = await bcrypt.compare(data.password, me.passwordHash);
+  if (!valid) throw new AppError('Password is incorrect', 401);
+
+  await prisma.adminUser.update({
+    where: { id: me.id },
+    data:  { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] },
+  });
+
+  void notifySlack(SLACK_EVENTS.MFA_DISABLED, { username: me.username });
+  res.json({ success: true, data: { message: 'MFA disabled' } });
+});
+
+module.exports = { getAll, create, update, remove, mfaStatus, mfaSetup, mfaConfirm, mfaDisable };

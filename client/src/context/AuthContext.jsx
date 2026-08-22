@@ -73,26 +73,55 @@ export const AuthProvider = ({ children }) => {
     return clearTimer;
   }, [hydrateSession, clearTimer]);
 
+  // Shared by login() and verifyMfa() below — both end at "credentials are
+  // now fully proven" and persist the session identically.
+  const commitSession = (data) => {
+    const { accessToken, businessName, role, salespersonId, salespersonName, adminUserId } = data;
+
+    const loginTime = Date.now();
+    const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null, adminUserId: adminUserId ?? null };
+
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userObj));
+    localStorage.setItem('loginTime', String(loginTime));
+    api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+    scheduleExpiry(loginTime, performAutoLogout);
+    setUser(userObj);
+  };
+
   const login = async (username, password) => {
     try {
       const response = await api.post('/auth/login', { username, password });
-      const { accessToken, businessName, role, salespersonId, salespersonName, adminUserId } = response.data.data;
+      const { data } = response.data;
 
-      const loginTime = Date.now();
-      const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null, adminUserId: adminUserId ?? null };
+      // Superadmin with MFA enabled — password is correct, but the session
+      // isn't issued yet. Hand the mfaToken back to the caller (Login.jsx)
+      // so it can collect a code and call verifyMfa() below.
+      if (data.mfaRequired) {
+        return { success: false, mfaRequired: true, mfaToken: data.mfaToken };
+      }
 
-      localStorage.setItem('token', accessToken);
-      localStorage.setItem('user', JSON.stringify(userObj));
-      localStorage.setItem('loginTime', String(loginTime));
-      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-
-      scheduleExpiry(loginTime, performAutoLogout);
-      setUser(userObj);
+      commitSession(data);
       return { success: true };
     } catch (error) {
       return {
         success: false,
         message: error.response?.data?.error || 'Login failed. Please try again.',
+      };
+    }
+  };
+
+  /** Completes a login that login() paused for MFA. */
+  const verifyMfa = async (mfaToken, code) => {
+    try {
+      const response = await api.post('/auth/mfa/verify', { mfaToken, code });
+      commitSession(response.data.data);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.error || 'Invalid code. Please try again.',
       };
     }
   };
@@ -111,7 +140,7 @@ export const AuthProvider = ({ children }) => {
   );
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, verifyMfa, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -285,6 +285,224 @@ function PlPinToggleSection() {
   );
 }
 
+// ─── MFA (superadmin-only two-factor login) ────────────────────────────────
+// Self-service only — always acts on the calling superadmin's own account
+// (server-side too: adminUsers.controller.js's mfa* handlers ignore any :id).
+
+function MfaSection() {
+  const { notify } = useNotification();
+  const [status, setStatus]   = useState(null); // { mfaEnabled }
+  const [loading, setLoading] = useState(true);
+
+  const [enrolling, setEnrolling]     = useState(false);
+  const [enrollData, setEnrollData]   = useState(null); // { otpauth, qrCodeDataUrl }
+  const [confirmCode, setConfirmCode] = useState('');
+  const [confirming, setConfirming]   = useState(false);
+  const [backupCodes, setBackupCodes] = useState(null); // shown once, right after confirm
+
+  const [showDisableModal, setShowDisableModal] = useState(false);
+  const [disablePassword, setDisablePassword]   = useState('');
+  const [disabling, setDisabling]                = useState(false);
+
+  // loading starts true (useState(true) above) so the first render shows the
+  // BrandedLoader without a synchronous setState in the mount effect below —
+  // only .finally() flips it back off, same pattern as PlPinToggleSection.
+  const loadStatus = useCallback(() => {
+    api.get('/admin-users/mfa/status')
+      .then(r => setStatus(r.data.data))
+      .catch(() => notify('Failed to load MFA status', 'error'))
+      .finally(() => setLoading(false));
+  }, [notify]);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const startEnroll = async () => {
+    setEnrolling(true);
+    try {
+      const res = await api.post('/admin-users/mfa/setup');
+      setEnrollData(res.data.data);
+    } catch (err) {
+      notify(err?.response?.data?.error ?? 'Failed to start MFA setup', 'error');
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const cancelEnroll = () => {
+    setEnrollData(null);
+    setConfirmCode('');
+  };
+
+  const handleConfirm = async (e) => {
+    e.preventDefault();
+    setConfirming(true);
+    try {
+      const res = await api.post('/admin-users/mfa/confirm', { code: confirmCode });
+      setBackupCodes(res.data.data.backupCodes);
+      setEnrollData(null);
+      setConfirmCode('');
+      notify('MFA enabled successfully', 'success');
+      loadStatus();
+    } catch (err) {
+      notify(err?.response?.data?.error ?? 'Invalid code', 'error');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleDisable = async (e) => {
+    e.preventDefault();
+    setDisabling(true);
+    try {
+      await api.post('/admin-users/mfa/disable', { password: disablePassword });
+      notify('MFA disabled', 'success');
+      setShowDisableModal(false);
+      setDisablePassword('');
+      loadStatus();
+    } catch (err) {
+      notify(err?.response?.data?.error ?? 'Failed to disable MFA', 'error');
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  let manualKey = '';
+  if (enrollData?.otpauth) {
+    try { manualKey = new URL(enrollData.otpauth).searchParams.get('secret') ?? ''; } catch { /* malformed URI — leave blank, QR code still works */ }
+  }
+
+  return (
+    <div className="ddm-card p-5">
+      <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
+        <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+          <ShieldCheck size={15} className="text-emerald-700" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-800">Two-Factor Authentication</p>
+          <p className="text-xs text-slate-400">Extra login security for your super admin account</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <BrandedLoader size="sm" hideBrand inlinePadY="py-4" />
+      ) : backupCodes ? (
+        <div className="space-y-4">
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-xs">
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>Save these one-time backup codes somewhere safe. Each works once if you lose access to your authenticator app. They won&apos;t be shown again.</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {backupCodes.map(code => (
+              <code key={code} className="text-center text-xs font-mono font-semibold bg-slate-50 border border-slate-200 rounded-lg py-2 text-slate-700">{code}</code>
+            ))}
+          </div>
+          <button
+            onClick={() => setBackupCodes(null)}
+            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+          >
+            Done
+          </button>
+        </div>
+      ) : enrollData ? (
+        <form onSubmit={handleConfirm} className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Scan this QR code with an authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code it shows.
+          </p>
+          <div className="flex justify-center">
+            <img src={enrollData.qrCodeDataUrl} alt="MFA enrollment QR code" className="w-40 h-40 rounded-lg border border-slate-200" />
+          </div>
+          {manualKey && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Can&apos;t scan? Enter this key manually</label>
+              <code className="block text-[11px] break-all bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-600">{manualKey}</code>
+            </div>
+          )}
+          <div>
+            <label htmlFor="mfaConfirmCode" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">6-digit code</label>
+            <input
+              id="mfaConfirmCode"
+              type="text"
+              inputMode="numeric"
+              value={confirmCode}
+              onChange={e => setConfirmCode(e.target.value)}
+              placeholder="123456"
+              maxLength={6}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-center tracking-[0.3em] font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={cancelEnroll} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold px-4 py-2.5 rounded-xl transition">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={confirmCode.length !== 6 || confirming}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+            >
+              {confirming ? <TumblerSpinner size={14} /> : <ShieldCheck size={14} />}
+              Confirm &amp; Enable
+            </button>
+          </div>
+        </form>
+      ) : status?.mfaEnabled ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-emerald-700 text-sm font-semibold">
+            <ShieldCheck size={16} />
+            MFA is enabled on your account
+          </div>
+          <button
+            onClick={() => setShowDisableModal(true)}
+            className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-2.5 rounded-xl transition"
+          >
+            <Lock size={14} />
+            Disable MFA
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Require a code from an authenticator app every time you log in, in addition to your password.
+          </p>
+          <button
+            onClick={startEnroll}
+            disabled={enrolling}
+            className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+          >
+            {enrolling ? <TumblerSpinner size={14} /> : <ShieldCheck size={14} />}
+            Enable MFA
+          </button>
+        </div>
+      )}
+
+      <Modal open={showDisableModal} onClose={() => setShowDisableModal(false)} title="Disable MFA" accent="red" size="sm">
+        <form onSubmit={handleDisable} className="space-y-4">
+          <p className="text-xs text-slate-500">Enter your password to confirm disabling two-factor authentication.</p>
+          <div>
+            <label htmlFor="mfaDisablePassword" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
+            <input
+              id="mfaDisablePassword"
+              type="password"
+              value={disablePassword}
+              onChange={e => setDisablePassword(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-slate-50"
+              autoFocus
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!disablePassword || disabling}
+            className="w-full flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+          >
+            {disabling ? <TumblerSpinner size={14} /> : <Lock size={14} />}
+            Disable MFA
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
 const ROLE_BADGE = {
   admin:      'bg-slate-100 text-slate-700',
   superadmin: 'bg-amber-100 text-amber-700',
@@ -294,6 +512,7 @@ const ROLE_BADGE = {
 const TABS = [
   { id: 'users', label: 'Admin Users' },
   { id: 'pin',   label: 'Edit PIN'    },
+  { id: 'mfa',   label: 'MFA'         },
 ];
 
 export default function AdminUsersSetup() {
@@ -446,6 +665,7 @@ export default function AdminUsersSetup() {
               }`}
             >
               {tab.id === 'pin' && <Lock size={12} />}
+              {tab.id === 'mfa' && <ShieldCheck size={12} />}
               {tab.label}
             </button>
           ))}
@@ -560,6 +780,9 @@ export default function AdminUsersSetup() {
             <PlPinToggleSection />
           </>
         )}
+
+        {/* ── MFA tab ─────────────────────────────────────────────────────────── */}
+        {activeTab === 'mfa' && <MfaSection />}
 
       </div>
       </div>

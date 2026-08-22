@@ -2,10 +2,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, schemas } = require('../utils/validate');
-const { BCRYPT_ROUNDS, JWT_EXPIRES_IN } = require('../utils/constants');
+const { BCRYPT_ROUNDS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const mfaService = require('../services/mfaService');
 const env = require('../config/env');
 
 const BUSINESS_NAME = 'Vikas Milk Dairy';
@@ -17,6 +18,33 @@ function setCookie(res, token) {
     secure: isDeployed,
     sameSite: isDeployed ? 'none' : 'lax',
     maxAge: JWT_EXPIRES_IN * 1000,
+  });
+}
+
+/**
+ * Issues the real session for an AdminUser (admin/superadmin/dispatcher) —
+ * signs the full JWT, sets the cookie, fires the LOGIN Slack card, and
+ * writes the response. Shared by the plain login path and the MFA-verify
+ * path (mfaLogin), which both end at "credentials are now fully proven".
+ */
+function respondWithAdminSession(res, adminUser, ip) {
+  const token = jwt.sign(
+    { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
+    env.JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+  setCookie(res, token);
+
+  const adminRoleLabel = adminUser.role === 'superadmin' ? 'Super Admin' : adminUser.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
+  void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminRoleLabel, ip });
+  res.json({
+    success: true,
+    data: {
+      accessToken:  token,
+      businessName: BUSINESS_NAME,
+      role:         adminUser.role,
+      adminUserId:  adminUser.id,
+    },
   });
 }
 
@@ -43,24 +71,21 @@ const login = asyncHandler(async (req, res) => {
       throw new AppError('Invalid username or password', 401);
     }
 
-    const token = jwt.sign(
-      { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
-      env.JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-    setCookie(res, token);
+    // Superadmin-only second factor. Password is proven — but the session
+    // isn't issued yet, so no LOGIN card fires until mfaLogin() below
+    // completes it. The short-lived mfaToken carries only enough to resume
+    // (adminUserId + mfaPending) and is rejected by `authenticate` since it
+    // has no `role` claim.
+    if (adminUser.role === 'superadmin' && adminUser.mfaEnabled) {
+      const mfaToken = jwt.sign(
+        { adminUserId: adminUser.id, mfaPending: true },
+        env.JWT_SECRET,
+        { expiresIn: MFA_PENDING_EXPIRES_IN }
+      );
+      return res.json({ success: true, data: { mfaRequired: true, mfaToken } });
+    }
 
-    const adminRoleLabel = adminUser.role === 'superadmin' ? 'Super Admin' : adminUser.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
-    void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminRoleLabel, ip });
-    return res.json({
-      success: true,
-      data: {
-        accessToken:  token,
-        businessName: BUSINESS_NAME,
-        role:         adminUser.role,
-        adminUserId:  adminUser.id,
-      },
-    });
+    return respondWithAdminSession(res, adminUser, ip);
   }
 
   // ── 2. Try salesperson ────────────────────────────────────────────────────
@@ -98,6 +123,49 @@ const login = asyncHandler(async (req, res) => {
       salespersonName: salesperson.name,
     },
   });
+});
+
+/**
+ * POST /auth/mfa/verify
+ * Completes a superadmin login that login() paused for MFA. Accepts the
+ * short-lived mfaToken from that response plus either a live 6-digit TOTP
+ * code or a one-time backup code.
+ */
+const mfaLogin = asyncHandler(async (req, res) => {
+  const data = validate(schemas.verifyMfaLogin, req, res);
+  if (!data) return;
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+
+  let decoded;
+  try {
+    decoded = jwt.verify(data.mfaToken, env.JWT_SECRET);
+  } catch {
+    throw new AppError('MFA session expired. Please log in again.', 401);
+  }
+  if (!decoded.mfaPending || !decoded.adminUserId) {
+    throw new AppError('Invalid MFA session. Please log in again.', 401);
+  }
+
+  const adminUser = await prisma.adminUser.findUnique({ where: { id: decoded.adminUserId } });
+  if (!adminUser || !adminUser.isActive || adminUser.role !== 'superadmin' || !adminUser.mfaEnabled) {
+    throw new AppError('MFA session is no longer valid. Please log in again.', 401);
+  }
+
+  const result = await mfaService.verifyLoginCode(adminUser, data.code);
+  if (!result.ok) {
+    void notifySlack(SLACK_EVENTS.MFA_FAILED, { username: adminUser.username, ip });
+    throw new AppError('Invalid authentication code', 401);
+  }
+
+  if (result.usedBackupCode) {
+    await prisma.adminUser.update({
+      where: { id: adminUser.id },
+      data:  { mfaBackupCodes: result.remainingBackupCodes },
+    });
+  }
+
+  respondWithAdminSession(res, adminUser, ip);
 });
 
 const changePassword = asyncHandler(async (req, res) => {
@@ -166,4 +234,4 @@ const logout = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Logged out' } });
 });
 
-module.exports = { login, changePassword, logout };
+module.exports = { login, mfaLogin, changePassword, logout };
