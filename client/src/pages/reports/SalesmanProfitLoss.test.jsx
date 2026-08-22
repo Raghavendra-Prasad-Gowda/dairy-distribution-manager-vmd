@@ -33,9 +33,9 @@ vi.mock('react-router-dom', () => ({
 
 // Mock PinModal so PIN gate tests don't need a real modal implementation.
 vi.mock('../../components/PinModal', () => ({
-  default: ({ isOpen, onClose, onSuccess, title }) =>
+  default: ({ isOpen, onClose, onSuccess, title, verifyPath }) =>
     isOpen ? (
-      <div data-testid="pin-modal">
+      <div data-testid="pin-modal" data-verify-path={verifyPath}>
         <p>{title}</p>
         <button onClick={onClose}>Close</button>
         <button onClick={onSuccess}>Verify</button>
@@ -76,8 +76,6 @@ const REPORT = {
   ],
 };
 
-const PIN_SESSION_KEY = 'vmd_pl_pin_verified';
-
 beforeEach(() => {
   vi.clearAllMocks();
   // Mock both the settings endpoint (gate disabled) and the report endpoint.
@@ -87,8 +85,6 @@ beforeEach(() => {
       return Promise.resolve({ data: { data: { plPinEnabled: false } } });
     return Promise.resolve({ data: { data: REPORT } });
   });
-  // Pre-set the PIN gate so existing tests render the page content directly.
-  sessionStorage.setItem(PIN_SESSION_KEY, '1');
 });
 
 async function renderPage() {
@@ -102,8 +98,6 @@ async function renderPage() {
 
 describe('SalesmanProfitLoss — PIN gate', () => {
   beforeEach(() => {
-    // Clear the verified flag so the PIN gate appears for these tests.
-    sessionStorage.removeItem(PIN_SESSION_KEY);
     // Settings say PIN is required for these tests.
     vi.mocked(api.get).mockImplementation((url) => {
       if (url.includes('/pin/settings'))
@@ -112,11 +106,14 @@ describe('SalesmanProfitLoss — PIN gate', () => {
     });
   });
 
-  it('shows the PinModal when plPinEnabled is true and sessionStorage has no verified flag', async () => {
+  it('shows the PinModal when plPinEnabled is true on every visit', async () => {
     render(<SalesmanProfitLoss />);
     // Must wait for settings to load before the gate decision is made.
-    expect(await screen.findByTestId('pin-modal')).toBeInTheDocument();
+    const modal = await screen.findByTestId('pin-modal');
+    expect(modal).toBeInTheDocument();
     expect(screen.getByText('Enter PIN to view Profit & Loss')).toBeInTheDocument();
+    // Uses the dedicated P&L PIN endpoint, not the edit PIN endpoint
+    expect(modal.dataset.verifyPath).toBe('/pin/verify-pl');
   });
 
   it('does NOT call the report API before PIN is verified', async () => {
@@ -126,7 +123,7 @@ describe('SalesmanProfitLoss — PIN gate', () => {
     expect(calls).not.toContain(expect.stringContaining('/reports/profit-loss'));
   });
 
-  it('renders page content after onSuccess fires and sets sessionStorage', async () => {
+  it('renders page content after onSuccess fires (no navigate, no sessionStorage)', async () => {
     render(<SalesmanProfitLoss />);
     await screen.findByTestId('pin-modal');
 
@@ -136,22 +133,18 @@ describe('SalesmanProfitLoss — PIN gate', () => {
     // PIN modal should be gone; page content should load
     await waitFor(() => expect(screen.queryByTestId('pin-modal')).toBeNull());
     await screen.findByText('K Pandu');
-    expect(sessionStorage.getItem(PIN_SESSION_KEY)).toBe('1');
+    // No navigation away from the page
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('calls navigate(-1) when the PIN modal is closed without verifying', async () => {
+  it('does not navigate when the modal Close button is clicked (no-op onClose)', async () => {
     render(<SalesmanProfitLoss />);
     await screen.findByTestId('pin-modal');
     fireEvent.click(screen.getByText('Close'));
-    expect(mockNavigate).toHaveBeenCalledWith(-1);
-  });
-
-  it('skips the PIN modal when sessionStorage already has the verified flag', async () => {
-    sessionStorage.setItem(PIN_SESSION_KEY, '1');
-    render(<SalesmanProfitLoss />);
-    // Gate is skipped even though plPinEnabled is true, because pinPassed is true.
-    await screen.findByText('K Pandu');
-    expect(screen.queryByTestId('pin-modal')).toBeNull();
+    // onClose is a no-op — should not navigate away
+    expect(mockNavigate).not.toHaveBeenCalled();
+    // Gate remains visible (pin not verified)
+    expect(screen.getByTestId('pin-modal')).toBeInTheDocument();
   });
 
   it('skips the PIN modal when plPinEnabled is false (gate disabled)', async () => {

@@ -115,10 +115,10 @@ test.describe('POST /api/v1/pin/verify', () => {
   // Placed last: rate limiter is shared across the whole file (one server instance
   // per file). This test deliberately exhausts the remaining quota so nothing
   // after it can call /pin/verify successfully.
-  test('rate-limits after 5 attempts in the 15-minute window', async ({ request }) => {
+  test('rate-limits after 20 attempts in the 15-minute window', async ({ request }) => {
     ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin', role: 'admin' });
     let sawRateLimited = false;
-    for (let i = 0; i < 10 && !sawRateLimited; i++) {
+    for (let i = 0; i < 25 && !sawRateLimited; i++) {
       const res = await request.post('/api/v1/pin/verify', {
         headers: { Authorization: `Bearer ${makeAuthToken()}` },
         data: { pin: '000000' },
@@ -320,6 +320,140 @@ test.describe('PUT /api/v1/pin/settings', () => {
     const res = await request.put('/api/v1/pin/settings', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { plPinEnabled: true },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+});
+
+// ─── POST /api/v1/pin/verify-pl ───────────────────────────────────────────────
+
+const DUMMY_PL_SETTINGS_ROW = { key: 'pl_pin', value: '$2b$10$dummyhashvalue' };
+
+test.describe('POST /api/v1/pin/verify-pl', () => {
+  test.beforeEach(() => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue(DUMMY_PL_SETTINGS_ROW);
+  });
+
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.post('/api/v1/pin/verify-pl', { data: { pin: '123456' } });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 200 when correct P&L PIN is submitted', async ({ request }) => {
+    ctx.mockBcrypt.compare = async () => true;
+
+    // Use a distinct IP so this test doesn't share the exhausted rate-limit
+    // counter from the /pin/verify tests earlier in this file.
+    const res = await request.post('/api/v1/pin/verify-pl', {
+      headers: {
+        Authorization: `Bearer ${makeAuthToken()}`,
+        'x-forwarded-for': '10.20.30.40',
+      },
+      data: { pin: '123456' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  test('returns 400 when P&L PIN is wrong', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin', role: 'admin' });
+
+    const res = await request.post('/api/v1/pin/verify-pl', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}`, 'x-forwarded-for': '10.20.30.40' },
+      data: { pin: '000000' },
+    });
+
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toMatch(/Incorrect PIN/i);
+  });
+
+  test('returns 400 when no AppSettings row exists for pl_pin', async ({ request }) => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue(null);
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin', role: 'admin' });
+
+    const res = await request.post('/api/v1/pin/verify-pl', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}`, 'x-forwarded-for': '10.20.30.41' },
+      data: { pin: '123456' },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when pin is missing', async ({ request }) => {
+    const res = await request.post('/api/v1/pin/verify-pl', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}`, 'x-forwarded-for': '10.20.30.42' },
+      data: {},
+    });
+
+    expect(res.status()).toBe(400);
+  });
+});
+
+// ─── PUT /api/v1/pin/update-pl ────────────────────────────────────────────────
+
+test.describe('PUT /api/v1/pin/update-pl', () => {
+  test.beforeEach(() => {
+    ctx.mockPrisma.appSettings.findUnique.mockResolvedValue(DUMMY_PL_SETTINGS_ROW);
+  });
+
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/update-pl', {
+      data: { currentPin: '123456', newPin: '654321' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 when admin (not superadmin) calls it', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/update-pl', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { currentPin: '123456', newPin: '654321' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when currentPin is wrong', async ({ request }) => {
+    const res = await request.put('/api/v1/pin/update-pl', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { currentPin: '000000', newPin: '654321' },
+    });
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Incorrect current PIN/i);
+  });
+
+  test('returns 400 when newPin is not exactly 6 digits', async ({ request }) => {
+    ctx.mockBcrypt.compare = async () => true;
+    const res = await request.put('/api/v1/pin/update-pl', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { currentPin: '123456', newPin: '1234' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when newPin contains non-digits', async ({ request }) => {
+    ctx.mockBcrypt.compare = async () => true;
+    const res = await request.put('/api/v1/pin/update-pl', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { currentPin: '123456', newPin: '12345a' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('happy path: returns 200 and upserts new P&L PIN hash', async ({ request }) => {
+    ctx.mockBcrypt.compare = async () => true;
+    ctx.mockBcrypt.hash    = async () => 'new_pl_pin_hash';
+    ctx.mockPrisma.appSettings.upsert.mockResolvedValue({ key: 'pl_pin', value: 'new_pl_pin_hash' });
+
+    const res = await request.put('/api/v1/pin/update-pl', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { currentPin: '123456', newPin: '654321' },
     });
 
     expect(res.status()).toBe(200);
