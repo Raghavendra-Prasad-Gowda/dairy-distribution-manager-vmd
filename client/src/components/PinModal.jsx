@@ -130,7 +130,8 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
       await api.post(verifyPath, { pin });
       clearAttempts();
       onSuccess();
-      onClose();
+      // onClose intentionally NOT called here — success is handled by onSuccess.
+      // onClose fires only on explicit user dismissal (X button / backdrop).
     } catch {
       const { locked, attempts: newAttempts } = recordFailedAttempt();
       setDigits(Array(PIN_LENGTH).fill(''));

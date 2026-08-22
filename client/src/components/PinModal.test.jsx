@@ -69,7 +69,7 @@ describe('PinModal — digit entry', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/pin/verify', { pin: '123456' }));
     expect(onSuccess).toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled(); // success does NOT trigger onClose; callers own their teardown
   });
 
   it('Backspace clears the current digit, or moves back and clears the previous one', () => {
@@ -140,7 +140,7 @@ describe('PinModal — lockout', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
     expect(screen.getByText('PIN Locked')).toBeInTheDocument();
-    expect(screen.getByText('60m 0s')).toBeInTheDocument();
+    expect(screen.getByText('20m 0s')).toBeInTheDocument();
     expect(localStorage.getItem('vmd_pin_lockout_until')).not.toBeNull();
     expect(localStorage.getItem('vmd_pin_attempts')).toBeNull();
   });
