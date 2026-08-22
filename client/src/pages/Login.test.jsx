@@ -113,4 +113,31 @@ describe('Login — MFA step (superadmin)', () => {
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.queryByText('Two-factor authentication')).not.toBeInTheDocument();
   });
+
+  it('the Verify button is disabled until a code is entered, and never calls verifyMfa while disabled', async () => {
+    mockLogin.mockResolvedValue({ success: false, mfaRequired: true, mfaToken: 'pending-token' });
+    render(<Login />);
+
+    await fillAndSubmit('super', 'correct-password');
+    await screen.findByText('Two-factor authentication');
+
+    const verifyBtn = screen.getByRole('button', { name: /verify/i });
+    expect(verifyBtn).toBeDisabled();
+    fireEvent.click(verifyBtn);
+    expect(mockVerifyMfa).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/authentication code/i), { target: { value: '654321' } });
+    expect(verifyBtn).not.toBeDisabled();
+  });
+
+  it('password is cleared once the MFA step starts, so it is not held in state any longer than needed', async () => {
+    mockLogin.mockResolvedValue({ success: false, mfaRequired: true, mfaToken: 'pending-token' });
+    render(<Login />);
+
+    await fillAndSubmit('super', 'correct-password');
+    await screen.findByText('Two-factor authentication');
+
+    fireEvent.click(screen.getByRole('button', { name: /back to login/i }));
+    expect(screen.getByLabelText(/password/i)).toHaveValue('');
+  });
 });

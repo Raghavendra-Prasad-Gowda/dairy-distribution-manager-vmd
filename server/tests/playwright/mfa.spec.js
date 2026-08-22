@@ -126,12 +126,35 @@ test.describe('POST /api/v1/auth/mfa/verify', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('returns 401 when the mfaToken has expired', async ({ request }) => {
+    const expired = jwt.sign({ adminUserId: 9, mfaPending: true }, TEST_SECRET, {
+      expiresIn: '-1s',
+    });
+    const res = await request.post('/api/v1/auth/mfa/verify', {
+      data: { mfaToken: expired, code: '123456' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('returns 401 when MFA was disabled after the login step (race)', async ({ request }) => {
     ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
       id: 9,
       role: 'superadmin',
       isActive: true,
       mfaEnabled: false,
+    });
+    const res = await request.post('/api/v1/auth/mfa/verify', {
+      data: { mfaToken: makeMfaToken(9), code: '123456' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the account was deactivated after the login step', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 9,
+      role: 'superadmin',
+      isActive: false,
+      mfaEnabled: true,
     });
     const res = await request.post('/api/v1/auth/mfa/verify', {
       data: { mfaToken: makeMfaToken(9), code: '123456' },
@@ -209,6 +232,42 @@ test.describe('POST /api/v1/auth/mfa/verify', () => {
     expect(updateArgs.where).toEqual({ id: 9 });
     expect(updateArgs.data.mfaBackupCodes).toEqual([hashedCodes[1]]);
   });
+
+  test('a backup code cannot be reused once consumed', async ({ request }) => {
+    const plainCode = 'CCCCC-33333';
+    const hashedCode = `hashed:${plainCode}`;
+    ctx.mockBcrypt.compare = async (raw, hash) => hash === `hashed:${raw}`;
+
+    // First attempt: the account still has the code — succeeds and the
+    // mock records what the (now-empty) remaining list would be.
+    let remaining = [hashedCode];
+    ctx.mockPrisma.adminUser.findUnique.mockImplementation(async () => ({
+      id: 9,
+      username: 'super',
+      role: 'superadmin',
+      isActive: true,
+      mfaEnabled: true,
+      mfaSecret: null,
+      mfaBackupCodes: remaining,
+    }));
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      remaining = args.data.mfaBackupCodes; // simulate the DB write taking effect
+      return {};
+    });
+
+    const first = await request.post('/api/v1/auth/mfa/verify', {
+      data: { mfaToken: makeMfaToken(9), code: plainCode },
+    });
+    expect(first.status()).toBe(200);
+    expect(remaining).toEqual([]); // consumed — removed from the list
+
+    // Second attempt with the same code: it's no longer in mfaBackupCodes,
+    // so it's rejected exactly like any other wrong code.
+    const second = await request.post('/api/v1/auth/mfa/verify', {
+      data: { mfaToken: makeMfaToken(9), code: plainCode },
+    });
+    expect(second.status()).toBe(401);
+  });
 });
 
 // ─── GET /api/v1/admin-users/mfa/status ───────────────────────────────────────
@@ -256,16 +315,37 @@ test.describe('GET /api/v1/admin-users/mfa/status', () => {
     const body = await res.json();
     expect(body.data).toEqual({ mfaEnabled: true });
   });
+
+  test('returns 404 when the calling account no longer exists', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(null);
+    const res = await request.get('/api/v1/admin-users/mfa/status', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+    });
+    expect(res.status()).toBe(404);
+  });
 });
 
 // ─── POST /api/v1/admin-users/mfa/setup ───────────────────────────────────────
 
 test.describe('POST /api/v1/admin-users/mfa/setup', () => {
+  test('returns 403 when no token provided', async ({ request }) => {
+    const res = await request.post('/api/v1/admin-users/mfa/setup');
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 403 for a non-superadmin token', async ({ request }) => {
     const res = await request.post('/api/v1/admin-users/mfa/setup', {
       headers: { Authorization: `Bearer ${makeAuthToken()}` },
     });
     expect(res.status()).toBe(403);
+  });
+
+  test('returns 404 when the calling account no longer exists', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(null);
+    const res = await request.post('/api/v1/admin-users/mfa/setup', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+    });
+    expect(res.status()).toBe(404);
   });
 
   test('returns 400 when MFA is already enabled', async ({ request }) => {
@@ -324,10 +404,46 @@ test.describe('POST /api/v1/admin-users/mfa/setup', () => {
 // ─── POST /api/v1/admin-users/mfa/confirm ─────────────────────────────────────
 
 test.describe('POST /api/v1/admin-users/mfa/confirm', () => {
+  test('returns 403 when no token provided', async ({ request }) => {
+    const res = await request.post('/api/v1/admin-users/mfa/confirm', { data: { code: '123456' } });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a non-superadmin token', async ({ request }) => {
+    const res = await request.post('/api/v1/admin-users/mfa/confirm', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { code: '123456' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 400 when the code is not 6 digits', async ({ request }) => {
     const res = await request.post('/api/v1/admin-users/mfa/confirm', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: { code: 'abc' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 404 when the calling account no longer exists', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(null);
+    const res = await request.post('/api/v1/admin-users/mfa/confirm', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { code: '123456' },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('returns 400 when already enabled (re-confirm attempt)', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 1,
+      username: 'super',
+      mfaSecret: mfaCrypto.encrypt(otplib.generateSecret()),
+      mfaEnabled: true,
+    });
+    const res = await request.post('/api/v1/admin-users/mfa/confirm', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { code: '123456' },
     });
     expect(res.status()).toBe(400);
   });
@@ -395,12 +511,34 @@ test.describe('POST /api/v1/admin-users/mfa/confirm', () => {
 // ─── POST /api/v1/admin-users/mfa/disable ─────────────────────────────────────
 
 test.describe('POST /api/v1/admin-users/mfa/disable', () => {
+  test('returns 403 when no token provided', async ({ request }) => {
+    const res = await request.post('/api/v1/admin-users/mfa/disable', { data: { password: 'x' } });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a non-superadmin token', async ({ request }) => {
+    const res = await request.post('/api/v1/admin-users/mfa/disable', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { password: 'x' },
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 400 when password is missing', async ({ request }) => {
     const res = await request.post('/api/v1/admin-users/mfa/disable', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
       data: {},
     });
     expect(res.status()).toBe(400);
+  });
+
+  test('returns 404 when the calling account no longer exists', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(null);
+    const res = await request.post('/api/v1/admin-users/mfa/disable', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { password: 'x' },
+    });
+    expect(res.status()).toBe(404);
   });
 
   test('returns 401 when the password is wrong', async ({ request }) => {

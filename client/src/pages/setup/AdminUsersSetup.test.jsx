@@ -690,6 +690,73 @@ describe('AdminUsersSetup — MFA tab', () => {
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Password is incorrect', 'error'));
   });
+
+  it('closing the disable modal without submitting does not call the disable endpoint', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/admin-users/mfa/status')) return Promise.resolve({ data: { data: { mfaEnabled: true } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await openMfaTab();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Disable MFA/i }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/password/i), { target: { value: 'somepass' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close dialog' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalledWith('/admin-users/mfa/disable', expect.anything());
+  });
+
+  it('shows a notify error and stays on the users tab data when the status load fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/admin-users/mfa/status')) return Promise.reject(new Error('network down'));
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /^MFA$/i }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load MFA status', 'error'));
+  });
+
+  it('the "Confirm & Enable" button is disabled until exactly 6 digits are entered', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { data: { otpauth: 'otpauth://totp/VMD:super?secret=ABCDEFGH', qrCodeDataUrl: 'data:image/png;base64,xyz' } },
+    });
+    await openMfaTab();
+    fireEvent.click(await screen.findByRole('button', { name: /Enable MFA/i }));
+    await screen.findByAltText('MFA enrollment QR code');
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirm & Enable/i });
+    const codeInput = screen.getByLabelText(/6-digit code/i);
+    expect(confirmBtn).toBeDisabled();
+
+    fireEvent.change(codeInput, { target: { value: '123' } });
+    expect(confirmBtn).toBeDisabled();
+
+    fireEvent.change(codeInput, { target: { value: '123456' } });
+    expect(confirmBtn).not.toBeDisabled();
+  });
+
+  it('clicking "Done" on the backup codes screen dismisses them and shows the refreshed status', async () => {
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url.includes('/mfa/setup')) return Promise.resolve({ data: { data: { otpauth: 'otpauth://totp/VMD:super?secret=ABCDEFGH', qrCodeDataUrl: 'data:image/png;base64,xyz' } } });
+      if (url.includes('/mfa/confirm')) return Promise.resolve({ data: { data: { backupCodes: ['AAAAA-11111', 'BBBBB-22222'] } } });
+      return Promise.resolve({ data: { success: true } });
+    });
+    await openMfaTab();
+    fireEvent.click(await screen.findByRole('button', { name: /Enable MFA/i }));
+    await screen.findByAltText('MFA enrollment QR code');
+    fireEvent.change(screen.getByLabelText(/6-digit code/i), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirm & Enable/i }));
+    await screen.findByText('AAAAA-11111');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(screen.queryByText('AAAAA-11111')).not.toBeInTheDocument();
+    // beforeEach's api.get mock always reports mfaEnabled: false (unchanged
+    // by this test), so the refreshed status view is the "Enable MFA" screen.
+    expect(screen.getByRole('button', { name: /Enable MFA/i })).toBeInTheDocument();
+  });
 });
 
 describe('AdminUsersSetup — P&L PIN toggle', () => {
