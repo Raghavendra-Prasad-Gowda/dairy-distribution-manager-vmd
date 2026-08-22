@@ -137,14 +137,12 @@ describe('SalesmanProfitLoss — PIN gate', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('does not navigate when the modal Close button is clicked (no-op onClose)', async () => {
+  it('navigates back when the modal Close button is clicked', async () => {
     render(<SalesmanProfitLoss />);
     await screen.findByTestId('pin-modal');
     fireEvent.click(screen.getByText('Close'));
-    // onClose is a no-op — should not navigate away
-    expect(mockNavigate).not.toHaveBeenCalled();
-    // Gate remains visible (pin not verified)
-    expect(screen.getByTestId('pin-modal')).toBeInTheDocument();
+    // onClose calls navigate(-1) so the user can dismiss the gate
+    expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 
   it('skips the PIN modal when plPinEnabled is false (gate disabled)', async () => {

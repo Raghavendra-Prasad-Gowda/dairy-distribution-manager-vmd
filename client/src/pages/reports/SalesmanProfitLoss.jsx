@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import PinModal from '../../components/PinModal';
@@ -40,6 +41,7 @@ function groupByBrand(products) {
 }
 
 export default function SalesmanProfitLoss() {
+  const navigate = useNavigate();
   const { notify } = useNotification();
   const today = getIndiaDate();
 
@@ -120,7 +122,7 @@ export default function SalesmanProfitLoss() {
     return (
       <PinModal
         isOpen
-        onClose={() => {}}
+        onClose={() => navigate(-1)}
         onSuccess={() => setPinVerified(true)}
         title="Enter PIN to view Profit & Loss"
         verifyPath="/pin/verify-pl"
