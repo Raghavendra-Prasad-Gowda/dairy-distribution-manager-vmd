@@ -23,6 +23,7 @@ const SLACK_EVENTS = {
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
   PIN_FAILED:            'PIN_FAILED',
   PIN_UPDATED:           'PIN_UPDATED',
+  PL_PIN_UPDATED:        'PL_PIN_UPDATED',
   PIN_SETTINGS_UPDATED:  'PIN_SETTINGS_UPDATED',
   // Salesman self-service "view" actions — informational only, fired from
   // endpoints that are exclusively reachable by the salesman's own pages
@@ -141,6 +142,7 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.PASSWORD_CHANGED]:   COLORS.AMBER,
   [SLACK_EVENTS.PIN_FAILED]:           COLORS.RED,
   [SLACK_EVENTS.PIN_UPDATED]:          COLORS.GREEN,
+  [SLACK_EVENTS.PL_PIN_UPDATED]:       COLORS.GREEN,
   [SLACK_EVENTS.PIN_SETTINGS_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
@@ -382,6 +384,14 @@ function buildCard(event, data) {
           ['👤 Changed By', data.username || 'unknown'],
         ]),
       ], `Edit PIN changed by ${data.username}`);
+
+    case SLACK_EVENTS.PL_PIN_UPDATED:
+      return card(event, [
+        headerBlock('🔑 P&L PIN Changed'),
+        fieldsBlock([
+          ['👤 Changed By', data.username || 'unknown'],
+        ]),
+      ], `P&L PIN changed by ${data.username}`);
 
     case SLACK_EVENTS.PIN_SETTINGS_UPDATED:
       return card(event, [

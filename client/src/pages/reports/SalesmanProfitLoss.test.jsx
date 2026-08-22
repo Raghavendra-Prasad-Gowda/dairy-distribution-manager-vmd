@@ -33,9 +33,9 @@ vi.mock('react-router-dom', () => ({
 
 // Mock PinModal so PIN gate tests don't need a real modal implementation.
 vi.mock('../../components/PinModal', () => ({
-  default: ({ isOpen, onClose, onSuccess, title }) =>
+  default: ({ isOpen, onClose, onSuccess, title, verifyPath }) =>
     isOpen ? (
-      <div data-testid="pin-modal">
+      <div data-testid="pin-modal" data-verify-path={verifyPath}>
         <p>{title}</p>
         <button onClick={onClose}>Close</button>
         <button onClick={onSuccess}>Verify</button>
@@ -109,8 +109,11 @@ describe('SalesmanProfitLoss — PIN gate', () => {
   it('shows the PinModal when plPinEnabled is true on every visit', async () => {
     render(<SalesmanProfitLoss />);
     // Must wait for settings to load before the gate decision is made.
-    expect(await screen.findByTestId('pin-modal')).toBeInTheDocument();
+    const modal = await screen.findByTestId('pin-modal');
+    expect(modal).toBeInTheDocument();
     expect(screen.getByText('Enter PIN to view Profit & Loss')).toBeInTheDocument();
+    // Uses the dedicated P&L PIN endpoint, not the edit PIN endpoint
+    expect(modal.dataset.verifyPath).toBe('/pin/verify-pl');
   });
 
   it('does NOT call the report API before PIN is verified', async () => {

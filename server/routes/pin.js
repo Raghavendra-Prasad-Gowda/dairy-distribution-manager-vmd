@@ -13,9 +13,11 @@ const pinLimiter = rateLimit({
   message: { success: false, error: 'Too many PIN attempts. Try again in 15 minutes.' },
 });
 
-router.post('/verify',   pinLimiter,                          controller.verify);
-router.put('/update',    requireSuperAdmin,                   controller.update);
-router.get('/settings',  authenticate, requireAdmin,          controller.getSettings);
-router.put('/settings',  authenticate, requireSuperAdmin,     controller.updateSettings);
+router.post('/verify',    pinLimiter,                         controller.verify);
+router.put('/update',     requireSuperAdmin,                  controller.update);
+router.get('/settings',   authenticate, requireAdmin,         controller.getSettings);
+router.put('/settings',   authenticate, requireSuperAdmin,    controller.updateSettings);
+router.post('/verify-pl', pinLimiter,                         controller.verifyPl);
+router.put('/update-pl',  requireSuperAdmin,                  controller.updatePl);
 
 module.exports = router;

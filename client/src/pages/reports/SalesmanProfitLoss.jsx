@@ -123,6 +123,7 @@ export default function SalesmanProfitLoss() {
         onClose={() => {}}
         onSuccess={() => setPinVerified(true)}
         title="Enter PIN to view Profit & Loss"
+        verifyPath="/pin/verify-pl"
       />
     );
   }

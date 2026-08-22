@@ -502,10 +502,11 @@ describe('AdminUsersSetup — tabs', () => {
     expect(screen.queryByText('Change Edit PIN')).not.toBeInTheDocument();
   });
 
-  it('switching to the PIN tab shows the Change Edit PIN card', async () => {
+  it('switching to the PIN tab shows the Change Edit PIN button (not inline form)', async () => {
     await renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
-    expect(await screen.findByText('Change Edit PIN')).toBeInTheDocument();
+    // The card shows a "Change Edit PIN" button (no inline digit inputs visible yet)
+    expect(await screen.findByRole('button', { name: /Change Edit PIN/i })).toBeInTheDocument();
     // Users list is gone
     expect(screen.queryByPlaceholderText(/Search by username or role/i)).not.toBeInTheDocument();
   });
@@ -522,20 +523,37 @@ describe('AdminUsersSetup — tabs', () => {
     fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
     fireEvent.click(screen.getByRole('button', { name: /Admin Users/i }));
     expect(screen.getByPlaceholderText(/Search by username or role/i)).toBeInTheDocument();
-    expect(screen.queryByText('Change Edit PIN')).not.toBeInTheDocument();
+    // Change Edit PIN button no longer visible (on different tab)
+    expect(screen.queryByRole('button', { name: /Change Edit PIN/i })).not.toBeInTheDocument();
   });
 
-  it('PIN tab: Change PIN button is disabled until all 18 digits are filled', async () => {
+  it('PIN tab: clicking "Change Edit PIN" button opens the modal', async () => {
     await renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
-    await screen.findByText('Change Edit PIN');
+    const changeBtn = await screen.findByRole('button', { name: /Change Edit PIN/i });
+    // Modal (with digit inputs) is NOT visible before clicking the button
+    expect(screen.queryByText('Current PIN')).not.toBeInTheDocument();
+    fireEvent.click(changeBtn);
+    // Modal should now show the PIN form
+    expect(await screen.findByText('Current PIN')).toBeInTheDocument();
+    expect(screen.getByText('New PIN (6 digits)')).toBeInTheDocument();
+  });
+
+  it('PIN tab: Change PIN submit button is disabled until all 18 digits are filled', async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
+    const changeBtn = await screen.findByRole('button', { name: /Change Edit PIN/i });
+    fireEvent.click(changeBtn);
+    await screen.findByText('Current PIN');
     expect(screen.getByRole('button', { name: /Change PIN/i })).toBeDisabled();
   });
 
   it('PIN tab: does not call PUT while any digit box is unfilled', async () => {
     await renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
-    await screen.findByText('Change Edit PIN');
+    const changeBtn = await screen.findByRole('button', { name: /Change Edit PIN/i });
+    fireEvent.click(changeBtn);
+    await screen.findByText('Current PIN');
     // The Change PIN button is disabled so clicking it must not call PUT
     fireEvent.click(screen.getByRole('button', { name: /Change PIN/i }));
     expect(api.put).not.toHaveBeenCalled();
@@ -547,7 +565,8 @@ describe('AdminUsersSetup — P&L PIN toggle', () => {
   async function openPinTab() {
     await renderPage();
     fireEvent.click(screen.getByRole('button', { name: /Edit PIN/i }));
-    await screen.findByText('Change Edit PIN');
+    // Wait for the Change Edit PIN button (card is rendered)
+    await screen.findByRole('button', { name: /Change Edit PIN/i });
     // Wait for PlPinToggleSection to finish loading its setting.
     return screen.findByText('Profit & Loss PIN Gate');
   }
@@ -626,5 +645,53 @@ describe('AdminUsersSetup — P&L PIN toggle', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Disable P&L PIN gate/i }));
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Forbidden', 'error'));
+  });
+
+  it('shows the "Set P&L PIN" button in the P&L toggle section', async () => {
+    await openPinTab();
+    expect(screen.getByRole('button', { name: /Set P&L PIN/i })).toBeInTheDocument();
+  });
+
+  it('clicking "Set P&L PIN" opens the P&L PIN change modal', async () => {
+    await openPinTab();
+    // Modal digit inputs NOT visible before clicking
+    expect(screen.queryAllByText('Current PIN').length).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: /Set P&L PIN/i }));
+    expect(await screen.findByText('Current PIN')).toBeInTheDocument();
+    expect(screen.getByText('New PIN (6 digits)')).toBeInTheDocument();
+  });
+
+  it('P&L PIN modal contains the Change PIN submit button (disabled when empty)', async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { success: true } });
+    await openPinTab();
+    fireEvent.click(screen.getByRole('button', { name: /Set P&L PIN/i }));
+    await screen.findByText('Current PIN');
+    // The submit button is disabled when no digits are filled
+    expect(screen.getByRole('button', { name: /Change PIN/i })).toBeDisabled();
+  });
+
+  it('P&L PIN modal fills all digits and calls PUT /pin/update-pl on submit', async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { success: true } });
+    await openPinTab();
+    fireEvent.click(screen.getByRole('button', { name: /Set P&L PIN/i }));
+    await screen.findByText('Current PIN');
+
+    // Fill all 18 PIN digits via keyDown events (inputs are type=password with onKeyDown handler)
+    const pwdInputs = document.querySelectorAll('input[type="password"]');
+    pwdInputs.forEach((inp) => {
+      fireEvent.keyDown(inp, { key: '1' });
+    });
+
+    // Submit button should now be enabled; click it
+    const submitBtn = screen.getByRole('button', { name: /Change PIN/i });
+    await waitFor(() => expect(submitBtn).not.toBeDisabled());
+    fireEvent.click(submitBtn);
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/pin/update-pl', expect.objectContaining({
+        currentPin: expect.any(String),
+        newPin: expect.any(String),
+      }))
+    );
   });
 });

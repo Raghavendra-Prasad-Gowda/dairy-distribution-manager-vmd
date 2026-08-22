@@ -73,9 +73,8 @@ function PinInputRow({ value, onChange, disabled, hasError, label }) {
 
 const emptyPin = () => Array(PIN_LENGTH).fill('');
 
-/** Card for changing the edit PIN — superadmin only */
-function ChangePinSection() {
-  const { notify } = useNotification();
+/** Shared form body used inside both PIN change modals */
+function PinChangeForm({ apiPath, onSuccess, onError }) {
   const [current, setCurrent] = useState(emptyPin());
   const [next,    setNext]    = useState(emptyPin());
   const [confirm, setConfirm] = useState(emptyPin());
@@ -95,53 +94,89 @@ function ChangePinSection() {
     setError('');
     setSaving(true);
     try {
-      await api.put('/pin/update', { currentPin, newPin: nextPin });
-      notify('Edit PIN changed successfully', 'success');
-      setCurrent(emptyPin());
-      setNext(emptyPin());
-      setConfirm(emptyPin());
+      await api.put(apiPath, { currentPin, newPin: nextPin });
+      onSuccess();
     } catch (err) {
       const msg = err?.response?.data?.error ?? 'Failed to change PIN';
       setError(msg);
+      if (onError) onError(msg);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="ddm-card p-5">
-      <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
-        <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-          <Lock size={15} className="text-emerald-700" />
+    <form onSubmit={handleChange} className="space-y-4">
+      <PinInputRow label="Current PIN" value={current} onChange={setCurrent} disabled={saving} hasError={!!error} />
+      <PinInputRow label="New PIN (6 digits)" value={next} onChange={setNext} disabled={saving} />
+      <PinInputRow label="Confirm New PIN" value={confirm} onChange={setConfirm} disabled={saving} hasError={mismatch} />
+
+      {mismatch && (
+        <p className="text-xs font-semibold text-red-600">New PIN and confirmation do not match</p>
+      )}
+      {error && !mismatch && (
+        <p className="text-xs font-semibold text-red-600">{error}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        className="w-full flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+      >
+        {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
+        Change PIN
+      </button>
+    </form>
+  );
+}
+
+/** Card for changing the edit PIN — superadmin only */
+function ChangePinSection() {
+  const { notify } = useNotification();
+  const [showModal, setShowModal] = useState(false);
+
+  const handleSuccess = () => {
+    notify('Edit PIN changed successfully', 'success');
+    setShowModal(false);
+  };
+
+  return (
+    <>
+      <div className="ddm-card p-5">
+        <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <Lock size={15} className="text-emerald-700" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-800">Edit PIN</p>
+            <p className="text-xs text-slate-400">The PIN used to edit or delete payments</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-bold text-slate-800">Change Edit PIN</p>
-          <p className="text-xs text-slate-400">The PIN used to edit or delete payments</p>
-        </div>
+        <p className="text-xs text-slate-500 mb-4">
+          This PIN protects sensitive payment edits and deletions. Change it here at any time.
+        </p>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+        >
+          <Lock size={14} />
+          Change Edit PIN
+        </button>
       </div>
 
-      <form onSubmit={handleChange} className="space-y-4">
-        <PinInputRow label="Current PIN" value={current} onChange={setCurrent} disabled={saving} hasError={!!error} />
-        <PinInputRow label="New PIN (6 digits)" value={next} onChange={setNext} disabled={saving} />
-        <PinInputRow label="Confirm New PIN" value={confirm} onChange={setConfirm} disabled={saving} hasError={mismatch} />
-
-        {mismatch && (
-          <p className="text-xs font-semibold text-red-600">New PIN and confirmation do not match</p>
-        )}
-        {error && !mismatch && (
-          <p className="text-xs font-semibold text-red-600">{error}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
-        >
-          {saving ? <TumblerSpinner size={14} /> : <Save size={14} />}
-          Change PIN
-        </button>
-      </form>
-    </div>
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title="Change Edit PIN"
+        accent="emerald"
+        size="sm"
+      >
+        <PinChangeForm
+          apiPath="/pin/update"
+          onSuccess={handleSuccess}
+        />
+      </Modal>
+    </>
   );
 }
 
@@ -149,9 +184,10 @@ function ChangePinSection() {
 
 function PlPinToggleSection() {
   const { notify } = useNotification();
-  const [enabled,  setEnabled]  = useState(true);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
+  const [enabled,      setEnabled]      = useState(true);
+  const [loading,      setLoading]      = useState(true);
+  const [saving,       setSaving]       = useState(false);
+  const [showPlPinModal, setShowPlPinModal] = useState(false);
 
   // Load current setting on mount.
   useEffect(() => {
@@ -174,42 +210,78 @@ function PlPinToggleSection() {
     }
   };
 
+  const handlePlPinSuccess = () => {
+    notify('P&L PIN changed successfully', 'success');
+    setShowPlPinModal(false);
+  };
+
   return (
-    <div className="ddm-card p-5">
-      <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
-        <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-          <Lock size={15} className="text-amber-700" />
-        </div>
-        <div>
-          <p className="text-sm font-bold text-slate-800">Profit &amp; Loss PIN Gate</p>
-          <p className="text-xs text-slate-400">Control whether a PIN is required to view P&amp;L data</p>
-        </div>
-      </div>
-      {loading ? (
-        <BrandedLoader size="sm" hideBrand inlinePadY="py-4" />
-      ) : (
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-slate-700">Require PIN for Profit &amp; Loss</p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {enabled
-                ? 'Admins must enter the PIN to view P&L data.'
-                : 'P&L report is open to all admins without a PIN.'}
-            </p>
+    <>
+      <div className="ddm-card p-5">
+        <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-slate-100">
+          <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Lock size={15} className="text-amber-700" />
           </div>
-          {/* Toggle switch */}
-          <button
-            onClick={handleToggle}
-            disabled={saving}
-            aria-pressed={enabled}
-            aria-label={enabled ? 'Disable P&L PIN gate' : 'Enable P&L PIN gate'}
-            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 disabled:opacity-50 ${enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : ''}`} />
-          </button>
+          <div>
+            <p className="text-sm font-bold text-slate-800">Profit &amp; Loss PIN Gate</p>
+            <p className="text-xs text-slate-400">Control whether a PIN is required to view P&amp;L data</p>
+          </div>
         </div>
-      )}
-    </div>
+        {loading ? (
+          <BrandedLoader size="sm" hideBrand inlinePadY="py-4" />
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">Require PIN for Profit &amp; Loss</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {enabled
+                    ? 'Admins must enter the PIN to view P&L data.'
+                    : 'P&L report is open to all admins without a PIN.'}
+                </p>
+              </div>
+              {/* Toggle switch */}
+              <button
+                onClick={handleToggle}
+                disabled={saving}
+                aria-pressed={enabled}
+                aria-label={enabled ? 'Disable P&L PIN gate' : 'Enable P&L PIN gate'}
+                className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 disabled:opacity-50 ${enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
+
+            {/* Set P&L PIN button — separate PIN from the edit PIN */}
+            <div className="pt-3 border-t border-slate-100">
+              <p className="text-xs text-slate-500 mb-3">
+                The P&amp;L PIN is independent of the edit PIN. Change it here without affecting payment edits.
+              </p>
+              <button
+                onClick={() => setShowPlPinModal(true)}
+                className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition"
+              >
+                <Lock size={14} />
+                Set P&amp;L PIN
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Modal
+        open={showPlPinModal}
+        onClose={() => setShowPlPinModal(false)}
+        title="Set P&L PIN"
+        accent="amber"
+        size="sm"
+      >
+        <PinChangeForm
+          apiPath="/pin/update-pl"
+          onSuccess={handlePlPinSuccess}
+        />
+      </Modal>
+    </>
   );
 }
 

@@ -45,8 +45,9 @@ function clearAttempts() {
  *   onClose()    — called when cancelled
  *   onSuccess()  — called when PIN is verified
  *   title        — optional heading
+ *   verifyPath   — API path to POST to (default: '/pin/verify')
  */
-export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PIN' }) {
+export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PIN', verifyPath = '/pin/verify' }) {
   const [digits, setDigits]       = useState(Array(PIN_LENGTH).fill(''));
   const [error, setError]         = useState('');
   const [loading, setLoading]     = useState(false);
@@ -126,7 +127,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
     setLoading(true);
     setError('');
     try {
-      await api.post('/pin/verify', { pin });
+      await api.post(verifyPath, { pin });
       clearAttempts();
       onSuccess();
       onClose();
