@@ -6,7 +6,7 @@ import api from '../api/axios';
 const LOCK_KEY     = 'vmd_pin_lockout_until';
 const ATTEMPTS_KEY = 'vmd_pin_attempts';
 const MAX_ATTEMPTS = 15;
-const LOCKOUT_MS   = 60 * 60 * 1000; // 1 hour
+const LOCKOUT_MS   = 20 * 60 * 1000; // 20 minutes
 const PIN_LENGTH   = 6;
 
 function getLockoutRemaining() {
@@ -190,7 +190,7 @@ export default function PinModal({ isOpen, onClose, onSuccess, title = 'Enter PI
             {/* Attempt warning */}
             {attempts > 0 && (
               <p className="text-[11px] text-amber-600 font-semibold bg-amber-50 px-3 py-1.5 rounded-lg -mb-1 w-full text-center">
-                {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts === 1 ? '' : 's'} remaining before 1-hour lockout
+                {MAX_ATTEMPTS - attempts} attempt{MAX_ATTEMPTS - attempts === 1 ? '' : 's'} remaining before 20-minute lockout
               </p>
             )}
 
