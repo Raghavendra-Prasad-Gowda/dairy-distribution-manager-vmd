@@ -43,6 +43,19 @@ const schemas = {
     pin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'PIN is required')),
   }),
 
+  // MFA (superadmin only)
+  verifyMfaLogin: z.object({
+    mfaToken: z.string().min(1, 'MFA session token is required'),
+    // 6-digit TOTP code or an "XXXXX-XXXXX" backup code.
+    code: z.string().min(6, 'Code is required').max(20, 'Code is too long'),
+  }),
+  confirmMfa: z.object({
+    code: z.string().length(6, 'Code must be exactly 6 digits').regex(/^\d{6}$/, 'Code must be digits only'),
+  }),
+  disableMfa: z.object({
+    password: z.string().min(1, 'Password is required'),
+  }),
+
   updatePin: z.object({
     currentPin: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'Current PIN is required')),
     newPin: z.union([z.string(), z.number()]).transform(String).pipe(

@@ -13,9 +13,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Login from './Login';
 
 const mockLogin = vi.fn();
+const mockVerifyMfa = vi.fn();
 
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ login: mockLogin, user: null }),
+  useAuth: () => ({ login: mockLogin, verifyMfa: mockVerifyMfa, user: null }),
 }));
 
 vi.mock('../api/coldStart', () => ({
@@ -56,5 +57,60 @@ describe('Login — wrong password', () => {
 
     await waitFor(() => expect(mockLogin).toHaveBeenCalledWith('raghav', 'correct-password'));
     expect(screen.queryByText(/invalid/i)).toBeNull();
+  });
+});
+
+describe('Login — MFA step (superadmin)', () => {
+  it('switches to the code-entry screen when login() reports mfaRequired', async () => {
+    mockLogin.mockResolvedValue({ success: false, mfaRequired: true, mfaToken: 'pending-token' });
+    render(<Login />);
+
+    await fillAndSubmit('super', 'correct-password');
+
+    await waitFor(() => expect(screen.getByText('Two-factor authentication')).toBeInTheDocument());
+    expect(screen.queryByLabelText(/username/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/authentication code/i)).toBeInTheDocument();
+  });
+
+  it('calls verifyMfa with the mfaToken and entered code, then does not show an error on success', async () => {
+    mockLogin.mockResolvedValue({ success: false, mfaRequired: true, mfaToken: 'pending-token' });
+    mockVerifyMfa.mockResolvedValue({ success: true });
+    render(<Login />);
+
+    await fillAndSubmit('super', 'correct-password');
+    await screen.findByText('Two-factor authentication');
+
+    fireEvent.change(screen.getByLabelText(/authentication code/i), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /verify/i }));
+
+    await waitFor(() => expect(mockVerifyMfa).toHaveBeenCalledWith('pending-token', '123456'));
+    expect(screen.queryByText(/invalid/i)).toBeNull();
+  });
+
+  it('shows the server error and clears the code on an incorrect MFA code', async () => {
+    mockLogin.mockResolvedValue({ success: false, mfaRequired: true, mfaToken: 'pending-token' });
+    mockVerifyMfa.mockResolvedValue({ success: false, message: 'Invalid authentication code' });
+    render(<Login />);
+
+    await fillAndSubmit('super', 'correct-password');
+    await screen.findByText('Two-factor authentication');
+    fireEvent.change(screen.getByLabelText(/authentication code/i), { target: { value: '000000' } });
+    fireEvent.click(screen.getByRole('button', { name: /verify/i }));
+
+    await waitFor(() => expect(screen.getByText('Invalid authentication code')).toBeInTheDocument());
+    expect(screen.getByLabelText(/authentication code/i)).toHaveValue('');
+  });
+
+  it('"Back to login" returns to the username/password form', async () => {
+    mockLogin.mockResolvedValue({ success: false, mfaRequired: true, mfaToken: 'pending-token' });
+    render(<Login />);
+
+    await fillAndSubmit('super', 'correct-password');
+    await screen.findByText('Two-factor authentication');
+
+    fireEvent.click(screen.getByRole('button', { name: /back to login/i }));
+
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
+    expect(screen.queryByText('Two-factor authentication')).not.toBeInTheDocument();
   });
 });

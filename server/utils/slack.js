@@ -25,6 +25,10 @@ const SLACK_EVENTS = {
   PIN_UPDATED:           'PIN_UPDATED',
   PL_PIN_UPDATED:        'PL_PIN_UPDATED',
   PIN_SETTINGS_UPDATED:  'PIN_SETTINGS_UPDATED',
+  // MFA — superadmin-only two-factor login (see services/mfaService.js)
+  MFA_ENABLED:  'MFA_ENABLED',
+  MFA_DISABLED: 'MFA_DISABLED',
+  MFA_FAILED:   'MFA_FAILED',
   // Salesman self-service "view" actions — informational only, fired from
   // endpoints that are exclusively reachable by the salesman's own pages
   // (see the controllers for why each specific handler was chosen).
@@ -144,6 +148,9 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.PIN_UPDATED]:          COLORS.GREEN,
   [SLACK_EVENTS.PL_PIN_UPDATED]:       COLORS.GREEN,
   [SLACK_EVENTS.PIN_SETTINGS_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.MFA_ENABLED]:  COLORS.GREEN,
+  [SLACK_EVENTS.MFA_DISABLED]: COLORS.RED,
+  [SLACK_EVENTS.MFA_FAILED]:   COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.DISPATCH_SUBMITTED]:      COLORS.GREEN,
@@ -401,6 +408,31 @@ function buildCard(event, data) {
           ['🔒 P&L PIN Gate', data.plPinEnabled ? 'Enabled' : 'Disabled'],
         ]),
       ], `P&L PIN gate ${data.plPinEnabled ? 'enabled' : 'disabled'} by ${data.username}`);
+
+    case SLACK_EVENTS.MFA_ENABLED:
+      return card(event, [
+        headerBlock('🛡️ MFA Enabled'),
+        fieldsBlock([
+          ['👤 Super Admin', data.username || 'unknown'],
+        ]),
+      ], `MFA Enabled — ${data.username}`);
+
+    case SLACK_EVENTS.MFA_DISABLED:
+      return card(event, [
+        headerBlock('⚠️ MFA Disabled'),
+        fieldsBlock([
+          ['👤 Super Admin', data.username || 'unknown'],
+        ]),
+      ], `MFA Disabled — ${data.username}`);
+
+    case SLACK_EVENTS.MFA_FAILED:
+      return card(event, [
+        headerBlock('🚫 Wrong MFA Code'),
+        fieldsBlock([
+          ['👤 Super Admin', data.username || 'unknown'],
+          ['🌐 IP Address',  data.ip       || 'unknown'],
+        ]),
+      ], `Wrong MFA Code — ${data.username}`);
 
     // ── Salesman "view" actions (informational) ────────────────────────────
     case SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED:

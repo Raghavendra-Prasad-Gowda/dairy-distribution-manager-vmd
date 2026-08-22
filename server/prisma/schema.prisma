@@ -364,6 +364,17 @@ model AdminUser {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  // ── MFA (superadmin only — see services/mfaService.js) ─────────────────────
+  // mfaSecret holds the TOTP secret AES-256-GCM-encrypted at rest (never
+  // plaintext in the DB). It's written as soon as enrollment starts but
+  // mfaEnabled stays false until a live code confirms the enrollment — an
+  // abandoned setup just leaves an unused pending secret.
+  mfaSecret      String?  @map("mfa_secret")
+  mfaEnabled     Boolean  @default(false) @map("mfa_enabled")
+  // One-time backup codes, bcrypt-hashed, consumed (removed from the array)
+  // on use — for when the authenticator device is unavailable.
+  mfaBackupCodes String[] @default([]) @map("mfa_backup_codes")
+
   dispatchDayFinalizations DispatchDayFinalization[]
 
   @@map("admin_users")
