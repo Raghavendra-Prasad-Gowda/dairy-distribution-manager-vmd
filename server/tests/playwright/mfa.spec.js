@@ -1,14 +1,17 @@
 'use strict';
 
 /**
- * MFA (superadmin-only two-factor login) API Tests
+ * MFA API Tests
  * Covers:
- *   POST /api/v1/auth/mfa/verify                — completes a paused login
- *   GET  /api/v1/admin-users/mfa/status          — self-service enrollment status
- *   POST /api/v1/admin-users/mfa/setup           — start enrollment
- *   POST /api/v1/admin-users/mfa/confirm         — confirm enrollment, get backup codes
- *   POST /api/v1/admin-users/mfa/disable         — turn MFA off
- * Plus the login() branch that pauses a superadmin login when MFA is enabled.
+ *   POST /api/v1/auth/mfa/verify                  — completes a paused login (already enrolled)
+ *   POST /api/v1/auth/mfa/setup-required           — starts a FORCED first-time enrollment
+ *   POST /api/v1/auth/mfa/confirm-required         — completes forced enrollment + issues session
+ *   GET  /api/v1/admin-users/mfa/status            — self-service status (superadmin only)
+ *   POST /api/v1/admin-users/mfa/setup             — self-service: start enrollment
+ *   POST /api/v1/admin-users/mfa/confirm           — self-service: confirm enrollment, get backup codes
+ *   POST /api/v1/admin-users/mfa/disable           — self-service: turn MFA off
+ *   PUT  /api/v1/admin-users/:id/mfa-required      — superadmin forces/lifts MFA on ANOTHER account
+ * Plus the login() branches that pause for MFA (mfaEnabled) or forced setup (mfaRequired).
  */
 
 const { expect } = require('@playwright/test');
@@ -32,10 +35,10 @@ const SUPER_MFA_USER = {
   mfaEnabled: true,
 };
 
-// ─── login() — pauses for MFA when enabled ────────────────────────────────────
+// ─── login() — pauses for MFA verify or forced setup ──────────────────────────
 
-test.describe('POST /api/v1/auth/login — MFA branch', () => {
-  test('returns mfaRequired + mfaToken (no accessToken) for a superadmin with MFA enabled', async ({
+test.describe('POST /api/v1/auth/login — MFA branches', () => {
+  test('returns mfaVerifyRequired + mfaToken (no accessToken) for a superadmin already enrolled', async ({
     request,
   }) => {
     ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(SUPER_MFA_USER);
@@ -47,13 +50,19 @@ test.describe('POST /api/v1/auth/login — MFA branch', () => {
 
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.data.mfaRequired).toBe(true);
+    expect(body.data.mfaVerifyRequired).toBe(true);
     expect(body.data).toHaveProperty('mfaToken');
     expect(body.data).not.toHaveProperty('accessToken');
   });
 
-  test('logs in normally (no MFA step) for a superadmin with MFA disabled', async ({ request }) => {
-    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({ ...SUPER_MFA_USER, mfaEnabled: false });
+  test('logs in normally (no MFA step) when neither mfaEnabled nor mfaRequired is set', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({
+      ...SUPER_MFA_USER,
+      mfaEnabled: false,
+      mfaRequired: false,
+    });
     ctx.mockBcrypt.compare = async () => true;
 
     const res = await request.post('/api/v1/auth/login', {
@@ -63,10 +72,11 @@ test.describe('POST /api/v1/auth/login — MFA branch', () => {
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.data).toHaveProperty('accessToken');
-    expect(body.data.mfaRequired).toBeUndefined();
+    expect(body.data.mfaVerifyRequired).toBeUndefined();
+    expect(body.data.mfaSetupRequired).toBeUndefined();
   });
 
-  test('a plain admin (not superadmin) never pauses for MFA even if mfaEnabled were set', async ({
+  test('an admin (not just superadmin) also pauses with mfaVerifyRequired once already enrolled', async ({
     request,
   }) => {
     ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({
@@ -85,7 +95,56 @@ test.describe('POST /api/v1/auth/login — MFA branch', () => {
 
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.data).toHaveProperty('accessToken');
+    expect(body.data.mfaVerifyRequired).toBe(true);
+    expect(body.data).not.toHaveProperty('accessToken');
+  });
+
+  test('returns mfaSetupRequired + mfaToken (no accessToken) for an admin marked mfaRequired but never enrolled', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({
+      id: 2,
+      username: 'manager',
+      passwordHash: 'hashed',
+      role: 'admin',
+      isActive: true,
+      mfaEnabled: false,
+      mfaRequired: true,
+    });
+    ctx.mockBcrypt.compare = async () => true;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'manager', password: 'correctpass' },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.mfaSetupRequired).toBe(true);
+    expect(body.data).toHaveProperty('mfaToken');
+    expect(body.data).not.toHaveProperty('accessToken');
+  });
+
+  test('mfaEnabled takes priority over mfaRequired — a re-required-but-already-enrolled account gets the verify screen, not setup', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({
+      id: 2,
+      username: 'manager',
+      passwordHash: 'hashed',
+      role: 'admin',
+      isActive: true,
+      mfaEnabled: true,
+      mfaRequired: true,
+    });
+    ctx.mockBcrypt.compare = async () => true;
+
+    const res = await request.post('/api/v1/auth/login', {
+      data: { username: 'manager', password: 'correctpass' },
+    });
+
+    const body = await res.json();
+    expect(body.data.mfaVerifyRequired).toBe(true);
+    expect(body.data.mfaSetupRequired).toBeUndefined();
   });
 });
 
@@ -267,6 +326,218 @@ test.describe('POST /api/v1/auth/mfa/verify', () => {
       data: { mfaToken: makeMfaToken(9), code: plainCode },
     });
     expect(second.status()).toBe(401);
+  });
+});
+
+// ─── POST /api/v1/auth/mfa/setup-required ─────────────────────────────────────
+
+test.describe('POST /api/v1/auth/mfa/setup-required', () => {
+  test('returns 400 when mfaToken is missing', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/mfa/setup-required', { data: {} });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 401 when mfaToken is garbage/invalid', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/mfa/setup-required', {
+      data: { mfaToken: 'not-a-real-token' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the token is not an MFA-pending token', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/mfa/setup-required', {
+      data: { mfaToken: makeSuperAdminToken() },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the account no longer exists', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(null);
+    const res = await request.post('/api/v1/auth/mfa/setup-required', {
+      data: { mfaToken: makeMfaToken(2) },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the account was never marked mfaRequired', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      role: 'admin',
+      isActive: true,
+      mfaRequired: false,
+      mfaEnabled: false,
+    });
+    const res = await request.post('/api/v1/auth/mfa/setup-required', {
+      data: { mfaToken: makeMfaToken(2) },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the account is already enrolled (should use /mfa/verify instead)', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      role: 'admin',
+      isActive: true,
+      mfaRequired: true,
+      mfaEnabled: true,
+    });
+    const res = await request.post('/api/v1/auth/mfa/setup-required', {
+      data: { mfaToken: makeMfaToken(2) },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 200 with an otpauth URI and QR code, and stores the encrypted secret', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      username: 'manager',
+      role: 'admin',
+      isActive: true,
+      mfaRequired: true,
+      mfaEnabled: false,
+    });
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return {};
+    });
+
+    const res = await request.post('/api/v1/auth/mfa/setup-required', {
+      data: { mfaToken: makeMfaToken(2) },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.otpauth).toMatch(/^otpauth:\/\/totp\//);
+    expect(body.data.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(updateArgs.where).toEqual({ id: 2 });
+    expect(updateArgs.data.mfaSecret).toEqual(expect.any(String));
+  });
+});
+
+// ─── POST /api/v1/auth/mfa/confirm-required ───────────────────────────────────
+
+test.describe('POST /api/v1/auth/mfa/confirm-required', () => {
+  test('returns 400 when mfaToken is missing', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { code: '123456' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when the code is not 6 digits', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: makeMfaToken(2), code: 'abc' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 401 when mfaToken is garbage/invalid', async ({ request }) => {
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: 'not-a-real-token', code: '123456' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the account was never marked mfaRequired', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      role: 'admin',
+      isActive: true,
+      mfaRequired: false,
+      mfaEnabled: false,
+      mfaSecret: 'x',
+    });
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: makeMfaToken(2), code: '123456' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when the account is already enrolled', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      role: 'admin',
+      isActive: true,
+      mfaRequired: true,
+      mfaEnabled: true,
+      mfaSecret: 'x',
+    });
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: makeMfaToken(2), code: '123456' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 401 when setup-required was never called (no pending secret)', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      role: 'admin',
+      isActive: true,
+      mfaRequired: true,
+      mfaEnabled: false,
+      mfaSecret: null,
+    });
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: makeMfaToken(2), code: '123456' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 400 for an incorrect code', async ({ request }) => {
+    const secret = otplib.generateSecret();
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      role: 'admin',
+      isActive: true,
+      mfaRequired: true,
+      mfaEnabled: false,
+      mfaSecret: mfaCrypto.encrypt(secret),
+    });
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: makeMfaToken(2), code: '000000' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 with a full session AND 8 backup codes, and enables MFA, on a correct code', async ({
+    request,
+  }) => {
+    const secret = otplib.generateSecret();
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      username: 'manager',
+      role: 'admin',
+      isActive: true,
+      mfaRequired: true,
+      mfaEnabled: false,
+      mfaSecret: mfaCrypto.encrypt(secret),
+    });
+    ctx.mockBcrypt.hash = async (v) => `hashed:${v}`;
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { id: 2, username: 'manager', role: 'admin' };
+    });
+    const code = await otplib.generate({ secret });
+
+    const res = await request.post('/api/v1/auth/mfa/confirm-required', {
+      data: { mfaToken: makeMfaToken(2), code },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveProperty('accessToken');
+    expect(body.data.role).toBe('admin');
+    expect(body.data.backupCodes).toHaveLength(8);
+    expect(updateArgs.data.mfaEnabled).toBe(true);
+    expect(updateArgs.data.mfaBackupCodes).toHaveLength(8);
   });
 });
 
@@ -575,5 +846,145 @@ test.describe('POST /api/v1/admin-users/mfa/disable', () => {
 
     expect(res.status()).toBe(200);
     expect(updateArgs.data).toEqual({ mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] });
+  });
+});
+
+// ─── PUT /api/v1/admin-users/:id/mfa-required ─────────────────────────────────
+
+test.describe('PUT /api/v1/admin-users/:id/mfa-required', () => {
+  test('returns 403 when no token provided', async ({ request }) => {
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      data: { required: true },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 403 for a non-superadmin token', async ({ request }) => {
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { required: true },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 when the ID is not a positive integer', async ({ request }) => {
+    const res = await request.put('/api/v1/admin-users/abc/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: true },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when "required" is missing from the body', async ({ request }) => {
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: {},
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when targeting your own account', async ({ request }) => {
+    // makeSuperAdminToken() signs adminUserId: 1
+    const res = await request.put('/api/v1/admin-users/1/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: true },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 404 when the target account does not exist', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue(null);
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: true },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('returns 400 when the target is a dispatcher', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      username: 'disp1',
+      role: 'dispatcher',
+    });
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: true },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 200 and sets mfaRequired on an admin account', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      username: 'manager',
+      role: 'admin',
+    });
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { id: 2, username: 'manager', role: 'admin', mfaEnabled: false, mfaRequired: true };
+    });
+
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: true },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.data.mfaRequired).toBe(true);
+    expect(updateArgs.data).toEqual({ mfaRequired: true });
+  });
+
+  test('returns 200 and can also target another superadmin account', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 3,
+      username: 'other-super',
+      role: 'superadmin',
+    });
+    ctx.mockPrisma.adminUser.update.mockResolvedValue({
+      id: 3,
+      username: 'other-super',
+      role: 'superadmin',
+      mfaRequired: true,
+    });
+
+    const res = await request.put('/api/v1/admin-users/3/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: true },
+    });
+
+    expect(res.status()).toBe(200);
+  });
+
+  test('returns 200 and fully wipes MFA (not just the requirement) when unsetting', async ({
+    request,
+  }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({
+      id: 2,
+      username: 'manager',
+      role: 'admin',
+      mfaEnabled: true,
+      mfaRequired: true,
+    });
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { id: 2, username: 'manager', role: 'admin', mfaEnabled: false, mfaRequired: false };
+    });
+
+    const res = await request.put('/api/v1/admin-users/2/mfa-required', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { required: false },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toEqual({
+      mfaRequired: false,
+      mfaEnabled: false,
+      mfaSecret: null,
+      mfaBackupCodes: [],
+    });
   });
 });

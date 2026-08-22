@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, Search, Trash2, AlertTriangle, UserX, UserCheck, Lock } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, ShieldOff, Search, Trash2, AlertTriangle, UserX, UserCheck, Lock } from 'lucide-react';
 import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -537,6 +537,9 @@ export default function AdminUsersSetup() {
   const [togglingId, setTogglingId]     = useState(null);
   const [confirmToggle, setConfirmToggle] = useState(null); // user pending enable/disable
 
+  const [mfaTogglingId, setMfaTogglingId] = useState(null);
+  const [confirmMfaRequire, setConfirmMfaRequire] = useState(null); // user pending mfaRequired toggle
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -583,6 +586,28 @@ export default function AdminUsersSetup() {
   };
 
   const confirmToggleActive = (u) => setConfirmToggle(u);
+
+  // ── Require MFA (forces/lifts MFA on another admin/superadmin account) ──────
+  const { mutate: setMfaRequired, loading: mfaRequiring } = useMutation(
+    (u) => api.put(`/admin-users/${u.id}/mfa-required`, { required: !u.mfaRequired }),
+    {
+      onSuccess: (_res, u) => {
+        notify(
+          `MFA ${!u.mfaRequired ? 'required' : 'no longer required'} for "${u.username}"`,
+          'success'
+        );
+        setMfaTogglingId(null);
+        load();
+      },
+    }
+  );
+
+  const handleSetMfaRequired = (u) => {
+    setMfaTogglingId(u.id);
+    setMfaRequired(u);
+  };
+
+  const confirmSetMfaRequired = (u) => setConfirmMfaRequire(u);
 
   // ── Edit ────────────────────────────────────────────────────────────────────
   function openEdit(u) {
@@ -709,6 +734,7 @@ export default function AdminUsersSetup() {
                         <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Username</th>
                         <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Role</th>
                         <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider">MFA</th>
                         <th className="px-4 py-2.5 text-right text-[11px] font-bold text-white uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
@@ -726,8 +752,41 @@ export default function AdminUsersSetup() {
                               {u.isActive ? 'Active' : 'Inactive'}
                             </span>
                           </td>
+                          <td className="px-4 py-3">
+                            {u.role === 'dispatcher' ? (
+                              <span className="text-slate-300 text-xs">—</span>
+                            ) : (
+                              <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                                u.mfaEnabled ? 'bg-emerald-100 text-emerald-700'
+                                : u.mfaRequired ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {u.mfaEnabled ? 'On' : u.mfaRequired ? 'Required' : 'Off'}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {/* Require/lift MFA on someone else's account — never your own (use the MFA tab), never a dispatcher (not eligible) */}
+                              {u.role !== 'dispatcher' && (
+                                <button
+                                  onClick={() => confirmSetMfaRequired(u)}
+                                  disabled={u.id === me?.adminUserId || mfaTogglingId === u.id}
+                                  title={u.mfaRequired ? `Stop requiring MFA for ${u.username}` : `Require MFA for ${u.username}`}
+                                  className={`p-1.5 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
+                                    u.mfaRequired
+                                      ? 'text-amber-600 hover:text-slate-500 hover:bg-slate-50'
+                                      : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                  }`}
+                                >
+                                  {mfaTogglingId === u.id && mfaRequiring
+                                    ? <TumblerSpinner size={14} />
+                                    : u.mfaRequired
+                                    ? <ShieldOff size={14} />
+                                    : <ShieldCheck size={14} />
+                                  }
+                                </button>
+                              )}
                               {/* Enable / disable — confirmed, since disabling revokes login immediately */}
                               <button
                                 onClick={() => confirmToggleActive(u)}
@@ -953,6 +1012,21 @@ export default function AdminUsersSetup() {
         }
         confirmText={confirmToggle?.isActive ? 'Disable' : 'Enable'}
         tone={confirmToggle?.isActive ? 'warning' : 'success'}
+      />
+
+      {/* ── Require/lift MFA confirmation ─────────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={!!confirmMfaRequire}
+        onClose={() => setConfirmMfaRequire(null)}
+        onConfirm={() => handleSetMfaRequired(confirmMfaRequire)}
+        title={confirmMfaRequire?.mfaRequired ? 'Stop Requiring MFA' : 'Require MFA'}
+        message={
+          confirmMfaRequire?.mfaRequired
+            ? `Stop requiring MFA for "${confirmMfaRequire?.username}"? Any MFA enrollment on their account will also be cleared — they'll log in with just their password again.`
+            : `Require MFA for "${confirmMfaRequire?.username}"? They'll be asked to set up an authenticator app the next time they log in, before they can access anything.`
+        }
+        confirmText={confirmMfaRequire?.mfaRequired ? 'Stop Requiring' : 'Require MFA'}
+        tone={confirmMfaRequire?.mfaRequired ? 'warning' : 'success'}
       />
     </div>
   );

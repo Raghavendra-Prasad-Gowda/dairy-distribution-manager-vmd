@@ -364,7 +364,7 @@ model AdminUser {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  // ── MFA (superadmin only — see services/mfaService.js) ─────────────────────
+  // ── MFA (see services/mfaService.js) ────────────────────────────────────────
   // mfaSecret holds the TOTP secret AES-256-GCM-encrypted at rest (never
   // plaintext in the DB). It's written as soon as enrollment starts but
   // mfaEnabled stays false until a live code confirms the enrollment — an
@@ -374,6 +374,14 @@ model AdminUser {
   // One-time backup codes, bcrypt-hashed, consumed (removed from the array)
   // on use — for when the authenticator device is unavailable.
   mfaBackupCodes String[] @default([]) @map("mfa_backup_codes")
+  // Superadmin-set policy on an admin/superadmin account (never dispatcher —
+  // enforced in adminUsers.controller.js#setMfaRequired): true means this
+  // account MUST have MFA. If mfaEnabled is still false when this is true,
+  // login() forces the account through enrollment before issuing a session
+  // (see auth.controller.js's mfaSetupRequired/mfaConfirmRequired). Distinct
+  // from the self-service mfaEnabled toggle a superadmin has for their own
+  // account — this is superadmin acting on SOMEONE ELSE's account.
+  mfaRequired    Boolean  @default(false) @map("mfa_required")
 
   dispatchDayFinalizations DispatchDayFinalization[]
 

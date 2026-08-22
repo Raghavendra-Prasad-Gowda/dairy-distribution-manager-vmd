@@ -15,7 +15,13 @@ const mfaCrypto = require('../utils/mfaCrypto');
 const resolveActingUsername = (req) => getActingUsername(req, 'superadmin');
 
 const SAFE_SELECT = {
-  id: true, username: true, role: true, isActive: true, createdAt: true,
+  id: true,
+  username: true,
+  role: true,
+  isActive: true,
+  createdAt: true,
+  mfaEnabled: true,
+  mfaRequired: true,
 };
 
 const getAll = asyncHandler(async (req, res) => {
@@ -44,12 +50,16 @@ const create = asyncHandler(async (req, res) => {
     select: SAFE_SELECT,
   });
   const by = await resolveActingUsername(req);
-  void notifySlack(SLACK_EVENTS.ADMIN_USER_CREATED, { username: user.username, role: user.role, by });
+  void notifySlack(SLACK_EVENTS.ADMIN_USER_CREATED, {
+    username: user.username,
+    role: user.role,
+    by,
+  });
   res.status(201).json({ success: true, data: user });
 });
 
 const update = asyncHandler(async (req, res) => {
-  const id   = parseId(req.params.id, 'Admin User ID');
+  const id = parseId(req.params.id, 'Admin User ID');
   const data = validate(schemas.updateAdminUser, req, res);
   if (!data) return;
 
@@ -73,7 +83,7 @@ const update = asyncHandler(async (req, res) => {
 
   const updateData = {};
   if (data.username !== undefined) updateData.username = data.username;
-  if (data.role     !== undefined) updateData.role     = data.role;
+  if (data.role !== undefined) updateData.role = data.role;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
   if (data.password) {
     updateData.passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
@@ -81,11 +91,16 @@ const update = asyncHandler(async (req, res) => {
 
   const user = await prisma.adminUser.update({
     where: { id },
-    data:  updateData,
+    data: updateData,
     select: SAFE_SELECT,
   });
   const by = await resolveActingUsername(req);
-  void notifySlack(SLACK_EVENTS.ADMIN_USER_UPDATED, { username: user.username, role: user.role, isActive: user.isActive, by });
+  void notifySlack(SLACK_EVENTS.ADMIN_USER_UPDATED, {
+    username: user.username,
+    role: user.role,
+    isActive: user.isActive,
+    by,
+  });
   res.json({ success: true, data: user });
 });
 
@@ -109,7 +124,11 @@ const remove = asyncHandler(async (req, res) => {
 
   await prisma.adminUser.delete({ where: { id } });
   const by = await resolveActingUsername(req);
-  void notifySlack(SLACK_EVENTS.ADMIN_USER_DELETED, { username: target.username, role: target.role, by });
+  void notifySlack(SLACK_EVENTS.ADMIN_USER_DELETED, {
+    username: target.username,
+    role: target.role,
+    by,
+  });
   res.json({ success: true, data: { message: 'Admin user deleted' } });
 });
 
@@ -120,7 +139,7 @@ const remove = asyncHandler(async (req, res) => {
 
 const mfaStatus = asyncHandler(async (req, res) => {
   const me = await prisma.adminUser.findUnique({
-    where:  { id: req.user.adminUserId },
+    where: { id: req.user.adminUserId },
     select: { mfaEnabled: true },
   });
   if (!me) throw new AppError('Admin user not found', 404);
@@ -130,8 +149,10 @@ const mfaStatus = asyncHandler(async (req, res) => {
 const mfaSetup = asyncHandler(async (req, res) => {
   const me = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId } });
   if (!me) throw new AppError('Admin user not found', 404);
-  if (me.role !== 'superadmin') throw new AppError('MFA is available for super admin accounts only', 400);
-  if (me.mfaEnabled) throw new AppError('MFA is already enabled. Disable it first to re-enroll.', 400);
+  if (me.role !== 'superadmin')
+    throw new AppError('MFA is available for super admin accounts only', 400);
+  if (me.mfaEnabled)
+    throw new AppError('MFA is already enabled. Disable it first to re-enroll.', 400);
 
   const secret = mfaService.generateSecret();
   const { otpauth, qrCodeDataUrl } = await mfaService.buildEnrollment(me.username, secret);
@@ -140,7 +161,7 @@ const mfaSetup = asyncHandler(async (req, res) => {
   // proves a live code — an abandoned setup just leaves an unused secret.
   await prisma.adminUser.update({
     where: { id: me.id },
-    data:  { mfaSecret: mfaCrypto.encrypt(secret) },
+    data: { mfaSecret: mfaCrypto.encrypt(secret) },
   });
 
   res.json({ success: true, data: { otpauth, qrCodeDataUrl } });
@@ -165,7 +186,7 @@ const mfaConfirm = asyncHandler(async (req, res) => {
 
   await prisma.adminUser.update({
     where: { id: me.id },
-    data:  { mfaEnabled: true, mfaBackupCodes: hashedCodes },
+    data: { mfaEnabled: true, mfaBackupCodes: hashedCodes },
   });
 
   void notifySlack(SLACK_EVENTS.MFA_ENABLED, { username: me.username });
@@ -186,11 +207,65 @@ const mfaDisable = asyncHandler(async (req, res) => {
 
   await prisma.adminUser.update({
     where: { id: me.id },
-    data:  { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] },
+    data: { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] },
   });
 
   void notifySlack(SLACK_EVENTS.MFA_DISABLED, { username: me.username });
   res.json({ success: true, data: { message: 'MFA disabled' } });
 });
 
-module.exports = { getAll, create, update, remove, mfaStatus, mfaSetup, mfaConfirm, mfaDisable };
+// ─── MFA (superadmin-driven — forces/lifts the policy on ANOTHER account) ──
+// Distinct from the self-service block above: this is a superadmin acting
+// on someone else's account, never their own (see the self-guard below).
+
+const setMfaRequired = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Admin User ID');
+  const data = validate(schemas.setMfaRequired, req, res);
+  if (!data) return;
+
+  // Managing your OWN MFA goes through the self-service tab above — mixing
+  // the two here would make it unclear which flow is authoritative.
+  if (req.user.adminUserId === id) {
+    throw new AppError('Use the MFA tab in your own account settings to manage your MFA', 400);
+  }
+
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) throw new AppError('Admin user not found', 404);
+  if (target.role === 'dispatcher') {
+    throw new AppError('MFA is only available for admin and super admin accounts', 400);
+  }
+
+  // Turning the requirement OFF means "this account no longer needs MFA at
+  // all" — an admin has no self-service tab to disable it themselves once
+  // enrolled, so this is also the only way to fully turn it back off for
+  // them. Turning it ON only sets the policy; enrollment happens at their
+  // next login (see auth.controller.js's mfaSetupRequired/mfaConfirmRequired).
+  const updateData = data.required
+    ? { mfaRequired: true }
+    : { mfaRequired: false, mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] };
+
+  const user = await prisma.adminUser.update({
+    where: { id },
+    data: updateData,
+    select: SAFE_SELECT,
+  });
+  const by = await resolveActingUsername(req);
+  const roleLabel = target.role === 'superadmin' ? 'Super Admin' : 'Admin';
+  void notifySlack(
+    data.required ? SLACK_EVENTS.MFA_REQUIRED_SET : SLACK_EVENTS.MFA_REQUIRED_UNSET,
+    { username: target.username, role: roleLabel, by }
+  );
+  res.json({ success: true, data: user });
+});
+
+module.exports = {
+  getAll,
+  create,
+  update,
+  remove,
+  mfaStatus,
+  mfaSetup,
+  mfaConfirm,
+  mfaDisable,
+  setMfaRequired,
+};
