@@ -70,4 +70,50 @@ test.describe('POST /api/v1/errors/client', () => {
     // Expired token is tolerated — the endpoint is public
     expect(res.status()).toBe(200);
   });
+
+  test('returns 400 when message exceeds the max length', async ({ request }) => {
+    const res = await request.post('/api/v1/errors/client', {
+      data: { message: 'x'.repeat(2001) },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when stack exceeds the max length', async ({ request }) => {
+    const res = await request.post('/api/v1/errors/client', {
+      data: { message: 'ok', stack: 'x'.repeat(5001) },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 when page exceeds the max length', async ({ request }) => {
+    const res = await request.post('/api/v1/errors/client', {
+      data: { message: 'ok', page: '/x'.repeat(200) },
+    });
+
+    expect(res.status()).toBe(400);
+  });
+
+  test('is rate-limited past the per-IP budget', async ({ request }) => {
+    // The route's dedicated limiter allows 30/hour/IP. Playwright's request
+    // fixture reuses one context (one apparent IP) for the whole test, so
+    // burning through the budget here proves the limiter is actually wired
+    // to this route rather than relying only on the generic global limiter.
+    for (let i = 0; i < 30; i++) {
+      const res = await request.post('/api/v1/errors/client', {
+        data: { message: `burst ${i}` },
+      });
+      expect(res.status()).toBe(200);
+    }
+
+    // Budget is now exhausted. The limiter is configured to still return
+    // success:true/200 (best-effort beacon — never surface an error to the
+    // reporting client), so assert via the limiter's own headers instead.
+    const limited = await request.post('/api/v1/errors/client', { data: { message: 'one more' } });
+    expect(limited.status()).toBe(200);
+    const body = await limited.json();
+    expect(body.success).toBe(true);
+    expect(limited.headers()['ratelimit-remaining']).toBe('0');
+  });
 });
