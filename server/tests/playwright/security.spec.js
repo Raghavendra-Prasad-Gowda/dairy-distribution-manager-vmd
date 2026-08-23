@@ -4,7 +4,7 @@
  * Security Hardening Tests
  *
  * Defends against middleware regressions:
- *   - PIN rate limiter (5 attempts / 15 min)
+ *   - PIN rate limiter (20 attempts / 15 min)
  *   - bulkWriteLimiter on /stock-receipts and /salespeople (30 req / min)
  *   - express-rate-limit headers
  *   - Zod .max(500) on notes/reference (shortText)
@@ -26,20 +26,20 @@ const { test, ctx, makeAuthToken } = setupSuite();
 
 const SECRET = 'test-secret-for-ci';
 
-// ─── PIN rate limiting (5 / 15 min) ───────────────────────────────────────────
+// ─── PIN rate limiting (20 / 15 min) ──────────────────────────────────────────
 
 test.describe('Rate limits — PIN', () => {
-  test('exceeds 5 attempts in window → 429', async ({ request }) => {
+  test('exceeds 20 attempts in window → 429', async ({ request }) => {
     ctx.mockBcrypt.compare = async () => false; // every attempt fails
 
     let last;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 22; i++) {
       last = await request.post('/api/v1/pin/verify', {
         headers: { Authorization: `Bearer ${makeAuthToken()}` },
         data: { pin: '000000' },
       });
     }
-    // After the 5th allowed attempt, the limiter should block.
+    // After the 20th allowed attempt, the limiter should block.
     expect(last.status()).toBe(429);
     const body = await last.json();
     expect(body.error).toMatch(/Too many PIN attempts/);

@@ -2,10 +2,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, schemas } = require('../utils/validate');
-const { BCRYPT_ROUNDS, JWT_EXPIRES_IN } = require('../utils/constants');
+const { BCRYPT_ROUNDS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const mfaService = require('../services/mfaService');
+const mfaCrypto = require('../utils/mfaCrypto');
 const env = require('../config/env');
 
 const BUSINESS_NAME = 'Vikas Milk Dairy';
@@ -18,6 +20,66 @@ function setCookie(res, token) {
     sameSite: isDeployed ? 'none' : 'lax',
     maxAge: JWT_EXPIRES_IN * 1000,
   });
+}
+
+/**
+ * Issues the real session for an AdminUser (admin/superadmin/dispatcher) —
+ * signs the full JWT, sets the cookie, fires the LOGIN Slack card, and
+ * writes the response. Shared by the plain login path, the MFA-verify path
+ * (mfaLogin), and completing a forced enrollment (mfaConfirmRequired) — all
+ * three end at "credentials are now fully proven". `extraData` is merged
+ * into the response's `data` (mfaConfirmRequired uses it to also return the
+ * new backup codes alongside the session).
+ */
+function respondWithAdminSession(res, adminUser, ip, extraData = {}) {
+  const token = jwt.sign(
+    { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
+    env.JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+  setCookie(res, token);
+
+  const adminRoleLabel =
+    adminUser.role === 'superadmin'
+      ? 'Super Admin'
+      : adminUser.role === 'dispatcher'
+        ? 'Dispatcher'
+        : 'Admin';
+  void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminRoleLabel, ip });
+  res.json({
+    success: true,
+    data: {
+      accessToken: token,
+      businessName: BUSINESS_NAME,
+      role: adminUser.role,
+      adminUserId: adminUser.id,
+      ...extraData,
+    },
+  });
+}
+
+/**
+ * Decodes and validates a pending mfaToken handed back by login() when it
+ * pauses for MFA. Shared by mfaLogin, mfaSetupRequired and
+ * mfaConfirmRequired below — none of them have a full session yet, only
+ * this short-lived token, since `authenticate` rejects it (no `role` claim).
+ */
+async function resolvePendingAdminUser(mfaToken) {
+  let decoded;
+  try {
+    decoded = jwt.verify(mfaToken, env.JWT_SECRET);
+  } catch {
+    throw new AppError('MFA session expired. Please log in again.', 401);
+  }
+  if (!decoded.mfaPending || !decoded.adminUserId) {
+    throw new AppError('Invalid MFA session. Please log in again.', 401);
+  }
+
+  const adminUser = await prisma.adminUser.findUnique({ where: { id: decoded.adminUserId } });
+  if (!adminUser || !adminUser.isActive) {
+    throw new AppError('MFA session is no longer valid. Please log in again.', 401);
+  }
+  return adminUser;
 }
 
 const login = asyncHandler(async (req, res) => {
@@ -34,33 +96,49 @@ const login = asyncHandler(async (req, res) => {
 
   if (adminUser) {
     if (!adminUser.isActive) {
-      void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Account disabled' });
+      void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
+        attemptedUsername: data.username,
+        ip,
+        reason: 'Account disabled',
+      });
       throw new AppError('Invalid username or password', 401);
     }
     const valid = await bcrypt.compare(data.password, adminUser.passwordHash);
     if (!valid) {
-      void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Wrong password' });
+      void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
+        attemptedUsername: data.username,
+        ip,
+        reason: 'Wrong password',
+      });
       throw new AppError('Invalid username or password', 401);
     }
 
-    const token = jwt.sign(
-      { id: adminUser.id, role: adminUser.role, adminUserId: adminUser.id },
-      env.JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-    setCookie(res, token);
+    // Password is proven — but the session isn't issued yet in either MFA
+    // case below, so no LOGIN card fires until mfaLogin() or
+    // mfaConfirmRequired() completes it. The short-lived mfaToken carries
+    // only enough to resume (adminUserId + mfaPending) and is rejected by
+    // `authenticate` since it has no `role` claim.
+    if (adminUser.mfaEnabled) {
+      // Already enrolled (self-service, or a completed forced enrollment) —
+      // pause for a live code / backup code via POST /auth/mfa/verify.
+      const mfaToken = jwt.sign({ adminUserId: adminUser.id, mfaPending: true }, env.JWT_SECRET, {
+        expiresIn: MFA_PENDING_EXPIRES_IN,
+      });
+      return res.json({ success: true, data: { mfaVerifyRequired: true, mfaToken } });
+    }
+    if (adminUser.mfaRequired) {
+      // A superadmin marked this account mfaRequired but it was never
+      // enrolled — force enrollment (QR + code) before a session is issued.
+      // mfaEnabled can only ever be true for admin/superadmin rows
+      // (dispatcher is blocked in setMfaRequired and the self-service
+      // endpoints), so this invariant holds without re-checking role here.
+      const mfaToken = jwt.sign({ adminUserId: adminUser.id, mfaPending: true }, env.JWT_SECRET, {
+        expiresIn: MFA_PENDING_EXPIRES_IN,
+      });
+      return res.json({ success: true, data: { mfaSetupRequired: true, mfaToken } });
+    }
 
-    const adminRoleLabel = adminUser.role === 'superadmin' ? 'Super Admin' : adminUser.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
-    void notifySlack(SLACK_EVENTS.LOGIN, { username: adminUser.username, role: adminRoleLabel, ip });
-    return res.json({
-      success: true,
-      data: {
-        accessToken:  token,
-        businessName: BUSINESS_NAME,
-        role:         adminUser.role,
-        adminUserId:  adminUser.id,
-      },
-    });
+    return respondWithAdminSession(res, adminUser, ip);
   }
 
   // ── 2. Try salesperson ────────────────────────────────────────────────────
@@ -70,13 +148,21 @@ const login = asyncHandler(async (req, res) => {
   });
 
   if (!salesperson || !salesperson.passwordHash) {
-    void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Username not found' });
+    void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
+      attemptedUsername: data.username,
+      ip,
+      reason: 'Username not found',
+    });
     throw new AppError('Invalid username or password', 401);
   }
 
   const valid = await bcrypt.compare(data.password, salesperson.passwordHash);
   if (!valid) {
-    void notifySlack(SLACK_EVENTS.FAILED_LOGIN, { attemptedUsername: data.username, ip, reason: 'Wrong password' });
+    void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
+      attemptedUsername: data.username,
+      ip,
+      reason: 'Wrong password',
+    });
     throw new AppError('Invalid username or password', 401);
   }
 
@@ -91,13 +177,124 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      accessToken:     token,
-      businessName:    BUSINESS_NAME,
-      role:            'salesman',
-      salespersonId:   salesperson.id,
+      accessToken: token,
+      businessName: BUSINESS_NAME,
+      role: 'salesman',
+      salespersonId: salesperson.id,
       salespersonName: salesperson.name,
     },
   });
+});
+
+/**
+ * POST /auth/mfa/verify
+ * Completes a login that login() paused for MFA on an already-enrolled
+ * account (self-enrolled superadmin, or an admin who already completed a
+ * forced enrollment). Accepts the short-lived mfaToken from that response
+ * plus either a live 6-digit TOTP code or a one-time backup code.
+ */
+const mfaLogin = asyncHandler(async (req, res) => {
+  const data = validate(schemas.verifyMfaLogin, req, res);
+  if (!data) return;
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const adminUser = await resolvePendingAdminUser(data.mfaToken);
+
+  if (!adminUser.mfaEnabled) {
+    throw new AppError('MFA session is no longer valid. Please log in again.', 401);
+  }
+
+  const result = await mfaService.verifyLoginCode(adminUser, data.code);
+  if (!result.ok) {
+    void notifySlack(SLACK_EVENTS.MFA_FAILED, { username: adminUser.username, ip });
+    throw new AppError('Invalid authentication code', 401);
+  }
+
+  if (result.usedBackupCode) {
+    await prisma.adminUser.update({
+      where: { id: adminUser.id },
+      data: { mfaBackupCodes: result.remainingBackupCodes },
+    });
+  }
+
+  respondWithAdminSession(res, adminUser, ip);
+});
+
+/**
+ * POST /auth/mfa/setup-required
+ * First step of a FORCED enrollment — resumes a login() that paused because
+ * a superadmin marked this account mfaRequired but it has never been
+ * enrolled. Generates a pending TOTP secret and returns the enrollment QR,
+ * mirroring adminUsers.controller.js's self-service mfaSetup but
+ * authenticated by the pending mfaToken instead of a full session (there
+ * isn't one yet — this IS what stands between the account and a session).
+ */
+const mfaSetupRequired = asyncHandler(async (req, res) => {
+  const data = validate(schemas.mfaSetupToken, req, res);
+  if (!data) return;
+
+  const adminUser = await resolvePendingAdminUser(data.mfaToken);
+  if (!adminUser.mfaRequired || adminUser.mfaEnabled) {
+    throw new AppError('MFA session is no longer valid. Please log in again.', 401);
+  }
+
+  const secret = mfaService.generateSecret();
+  const { otpauth, qrCodeDataUrl } = await mfaService.buildEnrollment(adminUser.username, secret);
+
+  // Stored encrypted immediately; mfaEnabled flips true only once
+  // mfaConfirmRequired proves a live code from it.
+  await prisma.adminUser.update({
+    where: { id: adminUser.id },
+    data: { mfaSecret: mfaCrypto.encrypt(secret) },
+  });
+
+  res.json({ success: true, data: { otpauth, qrCodeDataUrl } });
+});
+
+/**
+ * POST /auth/mfa/confirm-required
+ * Second step of forced enrollment — verifies the code against the pending
+ * secret from mfaSetupRequired, turns MFA on, and — unlike the self-service
+ * confirm — immediately issues the real session, since completing this IS
+ * completing the login. Backup codes are returned alongside the session so
+ * the client can show them once, right where the QR code was shown.
+ */
+const mfaConfirmRequired = asyncHandler(async (req, res) => {
+  const data = validate(schemas.confirmRequiredMfa, req, res);
+  if (!data) return;
+
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const adminUser = await resolvePendingAdminUser(data.mfaToken);
+  if (!adminUser.mfaRequired || adminUser.mfaEnabled || !adminUser.mfaSecret) {
+    throw new AppError('MFA session is no longer valid. Please log in again.', 401);
+  }
+
+  const secret = mfaCrypto.decrypt(adminUser.mfaSecret);
+  if (!(await mfaService.verifyEnrollmentCode(secret, data.code))) {
+    throw new AppError('Invalid code. Please try again.', 400);
+  }
+
+  const backupCodes = mfaService.generateBackupCodes();
+  const hashedCodes = await mfaService.hashBackupCodes(backupCodes);
+
+  const updated = await prisma.adminUser.update({
+    where: { id: adminUser.id },
+    data: { mfaEnabled: true, mfaBackupCodes: hashedCodes },
+  });
+
+  const roleLabel =
+    adminUser.role === 'superadmin'
+      ? 'Super Admin'
+      : adminUser.role === 'dispatcher'
+        ? 'Dispatcher'
+        : 'Admin';
+  void notifySlack(SLACK_EVENTS.MFA_ENABLED, {
+    username: adminUser.username,
+    role: roleLabel,
+    requiredBy: 'Required by a super admin',
+  });
+
+  respondWithAdminSession(res, updated, ip, { backupCodes });
 });
 
 const changePassword = asyncHandler(async (req, res) => {
@@ -120,7 +317,12 @@ const changePassword = asyncHandler(async (req, res) => {
 
     void notifySlack(SLACK_EVENTS.PASSWORD_CHANGED, {
       username: adminUser.username,
-      role:     adminUser.role === 'superadmin' ? 'Super Admin' : adminUser.role === 'dispatcher' ? 'Dispatcher' : 'Admin',
+      role:
+        adminUser.role === 'superadmin'
+          ? 'Super Admin'
+          : adminUser.role === 'dispatcher'
+            ? 'Dispatcher'
+            : 'Admin',
       ip,
     });
     res.json({ success: true, data: { message: 'Password changed successfully' } });
@@ -137,7 +339,7 @@ const changePassword = asyncHandler(async (req, res) => {
 
     void notifySlack(SLACK_EVENTS.PASSWORD_CHANGED, {
       username: salesperson.username ?? salesperson.name,
-      role:     'Salesman',
+      role: 'Salesman',
       ip,
     });
     res.json({ success: true, data: { message: 'Password changed successfully' } });
@@ -152,11 +354,22 @@ const logout = asyncHandler(async (req, res) => {
   let role = 'unknown';
 
   if (req.user?.adminUserId) {
-    const au = await prisma.adminUser.findUnique({ where: { id: req.user.adminUserId }, select: { username: true, role: true } });
+    const au = await prisma.adminUser.findUnique({
+      where: { id: req.user.adminUserId },
+      select: { username: true, role: true },
+    });
     username = au?.username ?? 'unknown';
-    role = au?.role === 'superadmin' ? 'Super Admin' : au?.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
+    role =
+      au?.role === 'superadmin'
+        ? 'Super Admin'
+        : au?.role === 'dispatcher'
+          ? 'Dispatcher'
+          : 'Admin';
   } else if (req.user?.role === 'salesman') {
-    const sp = await prisma.salesperson.findUnique({ where: { id: req.user.salespersonId }, select: { username: true, name: true } });
+    const sp = await prisma.salesperson.findUnique({
+      where: { id: req.user.salespersonId },
+      select: { username: true, name: true },
+    });
     username = sp?.username ?? sp?.name ?? 'unknown';
     role = 'Salesman';
   }
@@ -166,4 +379,4 @@ const logout = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Logged out' } });
 });
 
-module.exports = { login, changePassword, logout };
+module.exports = { login, mfaLogin, mfaSetupRequired, mfaConfirmRequired, changePassword, logout };

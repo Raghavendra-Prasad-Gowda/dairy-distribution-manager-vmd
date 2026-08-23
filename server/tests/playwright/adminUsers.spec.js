@@ -8,7 +8,12 @@
  */
 
 const { expect } = require('@playwright/test');
-const { setupSuite, makeSalesmanToken, makeExpiredToken, makeSuperAdminToken } = require('../helpers/test-setup');
+const {
+  setupSuite,
+  makeSalesmanToken,
+  makeExpiredToken,
+  makeSuperAdminToken,
+} = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
@@ -170,7 +175,12 @@ test.describe('POST /api/v1/admin-users', () => {
   });
 
   test('returns 201 when role is dispatcher', async ({ request }) => {
-    ctx.mockPrisma.adminUser.create.mockResolvedValue({ ...ADMIN_USER, id: 3, username: 'dispatcher1', role: 'dispatcher' });
+    ctx.mockPrisma.adminUser.create.mockResolvedValue({
+      ...ADMIN_USER,
+      id: 3,
+      username: 'dispatcher1',
+      role: 'dispatcher',
+    });
 
     const res = await request.post('/api/v1/admin-users', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
@@ -194,7 +204,9 @@ test.describe('POST /api/v1/admin-users', () => {
   // Login matches usernames case-insensitively, so "manager" and "MANAGER"
   // must not both be allowed to exist. See adminUsers.controller.js create().
 
-  test('returns 409 when username collides case-insensitively with an existing admin', async ({ request }) => {
+  test('returns 409 when username collides case-insensitively with an existing admin', async ({
+    request,
+  }) => {
     ctx.mockPrisma.adminUser.findFirst.mockResolvedValue(ADMIN_USER); // stored username: 'manager'
 
     const res = await request.post('/api/v1/admin-users', {
@@ -270,7 +282,9 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
 
   // ── Case-insensitive username uniqueness ─────────────────────────────────
 
-  test('returns 409 when updated username collides case-insensitively with another admin', async ({ request }) => {
+  test('returns 409 when updated username collides case-insensitively with another admin', async ({
+    request,
+  }) => {
     ctx.mockPrisma.adminUser.findFirst.mockResolvedValue({ id: 3, username: 'other' });
 
     const res = await request.put('/api/v1/admin-users/2', {
@@ -281,7 +295,9 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
     expect(res.status()).toBe(409);
   });
 
-  test('uniqueness check excludes the record being updated (id: { not: id })', async ({ request }) => {
+  test('uniqueness check excludes the record being updated (id: { not: id })', async ({
+    request,
+  }) => {
     let findFirstArgs = null;
     ctx.mockPrisma.adminUser.findFirst.mockImplementation(async (args) => {
       findFirstArgs = args;
@@ -316,7 +332,10 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
 
   test('returns 200 and rehashes the password when password is included', async ({ request }) => {
     let updateArgs = null;
-    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => { updateArgs = args; return { ...ADMIN_USER, ...args.data }; });
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { ...ADMIN_USER, ...args.data };
+    });
 
     const res = await request.put('/api/v1/admin-users/2', {
       headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
@@ -364,7 +383,9 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
     expect(body.error).toMatch(/cannot change your own role/i);
   });
 
-  test('returns 400 when superadmin tries to change their own role to dispatcher', async ({ request }) => {
+  test('returns 400 when superadmin tries to change their own role to dispatcher', async ({
+    request,
+  }) => {
     // Widened guard: blocks ANY self-role-change away from superadmin, not
     // just to 'admin' — otherwise a superadmin could demote themselves to
     // dispatcher and lock themselves out of /admin/users.
@@ -407,6 +428,52 @@ test.describe('PUT /api/v1/admin-users/:id', () => {
       data: { username: 'ab' },
     });
     expect(res.status()).toBe(400);
+  });
+
+  // Dispatcher is never MFA-eligible — demoting an MFA-enabled/required
+  // account into it must wipe that state, or it goes dark: the Admin Users
+  // table hides the MFA column and toggle entirely for dispatcher rows, so
+  // a stray flag here would be invisible and unfixable from the UI.
+  test('demoting an MFA-enabled account to dispatcher clears all MFA fields', async ({
+    request,
+  }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { id: 2, username: 'manager', role: 'dispatcher', isActive: true };
+    });
+
+    const res = await request.put('/api/v1/admin-users/2', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { role: 'dispatcher' },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toEqual({
+      role: 'dispatcher',
+      mfaEnabled: false,
+      mfaRequired: false,
+      mfaSecret: null,
+      mfaBackupCodes: [],
+    });
+  });
+
+  test('changing role to admin or superadmin does not touch MFA fields', async ({ request }) => {
+    let updateArgs = null;
+    ctx.mockPrisma.adminUser.update.mockImplementation(async (args) => {
+      updateArgs = args;
+      return { id: 2, username: 'manager', role: 'superadmin', isActive: true };
+    });
+
+    const res = await request.put('/api/v1/admin-users/2', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { role: 'superadmin' },
+    });
+
+    expect(res.status()).toBe(200);
+    expect(updateArgs.data).toEqual({ role: 'superadmin' });
+    expect(updateArgs.data).not.toHaveProperty('mfaEnabled');
+    expect(updateArgs.data).not.toHaveProperty('mfaSecret');
   });
 });
 

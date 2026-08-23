@@ -56,10 +56,11 @@ const schema = z.object({
   ADMIN_PASSWORD: isProd
     ? z.string().min(1, 'ADMIN_PASSWORD is required in production')
     : z.string().optional(),
-  EDIT_PIN: requiredInProd(
-    z.string().min(4, 'EDIT_PIN must be at least 4 characters').max(12),
-    '123456'
-  ),
+  // EDIT_PIN is now stored as a bcrypt hash in the AppSettings DB table and
+  // managed via the superadmin UI. This env var is consulted only by seed.js
+  // on the very first deploy to initialise the DB row. Rotate the PIN via the
+  // superadmin UI thereafter — no env var change or server redeployment needed.
+  EDIT_PIN: z.string().optional(),
 
   // Superadmin auto-provisioning (prisma/seed.js). Genuinely optional — when
   // unset, seeding is skipped entirely (no superadmin is created/synced). Never

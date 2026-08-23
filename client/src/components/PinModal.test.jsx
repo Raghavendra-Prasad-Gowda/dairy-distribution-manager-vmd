@@ -69,7 +69,7 @@ describe('PinModal — digit entry', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/pin/verify', { pin: '123456' }));
     expect(onSuccess).toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled(); // success does NOT trigger onClose; callers own their teardown
   });
 
   it('Backspace clears the current digit, or moves back and clears the previous one', () => {
@@ -110,7 +110,7 @@ describe('PinModal — failure', () => {
 
     // Distinct from the persistent amber "N attempts remaining before lockout"
     // banner — this is the per-submit red error line under the PIN boxes.
-    expect(await screen.findByText('Incorrect PIN. 3 attempts remaining.')).toBeInTheDocument();
+    expect(await screen.findByText('Incorrect PIN. 14 attempts remaining.')).toBeInTheDocument();
     expect(inputs[0]).toHaveValue('');
   });
 
@@ -122,17 +122,17 @@ describe('PinModal — failure', () => {
     const inputs = container.querySelectorAll('input[type="password"]');
     typePin(inputs, '000000');
 
-    await screen.findByText('Incorrect PIN. 3 attempts remaining.');
+    await screen.findByText('Incorrect PIN. 14 attempts remaining.');
     expect(onSuccess).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 });
 
 describe('PinModal — lockout', () => {
-  it('locks out after the 4th wrong attempt and shows a countdown', async () => {
+  it('locks out after the 15th wrong attempt and shows a countdown', async () => {
     vi.useFakeTimers();
     vi.mocked(api.post).mockRejectedValue(new Error('wrong'));
-    localStorage.setItem('vmd_pin_attempts', '3'); // one more failure trips the lockout
+    localStorage.setItem('vmd_pin_attempts', '14'); // one more failure trips the lockout
     const { container } = render(<PinModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} />);
     const inputs = container.querySelectorAll('input[type="password"]');
     typePin(inputs, '000000');
@@ -140,7 +140,7 @@ describe('PinModal — lockout', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
     expect(screen.getByText('PIN Locked')).toBeInTheDocument();
-    expect(screen.getByText('60m 0s')).toBeInTheDocument();
+    expect(screen.getByText('20m 0s')).toBeInTheDocument();
     expect(localStorage.getItem('vmd_pin_lockout_until')).not.toBeNull();
     expect(localStorage.getItem('vmd_pin_attempts')).toBeNull();
   });

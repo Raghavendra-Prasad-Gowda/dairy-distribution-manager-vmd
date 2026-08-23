@@ -364,6 +364,25 @@ model AdminUser {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  // ── MFA (see services/mfaService.js) ────────────────────────────────────────
+  // mfaSecret holds the TOTP secret AES-256-GCM-encrypted at rest (never
+  // plaintext in the DB). It's written as soon as enrollment starts but
+  // mfaEnabled stays false until a live code confirms the enrollment — an
+  // abandoned setup just leaves an unused pending secret.
+  mfaSecret      String?  @map("mfa_secret")
+  mfaEnabled     Boolean  @default(false) @map("mfa_enabled")
+  // One-time backup codes, bcrypt-hashed, consumed (removed from the array)
+  // on use — for when the authenticator device is unavailable.
+  mfaBackupCodes String[] @default([]) @map("mfa_backup_codes")
+  // Superadmin-set policy on an admin/superadmin account (never dispatcher —
+  // enforced in adminUsers.controller.js#setMfaRequired): true means this
+  // account MUST have MFA. If mfaEnabled is still false when this is true,
+  // login() forces the account through enrollment before issuing a session
+  // (see auth.controller.js's mfaSetupRequired/mfaConfirmRequired). Distinct
+  // from the self-service mfaEnabled toggle a superadmin has for their own
+  // account — this is superadmin acting on SOMEONE ELSE's account.
+  mfaRequired    Boolean  @default(false) @map("mfa_required")
+
   dispatchDayFinalizations DispatchDayFinalization[]
 
   @@map("admin_users")
@@ -387,4 +406,17 @@ model DispatchDayFinalization {
   finalizedBy AdminUser? @relation(fields: [finalizedByAdminUserId], references: [id], onDelete: SetNull)
 
   @@map("dispatch_day_finalizations")
+}
+
+// ─── App Settings ─────────────────────────────────────────────────────────────
+// Generic key-value store for app-wide configuration managed via the UI.
+// Currently used for the edit PIN (key = 'edit_pin', value = bcrypt hash).
+// PIN changes made through the superadmin UI are persisted here; the EDIT_PIN
+// env var is only consulted by seed.js on the very first deploy.
+model AppSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }

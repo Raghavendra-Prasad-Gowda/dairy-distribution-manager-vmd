@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Search, X } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
+import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import api from '../../api/axios';
@@ -39,8 +41,31 @@ function groupByBrand(products) {
 }
 
 export default function SalesmanProfitLoss() {
+  const navigate = useNavigate();
   const { notify } = useNotification();
   const today = getIndiaDate();
+
+  // Settings gate — fetch whether the P&L PIN is required before rendering.
+  // Fail-closed: plPinEnabled defaults to true so the gate stays visible
+  // if the request fails.
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [plPinEnabled,    setPlPinEnabled]    = useState(true);
+
+  // PIN gate — mount-scoped: resets to false every time the page mounts,
+  // so the PIN is required on every visit (no sessionStorage caching).
+  const [pinVerified, setPinVerified] = useState(false);
+
+  // Fetch the PIN gate setting once on mount.
+  useEffect(() => {
+    api.get('/pin/settings')
+      .then(r => setPlPinEnabled(r.data.data.plPinEnabled))
+      .catch(() => {}) // fail-closed: plPinEnabled stays true
+      .finally(() => setSettingsLoading(false));
+  }, []);
+
+  // needsPin is the single source of truth: gate is only active when the
+  // feature is enabled AND the admin hasn't verified the PIN this visit.
+  const needsPin = plPinEnabled && !pinVerified;
 
   // Opens on "today's P&L"; widening the range gives the range view.
   const [from, setFrom]         = useState(today);
@@ -55,6 +80,7 @@ export default function SalesmanProfitLoss() {
   // dates change again before it lands — otherwise an earlier, slower request
   // could overwrite the newer range's figures.
   useEffect(() => {
+    if (settingsLoading || needsPin) return;
     let cancelled = false;
 
     (async () => {
@@ -72,7 +98,7 @@ export default function SalesmanProfitLoss() {
     })();
 
     return () => { cancelled = true; };
-  }, [from, to, notify]);
+  }, [from, to, notify, settingsLoading, needsPin]);
 
   const salespeople = useMemo(() => data?.salespeople ?? [], [data]);
 
@@ -87,6 +113,22 @@ export default function SalesmanProfitLoss() {
   const selectedSp = selected === ALL ? null : salespeople.find(s => s.salespersonId === selected);
   const totals     = data?.totals ?? { revenue: 0, cost: 0, profit: 0, marginPct: 0 };
   const totalTone  = toneFor(totals.profit);
+
+  // Wait for the settings fetch before deciding whether to show the gate.
+  if (settingsLoading) return <BrandedLoader />;
+
+  // PIN gate — render PinModal and nothing else until PIN is verified
+  if (needsPin) {
+    return (
+      <PinModal
+        isOpen
+        onClose={() => navigate(-1)}
+        onSuccess={() => setPinVerified(true)}
+        title="Enter PIN to view Profit & Loss"
+        verifyPath="/pin/verify-pl"
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

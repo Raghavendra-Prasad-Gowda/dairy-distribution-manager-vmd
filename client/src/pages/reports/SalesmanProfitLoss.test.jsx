@@ -13,7 +13,7 @@ import SalesmanProfitLoss from './SalesmanProfitLoss';
 import api from '../../api/axios';
 
 vi.mock('../../api/axios', () => ({
-  default: { get: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn() },
 }));
 
 const notify = vi.fn();
@@ -25,6 +25,23 @@ vi.mock('../../utils/dateUtils', async () => {
   const actual = await vi.importActual('../../utils/dateUtils');
   return { ...actual, getIndiaDate: () => '2026-08-09' };
 });
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+// Mock PinModal so PIN gate tests don't need a real modal implementation.
+vi.mock('../../components/PinModal', () => ({
+  default: ({ isOpen, onClose, onSuccess, title, verifyPath }) =>
+    isOpen ? (
+      <div data-testid="pin-modal" data-verify-path={verifyPath}>
+        <p>{title}</p>
+        <button onClick={onClose}>Close</button>
+        <button onClick={onSuccess}>Verify</button>
+      </div>
+    ) : null,
+}));
 
 const REPORT = {
   from: '2026-08-09', to: '2026-08-09',
@@ -61,15 +78,95 @@ const REPORT = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api.get).mockResolvedValue({ data: { data: REPORT } });
+  // Mock both the settings endpoint (gate disabled) and the report endpoint.
+  // Gate disabled by default so that non-PIN tests render the page content directly.
+  vi.mocked(api.get).mockImplementation((url) => {
+    if (url.includes('/pin/settings'))
+      return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+    return Promise.resolve({ data: { data: REPORT } });
+  });
 });
 
 async function renderPage() {
   const utils = render(<SalesmanProfitLoss />);
-  await waitFor(() => expect(api.get).toHaveBeenCalled());
+  // Wait for settings to load (first api.get call) then for report data.
   await screen.findByText('K Pandu');
   return utils;
 }
+
+// ─── PIN gate tests ────────────────────────────────────────────────────────────
+
+describe('SalesmanProfitLoss — PIN gate', () => {
+  beforeEach(() => {
+    // Settings say PIN is required for these tests.
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: true } } });
+      return Promise.resolve({ data: { data: REPORT } });
+    });
+  });
+
+  it('shows the PinModal when plPinEnabled is true on every visit', async () => {
+    render(<SalesmanProfitLoss />);
+    // Must wait for settings to load before the gate decision is made.
+    const modal = await screen.findByTestId('pin-modal');
+    expect(modal).toBeInTheDocument();
+    expect(screen.getByText('Enter PIN to view Profit & Loss')).toBeInTheDocument();
+    // Uses the dedicated P&L PIN endpoint, not the edit PIN endpoint
+    expect(modal.dataset.verifyPath).toBe('/pin/verify-pl');
+  });
+
+  it('does NOT call the report API before PIN is verified', async () => {
+    render(<SalesmanProfitLoss />);
+    await screen.findByTestId('pin-modal'); // wait for settings to settle
+    const calls = vi.mocked(api.get).mock.calls.map(([url]) => url);
+    expect(calls).not.toContain(expect.stringContaining('/reports/profit-loss'));
+  });
+
+  it('renders page content after onSuccess fires (no navigate, no sessionStorage)', async () => {
+    render(<SalesmanProfitLoss />);
+    await screen.findByTestId('pin-modal');
+
+    // Click the mock Verify button — triggers onSuccess
+    fireEvent.click(screen.getByText('Verify'));
+
+    // PIN modal should be gone; page content should load
+    await waitFor(() => expect(screen.queryByTestId('pin-modal')).toBeNull());
+    await screen.findByText('K Pandu');
+    // No navigation away from the page
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('navigates back when the modal Close button is clicked', async () => {
+    render(<SalesmanProfitLoss />);
+    await screen.findByTestId('pin-modal');
+    fireEvent.click(screen.getByText('Close'));
+    // onClose calls navigate(-1) so the user can dismiss the gate
+    expect(mockNavigate).toHaveBeenCalledWith(-1);
+  });
+
+  it('skips the PIN modal when plPinEnabled is false (gate disabled)', async () => {
+    // Override settings to disabled.
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      return Promise.resolve({ data: { data: REPORT } });
+    });
+    render(<SalesmanProfitLoss />);
+    await screen.findByText('K Pandu');
+    expect(screen.queryByTestId('pin-modal')).toBeNull();
+  });
+
+  it('fails closed: shows PIN modal when settings request fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings')) return Promise.reject(new Error('Network error'));
+      return Promise.resolve({ data: { data: REPORT } });
+    });
+    render(<SalesmanProfitLoss />);
+    // plPinEnabled stays true (fail-closed default), modal should appear.
+    expect(await screen.findByTestId('pin-modal')).toBeInTheDocument();
+  });
+});
 
 describe('SalesmanProfitLoss — summary + range', () => {
   it('requests today for both ends of the range on first load', async () => {

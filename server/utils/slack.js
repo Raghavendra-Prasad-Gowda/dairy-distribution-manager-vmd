@@ -1,78 +1,91 @@
 'use strict';
 const logger = require('../config/logger');
-const prisma  = require('../lib/prisma');
+const prisma = require('../lib/prisma');
 const env = require('../config/env');
 
 const WEBHOOK_URL = env.SLACK_WEBHOOK_URL;
-const APP_URL     = env.APP_URL || '';
+const APP_URL = env.APP_URL || '';
 
 // ─── Event catalogue ──────────────────────────────────────────────────────────
 const SLACK_EVENTS = {
   // System
-  SERVER_STARTED:    'SERVER_STARTED',
-  SERVER_SHUTDOWN:   'SERVER_SHUTDOWN',
+  SERVER_STARTED: 'SERVER_STARTED',
+  SERVER_SHUTDOWN: 'SERVER_SHUTDOWN',
   SERVER_BOOT_FAILED: 'SERVER_BOOT_FAILED',
-  SERVER_ERROR:      'SERVER_ERROR',
-  PROCESS_CRASH:     'PROCESS_CRASH',
-  CLIENT_ERROR:      'CLIENT_ERROR',
+  SERVER_ERROR: 'SERVER_ERROR',
+  PROCESS_CRASH: 'PROCESS_CRASH',
+  CLIENT_ERROR: 'CLIENT_ERROR',
   // Auth — shared by admin, superadmin and salesman logins alike; the card
   // itself reads whichever role was passed in.
-  LOGIN:            'LOGIN',
-  LOGOUT:           'LOGOUT',
-  FAILED_LOGIN:     'FAILED_LOGIN',
+  LOGIN: 'LOGIN',
+  LOGOUT: 'LOGOUT',
+  FAILED_LOGIN: 'FAILED_LOGIN',
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
-  PIN_FAILED:       'PIN_FAILED',
+  PIN_FAILED: 'PIN_FAILED',
+  PIN_UPDATED: 'PIN_UPDATED',
+  PL_PIN_UPDATED: 'PL_PIN_UPDATED',
+  PIN_SETTINGS_UPDATED: 'PIN_SETTINGS_UPDATED',
+  // MFA — superadmin-only two-factor login (see services/mfaService.js)
+  MFA_ENABLED: 'MFA_ENABLED',
+  MFA_DISABLED: 'MFA_DISABLED',
+  MFA_FAILED: 'MFA_FAILED',
+  // Superadmin forcing/lifting an MFA requirement on someone else's admin
+  // account — distinct from MFA_ENABLED/MFA_DISABLED above, which fire when
+  // MFA itself actually turns on/off (self-service, or completing a forced
+  // enrollment). This pair fires on the POLICY change alone.
+  MFA_REQUIRED_SET: 'MFA_REQUIRED_SET',
+  MFA_REQUIRED_UNSET: 'MFA_REQUIRED_UNSET',
   // Salesman self-service "view" actions — informational only, fired from
   // endpoints that are exclusively reachable by the salesman's own pages
   // (see the controllers for why each specific handler was chosen).
-  SALESPERSON_BALANCE_VIEWED:   'SALESPERSON_BALANCE_VIEWED',
+  SALESPERSON_BALANCE_VIEWED: 'SALESPERSON_BALANCE_VIEWED',
   SALESPERSON_STATEMENT_VIEWED: 'SALESPERSON_STATEMENT_VIEWED',
   // Stock receipts
   STOCK_RECEIPT_SAVED: 'STOCK_RECEIPT_SAVED',
   // Dairy payments
   DAIRY_PAYMENT_RECORDED: 'DAIRY_PAYMENT_RECORDED',
-  DAIRY_PAYMENT_UPDATED:  'DAIRY_PAYMENT_UPDATED',
-  DAIRY_PAYMENT_DELETED:  'DAIRY_PAYMENT_DELETED',
+  DAIRY_PAYMENT_UPDATED: 'DAIRY_PAYMENT_UPDATED',
+  DAIRY_PAYMENT_DELETED: 'DAIRY_PAYMENT_DELETED',
   // Dispatch — createOrUpdate/remove are shared by admin (dispatching stock
   // to a salesperson) and the salesman themselves (self-entering their own
   // day's stock), distinguished by data.by on the card.
-  DISPATCH_SAVED:       'DISPATCH_SAVED',
-  DISPATCH_DELETED:     'DISPATCH_DELETED',
-  DISPATCH_SUBMITTED:   'DISPATCH_SUBMITTED',
+  DISPATCH_SAVED: 'DISPATCH_SAVED',
+  DISPATCH_DELETED: 'DISPATCH_DELETED',
+  DISPATCH_SUBMITTED: 'DISPATCH_SUBMITTED',
   DISPATCH_LOCK_CHANGED: 'DISPATCH_LOCK_CHANGED',
   // Dispatcher finalizes the day — force-locks any straggler entries and, from
   // that point on, only admin/superadmin can unlock a salesperson for it.
-  DISPATCH_DAY_FINALIZED:   'DISPATCH_DAY_FINALIZED',
+  DISPATCH_DAY_FINALIZED: 'DISPATCH_DAY_FINALIZED',
   // Admin reverses a dispatcher finalization — restores dispatcher lock/unlock
   // access for today without touching the actual dispatch entries.
   DISPATCH_DAY_UNFINALIZED: 'DISPATCH_DAY_UNFINALIZED',
   // Salesperson payments
   SALESPERSON_PAYMENT_RECORDED: 'SALESPERSON_PAYMENT_RECORDED',
-  SALESPERSON_PAYMENT_UPDATED:  'SALESPERSON_PAYMENT_UPDATED',
-  SALESPERSON_PAYMENT_DELETED:  'SALESPERSON_PAYMENT_DELETED',
+  SALESPERSON_PAYMENT_UPDATED: 'SALESPERSON_PAYMENT_UPDATED',
+  SALESPERSON_PAYMENT_DELETED: 'SALESPERSON_PAYMENT_DELETED',
   // Bulk top-ups + ledger reset — distinct from the single-record events
   // above: these touch several salespeople/brands at once and are admin-
   // loaded balance adjustments, not a real collection/payment.
-  SALESPERSON_TOPUP_RECORDED:    'SALESPERSON_TOPUP_RECORDED',
-  DAIRY_TOPUP_RECORDED:          'DAIRY_TOPUP_RECORDED',
+  SALESPERSON_TOPUP_RECORDED: 'SALESPERSON_TOPUP_RECORDED',
+  DAIRY_TOPUP_RECORDED: 'DAIRY_TOPUP_RECORDED',
   // Deposit top-up — a standalone ledger entry (DairyDepositTopUp), never a
   // DairyPayment. Only ever feeds the Deposit report's running total.
-  DAIRY_DEPOSIT_TOPUP_RECORDED:  'DAIRY_DEPOSIT_TOPUP_RECORDED',
-  SALESPERSON_LEDGER_RESET:      'SALESPERSON_LEDGER_RESET',
+  DAIRY_DEPOSIT_TOPUP_RECORDED: 'DAIRY_DEPOSIT_TOPUP_RECORDED',
+  SALESPERSON_LEDGER_RESET: 'SALESPERSON_LEDGER_RESET',
   // Setup — salespeople
   SALESPERSON_CREATED: 'SALESPERSON_CREATED',
   SALESPERSON_UPDATED: 'SALESPERSON_UPDATED',
   // Setup — salesman pricing (drives what a salesman is billed — see
   // dispatches.controller.js's resolveSalespersonItemPricing)
-  SALESPERSON_PRICES_UPDATED:      'SALESPERSON_PRICES_UPDATED',
-  SALESPERSON_PRICES_COPIED:       'SALESPERSON_PRICES_COPIED',
+  SALESPERSON_PRICES_UPDATED: 'SALESPERSON_PRICES_UPDATED',
+  SALESPERSON_PRICES_COPIED: 'SALESPERSON_PRICES_COPIED',
   SALESPERSON_PRICES_BULK_UPDATED: 'SALESPERSON_PRICES_BULK_UPDATED',
-  PRODUCT_PRICES_CLEARED:          'PRODUCT_PRICES_CLEARED',
+  PRODUCT_PRICES_CLEARED: 'PRODUCT_PRICES_CLEARED',
   // Setup — products
-  PRODUCT_CREATED:               'PRODUCT_CREATED',
-  PRODUCT_UPDATED:                'PRODUCT_UPDATED',
-  PRODUCT_DELETED:                'PRODUCT_DELETED',
-  PRODUCT_GLOBAL_ACCESS_UPDATED:  'PRODUCT_GLOBAL_ACCESS_UPDATED',
+  PRODUCT_CREATED: 'PRODUCT_CREATED',
+  PRODUCT_UPDATED: 'PRODUCT_UPDATED',
+  PRODUCT_DELETED: 'PRODUCT_DELETED',
+  PRODUCT_GLOBAL_ACCESS_UPDATED: 'PRODUCT_GLOBAL_ACCESS_UPDATED',
   // Setup — categories
   CATEGORY_CREATED: 'CATEGORY_CREATED',
   CATEGORY_UPDATED: 'CATEGORY_UPDATED',
@@ -93,35 +106,35 @@ const SLACK_EVENTS = {
 // ─── Colors ───────────────────────────────────────────────────────────────────
 const COLORS = {
   GREEN: '#2eb886',
-  BLUE:  '#1264a3',
+  BLUE: '#1264a3',
   AMBER: '#e8a838',
-  RED:   '#e01e5a',
+  RED: '#e01e5a',
   // Matches the teal "Deposit Top-up" badge used client-side, so a deposit
   // top-up is visually distinct from a plain dues top-up in Slack too.
-  TEAL:  '#0f9488',
+  TEAL: '#0f9488',
 };
 
 const EVENT_COLOR = {
-  [SLACK_EVENTS.SERVER_STARTED]:  COLORS.GREEN,
+  [SLACK_EVENTS.SERVER_STARTED]: COLORS.GREEN,
   [SLACK_EVENTS.SERVER_SHUTDOWN]: COLORS.AMBER,
-  [SLACK_EVENTS.SERVER_ERROR]:    COLORS.RED,
-  [SLACK_EVENTS.CLIENT_ERROR]:    COLORS.RED,
-  [SLACK_EVENTS.LOGIN]:           COLORS.GREEN,
-  [SLACK_EVENTS.LOGOUT]:          COLORS.BLUE,
-  [SLACK_EVENTS.FAILED_LOGIN]:    COLORS.RED,
-  [SLACK_EVENTS.STOCK_RECEIPT_SAVED]:         COLORS.BLUE,
-  [SLACK_EVENTS.DAIRY_PAYMENT_RECORDED]:      COLORS.GREEN,
-  [SLACK_EVENTS.DAIRY_PAYMENT_UPDATED]:       COLORS.AMBER,
-  [SLACK_EVENTS.DAIRY_PAYMENT_DELETED]:       COLORS.RED,
-  [SLACK_EVENTS.DISPATCH_SAVED]:              COLORS.BLUE,
-  [SLACK_EVENTS.DISPATCH_DELETED]:            COLORS.RED,
+  [SLACK_EVENTS.SERVER_ERROR]: COLORS.RED,
+  [SLACK_EVENTS.CLIENT_ERROR]: COLORS.RED,
+  [SLACK_EVENTS.LOGIN]: COLORS.GREEN,
+  [SLACK_EVENTS.LOGOUT]: COLORS.BLUE,
+  [SLACK_EVENTS.FAILED_LOGIN]: COLORS.RED,
+  [SLACK_EVENTS.STOCK_RECEIPT_SAVED]: COLORS.BLUE,
+  [SLACK_EVENTS.DAIRY_PAYMENT_RECORDED]: COLORS.GREEN,
+  [SLACK_EVENTS.DAIRY_PAYMENT_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.DAIRY_PAYMENT_DELETED]: COLORS.RED,
+  [SLACK_EVENTS.DISPATCH_SAVED]: COLORS.BLUE,
+  [SLACK_EVENTS.DISPATCH_DELETED]: COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED]: COLORS.GREEN,
-  [SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED]:  COLORS.AMBER,
-  [SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED]:  COLORS.RED,
-  [SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED]:   COLORS.AMBER,
-  [SLACK_EVENTS.DAIRY_TOPUP_RECORDED]:         COLORS.AMBER,
+  [SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED]: COLORS.RED,
+  [SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED]: COLORS.AMBER,
+  [SLACK_EVENTS.DAIRY_TOPUP_RECORDED]: COLORS.AMBER,
   [SLACK_EVENTS.DAIRY_DEPOSIT_TOPUP_RECORDED]: COLORS.TEAL,
-  [SLACK_EVENTS.SALESPERSON_LEDGER_RESET]:     COLORS.RED,
+  [SLACK_EVENTS.SALESPERSON_LEDGER_RESET]: COLORS.RED,
   [SLACK_EVENTS.SALESPERSON_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.PRODUCT_CREATED]: COLORS.GREEN,
@@ -135,20 +148,28 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.ROUTE_DELETED]: COLORS.RED,
 
   [SLACK_EVENTS.SERVER_BOOT_FAILED]: COLORS.RED,
-  [SLACK_EVENTS.PROCESS_CRASH]:      COLORS.RED,
-  [SLACK_EVENTS.PASSWORD_CHANGED]:   COLORS.AMBER,
-  [SLACK_EVENTS.PIN_FAILED]:         COLORS.RED,
-  [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]:   COLORS.BLUE,
+  [SLACK_EVENTS.PROCESS_CRASH]: COLORS.RED,
+  [SLACK_EVENTS.PASSWORD_CHANGED]: COLORS.AMBER,
+  [SLACK_EVENTS.PIN_FAILED]: COLORS.RED,
+  [SLACK_EVENTS.PIN_UPDATED]: COLORS.GREEN,
+  [SLACK_EVENTS.PL_PIN_UPDATED]: COLORS.GREEN,
+  [SLACK_EVENTS.PIN_SETTINGS_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.MFA_ENABLED]: COLORS.GREEN,
+  [SLACK_EVENTS.MFA_DISABLED]: COLORS.RED,
+  [SLACK_EVENTS.MFA_FAILED]: COLORS.RED,
+  [SLACK_EVENTS.MFA_REQUIRED_SET]: COLORS.AMBER,
+  [SLACK_EVENTS.MFA_REQUIRED_UNSET]: COLORS.BLUE,
+  [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
-  [SLACK_EVENTS.DISPATCH_SUBMITTED]:      COLORS.GREEN,
-  [SLACK_EVENTS.DISPATCH_LOCK_CHANGED]:   COLORS.AMBER, // overridden per action (locked/unlocked/opened)
-  [SLACK_EVENTS.DISPATCH_DAY_FINALIZED]:   COLORS.AMBER,
+  [SLACK_EVENTS.DISPATCH_SUBMITTED]: COLORS.GREEN,
+  [SLACK_EVENTS.DISPATCH_LOCK_CHANGED]: COLORS.AMBER, // overridden per action (locked/unlocked/opened)
+  [SLACK_EVENTS.DISPATCH_DAY_FINALIZED]: COLORS.AMBER,
   [SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED]: COLORS.BLUE,
-  [SLACK_EVENTS.SALESPERSON_PRICES_UPDATED]:      COLORS.AMBER,
-  [SLACK_EVENTS.SALESPERSON_PRICES_COPIED]:       COLORS.BLUE,
+  [SLACK_EVENTS.SALESPERSON_PRICES_UPDATED]: COLORS.AMBER,
+  [SLACK_EVENTS.SALESPERSON_PRICES_COPIED]: COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED]: COLORS.AMBER,
-  [SLACK_EVENTS.PRODUCT_PRICES_CLEARED]:          COLORS.RED,
-  [SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED]:   COLORS.AMBER,
+  [SLACK_EVENTS.PRODUCT_PRICES_CLEARED]: COLORS.RED,
+  [SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.BRAND_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.BRAND_UPDATED]: COLORS.AMBER, // overridden to RED when the update archives the brand
   [SLACK_EVENTS.ADMIN_USER_CREATED]: COLORS.GREEN,
@@ -163,21 +184,31 @@ function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-IN', {
     timeZone: 'Asia/Kolkata',
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   });
 }
 
 /** Number → "₹1,22,750.40" */
 function formatINR(amount) {
-  return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    '₹' +
+    Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
 }
 
 /** Current time as "7 May 2026, 09:53 AM" (IST) */
 function istNow() {
   return new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: true,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
   });
 }
 
@@ -207,7 +238,7 @@ function textBlock(md) {
 }
 
 function footerBlock() {
-  const ts      = istNow();
+  const ts = istNow();
   const appLink = APP_URL ? `<${APP_URL}|Open App>  •  ` : '';
   return {
     type: 'context',
@@ -218,16 +249,18 @@ function footerBlock() {
 function card(event, blocks, fallbackText, colorOverride) {
   return {
     text: fallbackText,
-    attachments: [{
-      color:  colorOverride || EVENT_COLOR[event] || COLORS.BLUE,
-      blocks: [...blocks, dividerBlock(), footerBlock()],
-    }],
+    attachments: [
+      {
+        color: colorOverride || EVENT_COLOR[event] || COLORS.BLUE,
+        blocks: [...blocks, dividerBlock(), footerBlock()],
+      },
+    ],
   };
 }
 
 /** "['A','B','C']" → "A, B, C" — falls back to a bare count when no names came through. */
 function joinNames(names, count, noun) {
-  return (names && names.length > 0) ? names.join(', ') : `${count} ${noun}`;
+  return names && names.length > 0 ? names.join(', ') : `${count} ${noun}`;
 }
 
 // ─── Data enrichment ──────────────────────────────────────────────────────────
@@ -236,12 +269,18 @@ async function enrichData(event, rawData) {
   const data = { ...rawData };
 
   if (data.brandId != null && !data.brandName) {
-    const b = await prisma.brand.findUnique({ where: { id: data.brandId }, select: { name: true } });
+    const b = await prisma.brand.findUnique({
+      where: { id: data.brandId },
+      select: { name: true },
+    });
     data.brandName = b?.name ?? `Brand #${data.brandId}`;
   }
 
   if (data.salespersonId != null && !data.salespersonName) {
-    const sp = await prisma.salesperson.findUnique({ where: { id: data.salespersonId }, select: { name: true } });
+    const sp = await prisma.salesperson.findUnique({
+      where: { id: data.salespersonId },
+      select: { name: true },
+    });
     data.salespersonName = sp?.name ?? `Salesperson #${data.salespersonId}`;
   }
 
@@ -252,344 +291,571 @@ async function enrichData(event, rawData) {
 
 function buildCard(event, data) {
   switch (event) {
-
     // ── System ─────────────────────────────────────────────────────────────
     case SLACK_EVENTS.SERVER_STARTED:
-      return card(event, [
-        headerBlock('🟢 Server Online'),
-        fieldsBlock([
-          ['🔧 Environment', data.env || 'unknown'],
-          ['📡 App', 'Vikas Milk Dairy — Distribution Manager is running'],
-        ]),
-      ], `Server Online — ${data.env}`);
+      return card(
+        event,
+        [
+          headerBlock('🟢 Server Online'),
+          fieldsBlock([
+            ['🔧 Environment', data.env || 'unknown'],
+            ['📡 App', 'Vikas Milk Dairy — Distribution Manager is running'],
+          ]),
+        ],
+        `Server Online — ${data.env}`
+      );
 
     case SLACK_EVENTS.SERVER_SHUTDOWN:
-      return card(event, [
-        headerBlock('🟡 Server Shutting Down'),
-        fieldsBlock([
-          ['🔧 Environment', data.env || 'unknown'],
-          ['🛑 Signal', data.signal || 'SIGTERM'],
-        ]),
-      ], `Server Shutdown — ${data.env}`);
+      return card(
+        event,
+        [
+          headerBlock('🟡 Server Shutting Down'),
+          fieldsBlock([
+            ['🔧 Environment', data.env || 'unknown'],
+            ['🛑 Signal', data.signal || 'SIGTERM'],
+          ]),
+        ],
+        `Server Shutdown — ${data.env}`
+      );
 
     case SLACK_EVENTS.SERVER_ERROR:
-      return card(event, [
-        headerBlock('🔴 Server Error — 500'),
-        fieldsBlock([
-          ['📍 Request', `\`${data.method} ${data.path}\``],
-          ['❌ Message', data.message],
-        ]),
-      ], `Server Error: ${data.method} ${data.path} — ${data.message}`);
+      return card(
+        event,
+        [
+          headerBlock('🔴 Server Error — 500'),
+          fieldsBlock([
+            ['📍 Request', `\`${data.method} ${data.path}\``],
+            ['❌ Message', data.message],
+          ]),
+        ],
+        `Server Error: ${data.method} ${data.path} — ${data.message}`
+      );
 
     case SLACK_EVENTS.CLIENT_ERROR:
-      return card(event, [
-        headerBlock('🔴 App Crash — Frontend Error'),
-        fieldsBlock([
-          ['👤 User',    data.username || 'Not logged in'],
-          ['📍 Page',    data.page     || 'unknown'],
-          ['❌ Message', data.message  || 'unknown'],
-        ]),
-        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
-      ], `Frontend crash on ${data.page}: ${data.message}`);
+      return card(
+        event,
+        [
+          headerBlock('🔴 App Crash — Frontend Error'),
+          fieldsBlock([
+            ['👤 User', data.username || 'Not logged in'],
+            ['📍 Page', data.page || 'unknown'],
+            ['❌ Message', data.message || 'unknown'],
+          ]),
+          ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+        ],
+        `Frontend crash on ${data.page}: ${data.message}`
+      );
 
     case SLACK_EVENTS.SERVER_BOOT_FAILED:
-      return card(event, [
-        headerBlock('🆘 Server Failed to Start'),
-        fieldsBlock([
-          ['🔧 Environment', data.env     || 'unknown'],
-          ['📍 Stage',       data.stage   || 'unknown'],
-          ['❌ Message',     data.message || 'unknown'],
-        ]),
-        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
-      ], `Server Boot FAILED at ${data.stage}: ${data.message}`);
+      return card(
+        event,
+        [
+          headerBlock('🆘 Server Failed to Start'),
+          fieldsBlock([
+            ['🔧 Environment', data.env || 'unknown'],
+            ['📍 Stage', data.stage || 'unknown'],
+            ['❌ Message', data.message || 'unknown'],
+          ]),
+          ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+        ],
+        `Server Boot FAILED at ${data.stage}: ${data.message}`
+      );
 
     case SLACK_EVENTS.PROCESS_CRASH:
-      return card(event, [
-        headerBlock('☠️ Uncaught Process Crash'),
-        fieldsBlock([
-          ['🔧 Environment', data.env     || 'unknown'],
-          ['⚡ Type',        data.type    || 'unknown'],
-          ['❌ Message',     data.message || 'unknown'],
-        ]),
-        ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
-      ], `Process Crash (${data.type}): ${data.message}`);
+      return card(
+        event,
+        [
+          headerBlock('☠️ Uncaught Process Crash'),
+          fieldsBlock([
+            ['🔧 Environment', data.env || 'unknown'],
+            ['⚡ Type', data.type || 'unknown'],
+            ['❌ Message', data.message || 'unknown'],
+          ]),
+          ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
+        ],
+        `Process Crash (${data.type}): ${data.message}`
+      );
 
     // ── Auth ───────────────────────────────────────────────────────────────
     case SLACK_EVENTS.LOGIN: {
       const loginRole = data.role || 'Admin';
-      return card(event, [
-        headerBlock(`🔓 ${loginRole} Login`),
-        fieldsBlock([
-          ['👤 Username', data.username || 'unknown'],
-          ['👑 Role',     loginRole],
-          ['🌐 IP Address', data.ip     || 'unknown'],
-        ]),
-      ], `${loginRole} Login — ${data.username} from ${data.ip}`);
+      return card(
+        event,
+        [
+          headerBlock(`🔓 ${loginRole} Login`),
+          fieldsBlock([
+            ['👤 Username', data.username || 'unknown'],
+            ['👑 Role', loginRole],
+            ['🌐 IP Address', data.ip || 'unknown'],
+          ]),
+        ],
+        `${loginRole} Login — ${data.username} from ${data.ip}`
+      );
     }
 
     case SLACK_EVENTS.LOGOUT: {
       const logoutRole = data.role || 'Admin';
-      return card(event, [
-        headerBlock(`🚪 ${logoutRole} Logout`),
-        fieldsBlock([
-          ['👤 Username', data.username || 'unknown'],
-          ['👑 Role',     logoutRole],
-          ['🌐 IP Address', data.ip     || 'unknown'],
-        ]),
-      ], `${logoutRole} Logout — ${data.username} from ${data.ip}`);
+      return card(
+        event,
+        [
+          headerBlock(`🚪 ${logoutRole} Logout`),
+          fieldsBlock([
+            ['👤 Username', data.username || 'unknown'],
+            ['👑 Role', logoutRole],
+            ['🌐 IP Address', data.ip || 'unknown'],
+          ]),
+        ],
+        `${logoutRole} Logout — ${data.username} from ${data.ip}`
+      );
     }
 
     case SLACK_EVENTS.FAILED_LOGIN:
-      return card(event, [
-        headerBlock('⚠️ Failed Login Attempt'),
-        fieldsBlock([
-          ['👤 Username Tried', `\`${data.attemptedUsername}\``],
-          ['🌐 IP Address', data.ip || 'unknown'],
-          ['❌ Reason', data.reason || 'Invalid credentials'],
-        ]),
-      ], `Failed Login — "${data.attemptedUsername}" from ${data.ip}`);
+      return card(
+        event,
+        [
+          headerBlock('⚠️ Failed Login Attempt'),
+          fieldsBlock([
+            ['👤 Username Tried', `\`${data.attemptedUsername}\``],
+            ['🌐 IP Address', data.ip || 'unknown'],
+            ['❌ Reason', data.reason || 'Invalid credentials'],
+          ]),
+        ],
+        `Failed Login — "${data.attemptedUsername}" from ${data.ip}`
+      );
 
     case SLACK_EVENTS.PASSWORD_CHANGED: {
       const pwRole = data.role || 'Admin';
-      return card(event, [
-        headerBlock(`🔑 ${pwRole} Password Changed`),
-        fieldsBlock([
-          ['👤 Username',   data.username || 'unknown'],
-          ['👑 Role',       pwRole],
-          ['🌐 IP Address', data.ip || 'unknown'],
-        ]),
-      ], `${pwRole} Password Changed — ${data.username}`);
+      return card(
+        event,
+        [
+          headerBlock(`🔑 ${pwRole} Password Changed`),
+          fieldsBlock([
+            ['👤 Username', data.username || 'unknown'],
+            ['👑 Role', pwRole],
+            ['🌐 IP Address', data.ip || 'unknown'],
+          ]),
+        ],
+        `${pwRole} Password Changed — ${data.username}`
+      );
     }
 
     case SLACK_EVENTS.PIN_FAILED:
-      return card(event, [
-        headerBlock('🚫 Wrong PIN Entered'),
-        fieldsBlock([
-          ['👤 Attempted By', data.username || 'unknown'],
-          ['👑 Role',         data.role     || 'unknown'],
-          ['🌐 IP Address',   data.ip       || 'unknown'],
-        ]),
-      ], `Wrong PIN — ${data.username}`);
+      return card(
+        event,
+        [
+          headerBlock('🚫 Wrong PIN Entered'),
+          fieldsBlock([
+            ['👤 Attempted By', data.username || 'unknown'],
+            ['👑 Role', data.role || 'unknown'],
+            ['🌐 IP Address', data.ip || 'unknown'],
+          ]),
+        ],
+        `Wrong PIN — ${data.username}`
+      );
+
+    case SLACK_EVENTS.PIN_UPDATED:
+      return card(
+        event,
+        [
+          headerBlock('🔑 Edit PIN Changed'),
+          fieldsBlock([['👤 Changed By', data.username || 'unknown']]),
+        ],
+        `Edit PIN changed by ${data.username}`
+      );
+
+    case SLACK_EVENTS.PL_PIN_UPDATED:
+      return card(
+        event,
+        [
+          headerBlock('🔑 P&L PIN Changed'),
+          fieldsBlock([['👤 Changed By', data.username || 'unknown']]),
+        ],
+        `P&L PIN changed by ${data.username}`
+      );
+
+    case SLACK_EVENTS.PIN_SETTINGS_UPDATED:
+      return card(
+        event,
+        [
+          headerBlock('⚙️ PIN Settings Updated'),
+          fieldsBlock([
+            ['👤 Changed By', data.username || 'unknown'],
+            ['🔒 P&L PIN Gate', data.plPinEnabled ? 'Enabled' : 'Disabled'],
+          ]),
+        ],
+        `P&L PIN gate ${data.plPinEnabled ? 'enabled' : 'disabled'} by ${data.username}`
+      );
+
+    case SLACK_EVENTS.MFA_ENABLED:
+      return card(
+        event,
+        [
+          headerBlock('🛡️ MFA Enabled'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['👑 Role', data.role || 'Super Admin'],
+            // Present only when this completed a forced enrollment (login()'s
+            // mfaConfirmRequired) rather than the account's own self-service tab.
+            ['🖊️ Required By', data.requiredBy || null],
+          ]),
+        ],
+        `MFA Enabled — ${data.username}`
+      );
+
+    case SLACK_EVENTS.MFA_DISABLED:
+      return card(
+        event,
+        [
+          headerBlock('⚠️ MFA Disabled'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['👑 Role', data.role || 'Super Admin'],
+            ['🖊️ Disabled By', data.by || null],
+          ]),
+        ],
+        `MFA Disabled — ${data.username}`
+      );
+
+    case SLACK_EVENTS.MFA_FAILED:
+      return card(
+        event,
+        [
+          headerBlock('🚫 Wrong MFA Code'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['🌐 IP Address', data.ip || 'unknown'],
+          ]),
+        ],
+        `Wrong MFA Code — ${data.username}`
+      );
+
+    case SLACK_EVENTS.MFA_REQUIRED_SET:
+      return card(
+        event,
+        [
+          headerBlock('🔐 MFA Required'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['👑 Role', data.role || null],
+            ['🖊️ Set By', data.by || null],
+          ]),
+          textBlock('They will be asked to set up MFA the next time they log in.'),
+        ],
+        `MFA Required — ${data.username}`
+      );
+
+    case SLACK_EVENTS.MFA_REQUIRED_UNSET:
+      return card(
+        event,
+        [
+          headerBlock('🔓 MFA No Longer Required'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['👑 Role', data.role || null],
+            ['🖊️ Removed By', data.by || null],
+          ]),
+          textBlock('Any active MFA enrollment for this account was also cleared.'),
+        ],
+        `MFA No Longer Required — ${data.username}`
+      );
 
     // ── Salesman "view" actions (informational) ────────────────────────────
     case SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED:
-      return card(event, [
-        headerBlock('👀 My Balance Viewed'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Range',       data.from && data.to ? `${formatDate(data.from)} – ${formatDate(data.to)}` : 'Last 90 days'],
-        ]),
-      ], `My Balance Viewed — ${data.salespersonName}`);
+      return card(
+        event,
+        [
+          headerBlock('👀 My Balance Viewed'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            [
+              '📅 Range',
+              data.from && data.to
+                ? `${formatDate(data.from)} – ${formatDate(data.to)}`
+                : 'Last 90 days',
+            ],
+          ]),
+        ],
+        `My Balance Viewed — ${data.salespersonName}`
+      );
 
     case SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED:
-      return card(event, [
-        headerBlock('👀 My Statement Viewed'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Range',       data.from && data.to ? `${formatDate(data.from)} – ${formatDate(data.to)}` : null],
-        ]),
-      ], `My Statement Viewed — ${data.salespersonName}`);
+      return card(
+        event,
+        [
+          headerBlock('👀 My Statement Viewed'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            [
+              '📅 Range',
+              data.from && data.to ? `${formatDate(data.from)} – ${formatDate(data.to)}` : null,
+            ],
+          ]),
+        ],
+        `My Statement Viewed — ${data.salespersonName}`
+      );
 
     // ── Stock Receipts ─────────────────────────────────────────────────────
     case SLACK_EVENTS.STOCK_RECEIPT_SAVED: {
-      const stockVal   = Number(data.stockValue   ?? 0);
+      const stockVal = Number(data.stockValue ?? 0);
       const depositVal = Number(data.depositValue ?? 0);
-      const billTotal  = stockVal + depositVal;
+      const billTotal = stockVal + depositVal;
 
-      const billLine = (data.depositEnabled && depositVal > 0)
-        ? `${formatINR(stockVal)}  +  ${formatINR(depositVal)}  =  *${formatINR(billTotal)}*`
-        : `*${formatINR(stockVal)}*`;
+      const billLine =
+        data.depositEnabled && depositVal > 0
+          ? `${formatINR(stockVal)}  +  ${formatINR(depositVal)}  =  *${formatINR(billTotal)}*`
+          : `*${formatINR(stockVal)}*`;
 
-      return card(event, [
-        headerBlock('📦 Stock Receipt Saved'),
-        fieldsBlock([
-          ['🏷️ Brand',    data.brandName],
-          ['📅 Date',     formatDate(data.date)],
-          ['🛣️ Route',    data.routeNumber || 'General'],
-          ['📦 Products', String(data.savedCount)],
-          ['🔢 Units',    data.totalUnits  != null ? String(data.totalUnits)  : null],
-          ['🧺 Crates',   data.totalCrates != null ? `${data.totalCrates} Crates` : null],
-          ['💰 Value',    formatINR(data.totalValue)],
-        ]),
-        dividerBlock(),
-        textBlock(`*💳 Today's Bill*\n${billLine}`),
-        fieldsBlock([
-          ['🏦 Opening',  formatINR(data.openingBalance ?? 0)],
-          ['💳 Paid',     formatINR(data.amountPaid    ?? 0)],
-          ['💸 You Owe',  formatINR(data.closingBalance ?? 0)],
-        ]),
-      ], `Stock Receipt — ${data.brandName} on ${data.date}`);
+      return card(
+        event,
+        [
+          headerBlock('📦 Stock Receipt Saved'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📅 Date', formatDate(data.date)],
+            ['🛣️ Route', data.routeNumber || 'General'],
+            ['📦 Products', String(data.savedCount)],
+            ['🔢 Units', data.totalUnits != null ? String(data.totalUnits) : null],
+            ['🧺 Crates', data.totalCrates != null ? `${data.totalCrates} Crates` : null],
+            ['💰 Value', formatINR(data.totalValue)],
+          ]),
+          dividerBlock(),
+          textBlock(`*💳 Today's Bill*\n${billLine}`),
+          fieldsBlock([
+            ['🏦 Opening', formatINR(data.openingBalance ?? 0)],
+            ['💳 Paid', formatINR(data.amountPaid ?? 0)],
+            ['💸 You Owe', formatINR(data.closingBalance ?? 0)],
+          ]),
+        ],
+        `Stock Receipt — ${data.brandName} on ${data.date}`
+      );
     }
 
     // ── Dairy Payments ─────────────────────────────────────────────────────
     case SLACK_EVENTS.DAIRY_PAYMENT_RECORDED:
-      return card(event, [
-        headerBlock('✅ Dairy Payment Recorded'),
-        fieldsBlock([
-          ['🏷️ Brand',   data.brandName],
-          ['📅 Date',    formatDate(data.date)],
-          ['💰 Amount',  formatINR(data.amount)],
-          ['💳 Mode',    data.paymentMode || 'Cash'],
-          ['📝 Ref',     data.reference || null],
-        ]),
-      ], `Dairy Payment — ${data.brandName} — ${formatINR(data.amount)}`);
+      return card(
+        event,
+        [
+          headerBlock('✅ Dairy Payment Recorded'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Amount', formatINR(data.amount)],
+            ['💳 Mode', data.paymentMode || 'Cash'],
+            ['📝 Ref', data.reference || null],
+          ]),
+        ],
+        `Dairy Payment — ${data.brandName} — ${formatINR(data.amount)}`
+      );
 
     case SLACK_EVENTS.DAIRY_PAYMENT_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Dairy Payment Updated'),
-        fieldsBlock([
-          ['🏷️ Brand',   data.brandName],
-          ['📅 Date',    formatDate(data.date)],
-          ['💰 Amount',  formatINR(data.amount)],
-          ['💳 Mode',    data.paymentMode || 'Cash'],
-          ['📝 Ref',     data.reference || null],
-        ]),
-      ], `Dairy Payment Updated — ${data.brandName} — ${formatINR(data.amount)}`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Dairy Payment Updated'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Amount', formatINR(data.amount)],
+            ['💳 Mode', data.paymentMode || 'Cash'],
+            ['📝 Ref', data.reference || null],
+          ]),
+        ],
+        `Dairy Payment Updated — ${data.brandName} — ${formatINR(data.amount)}`
+      );
 
     case SLACK_EVENTS.DAIRY_PAYMENT_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Dairy Payment Deleted'),
-        fieldsBlock([
-          ['🏷️ Brand',   data.brandName],
-          ['📅 Date',    formatDate(data.date)],
-          ['💰 Amount',  formatINR(data.amount)],
-        ]),
-      ], `Dairy Payment Deleted — ${data.brandName} — ${formatINR(data.amount)}`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Dairy Payment Deleted'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Amount', formatINR(data.amount)],
+          ]),
+        ],
+        `Dairy Payment Deleted — ${data.brandName} — ${formatINR(data.amount)}`
+      );
 
     // ── Dispatches ─────────────────────────────────────────────────────────
     case SLACK_EVENTS.DISPATCH_SAVED:
-      return card(event, [
-        headerBlock(`${data.isUpdate ? '✏️ Dispatch Updated' : '🚚 Dispatch Created'}`),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['📦 Items',       String(data.itemCount)],
-          ['💰 Total',       formatINR(data.totalAmount)],
-          ['🖊️ By',          data.by || null],
-        ]),
-      ], `Dispatch ${data.isUpdate ? 'Updated' : 'Created'} — ${data.salespersonName} — ${formatINR(data.totalAmount)}`);
+      return card(
+        event,
+        [
+          headerBlock(`${data.isUpdate ? '✏️ Dispatch Updated' : '🚚 Dispatch Created'}`),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['📦 Items', String(data.itemCount)],
+            ['💰 Total', formatINR(data.totalAmount)],
+            ['🖊️ By', data.by || null],
+          ]),
+        ],
+        `Dispatch ${data.isUpdate ? 'Updated' : 'Created'} — ${data.salespersonName} — ${formatINR(data.totalAmount)}`
+      );
 
     case SLACK_EVENTS.DISPATCH_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Dispatch Deleted'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['💰 Total',       formatINR(data.totalAmount)],
-          ['🖊️ By',          data.by || null],
-        ]),
-      ], `Dispatch Deleted — ${data.salespersonName} on ${data.date}`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Dispatch Deleted'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Total', formatINR(data.totalAmount)],
+            ['🖊️ By', data.by || null],
+          ]),
+        ],
+        `Dispatch Deleted — ${data.salespersonName} on ${data.date}`
+      );
 
     case SLACK_EVENTS.DISPATCH_SUBMITTED:
-      return card(event, [
-        headerBlock('📮 Stock Entry Submitted'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['📦 Items',       data.itemCount != null ? String(data.itemCount) : null],
-          ['💰 Total',       data.totalAmount != null ? formatINR(data.totalAmount) : null],
-        ]),
-      ], `Stock Entry Submitted — ${data.salespersonName} on ${data.date}`);
+      return card(
+        event,
+        [
+          headerBlock('📮 Stock Entry Submitted'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['📦 Items', data.itemCount != null ? String(data.itemCount) : null],
+            ['💰 Total', data.totalAmount != null ? formatINR(data.totalAmount) : null],
+          ]),
+        ],
+        `Stock Entry Submitted — ${data.salespersonName} on ${data.date}`
+      );
 
     case SLACK_EVENTS.DISPATCH_LOCK_CHANGED: {
       const lockCopy = {
-        locked:   { header: '🔒 Dispatch Locked',        fallback: 'Locked' },
-        unlocked: { header: '🔓 Dispatch Unlocked',       fallback: 'Unlocked' },
-        opened:   { header: '🔓 Dispatch Reopened for Entry', fallback: 'Reopened for entry' },
+        locked: { header: '🔒 Dispatch Locked', fallback: 'Locked' },
+        unlocked: { header: '🔓 Dispatch Unlocked', fallback: 'Unlocked' },
+        opened: { header: '🔓 Dispatch Reopened for Entry', fallback: 'Reopened for entry' },
       }[data.action] || { header: '🔐 Dispatch Lock Changed', fallback: data.action };
       const lockColor = data.action === 'locked' ? COLORS.AMBER : COLORS.BLUE;
-      return card(event, [
-        headerBlock(lockCopy.header),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['🖊️ By',          data.by || null],
-        ]),
-      ], `${lockCopy.fallback} — ${data.salespersonName} on ${data.date}`, lockColor);
+      return card(
+        event,
+        [
+          headerBlock(lockCopy.header),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['🖊️ By', data.by || null],
+          ]),
+        ],
+        `${lockCopy.fallback} — ${data.salespersonName} on ${data.date}`,
+        lockColor
+      );
     }
 
     case SLACK_EVENTS.DISPATCH_DAY_FINALIZED:
-      return card(event, [
-        headerBlock('🏁 Dispatch Day Finalized'),
-        fieldsBlock([
-          ['📅 Date', formatDate(data.date)],
-          ['🖊️ By',   data.by || null],
-        ]),
-      ], `Dispatch Day Finalized — ${data.date}`);
+      return card(
+        event,
+        [
+          headerBlock('🏁 Dispatch Day Finalized'),
+          fieldsBlock([
+            ['📅 Date', formatDate(data.date)],
+            ['🖊️ By', data.by || null],
+          ]),
+        ],
+        `Dispatch Day Finalized — ${data.date}`
+      );
 
     case SLACK_EVENTS.DISPATCH_DAY_UNFINALIZED:
-      return card(event, [
-        headerBlock('↩️ Dispatch Day Finalization Reversed'),
-        fieldsBlock([
-          ['📅 Date', formatDate(data.date)],
-          ['🖊️ By',   data.by || null],
-        ]),
-      ], `Dispatch Day Finalization Reversed — ${data.date}`);
+      return card(
+        event,
+        [
+          headerBlock('↩️ Dispatch Day Finalization Reversed'),
+          fieldsBlock([
+            ['📅 Date', formatDate(data.date)],
+            ['🖊️ By', data.by || null],
+          ]),
+        ],
+        `Dispatch Day Finalization Reversed — ${data.date}`
+      );
 
     // ── Salesperson Payments ───────────────────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_PAYMENT_RECORDED:
-      return card(event, [
-        headerBlock('✅ Collection Recorded'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['💰 Amount',      formatINR(data.amount)],
-          ['💳 Mode',        data.paymentMode || 'Cash'],
-          ['📝 Ref',         data.reference || null],
-        ]),
-      ], `Collection — ${data.salespersonName} — ${formatINR(data.amount)}`);
+      return card(
+        event,
+        [
+          headerBlock('✅ Collection Recorded'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Amount', formatINR(data.amount)],
+            ['💳 Mode', data.paymentMode || 'Cash'],
+            ['📝 Ref', data.reference || null],
+          ]),
+        ],
+        `Collection — ${data.salespersonName} — ${formatINR(data.amount)}`
+      );
 
     case SLACK_EVENTS.SALESPERSON_PAYMENT_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Collection Updated'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['💰 Amount',      formatINR(data.amount)],
-          ['💳 Mode',        data.paymentMode || 'Cash'],
-          ['📝 Ref',         data.reference || null],
-        ]),
-      ], `Collection Updated — ${data.salespersonName} — ${formatINR(data.amount)}`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Collection Updated'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Amount', formatINR(data.amount)],
+            ['💳 Mode', data.paymentMode || 'Cash'],
+            ['📝 Ref', data.reference || null],
+          ]),
+        ],
+        `Collection Updated — ${data.salespersonName} — ${formatINR(data.amount)}`
+      );
 
     case SLACK_EVENTS.SALESPERSON_PAYMENT_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Collection Deleted'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['📅 Date',        formatDate(data.date)],
-          ['💰 Amount',      formatINR(data.amount)],
-        ]),
-      ], `Collection Deleted — ${data.salespersonName} — ${formatINR(data.amount)}`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Collection Deleted'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['📅 Date', formatDate(data.date)],
+            ['💰 Amount', formatINR(data.amount)],
+          ]),
+        ],
+        `Collection Deleted — ${data.salespersonName} — ${formatINR(data.amount)}`
+      );
 
     // ── Bulk top-ups (admin-loaded pre-existing dues) ──────────────────────
     case SLACK_EVENTS.SALESPERSON_TOPUP_RECORDED: {
       const names = joinNames(data.salespersonNames, data.count, 'salesperson(s)');
-      return card(event, [
-        headerBlock('💰 Salesperson Top-up Recorded'),
-        fieldsBlock([
-          ['👥 Salespeople', names],
-          ['📅 Date',        formatDate(data.date)],
-          ['🔢 Count',       String(data.count)],
-          ['💰 Total',       formatINR(data.total)],
-          ['🖊️ Added By',    data.createdBy],
-          ['📝 Note',        data.notes || null],
-        ]),
-      ], `Salesperson Top-up — ${names} — ${formatINR(data.total)}`);
+      return card(
+        event,
+        [
+          headerBlock('💰 Salesperson Top-up Recorded'),
+          fieldsBlock([
+            ['👥 Salespeople', names],
+            ['📅 Date', formatDate(data.date)],
+            ['🔢 Count', String(data.count)],
+            ['💰 Total', formatINR(data.total)],
+            ['🖊️ Added By', data.createdBy],
+            ['📝 Note', data.notes || null],
+          ]),
+        ],
+        `Salesperson Top-up — ${names} — ${formatINR(data.total)}`
+      );
     }
 
     case SLACK_EVENTS.DAIRY_TOPUP_RECORDED: {
       const names = joinNames(data.brandNames, data.count, 'brand(s)');
-      return card(event, [
-        headerBlock('💰 Dairy Top-up Recorded'),
-        fieldsBlock([
-          ['🏷️ Brands',   names],
-          ['📅 Date',     formatDate(data.date)],
-          ['🔢 Count',    String(data.count)],
-          ['💰 Total',    formatINR(data.total)],
-          ['🖊️ Added By', data.createdBy],
-          ['📝 Note',     data.notes || null],
-        ]),
-      ], `Dairy Top-up — ${names} — ${formatINR(data.total)}`);
+      return card(
+        event,
+        [
+          headerBlock('💰 Dairy Top-up Recorded'),
+          fieldsBlock([
+            ['🏷️ Brands', names],
+            ['📅 Date', formatDate(data.date)],
+            ['🔢 Count', String(data.count)],
+            ['💰 Total', formatINR(data.total)],
+            ['🖊️ Added By', data.createdBy],
+            ['📝 Note', data.notes || null],
+          ]),
+        ],
+        `Dairy Top-up — ${names} — ${formatINR(data.total)}`
+      );
     }
 
     // Separate from DAIRY_TOPUP_RECORDED — a deposit top-up only feeds the
@@ -597,266 +863,377 @@ function buildCard(event, data) {
     // stock, so it gets its own card rather than reusing that one.
     case SLACK_EVENTS.DAIRY_DEPOSIT_TOPUP_RECORDED: {
       const names = joinNames(data.brandNames, data.count, 'brand(s)');
-      return card(event, [
-        headerBlock('🏦 Dairy Deposit Top-up Recorded'),
-        fieldsBlock([
-          ['🏷️ Brands',   names],
-          ['📅 Date',     formatDate(data.date)],
-          ['🔢 Count',    String(data.count)],
-          ['💰 Total',    formatINR(data.total)],
-          ['🖊️ Added By', data.createdBy],
-          ['📝 Note',     data.notes || null],
-        ]),
-      ], `Dairy Deposit Top-up — ${names} — ${formatINR(data.total)}`, COLORS.TEAL);
+      return card(
+        event,
+        [
+          headerBlock('🏦 Dairy Deposit Top-up Recorded'),
+          fieldsBlock([
+            ['🏷️ Brands', names],
+            ['📅 Date', formatDate(data.date)],
+            ['🔢 Count', String(data.count)],
+            ['💰 Total', formatINR(data.total)],
+            ['🖊️ Added By', data.createdBy],
+            ['📝 Note', data.notes || null],
+          ]),
+        ],
+        `Dairy Deposit Top-up — ${names} — ${formatINR(data.total)}`,
+        COLORS.TEAL
+      );
     }
 
     // ── Ledger reset (irreversible wipe) ───────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_LEDGER_RESET: {
       const names = joinNames(data.salespersonNames, data.count, 'salesperson(s)');
-      return card(event, [
-        headerBlock('🧹 Salesperson Ledger Reset'),
-        fieldsBlock([
-          ['👥 Salespeople',          names],
-          ['💳 Payments Removed',     String(data.payments)],
-          ['🚚 Dispatches Removed',   String(data.dispatches)],
-          ['📊 Balance Rows Removed', String(data.balances)],
-          ['🖊️ Reset By',            data.by],
-        ]),
-      ], `Salesperson Ledger Reset — ${names} — by ${data.by}`);
+      return card(
+        event,
+        [
+          headerBlock('🧹 Salesperson Ledger Reset'),
+          fieldsBlock([
+            ['👥 Salespeople', names],
+            ['💳 Payments Removed', String(data.payments)],
+            ['🚚 Dispatches Removed', String(data.dispatches)],
+            ['📊 Balance Rows Removed', String(data.balances)],
+            ['🖊️ Reset By', data.by],
+          ]),
+        ],
+        `Salesperson Ledger Reset — ${names} — by ${data.by}`
+      );
     }
 
     // ── Setup ──────────────────────────────────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_CREATED:
-      return card(event, [
-        headerBlock('👤 Salesperson Added'),
-        fieldsBlock([
-          ['👤 Name',    data.name],
-          ['📞 Phone',   data.phone  || null],
-          ['🛣️ Route',  data.route  || null],
-        ]),
-      ], `Salesperson Added — ${data.name}`);
+      return card(
+        event,
+        [
+          headerBlock('👤 Salesperson Added'),
+          fieldsBlock([
+            ['👤 Name', data.name],
+            ['📞 Phone', data.phone || null],
+            ['🛣️ Route', data.route || null],
+          ]),
+        ],
+        `Salesperson Added — ${data.name}`
+      );
 
     case SLACK_EVENTS.SALESPERSON_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Salesperson Updated'),
-        fieldsBlock([
-          ['👤 Name',    data.name],
-          ['📞 Phone',   data.phone  || null],
-          ['🛣️ Route',  data.route  || null],
-          ['🔘 Status',  data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
-        ]),
-      ], `Salesperson Updated — ${data.name}`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Salesperson Updated'),
+          fieldsBlock([
+            ['👤 Name', data.name],
+            ['📞 Phone', data.phone || null],
+            ['🛣️ Route', data.route || null],
+            ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ]),
+        ],
+        `Salesperson Updated — ${data.name}`
+      );
 
     // ── Salesperson Pricing ─────────────────────────────────────────────────
     case SLACK_EVENTS.SALESPERSON_PRICES_UPDATED:
-      return card(event, [
-        headerBlock('💲 Salesperson Prices Updated'),
-        fieldsBlock([
-          ['👤 Salesperson', data.salespersonName],
-          ['🏷️ Brand',       data.brandName || null],
-          ['🔢 Products',    data.count != null ? String(data.count) : null],
-          ['🖊️ Updated By',  data.by || null],
-        ]),
-      ], `Salesperson Prices Updated — ${data.salespersonName}`);
+      return card(
+        event,
+        [
+          headerBlock('💲 Salesperson Prices Updated'),
+          fieldsBlock([
+            ['👤 Salesperson', data.salespersonName],
+            ['🏷️ Brand', data.brandName || null],
+            ['🔢 Products', data.count != null ? String(data.count) : null],
+            ['🖊️ Updated By', data.by || null],
+          ]),
+        ],
+        `Salesperson Prices Updated — ${data.salespersonName}`
+      );
 
     case SLACK_EVENTS.SALESPERSON_PRICES_COPIED:
-      return card(event, [
-        headerBlock('📋 Salesperson Prices Copied'),
-        fieldsBlock([
-          ['👤 From',       data.fromName],
-          ['👤 To',         data.toName],
-          ['🔢 Products',   data.count != null ? String(data.count) : null],
-          ['🖊️ Copied By',  data.by || null],
-        ]),
-      ], `Prices Copied — ${data.fromName} → ${data.toName}`);
+      return card(
+        event,
+        [
+          headerBlock('📋 Salesperson Prices Copied'),
+          fieldsBlock([
+            ['👤 From', data.fromName],
+            ['👤 To', data.toName],
+            ['🔢 Products', data.count != null ? String(data.count) : null],
+            ['🖊️ Copied By', data.by || null],
+          ]),
+        ],
+        `Prices Copied — ${data.fromName} → ${data.toName}`
+      );
 
     case SLACK_EVENTS.SALESPERSON_PRICES_BULK_UPDATED: {
       const names = joinNames(data.salespersonNames, data.count, 'salesperson(s)');
-      return card(event, [
-        headerBlock('💲 Salesperson Prices Bulk Updated'),
-        fieldsBlock([
-          ['👥 Salespeople', names],
-          ['📦 Product',     data.productName || null],
-          ['💰 New Price',   data.price != null ? formatINR(data.price) : null],
-          ['🖊️ Updated By',  data.by || null],
-        ]),
-      ], `Prices Bulk Updated — ${data.productName} — ${names}`);
+      return card(
+        event,
+        [
+          headerBlock('💲 Salesperson Prices Bulk Updated'),
+          fieldsBlock([
+            ['👥 Salespeople', names],
+            ['📦 Product', data.productName || null],
+            ['💰 New Price', data.price != null ? formatINR(data.price) : null],
+            ['🖊️ Updated By', data.by || null],
+          ]),
+        ],
+        `Prices Bulk Updated — ${data.productName} — ${names}`
+      );
     }
 
     case SLACK_EVENTS.PRODUCT_PRICES_CLEARED:
-      return card(event, [
-        headerBlock('🧹 Custom Prices Cleared'),
-        fieldsBlock([
-          ['📦 Product',    data.productName || null],
-          ['🏷️ Brand',      data.brandName || null],
-          ['🔢 Salespeople', data.count != null ? String(data.count) : null],
-          ['🖊️ Cleared By', data.by || null],
-        ]),
-      ], `Custom Prices Cleared — ${data.productName}`);
+      return card(
+        event,
+        [
+          headerBlock('🧹 Custom Prices Cleared'),
+          fieldsBlock([
+            ['📦 Product', data.productName || null],
+            ['🏷️ Brand', data.brandName || null],
+            ['🔢 Salespeople', data.count != null ? String(data.count) : null],
+            ['🖊️ Cleared By', data.by || null],
+          ]),
+        ],
+        `Custom Prices Cleared — ${data.productName}`
+      );
 
     // ── Products ───────────────────────────────────────────────────────────
     case SLACK_EVENTS.PRODUCT_CREATED:
-      return card(event, [
-        headerBlock('🆕 Product Added'),
-        fieldsBlock([
-          ['🏷️ Brand',      data.brandName],
-          ['📦 Name',       data.name],
-          ['📂 Category',   data.category   || null],
-          ['💰 Cost Price', formatINR(data.costPrice    ?? 0)],
-          ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
-        ]),
-      ], `Product Added — ${data.name} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('🆕 Product Added'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📦 Name', data.name],
+            ['📂 Category', data.category || null],
+            ['💰 Cost Price', formatINR(data.costPrice ?? 0)],
+            ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
+          ]),
+        ],
+        `Product Added — ${data.name} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.PRODUCT_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Product Updated'),
-        fieldsBlock([
-          ['🏷️ Brand',      data.brandName],
-          ['📦 Name',       data.name],
-          ['📂 Category',   data.category   || null],
-          ['💰 Cost Price', formatINR(data.costPrice    ?? 0)],
-          ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
-          ['🔘 Status',     data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
-        ]),
-      ], `Product Updated — ${data.name} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Product Updated'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📦 Name', data.name],
+            ['📂 Category', data.category || null],
+            ['💰 Cost Price', formatINR(data.costPrice ?? 0)],
+            ['🏷 Sale Price', formatINR(data.sellingPrice ?? 0)],
+            ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ]),
+        ],
+        `Product Updated — ${data.name} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.PRODUCT_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Product Deactivated'),
-        fieldsBlock([
-          ['🏷️ Brand',    data.brandName],
-          ['📦 Name',     data.name],
-          ['📂 Category', data.category || null],
-        ]),
-      ], `Product Deactivated — ${data.name} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Product Deactivated'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📦 Name', data.name],
+            ['📂 Category', data.category || null],
+          ]),
+        ],
+        `Product Deactivated — ${data.name} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.PRODUCT_GLOBAL_ACCESS_UPDATED:
-      return card(event, [
-        headerBlock('🌐 Product Access Updated — All Salespeople'),
-        fieldsBlock([
-          ['📦 Product',      data.name || null],
-          ['🏷️ Brand',        data.brandName || null],
-          ['🔘 Access',       data.isEnabled === false ? 'Disabled ❌' : 'Enabled ✅'],
-          ['💰 Default Price', data.price != null ? formatINR(data.price) : null],
-          ['🔢 Affected',     data.count != null ? `${data.count} salespeople` : null],
-          ['🖊️ Updated By',   data.by || null],
-        ]),
-      ], `Product Access Updated — ${data.name} — All Salespeople`);
+      return card(
+        event,
+        [
+          headerBlock('🌐 Product Access Updated — All Salespeople'),
+          fieldsBlock([
+            ['📦 Product', data.name || null],
+            ['🏷️ Brand', data.brandName || null],
+            ['🔘 Access', data.isEnabled === false ? 'Disabled ❌' : 'Enabled ✅'],
+            ['💰 Default Price', data.price != null ? formatINR(data.price) : null],
+            ['🔢 Affected', data.count != null ? `${data.count} salespeople` : null],
+            ['🖊️ Updated By', data.by || null],
+          ]),
+        ],
+        `Product Access Updated — ${data.name} — All Salespeople`
+      );
 
     // ── Categories ─────────────────────────────────────────────────────────
     case SLACK_EVENTS.CATEGORY_CREATED:
-      return card(event, [
-        headerBlock('🆕 Category Added'),
-        fieldsBlock([
-          ['🏷️ Brand', data.brandName],
-          ['📂 Name',  data.name],
-        ]),
-      ], `Category Added — ${data.name} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('🆕 Category Added'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📂 Name', data.name],
+          ]),
+        ],
+        `Category Added — ${data.name} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.CATEGORY_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Category Updated'),
-        fieldsBlock([
-          ['🏷️ Brand',   data.brandName],
-          ['📂 Name',    data.name],
-          ['💧 Deposit', data.depositEnabled ? 'Enabled ✅' : 'Disabled ❌'],
-        ]),
-      ], `Category Updated — ${data.name} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Category Updated'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📂 Name', data.name],
+            ['💧 Deposit', data.depositEnabled ? 'Enabled ✅' : 'Disabled ❌'],
+          ]),
+        ],
+        `Category Updated — ${data.name} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.CATEGORY_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Category Deleted'),
-        fieldsBlock([
-          ['🏷️ Brand', data.brandName],
-          ['📂 Name',  data.name],
-        ]),
-      ], `Category Deleted — ${data.name} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Category Deleted'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['📂 Name', data.name],
+          ]),
+        ],
+        `Category Deleted — ${data.name} (${data.brandName})`
+      );
 
     // ── Routes ─────────────────────────────────────────────────────────────
     case SLACK_EVENTS.ROUTE_CREATED:
-      return card(event, [
-        headerBlock('🆕 Route Added'),
-        fieldsBlock([
-          ['🏷️ Brand',     data.brandName],
-          ['🛣️ Route No.', String(data.routeNumber)],
-        ]),
-      ], `Route Added — ${data.routeNumber} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('🆕 Route Added'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['🛣️ Route No.', String(data.routeNumber)],
+          ]),
+        ],
+        `Route Added — ${data.routeNumber} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.ROUTE_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Route Updated'),
-        fieldsBlock([
-          ['🏷️ Brand',     data.brandName],
-          ['🛣️ Route No.', String(data.routeNumber)],
-          ['🔘 Status',    data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
-        ]),
-      ], `Route Updated — ${data.routeNumber} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Route Updated'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['🛣️ Route No.', String(data.routeNumber)],
+            ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+          ]),
+        ],
+        `Route Updated — ${data.routeNumber} (${data.brandName})`
+      );
 
     case SLACK_EVENTS.ROUTE_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Route Deleted'),
-        fieldsBlock([
-          ['🏷️ Brand',     data.brandName],
-          ['🛣️ Route No.', String(data.routeNumber)],
-        ]),
-      ], `Route Deleted — ${data.routeNumber} (${data.brandName})`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Route Deleted'),
+          fieldsBlock([
+            ['🏷️ Brand', data.brandName],
+            ['🛣️ Route No.', String(data.routeNumber)],
+          ]),
+        ],
+        `Route Deleted — ${data.routeNumber} (${data.brandName})`
+      );
 
     // ── Brands (dairies) ───────────────────────────────────────────────────
     case SLACK_EVENTS.BRAND_CREATED:
-      return card(event, [
-        headerBlock('🆕 Brand Added'),
-        fieldsBlock([
-          ['🏷️ Name',       data.name],
-          ['💧 Deposit',    data.depositEnabled ? `Enabled ✅ (${formatINR(data.depositPerLitre ?? 0)}/L)` : 'Disabled ❌'],
-          ['🖊️ Added By',   data.by || null],
-        ]),
-      ], `Brand Added — ${data.name}`);
+      return card(
+        event,
+        [
+          headerBlock('🆕 Brand Added'),
+          fieldsBlock([
+            ['🏷️ Name', data.name],
+            [
+              '💧 Deposit',
+              data.depositEnabled
+                ? `Enabled ✅ (${formatINR(data.depositPerLitre ?? 0)}/L)`
+                : 'Disabled ❌',
+            ],
+            ['🖊️ Added By', data.by || null],
+          ]),
+        ],
+        `Brand Added — ${data.name}`
+      );
 
     case SLACK_EVENTS.BRAND_UPDATED: {
       const archived = data.isArchived === true;
-      return card(event, [
-        headerBlock(archived ? '📦 Brand Archived' : '✏️ Brand Updated'),
-        fieldsBlock([
-          ['🏷️ Name',     data.name],
-          ['💧 Deposit',  data.depositEnabled ? `Enabled ✅ (${formatINR(data.depositPerLitre ?? 0)}/L)` : 'Disabled ❌'],
-          ['🔘 Status',   archived ? 'Archived (irreversible) 🔒' : (data.isActive === false ? 'Deactivated ❌' : 'Active ✅')],
-          ['🖊️ Updated By', data.by || null],
-        ]),
-        ...(archived ? [textBlock('⚠️ *Archived brands cannot be restored from the app.*')] : []),
-      ], `Brand ${archived ? 'Archived' : 'Updated'} — ${data.name}`, archived ? COLORS.RED : undefined);
+      return card(
+        event,
+        [
+          headerBlock(archived ? '📦 Brand Archived' : '✏️ Brand Updated'),
+          fieldsBlock([
+            ['🏷️ Name', data.name],
+            [
+              '💧 Deposit',
+              data.depositEnabled
+                ? `Enabled ✅ (${formatINR(data.depositPerLitre ?? 0)}/L)`
+                : 'Disabled ❌',
+            ],
+            [
+              '🔘 Status',
+              archived
+                ? 'Archived (irreversible) 🔒'
+                : data.isActive === false
+                  ? 'Deactivated ❌'
+                  : 'Active ✅',
+            ],
+            ['🖊️ Updated By', data.by || null],
+          ]),
+          ...(archived ? [textBlock('⚠️ *Archived brands cannot be restored from the app.*')] : []),
+        ],
+        `Brand ${archived ? 'Archived' : 'Updated'} — ${data.name}`,
+        archived ? COLORS.RED : undefined
+      );
     }
 
     // ── Superadmin — Admin Users ────────────────────────────────────────────
     case SLACK_EVENTS.ADMIN_USER_CREATED:
-      return card(event, [
-        headerBlock('🆕 Admin User Created'),
-        fieldsBlock([
-          ['👤 Username',  data.username],
-          ['👑 Role',      data.role || 'admin'],
-          ['🖊️ Created By', data.by || null],
-        ]),
-      ], `Admin User Created — ${data.username} (${data.role})`);
+      return card(
+        event,
+        [
+          headerBlock('🆕 Admin User Created'),
+          fieldsBlock([
+            ['👤 Username', data.username],
+            ['👑 Role', data.role || 'admin'],
+            ['🖊️ Created By', data.by || null],
+          ]),
+        ],
+        `Admin User Created — ${data.username} (${data.role})`
+      );
 
     case SLACK_EVENTS.ADMIN_USER_UPDATED:
-      return card(event, [
-        headerBlock('✏️ Admin User Updated'),
-        fieldsBlock([
-          ['👤 Username',   data.username],
-          ['👑 Role',       data.role || null],
-          ['🔘 Status',     data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
-          ['🖊️ Updated By', data.by || null],
-        ]),
-      ], `Admin User Updated — ${data.username}`);
+      return card(
+        event,
+        [
+          headerBlock('✏️ Admin User Updated'),
+          fieldsBlock([
+            ['👤 Username', data.username],
+            ['👑 Role', data.role || null],
+            ['🔘 Status', data.isActive === false ? 'Deactivated ❌' : 'Active ✅'],
+            ['🖊️ Updated By', data.by || null],
+          ]),
+        ],
+        `Admin User Updated — ${data.username}`
+      );
 
     case SLACK_EVENTS.ADMIN_USER_DELETED:
-      return card(event, [
-        headerBlock('🗑️ Admin User Deleted'),
-        fieldsBlock([
-          ['👤 Username',   data.username],
-          ['👑 Role',       data.role || null],
-          ['🖊️ Deleted By', data.by || null],
-        ]),
-      ], `Admin User Deleted — ${data.username}`);
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Admin User Deleted'),
+          fieldsBlock([
+            ['👤 Username', data.username],
+            ['👑 Role', data.role || null],
+            ['🖊️ Deleted By', data.by || null],
+          ]),
+        ],
+        `Admin User Deleted — ${data.username}`
+      );
 
     default:
       return { text: `[VMD] Event: ${event}` };
@@ -870,10 +1247,10 @@ async function postToSlack(payload) {
   const t = setTimeout(() => ctrl.abort(), 8000);
   try {
     const res = await fetch(WEBHOOK_URL, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-      signal:  ctrl.signal,
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
     });
     if (!res.ok) throw new Error(`Slack responded ${res.status}: ${await res.text()}`);
   } finally {
@@ -891,7 +1268,7 @@ async function postToSlack(payload) {
 const notifySlack = async (event, rawData = {}) => {
   if (!WEBHOOK_URL) return;
   try {
-    const data    = await enrichData(event, rawData);
+    const data = await enrichData(event, rawData);
     const payload = buildCard(event, data);
     await postToSlack(payload);
   } catch (err) {

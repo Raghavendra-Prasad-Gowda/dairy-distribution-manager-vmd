@@ -41,6 +41,37 @@ async function seedFoundationData(externalPrisma) {
   } else {
     logger.info('SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD not set — skipping superadmin seed');
   }
+
+  // ─── Edit PIN (AppSettings table) ─────────────────────────────────────────
+  // Only seed a PIN row if none exists yet. This preserves any PIN the
+  // superadmin has already changed via the UI on subsequent deploys.
+  // On the very first deploy, falls back to EDIT_PIN env var (or '123456').
+  const existingPin = await prisma.appSettings.findUnique({ where: { key: 'edit_pin' } });
+  if (!existingPin) {
+    const source = env.EDIT_PIN ?? '123456';
+    const pinHash = await bcrypt.hash(source, BCRYPT_ROUNDS);
+    await prisma.appSettings.create({ data: { key: 'edit_pin', value: pinHash } });
+    logger.info('Seeded edit PIN from env var (first deploy)');
+  }
+
+  // ─── P&L PIN (AppSettings table) ─────────────────────────────────────────
+  // A separate, independently-changeable PIN for the P&L report.
+  // Seeded from the same env var / default as the edit PIN on first deploy.
+  const existingPlPin = await prisma.appSettings.findUnique({ where: { key: 'pl_pin' } });
+  if (!existingPlPin) {
+    const src = env.EDIT_PIN ?? '123456';
+    const plPinHash = await bcrypt.hash(src, BCRYPT_ROUNDS);
+    await prisma.appSettings.create({ data: { key: 'pl_pin', value: plPinHash } });
+    logger.info('Seeded P&L PIN from env var (first deploy)');
+  }
+
+  // ─── P&L PIN gate toggle (AppSettings table) ──────────────────────────────
+  // Default: enabled. The superadmin can toggle this off via the UI.
+  const existingPlPinSetting = await prisma.appSettings.findUnique({ where: { key: 'pl_pin_enabled' } });
+  if (!existingPlPinSetting) {
+    await prisma.appSettings.create({ data: { key: 'pl_pin_enabled', value: 'true' } });
+    logger.info('Seeded pl_pin_enabled = true (default on)');
+  }
 }
 
 module.exports = { seedFoundationData };

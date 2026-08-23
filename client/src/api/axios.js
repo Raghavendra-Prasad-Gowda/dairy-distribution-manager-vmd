@@ -51,11 +51,17 @@ api.interceptors.response.use(
     if (error.config?.__reqId != null) markRequestEnd(error.config.__reqId);
     const url = error.config?.url ?? '';
     const isPinEndpoint = url.includes('/pin/');
-    // The user either has no session yet (login) or is re-entering their own
-    // current password — in both cases a 401 is a validation result, not an
-    // expiry, so it must never bounce them to the login screen.
+    // The user either has no session yet (login), is re-entering their own
+    // current password, or is mid-way through an MFA step (wrong code, or
+    // the short-lived mfaToken timed out) — in all these cases a 401 is a
+    // validation result, not an expiry, so it must never bounce them to the
+    // login screen. Doing so used to wipe out the MFA screen's own error
+    // ("Invalid authentication code" / "MFA session expired") before the
+    // user could read it, replacing it with a generic "session expired".
     const isCredentialCheck =
-      url.includes('/auth/login') || url.includes('/auth/change-password');
+      url.includes('/auth/login') ||
+      url.includes('/auth/change-password') ||
+      url.includes('/auth/mfa/');
 
     if (!isPinEndpoint && !isCredentialCheck) {
       if (error.response?.status === 401) {

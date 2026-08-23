@@ -73,26 +73,98 @@ export const AuthProvider = ({ children }) => {
     return clearTimer;
   }, [hydrateSession, clearTimer]);
 
+  // Shared by login() and verifyMfa() below — both end at "credentials are
+  // now fully proven" and persist the session identically.
+  const commitSession = (data) => {
+    const { accessToken, businessName, role, salespersonId, salespersonName, adminUserId } = data;
+
+    const loginTime = Date.now();
+    const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null, adminUserId: adminUserId ?? null };
+
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userObj));
+    localStorage.setItem('loginTime', String(loginTime));
+    api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+    scheduleExpiry(loginTime, performAutoLogout);
+    setUser(userObj);
+  };
+
   const login = async (username, password) => {
     try {
       const response = await api.post('/auth/login', { username, password });
-      const { accessToken, businessName, role, salespersonId, salespersonName, adminUserId } = response.data.data;
+      const { data } = response.data;
 
-      const loginTime = Date.now();
-      const userObj = { businessName, role, salespersonId: salespersonId ?? null, salespersonName: salespersonName ?? null, adminUserId: adminUserId ?? null };
+      // Password is correct, but the session isn't issued yet in either
+      // case below — Login.jsx collects what's needed and finishes the
+      // login via verifyMfa() or confirmRequiredMfa() further down.
+      if (data.mfaVerifyRequired) {
+        // Already enrolled (self-service, or a completed forced
+        // enrollment) — just needs a live code.
+        return { success: false, mfaVerifyRequired: true, mfaToken: data.mfaToken };
+      }
+      if (data.mfaSetupRequired) {
+        // A superadmin marked this account mfaRequired but it was never
+        // enrolled — must complete enrollment before a session is issued.
+        return { success: false, mfaSetupRequired: true, mfaToken: data.mfaToken };
+      }
 
-      localStorage.setItem('token', accessToken);
-      localStorage.setItem('user', JSON.stringify(userObj));
-      localStorage.setItem('loginTime', String(loginTime));
-      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-
-      scheduleExpiry(loginTime, performAutoLogout);
-      setUser(userObj);
+      commitSession(data);
       return { success: true };
     } catch (error) {
       return {
         success: false,
         message: error.response?.data?.error || 'Login failed. Please try again.',
+      };
+    }
+  };
+
+  /** Completes a login that login() paused for MFA on an already-enrolled account. */
+  const verifyMfa = async (mfaToken, code) => {
+    try {
+      const response = await api.post('/auth/mfa/verify', { mfaToken, code });
+      commitSession(response.data.data);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.error || 'Invalid code. Please try again.',
+      };
+    }
+  };
+
+  /**
+   * Starts a FORCED first-time enrollment (login() returned mfaSetupRequired).
+   * Returns the QR/otpauth payload — doesn't touch session state, mirrors
+   * the self-service admin-users/mfa/setup shape.
+   */
+  const setupRequiredMfa = async (mfaToken) => {
+    try {
+      const response = await api.post('/auth/mfa/setup-required', { mfaToken });
+      return { success: true, ...response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.error || 'Failed to start MFA setup. Please log in again.',
+      };
+    }
+  };
+
+  /**
+   * Completes a forced enrollment — verifies the code, and (unlike
+   * verifyMfa) this itself finishes the login, so it also returns the new
+   * backup codes for the caller to show once alongside committing the session.
+   */
+  const confirmRequiredMfa = async (mfaToken, code) => {
+    try {
+      const response = await api.post('/auth/mfa/confirm-required', { mfaToken, code });
+      const { backupCodes, ...sessionData } = response.data.data;
+      commitSession(sessionData);
+      return { success: true, backupCodes };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.error || 'Invalid code. Please try again.',
       };
     }
   };
@@ -111,7 +183,7 @@ export const AuthProvider = ({ children }) => {
   );
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, verifyMfa, setupRequiredMfa, confirmRequiredMfa, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
