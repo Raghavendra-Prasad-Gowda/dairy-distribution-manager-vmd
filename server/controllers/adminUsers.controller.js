@@ -22,6 +22,12 @@ const SAFE_SELECT = {
   createdAt: true,
   mfaEnabled: true,
   mfaRequired: true,
+  // Account lockout (services/accountLockService.js) — surfaced here so the
+  // Admin Users table can show "Locked" and a superadmin can act on it; the
+  // raw attempt counts stay server-side (not selected) since nobody needs to
+  // see "3 of 5" for an account that isn't locked yet.
+  lockedAt: true,
+  lockedReason: true,
 };
 
 const getAll = asyncHandler(async (req, res) => {
@@ -270,6 +276,32 @@ const setMfaRequired = asyncHandler(async (req, res) => {
   res.json({ success: true, data: user });
 });
 
+// ─── Account lockout (superadmin unlocking ANOTHER account) ────────────────
+// A locked account (5 wrong passwords or 5 wrong MFA codes — see
+// accountLockService.js) also auto-unlocks on its own after the cooldown,
+// so this is a convenience to restore access immediately rather than the
+// only way out. No self-guard needed here (unlike setMfaRequired) — a
+// superadmin calling this is by definition currently logged in, which means
+// they are not locked, so there's no "use the other tab for your own
+// account" ambiguity to avoid.
+const unlock = asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id, 'Admin User ID');
+
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) throw new AppError('Admin user not found', 404);
+  if (!target.lockedAt) throw new AppError('This account is not locked', 400);
+
+  const user = await prisma.adminUser.update({
+    where: { id },
+    data: { failedPasswordAttempts: 0, failedMfaAttempts: 0, lockedAt: null, lockedReason: null },
+    select: SAFE_SELECT,
+  });
+  const by = await resolveActingUsername(req);
+  const roleLabel = target.role === 'superadmin' ? 'Super Admin' : target.role === 'dispatcher' ? 'Dispatcher' : 'Admin';
+  void notifySlack(SLACK_EVENTS.ACCOUNT_UNLOCKED, { username: target.username, role: roleLabel, by });
+  res.json({ success: true, data: user });
+});
+
 module.exports = {
   getAll,
   create,
@@ -280,4 +312,5 @@ module.exports = {
   mfaConfirm,
   mfaDisable,
   setMfaRequired,
+  unlock,
 };

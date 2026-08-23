@@ -35,6 +35,10 @@ const SLACK_EVENTS = {
   // enrollment). This pair fires on the POLICY change alone.
   MFA_REQUIRED_SET: 'MFA_REQUIRED_SET',
   MFA_REQUIRED_UNSET: 'MFA_REQUIRED_UNSET',
+  // Account lockout (services/accountLockService.js) — 5 wrong passwords or
+  // 5 wrong MFA codes locks an admin/superadmin/dispatcher account.
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  ACCOUNT_UNLOCKED: 'ACCOUNT_UNLOCKED',
   // Salesman self-service "view" actions — informational only, fired from
   // endpoints that are exclusively reachable by the salesman's own pages
   // (see the controllers for why each specific handler was chosen).
@@ -159,6 +163,8 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.MFA_FAILED]: COLORS.RED,
   [SLACK_EVENTS.MFA_REQUIRED_SET]: COLORS.AMBER,
   [SLACK_EVENTS.MFA_REQUIRED_UNSET]: COLORS.BLUE,
+  [SLACK_EVENTS.ACCOUNT_LOCKED]: COLORS.RED,
+  [SLACK_EVENTS.ACCOUNT_UNLOCKED]: COLORS.GREEN,
   [SLACK_EVENTS.SALESPERSON_BALANCE_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.SALESPERSON_STATEMENT_VIEWED]: COLORS.BLUE,
   [SLACK_EVENTS.DISPATCH_SUBMITTED]: COLORS.GREEN,
@@ -557,6 +563,35 @@ function buildCard(event, data) {
           textBlock('Any active MFA enrollment for this account was also cleared.'),
         ],
         `MFA No Longer Required — ${data.username}`
+      );
+
+    case SLACK_EVENTS.ACCOUNT_LOCKED:
+      return card(
+        event,
+        [
+          headerBlock('🔒 Account Locked'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['👑 Role', data.role || null],
+            ['❗ Reason', data.reason || null],
+          ]),
+          textBlock('A super admin can unlock this account immediately from Admin Users, or it auto-unlocks after the cooldown.'),
+        ],
+        `Account Locked — ${data.username}`
+      );
+
+    case SLACK_EVENTS.ACCOUNT_UNLOCKED:
+      return card(
+        event,
+        [
+          headerBlock('🔓 Account Unlocked'),
+          fieldsBlock([
+            ['👤 Account', data.username || 'unknown'],
+            ['👑 Role', data.role || null],
+            ['🖊️ Unlocked By', data.by || null],
+          ]),
+        ],
+        `Account Unlocked — ${data.username}`
       );
 
     // ── Salesman "view" actions (informational) ────────────────────────────

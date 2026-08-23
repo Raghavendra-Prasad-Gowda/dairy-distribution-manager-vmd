@@ -417,6 +417,27 @@ test.describe('Admin user cards (superadmin-only)', () => {
   });
 });
 
+test.describe('Account lockout cards', () => {
+  test('ACCOUNT_LOCKED reports the account, role and reason, colored red', () => {
+    const c = buildCard(SLACK_EVENTS.ACCOUNT_LOCKED, {
+      username: 'manager', role: 'Admin', reason: 'Too many wrong passwords',
+    });
+    expect(headerText(c)).toBe('🔒 Account Locked');
+    expect(allText(c)).toContain('manager');
+    expect(allText(c)).toContain('Too many wrong passwords');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+  });
+
+  test('ACCOUNT_UNLOCKED reports who unlocked it, colored green', () => {
+    const c = buildCard(SLACK_EVENTS.ACCOUNT_UNLOCKED, {
+      username: 'manager', role: 'Admin', by: 'raghav',
+    });
+    expect(headerText(c)).toBe('🔓 Account Unlocked');
+    expect(allText(c)).toContain('raghav');
+    expect(c.attachments[0].color).toBe('#2eb886'); // GREEN
+  });
+});
+
 test.describe('Process-level error cards', () => {
   test('SERVER_BOOT_FAILED reports the failing stage', () => {
     const c = buildCard(SLACK_EVENTS.SERVER_BOOT_FAILED, {
