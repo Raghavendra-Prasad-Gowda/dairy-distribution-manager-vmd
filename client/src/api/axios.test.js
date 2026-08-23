@@ -164,6 +164,44 @@ describe('401 handling — credential checks are not session expiry', () => {
   });
 });
 
+// A 401 from mid-MFA (wrong code, or the short-lived mfaToken expiring
+// because the user stepped away) is also a validation result, not a dead
+// session — there is no session yet to have expired. Bouncing to login used
+// to destroy the MFA screen's own error ("Invalid authentication code" /
+// "MFA session expired. Please log in again.") and replace it with a
+// generic "Your session expired", which also threw away the in-progress
+// mfaToken/QR code the user needed to retry.
+describe('401 handling — MFA steps are not session expiry', () => {
+  it('does not redirect on a wrong MFA verify code', async () => {
+    await fireError({ config: { url: '/auth/mfa/verify' }, response: { status: 401 } });
+
+    expect(window.location.href).toBe('');
+  });
+
+  it('does not redirect when the setup-required mfaToken has expired', async () => {
+    await fireError({ config: { url: '/auth/mfa/setup-required' }, response: { status: 401 } });
+
+    expect(window.location.href).toBe('');
+  });
+
+  it('does not redirect on a wrong forced-enrollment confirm code', async () => {
+    await fireError({ config: { url: '/auth/mfa/confirm-required' }, response: { status: 401 } });
+
+    expect(window.location.href).toBe('');
+  });
+
+  it('leaves no "session expired" notice behind after a wrong MFA code', async () => {
+    await fireError({ config: { url: '/auth/mfa/verify' }, response: { status: 401 } });
+
+    expect(sessionStorage.getItem('authNotice')).toBeNull();
+  });
+
+  it('still rejects the error so the MFA screen can show its own message', async () => {
+    const err = { config: { url: '/auth/mfa/verify' }, response: { status: 401 } };
+    await expect(handlers.responseError(err)).rejects.toBe(err);
+  });
+});
+
 describe('missing VITE_API_BASE_URL warning', () => {
   it('logs an error when unset outside dev mode', async () => {
     vi.stubEnv('VITE_API_BASE_URL', '');
