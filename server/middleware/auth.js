@@ -3,8 +3,21 @@ const AppError = require('../utils/AppError');
 const env = require('../config/env');
 
 const authenticate = (req, res, next) => {
+  // Deliberately NOT reading req.cookies?.token here. The frontend never
+  // relies on the cookie for auth — it sends the JWT itself via the
+  // Authorization header (see client/src/api/axios.js) — but the login
+  // response still sets an httpOnly cookie (see setCookie() in
+  // auth.controller.js) and the app is CORS-configured with
+  // credentials, so browsers attach that cookie automatically on every
+  // cross-site request. Honoring it here would let it silently
+  // authenticate requests, and since it's sent SameSite=None in
+  // production, that's a CSRF hole: any site can trigger an
+  // authenticated POST against a no-body/query-param endpoint via a
+  // plain HTML form, riding the ambient cookie. Requiring the header
+  // means only code that deliberately reads the token (this app's own
+  // frontend) can authenticate — a form submission from another origin
+  // can't attach an Authorization header.
   const token =
-    req.cookies?.token ||
     req.headers['authorization']?.split(' ')[1] ||
     req.headers['x-access-token'];
 

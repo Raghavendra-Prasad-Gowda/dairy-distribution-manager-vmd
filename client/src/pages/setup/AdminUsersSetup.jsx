@@ -602,9 +602,14 @@ export default function AdminUsersSetup() {
     }
   );
 
-  const handleSetMfaRequired = (u) => {
+  const handleSetMfaRequired = async (u) => {
     setMfaTogglingId(u.id);
-    setMfaRequired(u);
+    // useMutation's onSuccess is where mfaTogglingId normally clears — but it
+    // never runs on failure, which left the row's toggle stuck disabled
+    // (and spinning) for the rest of the session. Clear it here too on a
+    // failed request.
+    const { ok } = await setMfaRequired(u);
+    if (!ok) setMfaTogglingId(null);
   };
 
   const confirmSetMfaRequired = (u) => setConfirmMfaRequire(u);

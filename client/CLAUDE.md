@@ -43,6 +43,10 @@ client/src/
 - `AuthContext` clears auth state after 2 hours (`SESSION_MS = 2 * 60 * 60 * 1000` in `src/utils/session.js`).
 - Must match JWT expiry on the server (`JWT_EXPIRES_IN: 7200`). If JWT expiry changes, update `SESSION_MS` too.
 
+### Auth Transport
+- The JWT is stored in `localStorage` (`src/api/axios.js` reads it and attaches `Authorization: Bearer <token>` to every request) — this is the actual, deliberate transport, not a cookie flow.
+- Login also receives an httpOnly cookie, but it is a legacy/incidental artifact only — the server's `authenticate` middleware (`server/middleware/auth.js`) does not honor it. Trusting an ambient cross-site cookie for auth is a CSRF hole; only the explicit header (something a cross-site form can't attach) authenticates a request. Do not add code that relies on the cookie for auth on either side.
+
 ### State Management
 - No global state library. React context only for cross-cutting concerns (auth, notifications).
 - Page-level state lives in the page component. Shared UI state passed as props.
@@ -59,7 +63,7 @@ client/src/
 ## What NOT to Do
 - Do not import pages eagerly (defeats code splitting).
 - Do not make API calls with raw `fetch` or a separate axios instance.
-- Do not store JWT or sensitive data in `localStorage` (auth context uses memory + httpOnly cookie flow).
+- Do not rely on the httpOnly cookie for auth — the server does not honor it (see Auth Transport above); always go through the `Authorization` header via `src/api/axios.js`.
 - Do not add global state management (Redux, Zustand) without discussion — context has been sufficient.
 - Do not remove the `ErrorBoundary` wrapper.
 - Do not hardcode API base URLs — use the axios instance which reads from `VITE_API_BASE_URL`.

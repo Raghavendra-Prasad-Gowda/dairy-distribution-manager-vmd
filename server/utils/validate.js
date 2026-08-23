@@ -445,6 +445,16 @@ const schemas = {
     role: z.enum(['admin', 'superadmin', 'dispatcher']).optional(),
     isActive: z.boolean().optional(),
   }),
+
+  // Client error reporting (public, unauthenticated — see routes/clientErrors.js).
+  // All fields optional (a crash report with nothing useful should still be
+  // accepted, not rejected), but capped so an unauthenticated caller can't
+  // stuff an oversized/malicious payload into the Slack card built from it.
+  reportClientError: z.object({
+    message: z.string().max(2000, 'message is too long').optional(),
+    stack: z.string().max(5000, 'stack is too long').optional(),
+    page: z.string().max(300, 'page is too long').optional(),
+  }),
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
