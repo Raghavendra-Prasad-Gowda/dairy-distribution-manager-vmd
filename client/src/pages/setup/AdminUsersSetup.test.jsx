@@ -188,7 +188,7 @@ describe('AdminUsersSetup — toggle active', () => {
     await renderPage();
     await screen.findByText('me');
     const row = screen.getByText('me').closest('tr');
-    const [toggleBtn] = within(row).getAllByRole('button');
+    const toggleBtn = within(row).getByTitle(/^(Enable|Disable) /);
     expect(toggleBtn).toBeDisabled();
   });
 
@@ -199,7 +199,7 @@ describe('AdminUsersSetup — toggle active', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [toggleBtn] = within(row).getAllByRole('button');
+    const toggleBtn = within(row).getByTitle(/^(Enable|Disable) /);
     fireEvent.click(toggleBtn);
 
     // Toggling opens a confirmation dialog first — the PUT only fires once confirmed.
@@ -221,7 +221,7 @@ describe('AdminUsersSetup — toggle active', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [toggleBtn] = within(row).getAllByRole('button');
+    const toggleBtn = within(row).getByTitle(/^(Enable|Disable) /);
     fireEvent.click(toggleBtn);
 
     const dialog = await screen.findByRole('dialog');
@@ -237,7 +237,7 @@ describe('AdminUsersSetup — toggle active', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [toggleBtn] = within(row).getAllByRole('button');
+    const toggleBtn = within(row).getByTitle(/^(Enable|Disable) /);
     fireEvent.click(toggleBtn);
 
     const dialog = await screen.findByRole('dialog');
@@ -254,8 +254,7 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    // Row buttons: [toggleActive, edit, delete] — edit is index 1
-    const [, editBtn] = within(row).getAllByRole('button');
+    const editBtn = within(row).getByTitle('Edit user');
     fireEvent.click(editBtn);
 
     expect(screen.getByText('Edit — raghav')).toBeInTheDocument();
@@ -269,8 +268,7 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    // Row buttons: [toggleActive, edit, delete] — edit is index 1
-    const [, editBtn] = within(row).getAllByRole('button');
+    const editBtn = within(row).getByTitle('Edit user');
     fireEvent.click(editBtn);
 
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
@@ -286,8 +284,7 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    // Row buttons: [toggleActive, edit, delete] — edit is index 1
-    const [, editBtn] = within(row).getAllByRole('button');
+    const editBtn = within(row).getByTitle('Edit user');
     fireEvent.click(editBtn);
     fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'newpass1' } });
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
@@ -305,7 +302,7 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('raghav');
 
     const row = screen.getByText('raghav').closest('tr');
-    const [, editBtn] = within(row).getAllByRole('button');
+    const editBtn = within(row).getByTitle('Edit user');
     fireEvent.click(editBtn);
 
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
@@ -319,7 +316,7 @@ describe('AdminUsersSetup — edit user', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [, editBtn] = within(row).getAllByRole('button');
+    const editBtn = within(row).getByTitle('Edit user');
     fireEvent.click(editBtn);
     fireEvent.click(screen.getByRole('button', { name: /Save/i }));
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Duplicate username', 'error'));
@@ -333,7 +330,7 @@ describe('AdminUsersSetup — edit user', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
     await renderPage();
     await screen.findByText('raghav');
-    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getByTitle('Edit user'));
 
     const pwInput = screen.getByPlaceholderText(/Min 6 characters/);
     expect(pwInput).toHaveAttribute('type', 'password');
@@ -345,7 +342,7 @@ describe('AdminUsersSetup — edit user', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', isActive: true })] } });
     await renderPage();
     await screen.findByText('raghav');
-    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getByTitle('Edit user'));
 
     // Active toggle is the lone unlabeled button inside the modal footer-less form area.
     const dialog = screen.getByRole('dialog');
@@ -362,7 +359,7 @@ describe('AdminUsersSetup — edit user', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
     await renderPage();
     await screen.findByText('raghav');
-    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getByTitle('Edit user'));
     expect(screen.getByText('Edit — raghav')).toBeInTheDocument();
 
     const dialog = screen.getByRole('dialog');
@@ -375,7 +372,7 @@ describe('AdminUsersSetup — edit user', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
     await renderPage();
     await screen.findByText('raghav');
-    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getByTitle('Edit user'));
     expect(screen.getByText('Edit — raghav')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
@@ -386,7 +383,7 @@ describe('AdminUsersSetup — edit user', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });
     await renderPage();
     await screen.findByText('raghav');
-    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getAllByRole('button')[1]);
+    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getByTitle('Edit user'));
 
     fireEvent.change(screen.getByDisplayValue('raghav'), { target: { value: 'raghav2' } });
     fireEvent.change(screen.getByDisplayValue('Admin'), { target: { value: 'superadmin' } });
@@ -404,9 +401,8 @@ describe('AdminUsersSetup — edit user', () => {
     await screen.findByText('me');
 
     const row = screen.getByText('me').closest('tr');
-    // Row buttons: [toggleActive (disabled for self), edit, delete (disabled for self)]
-    // Edit is index 1 — it's always enabled so you can still open the modal to view
-    const [, editBtn] = within(row).getAllByRole('button');
+    // Edit is always enabled for your own row so you can still open the modal to view
+    const editBtn = within(row).getByTitle('Edit user');
     fireEvent.click(editBtn);
 
     expect(screen.getByDisplayValue('Admin')).toBeDisabled();
@@ -419,8 +415,7 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('me');
     const row = screen.getByText('me').closest('tr');
-    // Row buttons: [toggleActive (disabled for self), edit, delete (disabled for self)]
-    const [,, deleteBtn] = within(row).getAllByRole('button');
+    const deleteBtn = within(row).getByTitle('Delete user');
     expect(deleteBtn).toBeDisabled();
   });
 
@@ -429,8 +424,7 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    // Row buttons: [toggleActive, edit, delete] — delete is index 2
-    const [,, deleteBtn] = within(row).getAllByRole('button');
+    const deleteBtn = within(row).getByTitle('Delete user');
     fireEvent.click(deleteBtn);
 
     expect(await screen.findByText('Delete admin user?')).toBeInTheDocument();
@@ -449,7 +443,7 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [,, deleteBtn] = within(row).getAllByRole('button');
+    const deleteBtn = within(row).getByTitle('Delete user');
     fireEvent.click(deleteBtn);
     await screen.findByText('Delete admin user?');
 
@@ -464,7 +458,7 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [,, deleteBtn] = within(row).getAllByRole('button');
+    const deleteBtn = within(row).getByTitle('Delete user');
     fireEvent.click(deleteBtn);
     await screen.findByText('Delete admin user?');
 
@@ -479,7 +473,7 @@ describe('AdminUsersSetup — delete user', () => {
     await renderPage();
     await screen.findByText('raghav');
     const row = screen.getByText('raghav').closest('tr');
-    const [,, deleteBtn] = within(row).getAllByRole('button');
+    const deleteBtn = within(row).getByTitle('Delete user');
     fireEvent.click(deleteBtn);
     let dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete/i }));
@@ -689,6 +683,73 @@ describe('AdminUsersSetup — MFA tab', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Disable MFA/i }));
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Password is incorrect', 'error'));
+  });
+
+  it('closing the disable modal without submitting does not call the disable endpoint', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/admin-users/mfa/status')) return Promise.resolve({ data: { data: { mfaEnabled: true } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await openMfaTab();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Disable MFA/i }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/password/i), { target: { value: 'somepass' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close dialog' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalledWith('/admin-users/mfa/disable', expect.anything());
+  });
+
+  it('shows a notify error and stays on the users tab data when the status load fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/admin-users/mfa/status')) return Promise.reject(new Error('network down'));
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /^MFA$/i }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load MFA status', 'error'));
+  });
+
+  it('the "Confirm & Enable" button is disabled until exactly 6 digits are entered', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { data: { otpauth: 'otpauth://totp/VMD:super?secret=ABCDEFGH', qrCodeDataUrl: 'data:image/png;base64,xyz' } },
+    });
+    await openMfaTab();
+    fireEvent.click(await screen.findByRole('button', { name: /Enable MFA/i }));
+    await screen.findByAltText('MFA enrollment QR code');
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirm & Enable/i });
+    const codeInput = screen.getByLabelText(/6-digit code/i);
+    expect(confirmBtn).toBeDisabled();
+
+    fireEvent.change(codeInput, { target: { value: '123' } });
+    expect(confirmBtn).toBeDisabled();
+
+    fireEvent.change(codeInput, { target: { value: '123456' } });
+    expect(confirmBtn).not.toBeDisabled();
+  });
+
+  it('clicking "Done" on the backup codes screen dismisses them and shows the refreshed status', async () => {
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url.includes('/mfa/setup')) return Promise.resolve({ data: { data: { otpauth: 'otpauth://totp/VMD:super?secret=ABCDEFGH', qrCodeDataUrl: 'data:image/png;base64,xyz' } } });
+      if (url.includes('/mfa/confirm')) return Promise.resolve({ data: { data: { backupCodes: ['AAAAA-11111', 'BBBBB-22222'] } } });
+      return Promise.resolve({ data: { success: true } });
+    });
+    await openMfaTab();
+    fireEvent.click(await screen.findByRole('button', { name: /Enable MFA/i }));
+    await screen.findByAltText('MFA enrollment QR code');
+    fireEvent.change(screen.getByLabelText(/6-digit code/i), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirm & Enable/i }));
+    await screen.findByText('AAAAA-11111');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(screen.queryByText('AAAAA-11111')).not.toBeInTheDocument();
+    // beforeEach's api.get mock always reports mfaEnabled: false (unchanged
+    // by this test), so the refreshed status view is the "Enable MFA" screen.
+    expect(screen.getByRole('button', { name: /Enable MFA/i })).toBeInTheDocument();
   });
 });
 
