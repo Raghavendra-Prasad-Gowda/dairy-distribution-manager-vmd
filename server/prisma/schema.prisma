@@ -383,6 +383,21 @@ model AdminUser {
   // account — this is superadmin acting on SOMEONE ELSE's account.
   mfaRequired    Boolean  @default(false) @map("mfa_required")
 
+  // ── Account lockout (services/accountLockService.js) ────────────────────────
+  // Two independent counters — a wrong password increments failedPasswordAttempts,
+  // a wrong MFA/backup code increments failedMfaAttempts; either one reaching
+  // ACCOUNT_LOCK_THRESHOLD (utils/constants.js) locks the account (lockedAt set).
+  // Each counter resets to 0 on its OWN success — a correct password resets
+  // failedPasswordAttempts even if MFA hasn't been attempted yet. A lock
+  // auto-expires ACCOUNT_LOCK_COOLDOWN_MS after lockedAt (checked, never a
+  // background job) so a superadmin locking themselves — or every superadmin
+  // locking each other — out at once can never be a permanent dead end; a
+  // superadmin can also unlock immediately via PUT /admin-users/:id/unlock.
+  failedPasswordAttempts Int       @default(0) @map("failed_password_attempts")
+  failedMfaAttempts      Int       @default(0) @map("failed_mfa_attempts")
+  lockedAt               DateTime? @map("locked_at")
+  lockedReason           String?   @map("locked_reason") // 'password' | 'mfa'
+
   dispatchDayFinalizations DispatchDayFinalization[]
 
   @@map("admin_users")

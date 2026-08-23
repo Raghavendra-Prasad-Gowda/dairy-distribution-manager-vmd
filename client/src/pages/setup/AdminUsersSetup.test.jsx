@@ -364,6 +364,62 @@ describe('AdminUsersSetup — Require MFA toggle (table)', () => {
   });
 });
 
+describe('AdminUsersSetup — Account lockout', () => {
+  it('shows no "Locked" badge or unlock button for a non-locked account', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: null })] },
+    });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    expect(within(row).queryByText('Locked')).not.toBeInTheDocument();
+    expect(within(row).queryByTitle('Unlock raghav')).not.toBeInTheDocument();
+  });
+
+  it('shows a "Locked" badge and an unlock button once locked', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: '2026-08-23T10:00:00Z', lockedReason: 'password' })] },
+    });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    expect(within(row).getByText('Locked')).toBeInTheDocument();
+    expect(within(row).getByTitle('Unlock raghav')).toBeInTheDocument();
+  });
+
+  it('clicking unlock calls PUT /admin-users/:id/unlock, notifies, and refetches — no confirmation dialog needed', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: '2026-08-23T10:00:00Z' })] },
+    });
+    vi.mocked(api.put).mockResolvedValue({ data: { data: { id: 5, username: 'raghav', lockedAt: null } } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    fireEvent.click(within(row).getByTitle('Unlock raghav'));
+
+    // No ConfirmationModal for unlock — a superadmin calling this is by
+    // definition not locked out themselves, so it's a low-risk recovery
+    // action rather than something that needs a confirm step.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin-users/5/unlock'));
+    expect(notify).toHaveBeenCalledWith('"raghav" unlocked', 'success');
+    // Refetch after unlocking
+    expect(api.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a server error notification when unlock fails, and re-enables the button', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: '2026-08-23T10:00:00Z' })] },
+    });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Something went wrong' } } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    const unlockBtn = within(row).getByTitle('Unlock raghav');
+    fireEvent.click(unlockBtn);
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+    expect(unlockBtn).not.toBeDisabled();
+  });
+});
+
 describe('AdminUsersSetup — edit user', () => {
   it('opens prefilled with the username, leaving the password field blank', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });

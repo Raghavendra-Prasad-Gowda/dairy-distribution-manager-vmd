@@ -19,4 +19,9 @@ router.post('/mfa/disable', controller.mfaDisable);
 // self-guard in adminUsers.controller.js#setMfaRequired).
 router.put('/:id/mfa-required', controller.setMfaRequired);
 
+// Account lockout — superadmin unlocking another account immediately
+// (5 wrong passwords or 5 wrong MFA codes locks it — see
+// services/accountLockService.js; it also auto-unlocks after a cooldown).
+router.put('/:id/unlock', controller.unlock);
+
 module.exports = router;
