@@ -364,6 +364,20 @@ describe('DairyPayments — edit flow (PIN gated)', () => {
     expect(await screen.findByText('Edit Payment')).toBeInTheDocument();
   });
 
+  // Regression: PinModal deliberately never closes itself on a correct PIN
+  // (the caller owns that) — onPinSuccess used to forget to call
+  // pinModal.close(), leaving the PIN dialog stuck on top of the now-open
+  // Edit Payment form.
+  it('closes the PIN dialog once the correct PIN is confirmed', async () => {
+    mockApi({ payments: [payment({ amount: 1500 })] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Edit'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+
+    await screen.findByText('Edit Payment');
+    expect(screen.queryByText('Confirm PIN')).not.toBeInTheDocument();
+  });
+
   it('saves the edited amount via PUT', async () => {
     mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
     await renderPage();
@@ -465,6 +479,16 @@ describe('DairyPayments — delete flow (PIN gated)', () => {
 
     fireEvent.click(screen.getByText('Confirm PIN'));
     expect(await screen.findByText('Delete Payment?')).toBeInTheDocument();
+  });
+
+  it('closes the PIN dialog once the correct PIN is confirmed', async () => {
+    mockApi({ payments: [payment()] });
+    await renderPage();
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.click(screen.getByText('Confirm PIN'));
+
+    await screen.findByText('Delete Payment?');
+    expect(screen.queryByText('Confirm PIN')).not.toBeInTheDocument();
   });
 
   it('deletes the payment on confirm', async () => {

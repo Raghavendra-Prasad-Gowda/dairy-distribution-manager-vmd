@@ -2,13 +2,42 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, schemas } = require('../utils/validate');
-const { BCRYPT_ROUNDS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN } = require('../utils/constants');
+const { BCRYPT_ROUNDS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN, ACCOUNT_LOCK_COOLDOWN_MS } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const mfaService = require('../services/mfaService');
 const mfaCrypto = require('../utils/mfaCrypto');
+const accountLockService = require('../services/accountLockService');
 const env = require('../config/env');
+
+const LOCK_COOLDOWN_MINUTES = Math.ceil(ACCOUNT_LOCK_COOLDOWN_MS / 60000);
+
+/**
+ * Throws AppError(423, ...) if the account is currently locked (see
+ * accountLockService.js). Lazily clears an expired lock first — the lock
+ * check itself never writes, so this is the one place that turns "cooldown
+ * has passed" into an actual reset — and mutates the passed-in row so the
+ * rest of THIS request (bcrypt compare, etc.) sees the healed state too.
+ * Shared by login() and resolvePendingAdminUser() so a lock is enforced at
+ * every step that could otherwise let a locked account through.
+ */
+async function assertNotLocked(adminUser) {
+  const lock = accountLockService.checkLock(adminUser);
+  if (lock.expired) {
+    await accountLockService.clearLockState(adminUser.id);
+    adminUser.lockedAt = null;
+    adminUser.lockedReason = null;
+    return;
+  }
+  if (lock.locked) {
+    const reasonText = lock.reason === 'mfa' ? 'too many wrong MFA codes' : 'too many wrong password attempts';
+    throw new AppError(
+      `Account locked due to ${reasonText}. Try again in ${lock.remainingMinutes} minute(s), or contact your super admin to unlock it.`,
+      423
+    );
+  }
+}
 
 const BUSINESS_NAME = 'Vikas Milk Dairy';
 
@@ -79,6 +108,12 @@ async function resolvePendingAdminUser(mfaToken) {
   if (!adminUser || !adminUser.isActive) {
     throw new AppError('MFA session is no longer valid. Please log in again.', 401);
   }
+
+  // Defense-in-depth: the account could have crossed the lock threshold via
+  // a parallel attempt (e.g. someone brute-forcing the password on another
+  // tab) after login() issued this mfaToken but before it's redeemed here.
+  await assertNotLocked(adminUser);
+
   return adminUser;
 }
 
@@ -103,14 +138,36 @@ const login = asyncHandler(async (req, res) => {
       });
       throw new AppError('Invalid username or password', 401);
     }
+
+    await assertNotLocked(adminUser);
+
     const valid = await bcrypt.compare(data.password, adminUser.passwordHash);
     if (!valid) {
+      const { lockedNow } = await accountLockService.recordFailedPassword(adminUser);
       void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
         attemptedUsername: data.username,
         ip,
-        reason: 'Wrong password',
+        reason: lockedNow ? 'Wrong password (account now locked)' : 'Wrong password',
       });
+      if (lockedNow) {
+        throw new AppError(
+          `Account locked due to too many wrong password attempts. Try again in ${LOCK_COOLDOWN_MINUTES} minute(s), or contact your super admin to unlock it.`,
+          423
+        );
+      }
+      // Deliberately the same generic message as "username not found" above
+      // (no attempt count here) — surfacing "N attempts remaining" would
+      // leak that this username exists, unlike the MFA step below where the
+      // account is already committed to by the mfaToken.
       throw new AppError('Invalid username or password', 401);
+    }
+
+    if (adminUser.mfaEnabled || adminUser.mfaRequired) {
+      // Password step succeeded — reset only the password counter. A wrong
+      // MFA code from an earlier attempt still counts; each counter resets
+      // on its own success (see accountLockService.js). The no-MFA path
+      // below resets both via clearLockState() once the login is complete.
+      await accountLockService.resetPasswordAttempts(adminUser.id);
     }
 
     // Password is proven — but the session isn't issued yet in either MFA
@@ -138,6 +195,7 @@ const login = asyncHandler(async (req, res) => {
       return res.json({ success: true, data: { mfaSetupRequired: true, mfaToken } });
     }
 
+    await accountLockService.clearLockState(adminUser.id);
     return respondWithAdminSession(res, adminUser, ip);
   }
 
@@ -206,17 +264,30 @@ const mfaLogin = asyncHandler(async (req, res) => {
 
   const result = await mfaService.verifyLoginCode(adminUser, data.code);
   if (!result.ok) {
+    const { lockedNow, remaining } = await accountLockService.recordFailedMfa(adminUser);
     void notifySlack(SLACK_EVENTS.MFA_FAILED, { username: adminUser.username, ip });
-    throw new AppError('Invalid authentication code', 401);
+    if (lockedNow) {
+      throw new AppError(
+        `Account locked due to too many wrong MFA codes. Try again in ${LOCK_COOLDOWN_MINUTES} minute(s), or contact your super admin to unlock it.`,
+        423
+      );
+    }
+    // Safe to show a remaining-attempts count here (unlike the password
+    // step) — the mfaToken already commits this request to one specific
+    // account, so there's no username to enumerate.
+    throw new AppError(`Invalid authentication code. ${remaining} attempt(s) remaining before this account is locked.`, 401);
   }
 
   if (result.usedBackupCode) {
+    // Already writing this row for the backup-code consumption — fold the
+    // lock-state reset into the SAME update rather than firing a second one.
     await prisma.adminUser.update({
       where: { id: adminUser.id },
-      data: { mfaBackupCodes: result.remainingBackupCodes },
+      data: { mfaBackupCodes: result.remainingBackupCodes, ...accountLockService.CLEAR_LOCK_DATA },
     });
+  } else {
+    await accountLockService.clearLockState(adminUser.id);
   }
-
   respondWithAdminSession(res, adminUser, ip);
 });
 
@@ -271,15 +342,24 @@ const mfaConfirmRequired = asyncHandler(async (req, res) => {
 
   const secret = mfaCrypto.decrypt(adminUser.mfaSecret);
   if (!(await mfaService.verifyEnrollmentCode(secret, data.code))) {
-    throw new AppError('Invalid code. Please try again.', 400);
+    const { lockedNow, remaining } = await accountLockService.recordFailedMfa(adminUser);
+    if (lockedNow) {
+      throw new AppError(
+        `Account locked due to too many wrong codes. Try again in ${LOCK_COOLDOWN_MINUTES} minute(s), or contact your super admin to unlock it.`,
+        423
+      );
+    }
+    throw new AppError(`Invalid code. ${remaining} attempt(s) remaining before this account is locked. Please try again.`, 400);
   }
 
   const backupCodes = mfaService.generateBackupCodes();
   const hashedCodes = await mfaService.hashBackupCodes(backupCodes);
 
+  // Already writing this row to flip mfaEnabled on — fold the lock-state
+  // reset into the SAME update rather than firing a second one.
   const updated = await prisma.adminUser.update({
     where: { id: adminUser.id },
-    data: { mfaEnabled: true, mfaBackupCodes: hashedCodes },
+    data: { mfaEnabled: true, mfaBackupCodes: hashedCodes, ...accountLockService.CLEAR_LOCK_DATA },
   });
 
   const roleLabel =

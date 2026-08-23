@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, ShieldOff, Search, Trash2, AlertTriangle, UserX, UserCheck, Lock } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Save, X, ShieldCheck, ShieldOff, Search, Trash2, AlertTriangle, UserX, UserCheck, Lock, LockOpen } from 'lucide-react';
 import { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import BrandedLoader from '../../components/ui/BrandedLoader';
@@ -540,6 +540,8 @@ export default function AdminUsersSetup() {
   const [mfaTogglingId, setMfaTogglingId] = useState(null);
   const [confirmMfaRequire, setConfirmMfaRequire] = useState(null); // user pending mfaRequired toggle
 
+  const [unlockingId, setUnlockingId] = useState(null);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -613,6 +615,26 @@ export default function AdminUsersSetup() {
   };
 
   const confirmSetMfaRequired = (u) => setConfirmMfaRequire(u);
+
+  // ── Unlock (5 wrong passwords or 5 wrong MFA codes locks an account — see
+  // server/services/accountLockService.js; it also auto-unlocks after a
+  // cooldown, so this button is a way to restore access immediately) ────────
+  const { mutate: unlockUser } = useMutation(
+    (u) => api.put(`/admin-users/${u.id}/unlock`),
+    {
+      onSuccess: (_res, u) => {
+        notify(`"${u.username}" unlocked`, 'success');
+        setUnlockingId(null);
+        load();
+      },
+    }
+  );
+
+  const handleUnlock = async (u) => {
+    setUnlockingId(u.id);
+    const { ok } = await unlockUser(u);
+    if (!ok) setUnlockingId(null);
+  };
 
   // ── Edit ────────────────────────────────────────────────────────────────────
   function openEdit(u) {
@@ -753,9 +775,19 @@ export default function AdminUsersSetup() {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                              {u.isActive ? 'Active' : 'Inactive'}
-                            </span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                                {u.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                              {u.lockedAt && (
+                                <span
+                                  title={`Locked — too many wrong ${u.lockedReason === 'mfa' ? 'MFA codes' : 'passwords'}. Auto-unlocks after 30 min, or unlock it now below.`}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-600"
+                                >
+                                  <Lock size={10} /> Locked
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             {u.role === 'dispatcher' ? (
@@ -772,6 +804,17 @@ export default function AdminUsersSetup() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {/* Unlock — only shown once locked (5 wrong passwords or 5 wrong MFA codes) */}
+                              {u.lockedAt && (
+                                <button
+                                  onClick={() => handleUnlock(u)}
+                                  disabled={unlockingId === u.id}
+                                  title={`Unlock ${u.username}`}
+                                  className="p-1.5 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed text-red-600 hover:text-emerald-600 hover:bg-emerald-50"
+                                >
+                                  {unlockingId === u.id ? <TumblerSpinner size={14} /> : <LockOpen size={14} />}
+                                </button>
+                              )}
                               {/* Require/lift MFA on someone else's account — never your own (use the MFA tab), never a dispatcher (not eligible) */}
                               {u.role !== 'dispatcher' && (
                                 <button

@@ -219,6 +219,10 @@ export default function SalespersonCollections() {
   };
 
   const onPinSuccess = () => {
+    // PinModal deliberately never closes itself on success (see its own
+    // comment) — the caller owns that. Forgetting this call left the PIN
+    // dialog sitting on top of the Edit Collection form after a correct PIN.
+    pinModal.close();
     if (!pendingAction) return;
     const { type, payment: p } = pendingAction;
     if (type === 'edit') {
