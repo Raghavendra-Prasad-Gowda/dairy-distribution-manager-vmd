@@ -247,6 +247,123 @@ describe('AdminUsersSetup — toggle active', () => {
   });
 });
 
+describe('AdminUsersSetup — Require MFA toggle (table)', () => {
+  it('is hidden entirely for a dispatcher row', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'disp1', role: 'dispatcher' })] },
+    });
+    await renderPage();
+    const row = await screen.findByText('disp1').then((el) => el.closest('tr'));
+    expect(within(row).queryByTitle(/Require MFA|Stop requiring MFA/)).not.toBeInTheDocument();
+    expect(within(row).getByText('—')).toBeInTheDocument();
+  });
+
+  it('shows "Off"/"Required"/"On" badges based on mfaEnabled/mfaRequired', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [
+        adminUser({ id: 5, username: 'off-user', mfaEnabled: false, mfaRequired: false }),
+        adminUser({ id: 6, username: 'required-user', mfaEnabled: false, mfaRequired: true }),
+        adminUser({ id: 7, username: 'on-user', mfaEnabled: true, mfaRequired: true }),
+      ] },
+    });
+    await renderPage();
+    await screen.findByText('off-user');
+
+    expect(within(screen.getByText('off-user').closest('tr')).getByText('Off')).toBeInTheDocument();
+    expect(within(screen.getByText('required-user').closest('tr')).getByText('Required')).toBeInTheDocument();
+    expect(within(screen.getByText('on-user').closest('tr')).getByText('On')).toBeInTheDocument();
+  });
+
+  it('disables the toggle for your own account', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 1, username: 'me' })] } });
+    await renderPage();
+    const row = await screen.findByText('me').then((el) => el.closest('tr'));
+    expect(within(row).getByTitle(/Require MFA/)).toBeDisabled();
+  });
+
+  it('requires confirmation, then calls PUT with required:true for a not-yet-required admin', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', mfaRequired: false })] },
+    });
+    vi.mocked(api.put).mockResolvedValue({ data: { data: { id: 5, username: 'raghav', mfaRequired: true } } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    fireEvent.click(within(row).getByTitle('Require MFA for raghav'));
+
+    const dialog = await screen.findByRole('dialog');
+    // Title and confirm button both read "Require MFA" — assert the heading
+    // specifically to avoid an ambiguous text match across the two.
+    expect(within(dialog).getByRole('heading', { name: 'Require MFA' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Require MFA' }));
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/admin-users/5/mfa-required', { required: true })
+    );
+    expect(notify).toHaveBeenCalledWith('MFA required for "raghav"', 'success');
+  });
+
+  it('calls PUT with required:false to lift an existing requirement', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { data: [adminUser({ id: 5, username: 'raghav', mfaRequired: true })] },
+    });
+    vi.mocked(api.put).mockResolvedValue({ data: { data: { id: 5, username: 'raghav', mfaRequired: false } } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    fireEvent.click(within(row).getByTitle('Stop requiring MFA for raghav'));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stop Requiring' }));
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/admin-users/5/mfa-required', { required: false })
+    );
+    expect(notify).toHaveBeenCalledWith('MFA no longer required for "raghav"', 'success');
+  });
+
+  it('closing the confirmation dialog without confirming does not call PUT', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    fireEvent.click(within(row).getByTitle('Require MFA for raghav'));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  it('shows a server error notification when the request fails', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Cannot require MFA right now' } } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    fireEvent.click(within(row).getByTitle('Require MFA for raghav'));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Require MFA' }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Cannot require MFA right now', 'error'));
+  });
+
+  // Regression: onSuccess is where mfaTogglingId used to be cleared, but
+  // onSuccess never runs on a failed request — leaving the row's toggle
+  // stuck disabled (and spinning) for the rest of the session.
+  it('re-enables the toggle after a failed request, instead of leaving it stuck disabled', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
+    vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Something went wrong' } } });
+    await renderPage();
+    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
+    const toggleBtn = within(row).getByTitle('Require MFA for raghav');
+    fireEvent.click(toggleBtn);
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Require MFA' }));
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Something went wrong', 'error'));
+    expect(toggleBtn).not.toBeDisabled();
+  });
+});
+
 describe('AdminUsersSetup — edit user', () => {
   it('opens prefilled with the username, leaving the password field blank', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });

@@ -88,6 +88,18 @@ const update = asyncHandler(async (req, res) => {
   if (data.password) {
     updateData.passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
   }
+  // Dispatcher is never MFA-eligible (setMfaRequired rejects it, self-service
+  // setup is superadmin-only) — demoting into it must wipe any MFA state the
+  // account is carrying, or it goes dark: the Admin Users table hides the
+  // MFA column and toggle entirely for dispatcher rows, so a stray
+  // mfaEnabled/mfaRequired here would be invisible and unfixable from the UI,
+  // and would silently reappear if the account is later promoted back.
+  if (data.role === 'dispatcher') {
+    updateData.mfaEnabled = false;
+    updateData.mfaRequired = false;
+    updateData.mfaSecret = null;
+    updateData.mfaBackupCodes = [];
+  }
 
   const user = await prisma.adminUser.update({
     where: { id },
