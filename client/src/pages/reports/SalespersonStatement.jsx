@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X, FileText, ClipboardList } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { useApiResource } from '../../hooks/useApiResource';
+import { buildBrandCategoryBreakdown } from '../../utils/salespersonProductStatement';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle }) {
@@ -71,6 +72,95 @@ function ExpandableRow({ row, open, onToggle }) {
   );
 }
 
+// ─── Products Purchased view (Brand → Category → Product, whole date range) ──
+
+function ProductsPurchasedBreakdown({ breakdown, loading }) {
+  if (loading) {
+    return <BrandedLoader size="sm" hideBrand inlinePadY="py-12" />;
+  }
+  if (breakdown.brands.length === 0) {
+    return (
+      <div className="ddm-card py-12 text-center text-slate-400 text-sm">
+        No products purchased in this period
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {breakdown.brands.map((brand) => (
+        <div key={brand.brandName} className="ddm-card overflow-hidden">
+          {/* Brand header */}
+          <div className="px-4 py-3 bg-emerald-700 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-bold text-white">{brand.brandName}</h3>
+            <div className="flex items-center gap-3 text-xs font-semibold text-emerald-100 tabular-nums whitespace-nowrap">
+              <span>{brand.quantity.toLocaleString('en-IN')} units</span>
+              <span>{formatCurrency(brand.amount)}</span>
+            </div>
+          </div>
+
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                <th className="px-4 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Quantity</th>
+                <th className="px-4 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Price</th>
+                <th className="px-4 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Total Price</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-100">
+              {brand.categories.map((category) => (
+                <React.Fragment key={category.categoryName}>
+                  {/* Category header */}
+                  <tr className="bg-amber-50">
+                    <td colSpan={4} className="px-4 py-1.5 text-xs font-bold text-amber-800 uppercase tracking-wide">
+                      {category.categoryName}
+                    </td>
+                  </tr>
+                  {category.products.map((product) => (
+                    <tr key={product.productName}>
+                      <td className="pl-8 pr-4 py-2 text-sm text-slate-700">{product.productName}</td>
+                      <td className="px-4 py-2 text-right text-sm text-slate-600 tabular-nums">
+                        {product.quantity.toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm text-slate-500 tabular-nums">
+                        {formatCurrency(product.avgUnitPrice)}
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm font-semibold text-slate-800 tabular-nums">
+                        {formatCurrency(product.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Category subtotal */}
+                  <tr className="bg-slate-50/70">
+                    <td className="pl-8 pr-4 py-1.5 text-xs font-semibold text-slate-500">Subtotal</td>
+                    <td className="px-4 py-1.5 text-right text-xs font-semibold text-slate-600 tabular-nums">
+                      {category.quantity.toLocaleString('en-IN')}
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                      {formatCurrency(category.amount)}
+                    </td>
+                  </tr>
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
+      {/* Grand total */}
+      <div className="ddm-card p-4 flex items-center justify-between gap-3 bg-slate-700">
+        <span className="text-sm font-bold text-white uppercase tracking-wide">Grand Total</span>
+        <div className="flex items-center gap-4 text-sm font-bold text-white tabular-nums">
+          <span>{breakdown.totalQty.toLocaleString('en-IN')} units</span>
+          <span>{formatCurrency(breakdown.totalAmount)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getInitials(name) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0][0].toUpperCase();
@@ -85,6 +175,10 @@ export default function SalespersonStatement() {
   const [to, setTo]                  = useState(getIndiaDate());
   const [spError, setSpError]        = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  // 'balance'  — the existing day-by-day opening/given/collected/due statement
+  // 'products' — a Brand → Category → Product breakdown for the whole date
+  //              range (total quantity + price per product)
+  const [view, setView] = useState('balance');
 
   const { data: rows, loading, error: reportError } = useApiResource(
     selectedSp ? `/reports/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}` : null,
@@ -130,6 +224,9 @@ export default function SalespersonStatement() {
   const totalCollected  = rows.reduce((s, r) => s + r.amountPaid,  0);
   const selectedSpObj   = salespeople.find(sp => String(sp.id) === String(selectedSp));
 
+  const breakdown = useMemo(() => buildBrandCategoryBreakdown(rows), [rows]);
+  const hasContent = view === 'balance' ? rows.length > 0 : breakdown.brands.length > 0;
+
   const filteredSps = salespeople.filter(sp =>
     sp.name.toLowerCase().includes(search.toLowerCase()) ||
     (sp.route ?? '').toLowerCase().includes(search.toLowerCase())
@@ -147,9 +244,9 @@ export default function SalespersonStatement() {
             <p className="text-emerald-300 text-xs">Account statement per salesperson</p>
           </div>
         </div>
-        {rows.length > 0 && (
+        {hasContent && (
           <button
-            onClick={() => window.open(`/print/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}`, '_blank')}
+            onClick={() => window.open(`/print/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}&type=${view}`, '_blank')}
             className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition"
           >
             <Printer size={13} /> Print
@@ -253,12 +350,36 @@ export default function SalespersonStatement() {
               )}
             </div>
 
+            {/* ── View switcher ───────────────────────────────────────── */}
+            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm p-1 gap-1 max-w-md">
+              <button
+                onClick={() => setView('balance')}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg transition ${
+                  view === 'balance' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <FileText size={13} /> Account Statement
+              </button>
+              <button
+                onClick={() => setView('products')}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg transition ${
+                  view === 'products' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <ClipboardList size={13} /> Products Purchased
+              </button>
+            </div>
+
             {error && (
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
                 <AlertCircle size={15} className="flex-shrink-0" /> {error}
               </div>
             )}
 
+            {view === 'products' ? (
+              <ProductsPurchasedBreakdown breakdown={breakdown} loading={loading} />
+            ) : (
+            <>
             {/* ── Statement table ────────────────────────────────────── */}
             <div className="ddm-card overflow-hidden">
               <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
@@ -319,6 +440,8 @@ export default function SalespersonStatement() {
                 </table>
               </div>
             </div>
+            </>
+            )}
           </div>
           </>
         )}
