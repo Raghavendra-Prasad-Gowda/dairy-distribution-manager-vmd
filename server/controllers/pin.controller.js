@@ -4,6 +4,7 @@ const { validate, schemas } = require('../utils/validate');
 const { BCRYPT_ROUNDS } = require('../utils/constants');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { getActingUsername } = require('../utils/actor');
 
 /**
  * POST /pin/verify
@@ -49,7 +50,7 @@ const update = asyncHandler(async (req, res) => {
 
   if (!ok) {
     void notifySlack(SLACK_EVENTS.PIN_FAILED, {
-      username: req.user?.username ?? 'unknown',
+      username: await getActingUsername(req),
       role:     req.user?.role === 'superadmin' ? 'Super Admin' : 'Admin',
       ip:       req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip,
     });
@@ -63,7 +64,7 @@ const update = asyncHandler(async (req, res) => {
     create: { key: 'edit_pin', value: newHash },
   });
 
-  void notifySlack(SLACK_EVENTS.PIN_UPDATED, { username: req.user?.username ?? 'unknown' });
+  void notifySlack(SLACK_EVENTS.PIN_UPDATED, { username: await getActingUsername(req) });
   res.json({ success: true });
 });
 
@@ -91,7 +92,7 @@ const updateSettings = asyncHandler(async (req, res) => {
   });
 
   void notifySlack(SLACK_EVENTS.PIN_SETTINGS_UPDATED, {
-    username:      req.user?.username ?? 'unknown',
+    username:      await getActingUsername(req),
     plPinEnabled:  data.plPinEnabled,
   });
   res.json({ success: true });
@@ -140,7 +141,7 @@ const updatePl = asyncHandler(async (req, res) => {
 
   if (!ok) {
     void notifySlack(SLACK_EVENTS.PIN_FAILED, {
-      username: req.user?.username ?? 'unknown',
+      username: await getActingUsername(req),
       role:     req.user?.role === 'superadmin' ? 'Super Admin' : 'Admin',
       ip:       req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip,
     });
@@ -154,7 +155,7 @@ const updatePl = asyncHandler(async (req, res) => {
     create: { key: 'pl_pin', value: newHash },
   });
 
-  void notifySlack(SLACK_EVENTS.PL_PIN_UPDATED, { username: req.user?.username ?? 'unknown' });
+  void notifySlack(SLACK_EVENTS.PL_PIN_UPDATED, { username: await getActingUsername(req) });
   res.json({ success: true });
 });
 

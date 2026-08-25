@@ -98,6 +98,30 @@ describe('PaymentForm — quick-fill', () => {
     fireEvent.click(screen.getByText(/^Full/));
     expect(amountInput).toHaveValue(1000);
   });
+
+  it("shows Today's Bill only when todaysBillAmount is > 0, independent of closingBalance", () => {
+    const { rerender } = render(<PaymentForm onSubmit={vi.fn()} closingBalance={1000} todaysBillAmount={0} />);
+    expect(screen.queryByText(/Today's Bill/)).toBeNull();
+
+    // Also shown with no outstanding balance at all (e.g. salesperson is
+    // settled/credit overall, but still owes for today's dispatch).
+    rerender(<PaymentForm onSubmit={vi.fn()} closingBalance={0} todaysBillAmount={450} />);
+    expect(screen.getByText("Today's Bill (₹450.00)")).toBeInTheDocument();
+    expect(screen.queryByText('50%')).toBeNull(); // no 50%/75%/Full — no outstanding balance
+  });
+
+  it("fills the amount from Today's Bill, alongside the 50%/75%/Full buttons", () => {
+    render(<PaymentForm onSubmit={vi.fn()} closingBalance={1000} todaysBillAmount={450} />);
+    const amountInput = screen.getByPlaceholderText('0.00');
+
+    fireEvent.click(screen.getByText("Today's Bill (₹450.00)"));
+    expect(amountInput).toHaveValue(450);
+
+    // The balance-based buttons are still available alongside it.
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText('75%')).toBeInTheDocument();
+    expect(screen.getByText(/^Full/)).toBeInTheDocument();
+  });
 });
 
 describe('PaymentForm — submit', () => {

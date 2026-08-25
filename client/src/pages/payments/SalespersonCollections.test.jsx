@@ -184,6 +184,33 @@ describe('SalespersonCollections — balance card', () => {
   });
 });
 
+describe("SalespersonCollections — Today's Bill quick-fill", () => {
+  it("passes today's stockGiven to the form as the Today's Bill quick-fill amount", async () => {
+    mockApi({ balance: { ...BALANCE, stockGiven: 8200 } });
+    await renderPage();
+    expect(screen.getByText("Today's Bill (₹8,200.00)")).toBeInTheDocument();
+  });
+
+  it("clicking Today's Bill fills the amount field so the payment can be recorded", async () => {
+    mockApi({ balance: { ...BALANCE, stockGiven: 8200 } });
+    await renderPage();
+
+    fireEvent.click(screen.getByText("Today's Bill (₹8,200.00)"));
+    expect(screen.getByRole('spinbutton')).toHaveValue(8200);
+
+    fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/salesperson-payments', expect.objectContaining({ amount: 8200, salespersonId: 1 }))
+    );
+  });
+
+  it("is not shown when today's stockGiven is 0", async () => {
+    mockApi({ balance: { ...BALANCE, stockGiven: 0 } });
+    await renderPage();
+    expect(screen.queryByText(/Today's Bill/)).toBeNull();
+  });
+});
+
 describe('SalespersonCollections — collection history', () => {
   it('shows "No collections recorded yet" when there are none', async () => {
     await renderPage();
