@@ -300,6 +300,80 @@ describe('MyStatement — per-product crates and litres chips', () => {
   });
 });
 
+describe('MyStatement — Products Purchased view', () => {
+  it('stays on the Account Statement view by default', async () => {
+    mockStatement([ROW]);
+    render(<MyStatement />);
+    await screen.findByText('Opening');
+    expect(screen.queryByText('Products Purchased')).toBeInTheDocument(); // the tab button itself
+    expect(screen.queryByText('Total Quantity')).not.toBeInTheDocument(); // products summary card, not shown yet
+  });
+
+  it('switches to a flat per-date, per-brand table with summed quantity and amount', async () => {
+    // Page renders both a mobile card list and a desktop table for the same
+    // data (jsdom applies no media queries), so scope to the desktop table —
+    // same reasoning as the "row order" test below.
+    mockStatement([ROW]);
+    const { container } = render(<MyStatement />);
+    await screen.findByText('Opening');
+
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+
+    const desktopTable = within(container.querySelector('.hidden.md\\:block'));
+    // Jersey: 120 + 24 = 144 qty, ₹5,340 + ₹1,152 = ₹6,492
+    const jerseyRow = desktopTable.getByText('Jersey').closest('tr');
+    expect(jerseyRow.textContent).toContain('144');
+    expect(jerseyRow.textContent).toContain('₹6,492.00');
+
+    // Nandini: single product, 240 qty, ₹2,976
+    const nandiniRow = desktopTable.getByText('Nandini').closest('tr');
+    expect(nandiniRow.textContent).toContain('240');
+    expect(nandiniRow.textContent).toContain('₹2,976.00');
+
+    // Balance-view-only content is gone
+    expect(screen.queryByText('Opening')).not.toBeInTheDocument();
+  });
+
+  it('shows the period totals in the summary cards', async () => {
+    mockStatement([ROW]);
+    render(<MyStatement />);
+    await screen.findByText('Opening');
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+
+    // Total qty: 120 + 24 + 240 = 384. Total amount: 5340 + 1152 + 2976 = 9468.
+    // "Total Quantity"/"Total Amount" also label the desktop table's tfoot
+    // and the mobile footer, so scope to the summary-card grid specifically.
+    const summaryCards = screen.getByText('Total Quantity').closest('.grid');
+    expect(within(summaryCards).getByText('384')).toBeInTheDocument();
+    expect(within(summaryCards).getByText('₹9,468.00')).toBeInTheDocument();
+  });
+
+  it('shows an empty-state message when nothing was purchased in the period', async () => {
+    mockStatement([{ ...ROW, items: [] }]);
+    render(<MyStatement />);
+    await screen.findByText(/tap a row to expand/i);
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+
+    expect(await screen.findByText('No products purchased in this period')).toBeInTheDocument();
+  });
+
+  it("includes the current view in the print link", async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
+    mockStatement([ROW]);
+    render(<MyStatement />);
+    await screen.findByText('Opening');
+
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Print/i }));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('type=products'),
+      '_blank'
+    );
+    openSpy.mockRestore();
+  });
+});
+
 describe('MyStatement — row order', () => {
   it('renders rows in ascending date order, exactly as the API returns them', async () => {
     // /salesperson-statement/me is ordered balanceDate asc server-side; this

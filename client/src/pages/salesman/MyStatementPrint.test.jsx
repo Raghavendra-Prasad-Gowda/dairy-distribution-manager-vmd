@@ -106,6 +106,64 @@ describe('MyStatementPrint — table', () => {
   });
 });
 
+describe('MyStatementPrint — products purchased (type=products)', () => {
+  it('renders one row per date+brand with summed quantity and amount', async () => {
+    mockApi([
+      row({
+        date: '2026-08-05',
+        items: [
+          { brandName: 'Jersey', quantity: 10, totalAmount: 500 },
+          { brandName: 'Jersey', quantity: 5, totalAmount: 250 },
+          { brandName: 'Nandini', quantity: 2, totalAmount: 100 },
+        ],
+      }),
+    ]);
+    renderWithParams('from=2026-08-05&to=2026-08-05&type=products');
+
+    const jerseyRow = (await screen.findByText('Jersey')).closest('tr');
+    expect(jerseyRow.textContent).toContain('15'); // 10 + 5
+    expect(jerseyRow.textContent).toContain('₹750.00'); // 500 + 250
+
+    const nandiniRow = screen.getByText('Nandini').closest('tr');
+    expect(nandiniRow.textContent).toContain('2');
+    expect(nandiniRow.textContent).toContain('₹100.00');
+  });
+
+  it('shows the TOTAL footer summed across all rows', async () => {
+    mockApi([
+      row({ date: '2026-08-05', items: [{ brandName: 'Jersey', quantity: 10, totalAmount: 500 }] }),
+      row({ date: '2026-08-06', items: [{ brandName: 'Nandini', quantity: 2, totalAmount: 100 }] }),
+    ]);
+    renderWithParams('from=2026-08-05&to=2026-08-06&type=products');
+
+    const footer = (await screen.findByText('TOTAL')).closest('tr');
+    expect(footer.textContent).toContain('12'); // 10 + 2
+    expect(footer.textContent).toContain('₹600.00'); // 500 + 100
+  });
+
+  it('shows the products title instead of the account statement title', async () => {
+    mockApi([row({ items: [{ brandName: 'Jersey', quantity: 10, totalAmount: 500 }] })]);
+    renderWithParams('from=2026-08-05&to=2026-08-05&type=products');
+
+    expect(await screen.findByText('My Products Purchased')).toBeInTheDocument();
+    expect(screen.queryByText('My Account Statement')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty-state message when no products were purchased in the period', async () => {
+    mockApi([row({ items: [] })]);
+    renderWithParams('from=2026-08-05&to=2026-08-05&type=products');
+
+    expect(await screen.findByText('No products purchased in this period')).toBeInTheDocument();
+  });
+
+  it('defaults to the account statement (type=balance) when type is omitted', async () => {
+    mockApi([row()]);
+    renderWithParams('from=2026-08-05&to=2026-08-05');
+
+    expect(await screen.findByText('My Account Statement')).toBeInTheDocument();
+  });
+});
+
 describe('MyStatementPrint — printing', () => {
   it('auto-triggers window.print() once data has loaded', async () => {
     vi.useFakeTimers();
