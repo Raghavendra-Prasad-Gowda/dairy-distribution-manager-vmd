@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet, Wallet } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Package, BadgeCheck, Box, Droplet, Wallet, ClipboardList } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { useApiResource } from '../../hooks/useApiResource';
+import { buildProductPurchaseRows } from '../../utils/salespersonProductStatement';
 
 // ─── Item-level crates/litres, computed once when the statement loads ─────────
 // Crates: quantity ÷ unitsPerContainer, kept at full precision here (not
@@ -244,12 +245,154 @@ function ExpandableRow({ row, open, onToggle }) {
   );
 }
 
+// ─── Products Purchased view ───────────────────────────────────────────────
+// Flat, print-friendly table: one row per (date, brand), with the total
+// quantity and total ₹ amount for that brand that day — deliberately an
+// aggregate summary, distinct from the Account Statement's per-product,
+// per-day drill-down (BreakdownPanel above).
+
+function ProductsPurchasedView({ productRows, totalQty, totalAmount, loading, error }) {
+  if (loading) {
+    return (
+      <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm py-12">
+        <BrandedLoader size="sm" hideBrand inlinePadY="py-0" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm">
+        <AlertCircle size={15} className="flex-shrink-0" /> {error}
+      </div>
+    );
+  }
+  if (productRows.length === 0) {
+    return (
+      <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm py-12 text-center text-slate-400 text-sm">
+        No products purchased in this period
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm p-3 text-center">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Quantity</p>
+          <p className="text-sm font-bold text-blue-600 tabular-nums leading-tight">
+            {totalQty.toLocaleString('en-IN')}
+          </p>
+        </div>
+        <div className="bg-white border-2 border-slate-300 rounded-2xl shadow-sm p-3 text-center">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Amount</p>
+          <p className="text-sm font-bold text-emerald-600 tabular-nums leading-tight">
+            {formatCurrency(totalAmount)}
+          </p>
+        </div>
+      </div>
+
+      {/* ══ MOBILE: card list (hidden on md+) ══════════════════ */}
+      <div className="md:hidden bg-white border-2 border-slate-300 rounded-2xl shadow-sm overflow-hidden divide-y divide-slate-100">
+        {productRows.map((r, i) => (
+          <div key={i} className="px-4 py-3 flex items-center gap-3">
+            <div className="w-12 flex-shrink-0 bg-slate-100 rounded-xl py-2 text-center">
+              <p className="text-base font-extrabold text-slate-800 leading-none tabular-nums">
+                {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit' })}
+              </p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">
+                {new Date(r.date).toLocaleDateString('en-IN', { month: 'short' })}
+              </p>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-800 truncate">{r.brandName}</p>
+              <p className="text-[10px] text-slate-400 tabular-nums">Qty: {r.quantity.toLocaleString('en-IN')}</p>
+            </div>
+            <span className="text-sm font-bold text-emerald-600 tabular-nums flex-shrink-0">
+              {formatCurrency(r.amount)}
+            </span>
+          </div>
+        ))}
+
+        {/* Mobile totals footer */}
+        <div className="flex items-center justify-between px-4 py-3.5 bg-slate-700">
+          <div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Qty</p>
+            <p className="text-sm font-bold text-blue-300 tabular-nums">{totalQty.toLocaleString('en-IN')}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Amount</p>
+            <p className="text-base font-bold text-emerald-300 tabular-nums">{formatCurrency(totalAmount)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ DESKTOP: table (hidden below md) ═══════════════════ */}
+      <div className="hidden md:block bg-white border-2 border-slate-300 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 py-3 bg-slate-700">
+          <h2 className="text-sm font-bold text-white">Products Purchased</h2>
+          <p className="text-xs text-slate-400">
+            {productRows.length} row{productRows.length !== 1 ? 's' : ''} · one per date and brand
+          </p>
+        </div>
+        <div className="overflow-auto max-h-[60vh]">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-emerald-700 sticky top-0 z-10">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Brand</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Quantity</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-100">
+              {productRows.map((r, i) => (
+                <tr key={i} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="px-4 py-2.5 text-left text-xs text-slate-600 tabular-nums whitespace-nowrap">
+                    {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                  </td>
+                  <td className="px-4 py-2.5 text-left text-xs font-semibold text-slate-800 whitespace-nowrap">
+                    {r.brandName}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
+                    {r.quantity.toLocaleString('en-IN')}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-xs font-bold text-emerald-600 tabular-nums whitespace-nowrap">
+                    {formatCurrency(r.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="sticky bottom-0 z-10">
+              <tr>
+                <td className="px-4 py-3 bg-slate-700 text-left text-xs font-bold text-white uppercase tracking-wider" colSpan={2}>
+                  Totals
+                </td>
+                <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-blue-300 tabular-nums">
+                  {totalQty.toLocaleString('en-IN')}
+                </td>
+                <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-emerald-300 tabular-nums">
+                  {formatCurrency(totalAmount)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MyStatement() {
   const [from, setFrom]           = useState(getFirstDayOfMonth());
   const [to, setTo]               = useState(getIndiaDate());
   const [expandedRows, setExpandedRows] = useState(new Set());
+  // 'balance'  — the existing day-by-day opening/billed/paid/closing statement
+  // 'products' — a flat per-date, per-brand breakdown of what was purchased
+  //              (total quantity + amount), for a quick print-friendly summary
+  const [view, setView] = useState('balance');
 
   const { data: rows, loading, error } = useApiResource(
     `/salesperson-statement/me?from=${from}&to=${to}`,
@@ -292,6 +435,13 @@ export default function MyStatement() {
   const isOwing  = closingBalance > 0;
   const isCredit = closingBalance < 0;
 
+  // Products Purchased view — one row per (date, brand), reusing the same
+  // `rows` data already fetched above (no extra API call).
+  const productRows      = useMemo(() => buildProductPurchaseRows(rows), [rows]);
+  const productTotalQty  = productRows.reduce((s, r) => s + r.quantity, 0);
+  const productTotalAmt  = productRows.reduce((s, r) => s + r.amount, 0);
+  const hasContent       = view === 'balance' ? rows.length > 0 : productRows.length > 0;
+
   return (
     <div className="flex flex-col h-full">
 
@@ -304,10 +454,10 @@ export default function MyStatement() {
             <p className="text-emerald-300 text-xs truncate">Account statement</p>
           </div>
         </div>
-        {rows.length > 0 && (
+        {hasContent && (
           <button
             onClick={() =>
-              window.open(`/print/salesman-my-statement?from=${from}&to=${to}`, '_blank')
+              window.open(`/print/salesman-my-statement?from=${from}&to=${to}&type=${view}`, '_blank')
             }
             className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition flex-shrink-0"
           >
@@ -344,6 +494,36 @@ export default function MyStatement() {
             </div>
           </div>
 
+          {/* ── View switcher ───────────────────────────────────────── */}
+          <div className="flex bg-white border-2 border-slate-300 rounded-2xl shadow-sm p-1 gap-1">
+            <button
+              onClick={() => setView('balance')}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-xl transition ${
+                view === 'balance' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <FileText size={13} /> Account Statement
+            </button>
+            <button
+              onClick={() => setView('products')}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-xl transition ${
+                view === 'products' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <ClipboardList size={13} /> Products Purchased
+            </button>
+          </div>
+
+          {view === 'products' ? (
+            <ProductsPurchasedView
+              productRows={productRows}
+              totalQty={productTotalQty}
+              totalAmount={productTotalAmt}
+              loading={loading}
+              error={error}
+            />
+          ) : (
+          <>
           {/* ── Summary cards ───────────────────────────────────────── */}
           {rows.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
@@ -579,6 +759,8 @@ export default function MyStatement() {
                 </div>
               </div>
             </>
+          )}
+          </>
           )}
 
         </div>
