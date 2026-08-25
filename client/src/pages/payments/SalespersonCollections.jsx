@@ -401,6 +401,7 @@ export default function SalespersonCollections() {
                     <PaymentForm
                       onSubmit={recordCollection}
                       closingBalance={balance?.closingBalance ?? 0}
+                      todaysBillAmount={balance?.stockGiven ?? 0}
                       loading={saving}
                     />
                   </div>
