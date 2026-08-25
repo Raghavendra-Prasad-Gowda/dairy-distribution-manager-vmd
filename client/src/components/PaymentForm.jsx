@@ -115,17 +115,19 @@ export default function PaymentForm({
           </p>
         )}
 
-        {/* Quick-fill buttons */}
+        {/* Quick-fill buttons — Today's Bill gets its own full-width row since
+            its label is much longer than 50%/75%/Full; sharing one row with
+            them (all at flex-1) squeezed every label, this one worst of all. */}
         {(hasBalance || hasTodaysBill) && (
-          <div className="flex gap-2 mt-2 flex-wrap">
+          <div className="mt-2 space-y-2">
             {hasTodaysBill && (
               <button type="button" onClick={() => setForm(f => ({ ...f, amount: todaysBillAmount.toFixed(2) }))}
-                className="flex-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-lg py-2 transition whitespace-nowrap">
+                className="w-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-lg py-2 transition">
                 Today&apos;s Bill ({formatCurrency(todaysBillAmount)})
               </button>
             )}
             {hasBalance && (
-              <>
+              <div className="flex gap-2">
                 <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.5).toFixed(2) }))}
                   className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
                   50%
@@ -138,7 +140,7 @@ export default function PaymentForm({
                   className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-2 transition whitespace-nowrap">
                   Full {formatCurrency(closingBalance)}
                 </button>
-              </>
+              </div>
             )}
           </div>
         )}
