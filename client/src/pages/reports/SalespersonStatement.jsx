@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X, FileText, ClipboardList } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X, FileText, Package } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
+import DispatchStockSummaryView from '../../components/DispatchStockSummary';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { useApiResource } from '../../hooks/useApiResource';
-import { buildBrandCategoryBreakdown } from '../../utils/salespersonProductStatement';
+import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle }) {
@@ -72,95 +73,6 @@ function ExpandableRow({ row, open, onToggle }) {
   );
 }
 
-// ─── Products Purchased view (Brand → Category → Product, whole date range) ──
-
-function ProductsPurchasedBreakdown({ breakdown, loading }) {
-  if (loading) {
-    return <BrandedLoader size="sm" hideBrand inlinePadY="py-12" />;
-  }
-  if (breakdown.brands.length === 0) {
-    return (
-      <div className="ddm-card py-12 text-center text-slate-400 text-sm">
-        No products purchased in this period
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {breakdown.brands.map((brand) => (
-        <div key={brand.brandName} className="ddm-card overflow-hidden">
-          {/* Brand header */}
-          <div className="px-4 py-3 bg-emerald-700 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-bold text-white">{brand.brandName}</h3>
-            <div className="flex items-center gap-3 text-xs font-semibold text-emerald-100 tabular-nums whitespace-nowrap">
-              <span>{brand.quantity.toLocaleString('en-IN')} units</span>
-              <span>{formatCurrency(brand.amount)}</span>
-            </div>
-          </div>
-
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
-                <th className="px-4 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-4 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Total Price</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-100">
-              {brand.categories.map((category) => (
-                <React.Fragment key={category.categoryName}>
-                  {/* Category header */}
-                  <tr className="bg-slate-100">
-                    <td colSpan={3} className="px-4 py-1.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">
-                      {category.categoryName}
-                    </td>
-                  </tr>
-                  {category.products.map((product) => (
-                    <tr key={product.productName}>
-                      <td className="pl-8 pr-4 py-2 text-sm text-slate-700">{product.productName}</td>
-                      <td className="px-4 py-2 text-right text-sm text-slate-600 tabular-nums">
-                        {product.quantity.toLocaleString('en-IN')}
-                      </td>
-                      <td className="px-4 py-2 text-right text-sm font-semibold text-slate-800 tabular-nums">
-                        {formatCurrency(product.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Category subtotal */}
-                  <tr className="bg-slate-50/70">
-                    <td className="pl-8 pr-4 py-1.5 text-xs font-semibold text-slate-500">Subtotal</td>
-                    <td className="px-4 py-1.5 text-right text-xs font-semibold text-slate-600 tabular-nums">
-                      {category.quantity.toLocaleString('en-IN')}
-                    </td>
-                    <td className="px-4 py-1.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
-                      {formatCurrency(category.amount)}
-                    </td>
-                  </tr>
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-
-      {/* Grand total — overall totals summed across every brand shown above.
-          Deliberately NOT the `ddm-card` class here: it `@apply`s bg-white
-          in the same Tailwind utilities layer as `bg-slate-700` below, so at
-          equal specificity bg-white was winning and rendering this bar as
-          white-on-white (invisible) instead of the intended dark footer —
-          hand-roll the equivalent card chrome instead. */}
-      <div className="rounded-2xl shadow-sm p-4 flex items-center justify-between gap-3 bg-slate-700">
-        <span className="text-sm font-bold text-white uppercase tracking-wide">Grand Total</span>
-        <div className="flex items-center gap-4 text-sm font-bold text-white tabular-nums">
-          <span>{breakdown.totalQty.toLocaleString('en-IN')} units</span>
-          <span>{formatCurrency(breakdown.totalAmount)}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function getInitials(name) {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0][0].toUpperCase();
@@ -176,8 +88,9 @@ export default function SalespersonStatement() {
   const [spError, setSpError]        = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   // 'balance'  — the existing day-by-day opening/given/collected/due statement
-  // 'products' — a Brand → Category → Product breakdown for the whole date
-  //              range (total quantity + price per product)
+  // 'dispatch' — a Brand → Category → Product Dispatch Stock Summary for the
+  //              whole date range (same shape as the Dairy Stock Summary
+  //              report, minus Route and Unit Price)
   const [view, setView] = useState('balance');
 
   const { data: rows, loading, error: reportError } = useApiResource(
@@ -224,8 +137,8 @@ export default function SalespersonStatement() {
   const totalCollected  = rows.reduce((s, r) => s + r.amountPaid,  0);
   const selectedSpObj   = salespeople.find(sp => String(sp.id) === String(selectedSp));
 
-  const breakdown = useMemo(() => buildBrandCategoryBreakdown(rows), [rows]);
-  const hasContent = view === 'balance' ? rows.length > 0 : breakdown.brands.length > 0;
+  const dispatchSummary = useMemo(() => buildDispatchStockSummary(rows), [rows]);
+  const hasContent = view === 'balance' ? rows.length > 0 : dispatchSummary.brands.length > 0;
 
   const filteredSps = salespeople.filter(sp =>
     sp.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -361,12 +274,12 @@ export default function SalespersonStatement() {
                 <FileText size={13} /> Account Statement
               </button>
               <button
-                onClick={() => setView('products')}
+                onClick={() => setView('dispatch')}
                 className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg transition ${
-                  view === 'products' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
+                  view === 'dispatch' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
                 }`}
               >
-                <ClipboardList size={13} /> Products Purchased
+                <Package size={13} /> Dispatch Stock Summary
               </button>
             </div>
 
@@ -376,8 +289,8 @@ export default function SalespersonStatement() {
               </div>
             )}
 
-            {view === 'products' ? (
-              <ProductsPurchasedBreakdown breakdown={breakdown} loading={loading} />
+            {view === 'dispatch' ? (
+              <DispatchStockSummaryView summary={dispatchSummary} loading={loading} />
             ) : (
             <>
             {/* ── Statement table ────────────────────────────────────── */}

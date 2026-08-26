@@ -369,7 +369,7 @@ describe('SalespersonStatement — outstanding balance styling', () => {
   });
 });
 
-// ─── Products Purchased tab ─────────────────────────────────────────────────
+// ─── Dispatch Stock Summary tab ─────────────────────────────────────────────
 
 function statementItem(overrides) {
   return {
@@ -377,11 +377,12 @@ function statementItem(overrides) {
     category: 'Milk', categoryDisplayOrder: 1,
     productName: 'Toned Milk 500ml', displayOrder: 1,
     quantity: 10, unitPrice: 44.5, totalAmount: 445,
+    unitType: null, unitSize: null, unitsPerContainer: null, containerType: null,
     ...overrides,
   };
 }
 
-describe('SalespersonStatement — Products Purchased tab', () => {
+describe('SalespersonStatement — Dispatch Stock Summary tab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApi();
@@ -403,16 +404,14 @@ describe('SalespersonStatement — Products Purchased tab', () => {
       ],
     });
     await selectRamesh();
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
-    // Brand header
-    expect(await screen.findByRole('heading', { name: 'Nandini' })).toBeInTheDocument();
-    // Category header — left aligned, grey (not the old amber styling)
-    const categoryHeaderCell = screen.getByText('Milk').closest('td');
-    expect(categoryHeaderCell).toHaveClass('text-left', 'text-slate-500');
-    expect(categoryHeaderCell.closest('tr')).toHaveClass('bg-slate-100');
-    expect(categoryHeaderCell).not.toHaveClass('text-amber-800');
-    // No per-unit Price column — only Product / Quantity / Total Price
+    // Brand header (a single category, so no separate category sub-header —
+    // mirrors Dairy Stock Summary, which only shows one when there's >1)
+    expect(await screen.findByText(/Nandini/)).toBeInTheDocument();
+    // Columns: Product / Total Crates / Quantity / Liters / Kgs / Total Price
+    // — no per-unit Price column
+    expect(screen.getByText('Total Crates')).toBeInTheDocument();
     expect(screen.queryByText('Price', { selector: 'th' })).not.toBeInTheDocument();
     // Product row, summed across both days: 10 + 5 = 15 units, ₹445 + ₹222.50 = ₹667.50
     const productRow = screen.getByText('Toned Milk 500ml').closest('tr');
@@ -423,7 +422,7 @@ describe('SalespersonStatement — Products Purchased tab', () => {
     expect(screen.queryByText('Totals')).not.toBeInTheDocument();
   });
 
-  it('nests multiple brands and categories, each with their own subtotal, plus a grand total', async () => {
+  it('nests multiple brands and categories, each under a grey left-aligned category header, plus a grand total', async () => {
     mockApi({
       rows: [{
         date: '2026-07-08', openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0, payments: [],
@@ -435,24 +434,30 @@ describe('SalespersonStatement — Products Purchased tab', () => {
       }],
     });
     await selectRamesh();
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
-    expect(await screen.findByRole('heading', { name: 'Nandini' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Jersey' })).toBeInTheDocument();
-    expect(screen.getByText('Curd')).toBeInTheDocument();
+    expect(await screen.findByText(/Nandini/)).toBeInTheDocument();
+    expect(screen.getByText(/Jersey/)).toBeInTheDocument();
+
+    // Nandini has two categories (Milk, Curd) — its category header shows,
+    // grey and left-aligned, not the old amber styling.
+    const categoryHeaderCell = screen.getByText('Curd').closest('td');
+    expect(categoryHeaderCell).toHaveClass('text-left', 'text-slate-700');
+    expect(categoryHeaderCell.closest('tr')).toHaveClass('bg-slate-100');
+    expect(categoryHeaderCell).not.toHaveClass('text-amber-800');
 
     // Grand total: 10 + 4 + 2 = 16 units, ₹445 + ₹50 + ₹90 = ₹585.00
-    const grandTotal = screen.getByText('Grand Total').closest('div');
-    expect(grandTotal.textContent).toContain('16 units');
-    expect(grandTotal.textContent).toContain('₹585.00');
+    const grandTotalRow = screen.getByText('Grand Total').closest('tr');
+    expect(grandTotalRow.textContent).toContain('16');
+    expect(grandTotalRow.textContent).toContain('₹585.00');
   });
 
   it('shows an empty-state message when nothing was purchased in the period', async () => {
     mockApi({ rows: [{ date: '2026-07-08', openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0, items: [], payments: [] }] });
     await selectRamesh();
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
-    expect(await screen.findByText('No products purchased in this period')).toBeInTheDocument();
+    expect(await screen.findByText('No dispatch data for this period')).toBeInTheDocument();
   });
 
   it('includes the current view in the print link', async () => {
@@ -464,10 +469,10 @@ describe('SalespersonStatement — Products Purchased tab', () => {
     await selectRamesh();
     await screen.findByText('Totals');
 
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
     fireEvent.click(screen.getByRole('button', { name: /Print/i }));
 
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('type=products'), '_blank');
+    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('type=dispatch'), '_blank');
     openSpy.mockRestore();
   });
 });

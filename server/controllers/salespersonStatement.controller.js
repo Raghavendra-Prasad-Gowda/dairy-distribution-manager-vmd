@@ -4,6 +4,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const AppError     = require('../utils/AppError');
 const prisma       = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
 
 /**
  * GET /api/v1/salesperson-statement/me?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -26,7 +27,7 @@ const myStatement = asyncHandler(async (req, res) => {
   const fromDate = new Date(from);
   const toDate   = new Date(to);
 
-  const [balances, allDispatches, allPayments] = await Promise.all([
+  const [balances, allDispatches, allPayments, allCategories] = await Promise.all([
     prisma.salespersonBalance.findMany({
       where:   { salespersonId: spId, balanceDate: { gte: fromDate, lte: toDate } },
       orderBy: { balanceDate: 'asc' },
@@ -39,10 +40,17 @@ const myStatement = asyncHandler(async (req, res) => {
             product: {
               select: {
                 name:              true,
+                category:          true,
+                displayOrder:      true,
                 unitType:          true,
                 unitSize:          true,
                 unitsPerContainer: true,
-                brand:             { select: { name: true } },
+                containerType:     true,
+                brandId:           true,
+                // Include brand.displayOrder so the client can sort the
+                // Dispatch Stock Summary tab into the same brand → category →
+                // product dairy layout order as everywhere else.
+                brand:             { select: { name: true, displayOrder: true } },
               },
             },
           },
@@ -52,7 +60,11 @@ const myStatement = asyncHandler(async (req, res) => {
     prisma.salespersonPayment.findMany({
       where: { salespersonId: spId, paymentDate: { gte: fromDate, lte: toDate } },
     }),
+    // Category display orders — category is a string column on product (not
+    // a relation), so ordering must be done in JS after the query.
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
   ]);
+  const catOrder = buildCategoryOrderMap(allCategories);
 
   const dispatchByDate = new Map(allDispatches.map(d => [d.dispatchDate.toISOString(), d]));
   const paymentsByDate = new Map();
@@ -72,14 +84,24 @@ const myStatement = asyncHandler(async (req, res) => {
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       items: dispatch?.items.map((i) => ({
-        brandName:         i.product.brand.name,
-        productName:       i.product.name,
-        quantity:          Number(i.quantity),
-        unitPrice:         Number(i.unitPrice),
-        totalAmount:       Number(i.totalAmount),
-        unitType:          i.product.unitType,
-        unitSize:          i.product.unitSize != null ? Number(i.product.unitSize) : null,
-        unitsPerContainer: i.product.unitsPerContainer,
+        brandName:            i.product.brand.name,
+        brandDisplayOrder:    i.product.brand.displayOrder ?? 999,
+        // category/categoryDisplayOrder/displayOrder/containerType: not used
+        // by the existing per-day breakdown, but needed by the client's
+        // Dispatch Stock Summary tab, which re-aggregates items across the
+        // whole date range per product and must sort them into the same
+        // brand → category → product dairy layout order used everywhere else.
+        category:             i.product.category ?? null,
+        categoryDisplayOrder: getCategoryOrder(catOrder, i.product.brandId, i.product.category),
+        productName:          i.product.name,
+        displayOrder:         i.product.displayOrder ?? 999,
+        quantity:             Number(i.quantity),
+        unitPrice:            Number(i.unitPrice),
+        totalAmount:          Number(i.totalAmount),
+        unitType:             i.product.unitType,
+        unitSize:             i.product.unitSize != null ? Number(i.product.unitSize) : null,
+        unitsPerContainer:    i.product.unitsPerContainer,
+        containerType:        i.product.containerType ?? null,
       })) ?? [],
       // Top-ups are admin-loaded pre-existing dues — they add to what the
       // salesman owes, so they are kept out of "payments made" and surfaced
