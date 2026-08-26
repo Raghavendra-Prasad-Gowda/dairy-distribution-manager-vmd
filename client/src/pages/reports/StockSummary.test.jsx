@@ -117,6 +117,14 @@ describe('StockSummary — aggregation', () => {
     expect(screen.getByText('1 product')).toBeInTheDocument();
   });
 
+  // Same per-brand color identity as Dairy Settings' Brands list and the
+  // Dispatch Stock Summary report — not a uniform slate.
+  it("colors the brand header with that brand's own color", async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    expect(screen.getByText('Nandini').closest('tr')).toHaveClass('bg-nandini-700');
+  });
+
   it('shows crates/liters and unit price for a crate product with a single route', async () => {
     render(<StockSummary />);
     await screen.findByText('Toned Milk');

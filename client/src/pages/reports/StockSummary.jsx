@@ -3,6 +3,7 @@ import { AlertCircle, Package, ChevronRight, ChevronDown, Printer } from 'lucide
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
 import { useApiResource } from '../../hooks/useApiResource';
+import { getBrandColors } from '../../utils/constants';
 import api from '../../api/axios';
 
 function fmtCrates(qty, upc) {
@@ -333,13 +334,17 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                         </tr>
                       </thead>
                       <tbody>
-                        {productSummary.map(brand => {
+                        {productSummary.map((brand, brandIndex) => {
                           const productCount  = brand.categories.reduce((s, c) => s + c.products.length, 0);
                           const multiCategory = brand.categories.length > 1;
+                          // Same per-brand color identity as Dairy Settings'
+                          // Brands list and Dispatch Stock Summary, instead
+                          // of a uniform slate.
+                          const colors = getBrandColors(brand.brandName, brandIndex);
                           return (
                             <React.Fragment key={brand.brandName}>
                               {/* Brand header */}
-                              <tr className="bg-slate-700">
+                              <tr className={colors.header}>
                                 <td colSpan={2} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
                                   {brand.brandName}
                                   <span className="ml-2 font-normal text-slate-300 normal-case tracking-normal">
