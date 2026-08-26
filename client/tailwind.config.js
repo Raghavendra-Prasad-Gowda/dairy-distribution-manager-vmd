@@ -6,7 +6,7 @@ export default {
   safelist: [
     'bg-nandini-50',    'text-nandini-700',    'border-nandini-200',    'bg-nandini-500',    'border-nandini-500',    'bg-nandini-700',
     'bg-jersey-50',     'text-jersey-700',     'border-jersey-200',     'bg-jersey-500',     'border-jersey-500',     'bg-jersey-700',
-    'bg-gowardhan-50',  'text-gowardhan-700',  'border-gowardhan-200',  'bg-gowardhan-500',  'border-gowardhan-500',  'bg-gowardhan-700',
+    'bg-gowardhan-50',  'text-gowardhan-700',  'border-gowardhan-200',  'bg-gowardhan-500',  'border-gowardhan-500',  'bg-gowardhan-600',
   ],
   theme: {
     extend: {
@@ -29,14 +29,21 @@ export default {
           600: '#0284c7',
           700: '#0369a1',
         },
+        // Redefined from the original emerald/teal palette to purple — it read
+        // too close to Jersey's teal-leaning blue (bg-jersey-700, #0369a1) to
+        // reliably tell apart, failing the dataviz skill's CVD checker's
+        // normal-vision floor. Standard Tailwind purple values, so every
+        // existing bg-gowardhan-*/text-gowardhan-*/border-gowardhan-* usage
+        // (Dairy Settings brand dot, sidebar nav dot, BrandTabs, Stock
+        // Summary header) stays on ONE color family instead of diverging.
         gowardhan: {
-          50:  '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
+          50:  '#faf5ff',
+          100: '#f3e8ff',
+          200: '#e9d5ff',
+          400: '#c084fc',
+          500: '#a855f7',
+          600: '#9333ea',
+          700: '#7e22ce',
         },
       },
       fontFamily: {
