@@ -71,11 +71,20 @@ const salespersonStatement = asyncHandler(async (req, res) => {
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       items: sortedItems.map((i) => ({
-        brandName:   i.product.brand.name,
-        productName: i.product.name,
-        quantity:    Number(i.quantity),
-        unitPrice:   Number(i.unitPrice),
-        totalAmount: Number(i.totalAmount),
+        brandName:            i.product.brand.name,
+        brandDisplayOrder:    i.product.brand.displayOrder ?? 999,
+        // category/categoryDisplayOrder/displayOrder: not used by the existing
+        // per-day breakdown, but needed by the client's Products Purchased tab
+        // (SalespersonStatement.jsx), which re-aggregates items across the
+        // whole date range per product and must re-sort them into the same
+        // brand → category → product dairy layout order afterwards.
+        category:             i.product.category ?? null,
+        categoryDisplayOrder: getCategoryOrder(catOrder, i.product.brandId, i.product.category),
+        productName:          i.product.name,
+        displayOrder:         i.product.displayOrder ?? 999,
+        quantity:             Number(i.quantity),
+        unitPrice:            Number(i.unitPrice),
+        totalAmount:          Number(i.totalAmount),
       })),
       payments: (paymentsByDate.get(key) ?? []).map((p) => ({
         amount: Number(p.amount),

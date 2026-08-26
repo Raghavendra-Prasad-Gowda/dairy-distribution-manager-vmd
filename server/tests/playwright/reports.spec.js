@@ -364,6 +364,41 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
     expect(items.map(i => i.productName)).toEqual(['Apple Milk', 'Zebra Milk']);
   });
 
+  test('exposes category, categoryDisplayOrder, displayOrder and brandDisplayOrder on each item', async ({ request }) => {
+    // Consumed by the client's Products Purchased tab, which re-aggregates
+    // items across the whole date range per product and must re-sort them
+    // into brand → category → product order afterwards — see the comment
+    // on this field in the controller.
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 2400, amountPaid: 0, closingBalance: 2400,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      items: [{
+        product: { name: 'Milk 500ml', brandId: 1, category: 'Milk', displayOrder: 3, brand: { name: 'Nandini', displayOrder: 1 } },
+        quantity: 60, unitPrice: 40, totalAmount: 2400,
+      }],
+    };
+    ctx.mockPrisma.category.findMany.mockResolvedValue([{ brandId: 1, name: 'Milk', displayOrder: 2 }]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    const item = (await res.json()).data[0].items[0];
+    expect(item).toMatchObject({
+      brandDisplayOrder: 1,
+      category: 'Milk',
+      categoryDisplayOrder: 2,
+      displayOrder: 3,
+    });
+  });
+
   test('sorts by brand display order when it differs', async ({ request }) => {
     const balance = {
       balanceDate: new Date('2026-04-30'),

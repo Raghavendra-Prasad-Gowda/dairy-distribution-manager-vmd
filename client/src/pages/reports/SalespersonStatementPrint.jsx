@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { formatCurrency, getIndiaDateTimeStr, formatDateShortNoYear } from '../../utils/dateUtils';
+import { buildBrandCategoryBreakdown } from '../../utils/salespersonProductStatement';
 
 const BUSINESS = 'Vikas Milk Dairy';
 
@@ -10,6 +11,10 @@ export default function SalespersonStatementPrint() {
   const from         = params.get('from')         ?? '';
   const to           = params.get('to')           ?? '';
   const salespersonId = params.get('salespersonId') ?? '';
+  // 'balance' (default) prints the existing opening/given/collected/due
+  // statement; 'products' prints the Brand → Category → Product breakdown —
+  // mirrors SalespersonStatement.jsx's view switcher.
+  const type          = params.get('type') === 'products' ? 'products' : 'balance';
 
   const [rows, setRows]           = useState(null);
   const [salesperson, setSalesperson] = useState('');
@@ -35,6 +40,8 @@ export default function SalespersonStatementPrint() {
   const totalGiven     = rows?.reduce((s, r) => s + r.stockGiven, 0) ?? 0;
   const totalCollected = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing         = rows?.length ? rows[rows.length - 1].closingBalance : 0;
+
+  const breakdown = type === 'products' ? buildBrandCategoryBreakdown(rows ?? []) : null;
 
   return (
     <>
@@ -74,19 +81,28 @@ export default function SalespersonStatementPrint() {
 
         <div className="header">
           <div>
-            <div className="title">Salesperson Statement</div>
+            <div className="title">{type === 'products' ? 'Products Purchased' : 'Salesperson Statement'}</div>
             <div className="sub">{BUSINESS}{salesperson ? ` — ${salesperson}` : ''}</div>
             <div className="sub">{dateLabel}</div>
           </div>
           <div className="meta">
-            <div>Total Given: <strong>{formatCurrency(totalGiven)}</strong></div>
-            <div>Total Collected: <strong>{formatCurrency(totalCollected)}</strong></div>
-            <div>
-              Closing Balance:{' '}
-              <strong style={{ color: closing > 0 ? '#dc2626' : closing < 0 ? '#7c3aed' : '#059669' }}>
-                {formatCurrency(closing)}
-              </strong>
-            </div>
+            {type === 'products' ? (
+              <>
+                <div>Total Quantity: <strong>{breakdown?.totalQty.toLocaleString('en-IN')}</strong></div>
+                <div>Total Amount: <strong>{formatCurrency(breakdown?.totalAmount)}</strong></div>
+              </>
+            ) : (
+              <>
+                <div>Total Given: <strong>{formatCurrency(totalGiven)}</strong></div>
+                <div>Total Collected: <strong>{formatCurrency(totalCollected)}</strong></div>
+                <div>
+                  Closing Balance:{' '}
+                  <strong style={{ color: closing > 0 ? '#dc2626' : closing < 0 ? '#7c3aed' : '#059669' }}>
+                    {formatCurrency(closing)}
+                  </strong>
+                </div>
+              </>
+            )}
           </div>
         </div>
         <hr />
@@ -94,7 +110,70 @@ export default function SalespersonStatementPrint() {
         {error && <p style={{ color: 'red', padding: 12 }}>{error}</p>}
         {!rows && !error && <p style={{ padding: 12, color: '#6b7280' }}>Loading…</p>}
 
-        {rows && (
+        {rows && type === 'products' && (
+          breakdown.brands.length === 0 ? (
+            <p style={{ padding: 12, color: '#6b7280' }}>No products purchased in this period</p>
+          ) : (
+            breakdown.brands.map((brand) => (
+              <table key={brand.brandName} style={{ marginBottom: 16 }}>
+                <thead>
+                  <tr>
+                    <th colSpan={4} style={{ textAlign: 'left', background: '#065f46', color: '#fff' }}>
+                      {brand.brandName}
+                      <span style={{ float: 'right' }}>
+                        {brand.quantity.toLocaleString('en-IN')} units — {formatCurrency(brand.amount)}
+                      </span>
+                    </th>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: 'left', width: '40%' }}>Product</th>
+                    <th className="right">Quantity</th>
+                    <th className="right">Price (₹)</th>
+                    <th className="right">Total Price (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brand.categories.map((category) => (
+                    <Fragment key={category.categoryName}>
+                      <tr>
+                        <td colSpan={4} style={{ fontWeight: 700, background: '#fffbeb' }}>{category.categoryName}</td>
+                      </tr>
+                      {category.products.map((product) => (
+                        <tr key={product.productName}>
+                          <td style={{ paddingLeft: 20 }}>{product.productName}</td>
+                          <td className="right">{product.quantity.toLocaleString('en-IN')}</td>
+                          <td className="right">{formatCurrency(product.avgUnitPrice)}</td>
+                          <td className="right">{formatCurrency(product.amount)}</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td style={{ paddingLeft: 20, fontWeight: 700 }}>Subtotal</td>
+                        <td className="right" style={{ fontWeight: 700 }}>{category.quantity.toLocaleString('en-IN')}</td>
+                        <td />
+                        <td className="right" style={{ fontWeight: 700 }}>{formatCurrency(category.amount)}</td>
+                      </tr>
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            ))
+          )
+        )}
+
+        {rows && type === 'products' && breakdown.brands.length > 0 && (
+          <table>
+            <tfoot>
+              <tr className="total-row">
+                <td>GRAND TOTAL</td>
+                <td className="right">{breakdown.totalQty.toLocaleString('en-IN')}</td>
+                <td />
+                <td className="right">{formatCurrency(breakdown.totalAmount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+
+        {rows && type === 'balance' && (
           <table>
             <thead>
               <tr>
