@@ -123,6 +123,8 @@ describe('MyStatementPrint — dispatch stock summary (type=dispatch)', () => {
     const jerseyRow = (await screen.findByText(/Jersey/)).closest('tr');
     expect(jerseyRow.textContent).toContain('15'); // 10 + 5
     expect(jerseyRow.textContent).toContain('₹750.00'); // 500 + 250
+    // Brand's own color identity (same as Dairy Settings' Brands list)
+    expect(jerseyRow).toHaveStyle({ '--brand-color': '#0369a1' });
 
     const nandiniRow = screen.getByText(/Nandini/).closest('tr');
     expect(nandiniRow.textContent).toContain('2');

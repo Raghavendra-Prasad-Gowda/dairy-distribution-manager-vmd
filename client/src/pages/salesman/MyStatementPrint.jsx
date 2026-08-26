@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, getIndiaDateTimeStr, formatDateShortNoYear } from '../../utils/dateUtils';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
+import { getBrandHeaderHex } from '../../utils/constants';
 import api from '../../api/axios';
 
 const BUSINESS = 'Vikas Milk Dairy';
@@ -59,7 +60,10 @@ export default function MyStatementPrint() {
              letter-spacing: 0.05em; padding: 6px 8px; border: 1px solid #d1d5db; }
         td { padding: 5px 8px; border: 1px solid #e5e7eb; vertical-align: middle; }
         tr:nth-child(even) td { background: #f9fafb; }
-        .brand-row td { background: #374151 !important; color: #fff; font-weight: 700;
+        /* background comes from the --brand-color custom property set per
+           row (getBrandHeaderHex) — same brand color identity as Dairy
+           Settings' Brands list; #374151 only if that's somehow unset. */
+        .brand-row td { background: var(--brand-color, #374151); color: #fff; font-weight: 700;
                         font-size: 10px; border-color: #4b5563; }
         .cat-row td   { background: #f0f0f0 !important; font-weight: 700; color: #374151;
                         font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border-color: #d1d5db; }
@@ -133,9 +137,9 @@ export default function MyStatementPrint() {
                 </tr>
               </thead>
               <tbody>
-                {summary.brands.map((brand) => {
+                {summary.brands.map((brand, brandIndex) => {
                   return [
-                    <tr key={`brand-${brand.brandName}`} className="brand-row">
+                    <tr key={`brand-${brand.brandName}`} className="brand-row" style={{ '--brand-color': getBrandHeaderHex(brand.brandName, brandIndex) }}>
                       <td>
                         {brand.brandName}&nbsp;
                         <span style={{ fontWeight: 400, fontSize: 9, opacity: 0.8 }}>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Package } from 'lucide-react';
 import BrandedLoader from './ui/BrandedLoader';
 import { formatCurrency } from '../utils/dateUtils';
+import { getBrandColors } from '../utils/constants';
 
 // Whole numbers render plain; anything else shows to 2dp — same convention
 // StockSummary.jsx (the Dairy Stock Summary report) uses for crates/litres/kgs.
@@ -17,12 +18,17 @@ function Dash() {
  * Dispatch Stock Summary — a Brand → Category → Product breakdown of what a
  * salesperson (or every salesperson, on the admin side) was dispatched over
  * a date range. Mirrors the Dairy Stock Summary report's table
- * (StockSummary.jsx: same brand/category header styling, same
+ * (StockSummary.jsx: same category header styling, same
  * crates/quantity/liters/kgs columns, same grand total footer) minus the
  * Route and Unit Price columns — dispatch has no route dimension, and this
- * summary only needs the totals, not the per-unit price. Unlike Dairy Stock
- * Summary, the category header always shows (even for a single-category
- * brand) so every product's category stays visible at a glance.
+ * summary only needs the totals, not the per-unit price.
+ *
+ * Two deliberate differences from Dairy Stock Summary: (1) the category
+ * header always shows, even for a single-category brand, so every product's
+ * category stays visible at a glance; (2) each brand's header row is
+ * colored with that brand's own identity (getBrandColors — the same colors
+ * used for it in Dairy Settings' Brands list and the brand tabs elsewhere)
+ * instead of a uniform slate.
  *
  * Shared by the admin Salesperson Statement page and the salesman's own
  * MyStatement page so both "Dispatch Stock Summary" tabs can never drift
@@ -80,12 +86,16 @@ export default function DispatchStockSummaryView({
             </tr>
           </thead>
           <tbody>
-            {summary.brands.map((brand) => {
+            {summary.brands.map((brand, brandIndex) => {
               const productCount = brand.categories.reduce((s, c) => s + c.products.length, 0);
+              // Same per-brand color identity as Dairy Settings' Brands list
+              // and the brand tabs elsewhere in the app (getBrandColors) —
+              // its dark "700" shade, for a solid header bar with white text.
+              const colors = getBrandColors(brand.brandName, brandIndex);
               return (
                 <React.Fragment key={brand.brandName}>
                   {/* Brand header */}
-                  <tr className="bg-slate-700">
+                  <tr className={colors.header}>
                     <td className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
                       {brand.brandName}
                       <span className="ml-2 font-normal text-slate-300 normal-case tracking-normal">

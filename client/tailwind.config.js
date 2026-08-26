@@ -4,9 +4,9 @@ export default {
   // Safelist brand-color classes so they are never purged even when
   // getBrandColors() returns them as runtime string values from constants.js.
   safelist: [
-    'bg-nandini-50',    'text-nandini-700',    'border-nandini-200',    'bg-nandini-500',    'border-nandini-500',
-    'bg-jersey-50',     'text-jersey-700',     'border-jersey-200',     'bg-jersey-500',     'border-jersey-500',
-    'bg-gowardhan-50',  'text-gowardhan-700',  'border-gowardhan-200',  'bg-gowardhan-500',  'border-gowardhan-500',
+    'bg-nandini-50',    'text-nandini-700',    'border-nandini-200',    'bg-nandini-500',    'border-nandini-500',    'bg-nandini-700',
+    'bg-jersey-50',     'text-jersey-700',     'border-jersey-200',     'bg-jersey-500',     'border-jersey-500',     'bg-jersey-700',
+    'bg-gowardhan-50',  'text-gowardhan-700',  'border-gowardhan-200',  'bg-gowardhan-500',  'border-gowardhan-500',  'bg-gowardhan-700',
   ],
   theme: {
     extend: {

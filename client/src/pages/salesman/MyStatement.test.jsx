@@ -325,6 +325,8 @@ describe('MyStatement — Dispatch Stock Summary view', () => {
     const jerseyRow = screen.getByText(/Jersey/).closest('tr');
     expect(jerseyRow.textContent).toContain('144');
     expect(jerseyRow.textContent).toContain('₹6,492.00');
+    // Brand's own color identity (same as Dairy Settings' Brands list)
+    expect(jerseyRow).toHaveClass('bg-jersey-700');
 
     // Nandini: single product, 240 qty, ₹2,976
     const nandiniRow = screen.getByText(/Nandini/).closest('tr');

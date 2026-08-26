@@ -440,6 +440,11 @@ describe('SalespersonStatement — Dispatch Stock Summary tab', () => {
     expect(await screen.findByText(/Nandini/)).toBeInTheDocument();
     expect(screen.getByText(/Jersey/)).toBeInTheDocument();
 
+    // Each brand's header row is colored with its own brand identity (same
+    // as Dairy Settings' Brands list) — not a uniform slate.
+    expect(screen.getByText(/Nandini/).closest('tr')).toHaveClass('bg-nandini-700');
+    expect(screen.getByText(/Jersey/).closest('tr')).toHaveClass('bg-jersey-700');
+
     // Nandini has two categories (Milk, Curd) — its category header shows,
     // grey and left-aligned, not the old amber styling.
     const categoryHeaderCell = screen.getByText('Curd').closest('td');
