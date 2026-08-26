@@ -34,13 +34,29 @@ describe('getBrandColors', () => {
     expect(getBrandColors('New Co', 0).header).toBe('bg-rose-700');
     expect(DEFAULT_BRAND_COLOR.header).toBe('bg-slate-700');
   });
+
+  // Regression: Gowardhan's header used to be bg-gowardhan-700 (#047857), a
+  // teal-leaning emerald too close to Jersey's teal-leaning bg-jersey-700
+  // (#0369a1) to reliably tell apart in the Dispatch Stock Summary table.
+  it("gives Gowardhan a header distinct from bg-gowardhan-700 and from Jersey's header", () => {
+    expect(BRAND_COLORS.Gowardhan.header).toBe('bg-green-700');
+    expect(BRAND_COLORS.Gowardhan.header).not.toBe('bg-gowardhan-700');
+    expect(BRAND_COLORS.Gowardhan.header).not.toBe(BRAND_COLORS.Jersey.header);
+    // Its other tokens (badges/tabs elsewhere) are untouched.
+    expect(BRAND_COLORS.Gowardhan.bg).toBe('bg-gowardhan-50');
+    expect(BRAND_COLORS.Gowardhan.dot).toBe('bg-gowardhan-500');
+  });
 });
 
 describe('getBrandHeaderHex', () => {
   it('returns each known brand\'s own hex, matching its Tailwind "header" class', () => {
     expect(getBrandHeaderHex('Nandini')).toBe('#b45309');
     expect(getBrandHeaderHex('Jersey')).toBe('#0369a1');
-    expect(getBrandHeaderHex('Gowardhan')).toBe('#047857');
+    // green-700, not gowardhan-700 (#047857) — see the header token comment
+    // in constants.js: that teal-leaning emerald was too close to Jersey's
+    // teal-leaning blue to reliably tell apart (validated with the dataviz
+    // skill's CVD checker — failed the normal-vision floor, not just CVD).
+    expect(getBrandHeaderHex('Gowardhan')).toBe('#15803d');
   });
 
   it('cycles through the fallback hex palette by index for an unknown brand', () => {
