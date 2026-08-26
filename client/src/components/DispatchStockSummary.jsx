@@ -16,11 +16,13 @@ function Dash() {
 /**
  * Dispatch Stock Summary — a Brand → Category → Product breakdown of what a
  * salesperson (or every salesperson, on the admin side) was dispatched over
- * a date range. Deliberately mirrors the Dairy Stock Summary report's
- * table (StockSummary.jsx: same brand/category header styling, same
+ * a date range. Mirrors the Dairy Stock Summary report's table
+ * (StockSummary.jsx: same brand/category header styling, same
  * crates/quantity/liters/kgs columns, same grand total footer) minus the
  * Route and Unit Price columns — dispatch has no route dimension, and this
- * summary only needs the totals, not the per-unit price.
+ * summary only needs the totals, not the per-unit price. Unlike Dairy Stock
+ * Summary, the category header always shows (even for a single-category
+ * brand) so every product's category stays visible at a glance.
  *
  * Shared by the admin Salesperson Statement page and the salesman's own
  * MyStatement page so both "Dispatch Stock Summary" tabs can never drift
@@ -79,8 +81,7 @@ export default function DispatchStockSummaryView({
           </thead>
           <tbody>
             {summary.brands.map((brand) => {
-              const productCount  = brand.categories.reduce((s, c) => s + c.products.length, 0);
-              const multiCategory = brand.categories.length > 1;
+              const productCount = brand.categories.reduce((s, c) => s + c.products.length, 0);
               return (
                 <React.Fragment key={brand.brandName}>
                   {/* Brand header */}
@@ -106,14 +107,14 @@ export default function DispatchStockSummaryView({
 
                   {brand.categories.map((cat) => (
                     <React.Fragment key={`${brand.brandName}::${cat.categoryName}`}>
-                      {/* Category sub-header — only when brand has multiple categories */}
-                      {multiCategory && (
-                        <tr className="bg-slate-100 border-b border-slate-200">
-                          <td colSpan={6} className="px-4 py-2 text-left text-xs font-bold text-slate-700">
-                            {cat.categoryName}
-                          </td>
-                        </tr>
-                      )}
+                      {/* Category sub-header — always shown, even for a brand
+                          with just one category, so the category is never
+                          left unlabeled. */}
+                      <tr className="bg-slate-100 border-b border-slate-200">
+                        <td colSpan={6} className="px-4 py-2 text-left text-xs font-bold text-slate-700">
+                          {cat.categoryName}
+                        </td>
+                      </tr>
 
                       {/* Product rows */}
                       {cat.products.map((p, idx) => (

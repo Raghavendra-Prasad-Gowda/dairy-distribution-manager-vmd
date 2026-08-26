@@ -406,9 +406,10 @@ describe('SalespersonStatement — Dispatch Stock Summary tab', () => {
     await selectRamesh();
     fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
-    // Brand header (a single category, so no separate category sub-header —
-    // mirrors Dairy Stock Summary, which only shows one when there's >1)
+    // Brand header, and a category header even though this brand only has
+    // one category — always shown, unlike Dairy Stock Summary.
     expect(await screen.findByText(/Nandini/)).toBeInTheDocument();
+    expect(screen.getByText('Milk')).toBeInTheDocument();
     // Columns: Product / Total Crates / Quantity / Liters / Kgs / Total Price
     // — no per-unit Price column
     expect(screen.getByText('Total Crates')).toBeInTheDocument();

@@ -138,6 +138,8 @@ describe('SalespersonStatementPrint — dispatch stock summary (type=dispatch)',
     expect(screen.queryByText('Salesperson Statement')).not.toBeInTheDocument();
 
     expect(screen.getByText(/Nandini/)).toBeInTheDocument();
+    // Category header always shows, even for this single-category brand
+    expect(screen.getByText('Milk')).toBeInTheDocument();
     // No per-unit Price column
     expect(screen.queryByText('Price (₹)')).not.toBeInTheDocument();
     const productRow = screen.getByText('Toned Milk 500ml').closest('tr');

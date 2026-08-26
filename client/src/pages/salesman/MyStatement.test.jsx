@@ -316,6 +316,11 @@ describe('MyStatement — Dispatch Stock Summary view', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
+    // Category header always shows — ROW's items carry no `category` field,
+    // so they fall back to "Uncategorized", and it's still shown (not
+    // hidden the way Dairy Stock Summary hides a single-category header).
+    expect(screen.getAllByText('Uncategorized').length).toBeGreaterThan(0);
+
     // Jersey: 120 + 24 = 144 qty, ₹5,340 + ₹1,152 = ₹6,492
     const jerseyRow = screen.getByText(/Jersey/).closest('tr');
     expect(jerseyRow.textContent).toContain('144');

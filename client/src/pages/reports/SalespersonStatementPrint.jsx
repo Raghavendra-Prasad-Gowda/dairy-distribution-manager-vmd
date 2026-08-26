@@ -136,7 +136,6 @@ export default function SalespersonStatementPrint() {
               </thead>
               <tbody>
                 {summary.brands.map((brand) => {
-                  const multiCat = brand.categories.length > 1;
                   return [
                     <tr key={`brand-${brand.brandName}`} className="brand-row">
                       <td>
@@ -152,12 +151,12 @@ export default function SalespersonStatementPrint() {
                       <td className="right">{formatCurrency(brand.totalValue)}</td>
                     </tr>,
 
+                    // Category header always shown, even for a brand with
+                    // just one category, so the category is never unlabeled.
                     ...brand.categories.flatMap((cat) => [
-                      multiCat && (
-                        <tr key={`cat-${brand.brandName}-${cat.categoryName}`} className="cat-row">
-                          <td colSpan={6}>{cat.categoryName}</td>
-                        </tr>
-                      ),
+                      <tr key={`cat-${brand.brandName}-${cat.categoryName}`} className="cat-row">
+                        <td colSpan={6}>{cat.categoryName}</td>
+                      </tr>,
                       ...cat.products.map((p) => (
                         <tr key={`${brand.brandName}-${cat.categoryName}-${p.productName}`}>
                           <td>{p.productName}</td>
@@ -168,7 +167,7 @@ export default function SalespersonStatementPrint() {
                           <td className="right">{formatCurrency(p.totalValue)}</td>
                         </tr>
                       )),
-                    ].filter(Boolean)),
+                    ]),
                   ];
                 })}
               </tbody>
