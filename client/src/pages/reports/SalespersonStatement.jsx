@@ -144,8 +144,13 @@ function ProductsPurchasedBreakdown({ breakdown, loading }) {
         </div>
       ))}
 
-      {/* Grand total — overall totals summed across every brand shown above */}
-      <div className="ddm-card p-4 flex items-center justify-between gap-3 bg-slate-700">
+      {/* Grand total — overall totals summed across every brand shown above.
+          Deliberately NOT the `ddm-card` class here: it `@apply`s bg-white
+          in the same Tailwind utilities layer as `bg-slate-700` below, so at
+          equal specificity bg-white was winning and rendering this bar as
+          white-on-white (invisible) instead of the intended dark footer —
+          hand-roll the equivalent card chrome instead. */}
+      <div className="rounded-2xl shadow-sm p-4 flex items-center justify-between gap-3 bg-slate-700">
         <span className="text-sm font-bold text-white uppercase tracking-wide">Grand Total</span>
         <div className="flex items-center gap-4 text-sm font-bold text-white tabular-nums">
           <span>{breakdown.totalQty.toLocaleString('en-IN')} units</span>
