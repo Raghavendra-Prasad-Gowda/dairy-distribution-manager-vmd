@@ -73,11 +73,13 @@ const salespersonStatement = asyncHandler(async (req, res) => {
       items: sortedItems.map((i) => ({
         brandName:            i.product.brand.name,
         brandDisplayOrder:    i.product.brand.displayOrder ?? 999,
-        // category/categoryDisplayOrder/displayOrder: not used by the existing
-        // per-day breakdown, but needed by the client's Products Purchased tab
+        // category/categoryDisplayOrder/displayOrder/unitType/unitSize/
+        // unitsPerContainer/containerType: not used by the existing per-day
+        // breakdown, but needed by the client's Dispatch Stock Summary tab
         // (SalespersonStatement.jsx), which re-aggregates items across the
         // whole date range per product and must re-sort them into the same
-        // brand → category → product dairy layout order afterwards.
+        // brand → category → product dairy layout order afterwards, and
+        // compute crate/litre/kg totals the same way Stock Summary does.
         category:             i.product.category ?? null,
         categoryDisplayOrder: getCategoryOrder(catOrder, i.product.brandId, i.product.category),
         productName:          i.product.name,
@@ -85,6 +87,10 @@ const salespersonStatement = asyncHandler(async (req, res) => {
         quantity:             Number(i.quantity),
         unitPrice:            Number(i.unitPrice),
         totalAmount:          Number(i.totalAmount),
+        unitType:             i.product.unitType,
+        unitSize:             i.product.unitSize != null ? Number(i.product.unitSize) : null,
+        unitsPerContainer:    i.product.unitsPerContainer ?? null,
+        containerType:        i.product.containerType ?? null,
       })),
       payments: (paymentsByDate.get(key) ?? []).map((p) => ({
         amount: Number(p.amount),

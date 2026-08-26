@@ -1,10 +1,16 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { formatCurrency, getIndiaDateTimeStr, formatDateShortNoYear } from '../../utils/dateUtils';
-import { buildBrandCategoryBreakdown } from '../../utils/salespersonProductStatement';
+import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
+import { getBrandHeaderHex } from '../../utils/constants';
 
 const BUSINESS = 'Vikas Milk Dairy';
+
+function fmtQty(n) {
+  if (n == null) return '—';
+  return Number.isInteger(n) ? n : n.toFixed(2);
+}
 
 export default function SalespersonStatementPrint() {
   const [params]     = useSearchParams();
@@ -12,9 +18,9 @@ export default function SalespersonStatementPrint() {
   const to           = params.get('to')           ?? '';
   const salespersonId = params.get('salespersonId') ?? '';
   // 'balance' (default) prints the existing opening/given/collected/due
-  // statement; 'products' prints the Brand → Category → Product breakdown —
-  // mirrors SalespersonStatement.jsx's view switcher.
-  const type          = params.get('type') === 'products' ? 'products' : 'balance';
+  // statement; 'dispatch' prints the Brand → Category → Product Dispatch
+  // Stock Summary — mirrors SalespersonStatement.jsx's view switcher.
+  const type          = params.get('type') === 'dispatch' ? 'dispatch' : 'balance';
 
   const [rows, setRows]           = useState(null);
   const [salesperson, setSalesperson] = useState('');
@@ -41,7 +47,7 @@ export default function SalespersonStatementPrint() {
   const totalCollected = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing         = rows?.length ? rows[rows.length - 1].closingBalance : 0;
 
-  const breakdown = type === 'products' ? buildBrandCategoryBreakdown(rows ?? []) : null;
+  const summary = type === 'dispatch' ? buildDispatchStockSummary(rows ?? []) : null;
 
   return (
     <>
@@ -58,6 +64,13 @@ export default function SalespersonStatementPrint() {
              letter-spacing: 0.05em; padding: 6px 8px; border: 1px solid #d1d5db; }
         td { padding: 5px 8px; border: 1px solid #e5e7eb; vertical-align: middle; }
         tr:nth-child(even) td { background: #f9fafb; }
+        /* background comes from the --brand-color custom property set per
+           row (getBrandHeaderHex) — same brand color identity as Dairy
+           Settings' Brands list; #374151 only if that's somehow unset. */
+        .brand-row td { background: var(--brand-color, #374151); color: #fff; font-weight: 700;
+                        font-size: 10px; border-color: #4b5563; }
+        .cat-row td   { background: #f0f0f0 !important; font-weight: 700; color: #374151;
+                        font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border-color: #d1d5db; }
         .total-row td { background: #1e293b !important; color: #fff; font-weight: 700; border-color: #334155; }
         .balance-owing td { background: #fef2f2 !important; }
         .balance-clear td { background: #f0fdf4 !important; }
@@ -81,15 +94,15 @@ export default function SalespersonStatementPrint() {
 
         <div className="header">
           <div>
-            <div className="title">{type === 'products' ? 'Products Purchased' : 'Salesperson Statement'}</div>
+            <div className="title">{type === 'dispatch' ? 'Dispatch Stock Summary' : 'Salesperson Statement'}</div>
             <div className="sub">{BUSINESS}{salesperson ? ` — ${salesperson}` : ''}</div>
             <div className="sub">{dateLabel}</div>
           </div>
           <div className="meta">
-            {type === 'products' ? (
+            {type === 'dispatch' ? (
               <>
-                <div>Total Quantity: <strong>{breakdown?.totalQty.toLocaleString('en-IN')}</strong></div>
-                <div>Total Amount: <strong>{formatCurrency(breakdown?.totalAmount)}</strong></div>
+                <div>Total Quantity: <strong>{fmtQty(summary?.totalQty)}</strong></div>
+                <div>Total Amount: <strong>{formatCurrency(summary?.totalValue)}</strong></div>
               </>
             ) : (
               <>
@@ -110,75 +123,70 @@ export default function SalespersonStatementPrint() {
         {error && <p style={{ color: 'red', padding: 12 }}>{error}</p>}
         {!rows && !error && <p style={{ padding: 12, color: '#6b7280' }}>Loading…</p>}
 
-        {rows && type === 'products' && (
-          breakdown.brands.length === 0 ? (
-            <p style={{ padding: 12, color: '#6b7280' }}>No products purchased in this period</p>
+        {rows && type === 'dispatch' && (
+          summary.brands.length === 0 ? (
+            <p style={{ padding: 12, color: '#6b7280' }}>No dispatch data for this period</p>
           ) : (
-            breakdown.brands.map((brand) => (
-              <table key={brand.brandName} style={{ marginBottom: 16 }}>
-                <colgroup>
-                  <col style={{ width: '55%' }} />
-                  <col style={{ width: '22%' }} />
-                  <col style={{ width: '23%' }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th colSpan={3} style={{ textAlign: 'left', background: '#065f46', color: '#fff' }}>
-                      {brand.brandName}
-                      <span style={{ float: 'right' }}>
-                        {brand.quantity.toLocaleString('en-IN')} units — {formatCurrency(brand.amount)}
-                      </span>
-                    </th>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: 'left' }}>Product</th>
-                    <th className="right">Quantity</th>
-                    <th className="right">Total Price (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {brand.categories.map((category) => (
-                    <Fragment key={category.categoryName}>
-                      <tr>
-                        <td colSpan={3} style={{ textAlign: 'left', fontWeight: 700, background: '#f3f4f6', color: '#475569' }}>
-                          {category.categoryName}
-                        </td>
-                      </tr>
-                      {category.products.map((product) => (
-                        <tr key={product.productName}>
-                          <td style={{ paddingLeft: 20 }}>{product.productName}</td>
-                          <td className="right">{product.quantity.toLocaleString('en-IN')}</td>
-                          <td className="right">{formatCurrency(product.amount)}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td style={{ paddingLeft: 20, fontWeight: 700 }}>Subtotal</td>
-                        <td className="right" style={{ fontWeight: 700 }}>{category.quantity.toLocaleString('en-IN')}</td>
-                        <td className="right" style={{ fontWeight: 700 }}>{formatCurrency(category.amount)}</td>
-                      </tr>
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            ))
-          )
-        )}
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', width: '34%' }}>Product</th>
+                  <th className="right">Crates</th>
+                  <th className="right">Quantity</th>
+                  <th className="right">Liters</th>
+                  <th className="right">Kgs</th>
+                  <th className="right">Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.brands.map((brand, brandIndex) => {
+                  return [
+                    <tr key={`brand-${brand.brandName}`} className="brand-row" style={{ '--brand-color': getBrandHeaderHex(brand.brandName, brandIndex) }}>
+                      <td>
+                        {brand.brandName}&nbsp;
+                        <span style={{ fontWeight: 400, fontSize: 9, opacity: 0.8 }}>
+                          ({brand.categories.reduce((s, c) => s + c.products.length, 0)} items)
+                        </span>
+                      </td>
+                      <td className="right">{fmtQty(brand.totalCrates)}</td>
+                      <td className="right">{fmtQty(brand.totalQty)}</td>
+                      <td className="right">{fmtQty(brand.totalLiters)}</td>
+                      <td className="right">{fmtQty(brand.totalKgs)}</td>
+                      <td className="right">{formatCurrency(brand.totalValue)}</td>
+                    </tr>,
 
-        {rows && type === 'products' && breakdown.brands.length > 0 && (
-          <table>
-            <colgroup>
-              <col style={{ width: '55%' }} />
-              <col style={{ width: '22%' }} />
-              <col style={{ width: '23%' }} />
-            </colgroup>
-            <tfoot>
-              <tr className="total-row">
-                <td>GRAND TOTAL</td>
-                <td className="right">{breakdown.totalQty.toLocaleString('en-IN')}</td>
-                <td className="right">{formatCurrency(breakdown.totalAmount)}</td>
-              </tr>
-            </tfoot>
-          </table>
+                    // Category header always shown, even for a brand with
+                    // just one category, so the category is never unlabeled.
+                    ...brand.categories.flatMap((cat) => [
+                      <tr key={`cat-${brand.brandName}-${cat.categoryName}`} className="cat-row">
+                        <td colSpan={6}>{cat.categoryName}</td>
+                      </tr>,
+                      ...cat.products.map((p) => (
+                        <tr key={`${brand.brandName}-${cat.categoryName}-${p.productName}`}>
+                          <td>{p.productName}</td>
+                          <td className="right">{fmtQty(p.totalCrates)}</td>
+                          <td className="right">{fmtQty(p.totalQty)}</td>
+                          <td className="right">{fmtQty(p.totalLiters)}</td>
+                          <td className="right">{fmtQty(p.totalKgs)}</td>
+                          <td className="right">{formatCurrency(p.totalValue)}</td>
+                        </tr>
+                      )),
+                    ]),
+                  ];
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="total-row">
+                  <td>GRAND TOTAL</td>
+                  <td className="right">{fmtQty(summary.totalCrates)}</td>
+                  <td className="right">{fmtQty(summary.totalQty)}</td>
+                  <td className="right">{fmtQty(summary.totalLiters)}</td>
+                  <td className="right">{fmtQty(summary.totalKgs)}</td>
+                  <td className="right">{formatCurrency(summary.totalValue)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )
         )}
 
         {rows && type === 'balance' && (

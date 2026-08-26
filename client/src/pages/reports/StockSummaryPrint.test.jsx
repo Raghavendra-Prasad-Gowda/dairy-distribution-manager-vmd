@@ -92,6 +92,14 @@ describe('StockSummaryPrint — aggregation', () => {
     expect(screen.getByText(/1 items/)).toBeInTheDocument();
   });
 
+  // Same per-brand color identity as Dairy Settings' Brands list and the
+  // Dispatch Stock Summary report — not a uniform slate.
+  it("colors the brand row with that brand's own color", async () => {
+    renderWithParams('from=2026-08-05&to=2026-08-05');
+    const row = (await screen.findByText(/Nandini/)).closest('tr');
+    expect(row).toHaveStyle({ '--brand-color': '#b45309' });
+  });
+
   it('shows a category sub-header only when the brand has more than one category', async () => {
     mockApi(summaryData({ receipts: [
       receipt({ productName: 'Toned Milk', category: 'Milk' }),

@@ -365,10 +365,10 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
   });
 
   test('exposes category, categoryDisplayOrder, displayOrder and brandDisplayOrder on each item', async ({ request }) => {
-    // Consumed by the client's Products Purchased tab, which re-aggregates
-    // items across the whole date range per product and must re-sort them
-    // into brand → category → product order afterwards — see the comment
-    // on this field in the controller.
+    // Consumed by the client's Dispatch Stock Summary tab, which
+    // re-aggregates items across the whole date range per product and must
+    // re-sort them into brand → category → product order afterwards — see
+    // the comment on this field in the controller.
     const balance = {
       balanceDate: new Date('2026-04-30'),
       openingBalance: 0, stockGiven: 2400, amountPaid: 0, closingBalance: 2400,
@@ -397,6 +397,72 @@ test.describe('GET /api/v1/reports/salesperson-statement', () => {
       categoryDisplayOrder: 2,
       displayOrder: 3,
     });
+  });
+
+  test('exposes unitType, unitSize, unitsPerContainer and containerType for the Dispatch Stock Summary tab', async ({ request }) => {
+    // The client's buildDispatchStockSummary() derives crates/liters/kgs
+    // from these — see stockSummary.js / StockSummary.jsx for the same
+    // convention on the dairy-receipt side.
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 5340, amountPaid: 0, closingBalance: 5340,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      items: [{
+        product: {
+          name: 'HTM 1000ml', brandId: 1, category: 'Milk', displayOrder: 1,
+          unitType: 'ml', unitSize: 1000, unitsPerContainer: 12, containerType: 'crate',
+          brand: { name: 'Jersey', displayOrder: 2 },
+        },
+        quantity: 120, unitPrice: 44.5, totalAmount: 5340,
+      }],
+    };
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    const item = (await res.json()).data[0].items[0];
+    expect(item).toMatchObject({
+      unitType: 'ml', unitSize: 1000, unitsPerContainer: 12, containerType: 'crate',
+    });
+  });
+
+  test('passes through a null unitSize/containerType without crashing', async ({ request }) => {
+    const balance = {
+      balanceDate: new Date('2026-04-30'),
+      openingBalance: 0, stockGiven: 50, amountPaid: 0, closingBalance: 50,
+    };
+    const dispatch = {
+      salespersonId: 1,
+      dispatchDate: new Date('2026-04-30'),
+      items: [{
+        product: {
+          name: 'Loose item', brandId: 1, category: null, displayOrder: null,
+          unitType: 'piece', unitSize: null, unitsPerContainer: null, containerType: null,
+          brand: { name: 'Nandini', displayOrder: 1 },
+        },
+        quantity: 5, unitPrice: 10, totalAmount: 50,
+      }],
+    };
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([balance]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([dispatch]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/reports/salesperson-statement?salespersonId=1&from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const item = (await res.json()).data[0].items[0];
+    expect(item).toMatchObject({ unitSize: null, unitsPerContainer: null, containerType: null });
   });
 
   test('sorts by brand display order when it differs', async ({ request }) => {

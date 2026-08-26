@@ -300,33 +300,36 @@ describe('MyStatement — per-product crates and litres chips', () => {
   });
 });
 
-describe('MyStatement — Products Purchased view', () => {
+describe('MyStatement — Dispatch Stock Summary view', () => {
   it('stays on the Account Statement view by default', async () => {
     mockStatement([ROW]);
     render(<MyStatement />);
     await screen.findByText('Opening');
-    expect(screen.queryByText('Products Purchased')).toBeInTheDocument(); // the tab button itself
-    expect(screen.queryByText('Total Quantity')).not.toBeInTheDocument(); // products summary card, not shown yet
+    expect(screen.queryByText('Dispatch Stock Summary')).toBeInTheDocument(); // the tab button itself
+    expect(screen.queryByText('Grand Total')).not.toBeInTheDocument(); // report content, not shown yet
   });
 
-  it('switches to a flat per-date, per-brand table with summed quantity and amount', async () => {
-    // Page renders both a mobile card list and a desktop table for the same
-    // data (jsdom applies no media queries), so scope to the desktop table —
-    // same reasoning as the "row order" test below.
+  it('switches to a Brand → Category → Product breakdown with summed quantity and amount', async () => {
     mockStatement([ROW]);
-    const { container } = render(<MyStatement />);
+    render(<MyStatement />);
     await screen.findByText('Opening');
 
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
-    const desktopTable = within(container.querySelector('.hidden.md\\:block'));
+    // Category header always shows — ROW's items carry no `category` field,
+    // so they fall back to "Uncategorized", and it's still shown (not
+    // hidden the way Dairy Stock Summary hides a single-category header).
+    expect(screen.getAllByText('Uncategorized').length).toBeGreaterThan(0);
+
     // Jersey: 120 + 24 = 144 qty, ₹5,340 + ₹1,152 = ₹6,492
-    const jerseyRow = desktopTable.getByText('Jersey').closest('tr');
+    const jerseyRow = screen.getByText(/Jersey/).closest('tr');
     expect(jerseyRow.textContent).toContain('144');
     expect(jerseyRow.textContent).toContain('₹6,492.00');
+    // Brand's own color identity (same as Dairy Settings' Brands list)
+    expect(jerseyRow).toHaveClass('bg-jersey-700');
 
     // Nandini: single product, 240 qty, ₹2,976
-    const nandiniRow = desktopTable.getByText('Nandini').closest('tr');
+    const nandiniRow = screen.getByText(/Nandini/).closest('tr');
     expect(nandiniRow.textContent).toContain('240');
     expect(nandiniRow.textContent).toContain('₹2,976.00');
 
@@ -334,27 +337,25 @@ describe('MyStatement — Products Purchased view', () => {
     expect(screen.queryByText('Opening')).not.toBeInTheDocument();
   });
 
-  it('shows the period totals in the summary cards', async () => {
+  it('shows the period totals in the Grand Total footer', async () => {
     mockStatement([ROW]);
     render(<MyStatement />);
     await screen.findByText('Opening');
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
     // Total qty: 120 + 24 + 240 = 384. Total amount: 5340 + 1152 + 2976 = 9468.
-    // "Total Quantity"/"Total Amount" also label the desktop table's tfoot
-    // and the mobile footer, so scope to the summary-card grid specifically.
-    const summaryCards = screen.getByText('Total Quantity').closest('.grid');
-    expect(within(summaryCards).getByText('384')).toBeInTheDocument();
-    expect(within(summaryCards).getByText('₹9,468.00')).toBeInTheDocument();
+    const grandTotalRow = screen.getByText('Grand Total').closest('tr');
+    expect(grandTotalRow.textContent).toContain('384');
+    expect(grandTotalRow.textContent).toContain('₹9,468.00');
   });
 
-  it('shows an empty-state message when nothing was purchased in the period', async () => {
+  it('shows an empty-state message when nothing was dispatched in the period', async () => {
     mockStatement([{ ...ROW, items: [] }]);
     render(<MyStatement />);
     await screen.findByText(/tap a row to expand/i);
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
 
-    expect(await screen.findByText('No products purchased in this period')).toBeInTheDocument();
+    expect(await screen.findByText('No dispatch data for this period')).toBeInTheDocument();
   });
 
   it("includes the current view in the print link", async () => {
@@ -363,11 +364,11 @@ describe('MyStatement — Products Purchased view', () => {
     render(<MyStatement />);
     await screen.findByText('Opening');
 
-    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Dispatch Stock Summary/i }));
     fireEvent.click(screen.getByRole('button', { name: /Print/i }));
 
     expect(openSpy).toHaveBeenCalledWith(
-      expect.stringContaining('type=products'),
+      expect.stringContaining('type=dispatch'),
       '_blank'
     );
     openSpy.mockRestore();
