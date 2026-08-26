@@ -116,9 +116,14 @@ export default function SalespersonStatementPrint() {
           ) : (
             breakdown.brands.map((brand) => (
               <table key={brand.brandName} style={{ marginBottom: 16 }}>
+                <colgroup>
+                  <col style={{ width: '55%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '23%' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th colSpan={4} style={{ textAlign: 'left', background: '#065f46', color: '#fff' }}>
+                    <th colSpan={3} style={{ textAlign: 'left', background: '#065f46', color: '#fff' }}>
                       {brand.brandName}
                       <span style={{ float: 'right' }}>
                         {brand.quantity.toLocaleString('en-IN')} units — {formatCurrency(brand.amount)}
@@ -126,9 +131,8 @@ export default function SalespersonStatementPrint() {
                     </th>
                   </tr>
                   <tr>
-                    <th style={{ textAlign: 'left', width: '40%' }}>Product</th>
+                    <th style={{ textAlign: 'left' }}>Product</th>
                     <th className="right">Quantity</th>
-                    <th className="right">Price (₹)</th>
                     <th className="right">Total Price (₹)</th>
                   </tr>
                 </thead>
@@ -136,20 +140,20 @@ export default function SalespersonStatementPrint() {
                   {brand.categories.map((category) => (
                     <Fragment key={category.categoryName}>
                       <tr>
-                        <td colSpan={4} style={{ fontWeight: 700, background: '#fffbeb' }}>{category.categoryName}</td>
+                        <td colSpan={3} style={{ textAlign: 'left', fontWeight: 700, background: '#f3f4f6', color: '#475569' }}>
+                          {category.categoryName}
+                        </td>
                       </tr>
                       {category.products.map((product) => (
                         <tr key={product.productName}>
                           <td style={{ paddingLeft: 20 }}>{product.productName}</td>
                           <td className="right">{product.quantity.toLocaleString('en-IN')}</td>
-                          <td className="right">{formatCurrency(product.avgUnitPrice)}</td>
                           <td className="right">{formatCurrency(product.amount)}</td>
                         </tr>
                       ))}
                       <tr>
                         <td style={{ paddingLeft: 20, fontWeight: 700 }}>Subtotal</td>
                         <td className="right" style={{ fontWeight: 700 }}>{category.quantity.toLocaleString('en-IN')}</td>
-                        <td />
                         <td className="right" style={{ fontWeight: 700 }}>{formatCurrency(category.amount)}</td>
                       </tr>
                     </Fragment>
@@ -162,11 +166,15 @@ export default function SalespersonStatementPrint() {
 
         {rows && type === 'products' && breakdown.brands.length > 0 && (
           <table>
+            <colgroup>
+              <col style={{ width: '55%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '23%' }} />
+            </colgroup>
             <tfoot>
               <tr className="total-row">
                 <td>GRAND TOTAL</td>
                 <td className="right">{breakdown.totalQty.toLocaleString('en-IN')}</td>
-                <td />
                 <td className="right">{formatCurrency(breakdown.totalAmount)}</td>
               </tr>
             </tfoot>

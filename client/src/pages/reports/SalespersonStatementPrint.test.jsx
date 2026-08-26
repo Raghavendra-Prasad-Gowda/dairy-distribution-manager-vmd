@@ -138,6 +138,8 @@ describe('SalespersonStatementPrint — products purchased (type=products)', () 
 
     expect(screen.getByText('Nandini')).toBeInTheDocument();
     expect(screen.getByText('Milk')).toBeInTheDocument();
+    // No per-unit Price column
+    expect(screen.queryByText('Price (₹)')).not.toBeInTheDocument();
     const productRow = screen.getByText('Toned Milk 500ml').closest('tr');
     expect(productRow.textContent).toContain('15'); // 10 + 5
     expect(productRow.textContent).toContain('₹667.50'); // 445 + 222.50

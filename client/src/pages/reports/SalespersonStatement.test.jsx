@@ -407,8 +407,13 @@ describe('SalespersonStatement — Products Purchased tab', () => {
 
     // Brand header
     expect(await screen.findByRole('heading', { name: 'Nandini' })).toBeInTheDocument();
-    // Category header
-    expect(screen.getByText('Milk')).toBeInTheDocument();
+    // Category header — left aligned, grey (not the old amber styling)
+    const categoryHeaderCell = screen.getByText('Milk').closest('td');
+    expect(categoryHeaderCell).toHaveClass('text-left', 'text-slate-500');
+    expect(categoryHeaderCell.closest('tr')).toHaveClass('bg-slate-100');
+    expect(categoryHeaderCell).not.toHaveClass('text-amber-800');
+    // No per-unit Price column — only Product / Quantity / Total Price
+    expect(screen.queryByText('Price', { selector: 'th' })).not.toBeInTheDocument();
     // Product row, summed across both days: 10 + 5 = 15 units, ₹445 + ₹222.50 = ₹667.50
     const productRow = screen.getByText('Toned Milk 500ml').closest('tr');
     expect(productRow.textContent).toContain('15');
