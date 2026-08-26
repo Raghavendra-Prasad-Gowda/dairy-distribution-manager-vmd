@@ -7,19 +7,23 @@ export const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque'];
 // Dispatch Stock Summary report's per-brand row — distinct from `bg`, which
 // is a pale "50" tint meant for light badges/tab backgrounds.
 //
-// Gowardhan's `header` is deliberately bg-green-700, not bg-gowardhan-700
-// (#047857, teal-leaning emerald) — validated with the dataviz skill's CVD
-// checker against Jersey's bg-jersey-700 (#0369a1, teal-leaning blue): that
-// pair fails the normal-vision floor (ΔE 14.0, below the 15 floor — hard to
-// tell apart even with full color vision), which is exactly what "the
-// colors don't differ neatly" reported. bg-green-700 (#15803d, a truer
-// green) clears every check against both Nandini and Jersey. Gowardhan's
-// other tokens (bg/text/border/dot, used for badges/tabs elsewhere) are
-// unchanged — only the solid full-row header fill needed retuning.
+// Gowardhan's `header` is deliberately bg-purple-600, not bg-gowardhan-700
+// (#047857, teal-leaning emerald) — the emerald was too close to Jersey's
+// bg-jersey-700 (#0369a1, teal-leaning blue) to reliably tell apart (failed
+// the dataviz skill's CVD checker's normal-vision floor, ΔE 14.0 vs the 15
+// floor). A green re-tune (bg-green-700) technically cleared every check,
+// but read too similar to the emerald "PRODUCT" header row above it and
+// still wasn't liked. bg-purple-600 (#9333ea) clears every check — CVD,
+// normal-vision, lightness, chroma — against BOTH Nandini's and Jersey's
+// header with no WARNs at all (the strictest of the three), and reads as a
+// clearly different color, not just a different shade of green/blue.
+// Gowardhan's other tokens (bg/text/border/dot, used for badges/tabs
+// elsewhere) are unchanged — only the solid full-row header fill needed
+// retuning.
 export const BRAND_COLORS = {
   Nandini:   { bg: 'bg-nandini-50',   text: 'text-nandini-700',   border: 'border-nandini-200',   dot: 'bg-nandini-500',   activeBorder: 'border-nandini-500',   activeText: 'text-nandini-700',   header: 'bg-nandini-700'   },
   Jersey:    { bg: 'bg-jersey-50',    text: 'text-jersey-700',    border: 'border-jersey-200',    dot: 'bg-jersey-500',    activeBorder: 'border-jersey-500',    activeText: 'text-jersey-700',    header: 'bg-jersey-700'    },
-  Gowardhan: { bg: 'bg-gowardhan-50', text: 'text-gowardhan-700', border: 'border-gowardhan-200', dot: 'bg-gowardhan-500', activeBorder: 'border-gowardhan-500', activeText: 'text-gowardhan-700', header: 'bg-green-700'     },
+  Gowardhan: { bg: 'bg-gowardhan-50', text: 'text-gowardhan-700', border: 'border-gowardhan-200', dot: 'bg-gowardhan-500', activeBorder: 'border-gowardhan-500', activeText: 'text-gowardhan-700', header: 'bg-purple-600'    },
 };
 
 const BRAND_FALLBACK_PALETTE = [
@@ -57,7 +61,7 @@ export function getBrandColors(name, index) {
 const BRAND_HEADER_HEX = {
   Nandini:   '#b45309',
   Jersey:    '#0369a1',
-  Gowardhan: '#15803d', // green-700 — see the header token comment above
+  Gowardhan: '#9333ea', // purple-600 — see the header token comment above
 };
 const BRAND_HEADER_HEX_FALLBACK = ['#be123c', '#0f766e', '#c2410c', '#7e22ce', '#0e7490', '#be185d'];
 const DEFAULT_BRAND_HEADER_HEX = '#334155'; // slate-700
