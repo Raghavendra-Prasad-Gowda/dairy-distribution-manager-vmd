@@ -8,7 +8,12 @@ import { numberToWords } from '../utils/numberToWords';
 /**
  * Props:
  *   onSubmit(formData)    — called on submit
- *   closingBalance        — used for quick-fill buttons
+ *   closingBalance        — used for the 50%/75%/Full quick-fill buttons
+ *   todaysBillAmount      — optional; when > 0, adds a "Today's Bill" quick-fill
+ *                           button that fills the amount owed from TODAY's
+ *                           dispatch specifically (independent of the
+ *                           cumulative closingBalance — e.g. SalespersonCollections
+ *                           passes the salesperson's stockGiven for today).
  *   loading               — disables submit while saving
  *   prefill               — { amount, paymentDate, paymentMode, reference }
  *                           when set, form resets to those values (used for "edit" flow)
@@ -17,12 +22,13 @@ import { numberToWords } from '../utils/numberToWords';
  */
 export default function PaymentForm({
   onSubmit,
-  closingBalance = 0,
-  loading        = false,
-  prefill        = null,
-  onClearPrefill = null,
-  submitLabel    = 'Record Payment',
-  defaultMode    = 'Cash',
+  closingBalance   = 0,
+  todaysBillAmount = 0,
+  loading          = false,
+  prefill          = null,
+  onClearPrefill   = null,
+  submitLabel      = 'Record Payment',
+  defaultMode      = 'Cash',
 }) {
   const blankForm = {
     amount:      '',
@@ -63,7 +69,8 @@ export default function PaymentForm({
     setForm(blankForm);
   };
 
-  const hasBalance = closingBalance > 0;
+  const hasBalance    = closingBalance > 0;
+  const hasTodaysBill = todaysBillAmount > 0;
   const enteredAmount = parseFloat(form.amount) || 0;
   const outstanding   = Math.max(0, closingBalance);
   // Paying more than what's owed is allowed — it creates/adds to a credit that
@@ -108,21 +115,33 @@ export default function PaymentForm({
           </p>
         )}
 
-        {/* Quick-fill buttons */}
-        {hasBalance && (
-          <div className="flex gap-2 mt-2">
-            <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.5).toFixed(2) }))}
-              className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
-              50%
-            </button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.75).toFixed(2) }))}
-              className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
-              75%
-            </button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, amount: closingBalance.toFixed(2) }))}
-              className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-2 transition whitespace-nowrap">
-              Full {formatCurrency(closingBalance)}
-            </button>
+        {/* Quick-fill buttons — Today's Bill gets its own full-width row since
+            its label is much longer than 50%/75%/Full; sharing one row with
+            them (all at flex-1) squeezed every label, this one worst of all. */}
+        {(hasBalance || hasTodaysBill) && (
+          <div className="mt-2 space-y-2">
+            {hasTodaysBill && (
+              <button type="button" onClick={() => setForm(f => ({ ...f, amount: todaysBillAmount.toFixed(2) }))}
+                className="w-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-lg py-2 transition">
+                Today&apos;s Bill ({formatCurrency(todaysBillAmount)})
+              </button>
+            )}
+            {hasBalance && (
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.5).toFixed(2) }))}
+                  className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
+                  50%
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, amount: (closingBalance * 0.75).toFixed(2) }))}
+                  className="flex-1 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg py-2 transition">
+                  75%
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, amount: closingBalance.toFixed(2) }))}
+                  className="flex-1 text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg py-2 transition whitespace-nowrap">
+                  Full {formatCurrency(closingBalance)}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

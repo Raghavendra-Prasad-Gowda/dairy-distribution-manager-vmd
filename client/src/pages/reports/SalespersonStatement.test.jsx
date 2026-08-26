@@ -307,7 +307,7 @@ describe('SalespersonStatement — print', () => {
     fireEvent.click(screen.getByText('Print'));
 
     expect(openSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/^\/print\/salesperson-statement\?salespersonId=1&from=2026-07-01&to=2026-07-09$/),
+      expect.stringMatching(/^\/print\/salesperson-statement\?salespersonId=1&from=2026-07-01&to=2026-07-09&type=balance$/),
       '_blank',
     );
     openSpy.mockRestore();
@@ -366,6 +366,109 @@ describe('SalespersonStatement — outstanding balance styling', () => {
     const totalsRow = screen.getByText('Totals').closest('tr');
     const footerDueCell = totalsRow.querySelectorAll('td')[4];
     expect(footerDueCell.className).toContain('text-emerald-300');
+  });
+});
+
+// ─── Products Purchased tab ─────────────────────────────────────────────────
+
+function statementItem(overrides) {
+  return {
+    brandName: 'Nandini', brandDisplayOrder: 1,
+    category: 'Milk', categoryDisplayOrder: 1,
+    productName: 'Toned Milk 500ml', displayOrder: 1,
+    quantity: 10, unitPrice: 44.5, totalAmount: 445,
+    ...overrides,
+  };
+}
+
+describe('SalespersonStatement — Products Purchased tab', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApi();
+  });
+
+  it('stays on the Account Statement view by default', async () => {
+    await selectRamesh();
+    await screen.findByText('Totals');
+    expect(screen.queryByText('Grand Total')).not.toBeInTheDocument();
+  });
+
+  it('switches to a Brand → Category → Product breakdown, summed across the whole date range', async () => {
+    mockApi({
+      rows: [
+        { date: '2026-07-08', openingBalance: 0, stockGiven: 445, amountPaid: 0, closingBalance: 445, payments: [],
+          items: [statementItem({ quantity: 10, totalAmount: 445 })] },
+        { date: '2026-07-09', openingBalance: 445, stockGiven: 222.5, amountPaid: 0, closingBalance: 667.5, payments: [],
+          items: [statementItem({ quantity: 5, totalAmount: 222.5 })] },
+      ],
+    });
+    await selectRamesh();
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+
+    // Brand header
+    expect(await screen.findByRole('heading', { name: 'Nandini' })).toBeInTheDocument();
+    // Category header — left aligned, grey (not the old amber styling)
+    const categoryHeaderCell = screen.getByText('Milk').closest('td');
+    expect(categoryHeaderCell).toHaveClass('text-left', 'text-slate-500');
+    expect(categoryHeaderCell.closest('tr')).toHaveClass('bg-slate-100');
+    expect(categoryHeaderCell).not.toHaveClass('text-amber-800');
+    // No per-unit Price column — only Product / Quantity / Total Price
+    expect(screen.queryByText('Price', { selector: 'th' })).not.toBeInTheDocument();
+    // Product row, summed across both days: 10 + 5 = 15 units, ₹445 + ₹222.50 = ₹667.50
+    const productRow = screen.getByText('Toned Milk 500ml').closest('tr');
+    expect(productRow.textContent).toContain('15');
+    expect(productRow.textContent).toContain('₹667.50');
+
+    // Account-statement-only content is gone
+    expect(screen.queryByText('Totals')).not.toBeInTheDocument();
+  });
+
+  it('nests multiple brands and categories, each with their own subtotal, plus a grand total', async () => {
+    mockApi({
+      rows: [{
+        date: '2026-07-08', openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0, payments: [],
+        items: [
+          statementItem({ productName: 'Toned Milk 500ml', category: 'Milk', categoryDisplayOrder: 1, quantity: 10, totalAmount: 445 }),
+          statementItem({ productName: 'Curd 200g', category: 'Curd', categoryDisplayOrder: 2, quantity: 4, totalAmount: 50 }),
+          statementItem({ brandName: 'Jersey', brandDisplayOrder: 2, productName: 'HTM 1000ml', category: 'Milk', categoryDisplayOrder: 1, quantity: 2, totalAmount: 90 }),
+        ],
+      }],
+    });
+    await selectRamesh();
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+
+    expect(await screen.findByRole('heading', { name: 'Nandini' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Jersey' })).toBeInTheDocument();
+    expect(screen.getByText('Curd')).toBeInTheDocument();
+
+    // Grand total: 10 + 4 + 2 = 16 units, ₹445 + ₹50 + ₹90 = ₹585.00
+    const grandTotal = screen.getByText('Grand Total').closest('div');
+    expect(grandTotal.textContent).toContain('16 units');
+    expect(grandTotal.textContent).toContain('₹585.00');
+  });
+
+  it('shows an empty-state message when nothing was purchased in the period', async () => {
+    mockApi({ rows: [{ date: '2026-07-08', openingBalance: 0, stockGiven: 0, amountPaid: 0, closingBalance: 0, items: [], payments: [] }] });
+    await selectRamesh();
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+
+    expect(await screen.findByText('No products purchased in this period')).toBeInTheDocument();
+  });
+
+  it('includes the current view in the print link', async () => {
+    mockApi({
+      rows: [{ date: '2026-07-08', openingBalance: 0, stockGiven: 445, amountPaid: 0, closingBalance: 445, payments: [],
+        items: [statementItem()] }],
+    });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
+    await selectRamesh();
+    await screen.findByText('Totals');
+
+    fireEvent.click(screen.getByRole('button', { name: /Products Purchased/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Print/i }));
+
+    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('type=products'), '_blank');
+    openSpy.mockRestore();
   });
 });
 

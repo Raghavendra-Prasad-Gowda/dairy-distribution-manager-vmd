@@ -115,6 +115,65 @@ describe('SalespersonStatementPrint — table', () => {
   });
 });
 
+describe('SalespersonStatementPrint — products purchased (type=products)', () => {
+  function item(overrides) {
+    return {
+      brandName: 'Nandini', brandDisplayOrder: 1,
+      category: 'Milk', categoryDisplayOrder: 1,
+      productName: 'Toned Milk 500ml', displayOrder: 1,
+      quantity: 10, unitPrice: 44.5, totalAmount: 445,
+      ...overrides,
+    };
+  }
+
+  it('shows the products title and a Brand → Category → Product breakdown, summed across the range', async () => {
+    mockApi({ rows: [
+      row({ date: '2026-08-05', items: [item({ quantity: 10, totalAmount: 445 })] }),
+      row({ date: '2026-08-06', items: [item({ quantity: 5, totalAmount: 222.5 })] }),
+    ] });
+    renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-06&type=products');
+
+    expect(await screen.findByText('Products Purchased')).toBeInTheDocument();
+    expect(screen.queryByText('Salesperson Statement')).not.toBeInTheDocument();
+
+    expect(screen.getByText('Nandini')).toBeInTheDocument();
+    expect(screen.getByText('Milk')).toBeInTheDocument();
+    // No per-unit Price column
+    expect(screen.queryByText('Price (₹)')).not.toBeInTheDocument();
+    const productRow = screen.getByText('Toned Milk 500ml').closest('tr');
+    expect(productRow.textContent).toContain('15'); // 10 + 5
+    expect(productRow.textContent).toContain('₹667.50'); // 445 + 222.50
+  });
+
+  it('shows a GRAND TOTAL footer summed across all brands', async () => {
+    mockApi({ rows: [row({
+      items: [
+        item({ brandName: 'Nandini', quantity: 10, totalAmount: 445 }),
+        item({ brandName: 'Jersey', brandDisplayOrder: 2, quantity: 2, totalAmount: 90 }),
+      ],
+    })] });
+    renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05&type=products');
+
+    const footer = (await screen.findByText('GRAND TOTAL')).closest('tr');
+    expect(footer.textContent).toContain('12'); // 10 + 2
+    expect(footer.textContent).toContain('₹535.00'); // 445 + 90
+  });
+
+  it('shows an empty-state message when nothing was purchased in the period', async () => {
+    mockApi({ rows: [row({ items: [] })] });
+    renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05&type=products');
+
+    expect(await screen.findByText('No products purchased in this period')).toBeInTheDocument();
+  });
+
+  it('defaults to the salesperson statement (type=balance) when type is omitted', async () => {
+    mockApi({ rows: [row()] });
+    renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05');
+
+    expect(await screen.findByText('Salesperson Statement')).toBeInTheDocument();
+  });
+});
+
 describe('SalespersonStatementPrint — printing', () => {
   it('auto-triggers window.print() once data has loaded', async () => {
     vi.useFakeTimers();

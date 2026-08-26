@@ -167,6 +167,29 @@ test.describe('PUT /api/v1/pin/update', () => {
     expect(body.error).toMatch(/Incorrect current PIN/i);
   });
 
+  // Regression: req.user carries no `username` field (see middleware/auth.js —
+  // only id/role/salespersonId/adminUserId are set from the JWT), so
+  // `req.user?.username ?? 'unknown'` always fell to 'unknown' in the Slack
+  // card. The fix resolves the acting username via getActingUsername(), which
+  // looks it up from adminUserId — asserted here by checking that lookup
+  // actually happens, since the fire-and-forget Slack call itself isn't
+  // observable through the HTTP response.
+  test('resolves the acting superadmin via a DB lookup, not the non-existent req.user.username', async ({ request }) => {
+    // makeSuperAdminToken() signs adminUserId: 1
+    let lookupArgs = null;
+    ctx.mockPrisma.adminUser.findUnique.mockImplementation(async (args) => {
+      lookupArgs = args;
+      return { username: 'root' };
+    });
+
+    await request.put('/api/v1/pin/update', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { currentPin: '000000', newPin: '654321' }, // wrong currentPin — PIN_FAILED path
+    });
+
+    expect(lookupArgs).toEqual({ where: { id: 1 }, select: { username: true } });
+  });
+
   test('returns 400 when newPin is not exactly 6 digits', async ({ request }) => {
     ctx.mockBcrypt.compare = async () => true; // currentPin accepted
     const res = await request.put('/api/v1/pin/update', {
@@ -326,6 +349,23 @@ test.describe('PUT /api/v1/pin/settings', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
   });
+
+  // Regression — see the equivalent test on PUT /pin/update above.
+  test('resolves the acting superadmin via a DB lookup, not the non-existent req.user.username', async ({ request }) => {
+    ctx.mockPrisma.appSettings.upsert.mockResolvedValue({ key: 'pl_pin_enabled', value: 'false' });
+    let lookupArgs = null;
+    ctx.mockPrisma.adminUser.findUnique.mockImplementation(async (args) => {
+      lookupArgs = args;
+      return { username: 'root' };
+    });
+
+    await request.put('/api/v1/pin/settings', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { plPinEnabled: false },
+    });
+
+    expect(lookupArgs).toEqual({ where: { id: 1 }, select: { username: true } });
+  });
 });
 
 // ─── POST /api/v1/pin/verify-pl ───────────────────────────────────────────────
@@ -426,6 +466,22 @@ test.describe('PUT /api/v1/pin/update-pl', () => {
     expect(res.status()).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/Incorrect current PIN/i);
+  });
+
+  // Regression — see the equivalent test on PUT /pin/update above.
+  test('resolves the acting superadmin via a DB lookup, not the non-existent req.user.username', async ({ request }) => {
+    let lookupArgs = null;
+    ctx.mockPrisma.adminUser.findUnique.mockImplementation(async (args) => {
+      lookupArgs = args;
+      return { username: 'root' };
+    });
+
+    await request.put('/api/v1/pin/update-pl', {
+      headers: { Authorization: `Bearer ${makeSuperAdminToken()}` },
+      data: { currentPin: '000000', newPin: '654321' }, // wrong currentPin — PIN_FAILED path
+    });
+
+    expect(lookupArgs).toEqual({ where: { id: 1 }, select: { username: true } });
   });
 
   test('returns 400 when newPin is not exactly 6 digits', async ({ request }) => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, getIndiaDateTimeStr, formatDateShortNoYear } from '../../utils/dateUtils';
+import { buildProductPurchaseRows } from '../../utils/salespersonProductStatement';
 import api from '../../api/axios';
 
 const BUSINESS = 'Vikas Milk Dairy';
@@ -10,6 +11,10 @@ export default function MyStatementPrint() {
   const [params]   = useSearchParams();
   const from       = params.get('from') ?? '';
   const to         = params.get('to')   ?? '';
+  // 'balance' (default) prints the existing opening/billed/paid/closing
+  // statement; 'products' prints the per-date, per-brand purchase summary —
+  // mirrors MyStatement.jsx's view switcher.
+  const type       = params.get('type') === 'products' ? 'products' : 'balance';
   const { user }   = useAuth();
 
   const [rows, setRows]   = useState(null);
@@ -31,6 +36,10 @@ export default function MyStatementPrint() {
   const totalGiven     = rows?.reduce((s, r) => s + r.stockGiven, 0) ?? 0;
   const totalCollected = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing        = rows?.length ? rows[rows.length - 1].closingBalance : 0;
+
+  const productRows     = type === 'products' ? buildProductPurchaseRows(rows ?? []) : [];
+  const productTotalQty = productRows.reduce((s, r) => s + r.quantity, 0);
+  const productTotalAmt = productRows.reduce((s, r) => s + r.amount, 0);
 
   return (
     <>
@@ -72,19 +81,28 @@ export default function MyStatementPrint() {
 
         <div className="header">
           <div>
-            <div className="title">My Account Statement</div>
+            <div className="title">{type === 'products' ? 'My Products Purchased' : 'My Account Statement'}</div>
             <div className="sub">{BUSINESS}{spName ? ` — ${spName}` : ''}</div>
             <div className="sub">{dateLabel}</div>
           </div>
           <div className="meta">
-            <div>Total Billed: <strong>{formatCurrency(totalGiven)}</strong></div>
-            <div>Total Paid: <strong>{formatCurrency(totalCollected)}</strong></div>
-            <div>
-              Balance:{' '}
-              <strong style={{ color: closing > 0 ? '#dc2626' : closing < 0 ? '#7c3aed' : '#059669' }}>
-                {formatCurrency(closing)}
-              </strong>
-            </div>
+            {type === 'products' ? (
+              <>
+                <div>Total Quantity: <strong>{productTotalQty.toLocaleString('en-IN')}</strong></div>
+                <div>Total Amount: <strong>{formatCurrency(productTotalAmt)}</strong></div>
+              </>
+            ) : (
+              <>
+                <div>Total Billed: <strong>{formatCurrency(totalGiven)}</strong></div>
+                <div>Total Paid: <strong>{formatCurrency(totalCollected)}</strong></div>
+                <div>
+                  Balance:{' '}
+                  <strong style={{ color: closing > 0 ? '#dc2626' : closing < 0 ? '#7c3aed' : '#059669' }}>
+                    {formatCurrency(closing)}
+                  </strong>
+                </div>
+              </>
+            )}
           </div>
         </div>
         <hr />
@@ -92,7 +110,41 @@ export default function MyStatementPrint() {
         {error && <p style={{ color: 'red', padding: 12 }}>{error}</p>}
         {!rows && !error && <p style={{ padding: 12, color: '#6b7280' }}>Loading…</p>}
 
-        {rows && (
+        {rows && type === 'products' && (
+          productRows.length === 0 ? (
+            <p style={{ padding: 12, color: '#6b7280' }}>No products purchased in this period</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', width: '16%' }}>Date</th>
+                  <th style={{ textAlign: 'left' }}>Brand</th>
+                  <th className="right">Quantity</th>
+                  <th className="right">Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productRows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{formatDateShortNoYear(r.date)}</td>
+                    <td>{r.brandName}</td>
+                    <td className="right">{r.quantity.toLocaleString('en-IN')}</td>
+                    <td className="right">{formatCurrency(r.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="total-row">
+                  <td colSpan={2}>TOTAL</td>
+                  <td className="right">{productTotalQty.toLocaleString('en-IN')}</td>
+                  <td className="right">{formatCurrency(productTotalAmt)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )
+        )}
+
+        {rows && type === 'balance' && (
           <table>
             <thead>
               <tr>

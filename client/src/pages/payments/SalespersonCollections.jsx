@@ -241,6 +241,15 @@ export default function SalespersonCollections() {
     { successMessage: 'Collection updated', onSuccess: () => { setEditPayment(null); fetchDetail(); refreshAllBalances(); } }
   );
 
+  // Today's Bill quick-fill is meant to be used once per day per salesperson —
+  // once a collection has been recorded today that covers today's dispatch
+  // (amountPaid for today's balance row has caught up with stockGiven), the
+  // bill is settled and the button should stop offering itself. Data-driven
+  // off the balance row (not a click flag) so it stays correct across page
+  // reloads and if a payment is edited/deleted.
+  const todaysBillSettled = (balance?.amountPaid ?? 0) >= (balance?.stockGiven ?? 0);
+  const todaysBillAmount  = todaysBillSettled ? 0 : (balance?.stockGiven ?? 0);
+
   const selectedSp = salespeople.find(sp => sp.id === selectedSpId);
   const pendingCount = Object.values(allBalances).filter(b => (b.closingBalance ?? 0) > 0).length;
 
@@ -401,6 +410,7 @@ export default function SalespersonCollections() {
                     <PaymentForm
                       onSubmit={recordCollection}
                       closingBalance={balance?.closingBalance ?? 0}
+                      todaysBillAmount={todaysBillAmount}
                       loading={saving}
                     />
                   </div>
