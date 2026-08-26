@@ -138,6 +138,9 @@ describe('SalespersonStatementPrint — dispatch stock summary (type=dispatch)',
     expect(screen.queryByText('Salesperson Statement')).not.toBeInTheDocument();
 
     expect(screen.getByText(/Nandini/)).toBeInTheDocument();
+    // Brand's own color identity (same as Dairy Settings' Brands list),
+    // via the --brand-color custom property the .brand-row CSS reads from.
+    expect(screen.getByText(/Nandini/).closest('tr')).toHaveStyle({ '--brand-color': '#b45309' });
     // Category header always shows, even for this single-category brand
     expect(screen.getByText('Milk')).toBeInTheDocument();
     // No per-unit Price column
