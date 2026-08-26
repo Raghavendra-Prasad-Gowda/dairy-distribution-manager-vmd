@@ -35,18 +35,21 @@ describe('getBrandColors', () => {
     expect(DEFAULT_BRAND_COLOR.header).toBe('bg-slate-700');
   });
 
-  // Regression: Gowardhan's header used to be bg-gowardhan-700 (#047857), a
-  // teal-leaning emerald too close to Jersey's teal-leaning bg-jersey-700
-  // (#0369a1) to reliably tell apart in the Dispatch Stock Summary table. A
-  // green re-tune (bg-green-700) technically passed but still read too
-  // similar to the emerald thead row above it, so it's purple now — clearly
-  // a different color, not just a different shade of green/blue.
-  it("gives Gowardhan a header distinct from bg-gowardhan-700 and from Jersey's/Nandini's header", () => {
-    expect(BRAND_COLORS.Gowardhan.header).toBe('bg-purple-600');
-    expect(BRAND_COLORS.Gowardhan.header).not.toBe('bg-gowardhan-700');
+  // Regression: Gowardhan's color family used to be emerald (#047857 at
+  // 700), too close to Jersey's teal-leaning bg-jersey-700 (#0369a1) to
+  // reliably tell apart in the Dispatch Stock Summary table. A green
+  // re-tune (bg-green-700) technically passed but still read too similar to
+  // the emerald thead row above it, so the whole gowardhan-* family was
+  // redefined to purple in tailwind.config.js — not just the header token —
+  // so every surface using bg-gowardhan-*/text-gowardhan-*/border-gowardhan-*
+  // (Dairy Settings brand dot, sidebar nav dot, BrandTabs, Stock Summary
+  // header) shows the same purple, uniformly.
+  it("gives Gowardhan a header distinct from Jersey's/Nandini's header, in the same purple family as its other tokens", () => {
+    expect(BRAND_COLORS.Gowardhan.header).toBe('bg-gowardhan-600');
     expect(BRAND_COLORS.Gowardhan.header).not.toBe(BRAND_COLORS.Jersey.header);
     expect(BRAND_COLORS.Gowardhan.header).not.toBe(BRAND_COLORS.Nandini.header);
-    // Its other tokens (badges/tabs elsewhere) are untouched.
+    // Its other tokens (badges/tabs elsewhere) share the same gowardhan-*
+    // (purple) family as the header.
     expect(BRAND_COLORS.Gowardhan.bg).toBe('bg-gowardhan-50');
     expect(BRAND_COLORS.Gowardhan.dot).toBe('bg-gowardhan-500');
   });
@@ -56,8 +59,8 @@ describe('getBrandHeaderHex', () => {
   it('returns each known brand\'s own hex, matching its Tailwind "header" class', () => {
     expect(getBrandHeaderHex('Nandini')).toBe('#b45309');
     expect(getBrandHeaderHex('Jersey')).toBe('#0369a1');
-    // purple-600, not gowardhan-700 (#047857) — see the header token comment
-    // in constants.js.
+    // gowardhan-600 (purple), not the original emerald #047857 — see the
+    // header token comment in constants.js.
     expect(getBrandHeaderHex('Gowardhan')).toBe('#9333ea');
   });
 
