@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, User, Search, X, FileText, Package } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -87,6 +87,7 @@ export default function SalespersonStatement() {
   const [to, setTo]                  = useState(getIndiaDate());
   const [spError, setSpError]        = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // 'balance'  — the existing day-by-day opening/given/collected/due statement
   // 'dispatch' — a Brand → Category → Product Dispatch Stock Summary for the
   //              whole date range (same shape as the Dairy Stock Summary
@@ -170,50 +171,70 @@ export default function SalespersonStatement() {
     {/* ── Split panel ──────────────────────────────────────────────── */}
     <div className="flex flex-1 overflow-hidden">
 
-      {/* ── Left panel: always visible ─────────────────────────────── */}
-      <div className="flex flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white">
-        <div className="p-3 border-b border-slate-100">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search name or route…"
-              className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X size={12} />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filteredSps.length === 0 ? (
-            <p className="px-3 py-6 text-center text-slate-400 text-xs">No results</p>
-          ) : (
-            filteredSps.map(sp => {
-              const isSelected = String(sp.id) === String(selectedSp);
-              return (
-                <button
-                  key={sp.id}
-                  onClick={() => setSelectedSp(String(sp.id))}
-                  className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
-                    isSelected
-                      ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
-                      : 'border-l-4 border-l-transparent hover:bg-slate-50'
-                  }`}
-                >
-                  <p className={`text-sm font-semibold truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
-                    {sp.name}
-                  </p>
-                  {sp.route && <p className="text-xs text-slate-400 truncate mt-0.5">{sp.route}</p>}
-                </button>
-              );
-            })
+      {/* ── Left panel: salesperson list, collapsible ────────────────── */}
+      <div className="flex flex-shrink-0">
+        <div
+          className={`flex flex-col border-r border-slate-200 bg-white overflow-hidden transition-all duration-200 ${
+            sidebarCollapsed ? 'w-0 border-r-0' : 'w-64'
+          }`}
+        >
+          {!sidebarCollapsed && (
+            <>
+              <div className="w-64 p-3 border-b border-slate-100">
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search name or route…"
+                    className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="w-64 flex-1 overflow-y-auto">
+                {filteredSps.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-slate-400 text-xs">No results</p>
+                ) : (
+                  filteredSps.map(sp => {
+                    const isSelected = String(sp.id) === String(selectedSp);
+                    return (
+                      <button
+                        key={sp.id}
+                        onClick={() => setSelectedSp(String(sp.id))}
+                        className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
+                          isSelected
+                            ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                            : 'border-l-4 border-l-transparent hover:bg-slate-50'
+                        }`}
+                      >
+                        <p className={`text-sm font-semibold truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+                          {sp.name}
+                        </p>
+                        {sp.route && <p className="text-xs text-slate-400 truncate mt-0.5">{sp.route}</p>}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </>
           )}
         </div>
+
+        {/* ── Collapse/expand rail ────────────────────────────────────── */}
+        <button
+          onClick={() => setSidebarCollapsed(v => !v)}
+          title={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
+          aria-label={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
+          className="flex items-center justify-center w-5 flex-shrink-0 border-r border-slate-200 bg-slate-50 hover:bg-emerald-50 text-slate-400 hover:text-emerald-700 transition-colors"
+        >
+          {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+        </button>
       </div>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
