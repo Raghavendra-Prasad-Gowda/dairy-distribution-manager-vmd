@@ -2,19 +2,24 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, getIndiaDateTimeStr, formatDateShortNoYear } from '../../utils/dateUtils';
-import { buildProductPurchaseRows } from '../../utils/salespersonProductStatement';
+import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
 import api from '../../api/axios';
 
 const BUSINESS = 'Vikas Milk Dairy';
+
+function fmtQty(n) {
+  if (n == null) return '—';
+  return Number.isInteger(n) ? n : n.toFixed(2);
+}
 
 export default function MyStatementPrint() {
   const [params]   = useSearchParams();
   const from       = params.get('from') ?? '';
   const to         = params.get('to')   ?? '';
   // 'balance' (default) prints the existing opening/billed/paid/closing
-  // statement; 'products' prints the per-date, per-brand purchase summary —
+  // statement; 'dispatch' prints this salesman's own Dispatch Stock Summary —
   // mirrors MyStatement.jsx's view switcher.
-  const type       = params.get('type') === 'products' ? 'products' : 'balance';
+  const type       = params.get('type') === 'dispatch' ? 'dispatch' : 'balance';
   const { user }   = useAuth();
 
   const [rows, setRows]   = useState(null);
@@ -37,9 +42,7 @@ export default function MyStatementPrint() {
   const totalCollected = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing        = rows?.length ? rows[rows.length - 1].closingBalance : 0;
 
-  const productRows     = type === 'products' ? buildProductPurchaseRows(rows ?? []) : [];
-  const productTotalQty = productRows.reduce((s, r) => s + r.quantity, 0);
-  const productTotalAmt = productRows.reduce((s, r) => s + r.amount, 0);
+  const summary = type === 'dispatch' ? buildDispatchStockSummary(rows ?? []) : null;
 
   return (
     <>
@@ -56,6 +59,10 @@ export default function MyStatementPrint() {
              letter-spacing: 0.05em; padding: 6px 8px; border: 1px solid #d1d5db; }
         td { padding: 5px 8px; border: 1px solid #e5e7eb; vertical-align: middle; }
         tr:nth-child(even) td { background: #f9fafb; }
+        .brand-row td { background: #374151 !important; color: #fff; font-weight: 700;
+                        font-size: 10px; border-color: #4b5563; }
+        .cat-row td   { background: #f0f0f0 !important; font-weight: 700; color: #374151;
+                        font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border-color: #d1d5db; }
         .total-row td { background: #1e293b !important; color: #fff; font-weight: 700; border-color: #334155; }
         .balance-owing  td { background: #fef2f2 !important; }
         .balance-clear  td { background: #f0fdf4 !important; }
@@ -81,15 +88,15 @@ export default function MyStatementPrint() {
 
         <div className="header">
           <div>
-            <div className="title">{type === 'products' ? 'My Products Purchased' : 'My Account Statement'}</div>
+            <div className="title">{type === 'dispatch' ? 'My Dispatch Stock Summary' : 'My Account Statement'}</div>
             <div className="sub">{BUSINESS}{spName ? ` — ${spName}` : ''}</div>
             <div className="sub">{dateLabel}</div>
           </div>
           <div className="meta">
-            {type === 'products' ? (
+            {type === 'dispatch' ? (
               <>
-                <div>Total Quantity: <strong>{productTotalQty.toLocaleString('en-IN')}</strong></div>
-                <div>Total Amount: <strong>{formatCurrency(productTotalAmt)}</strong></div>
+                <div>Total Quantity: <strong>{fmtQty(summary?.totalQty)}</strong></div>
+                <div>Total Amount: <strong>{formatCurrency(summary?.totalValue)}</strong></div>
               </>
             ) : (
               <>
@@ -110,34 +117,67 @@ export default function MyStatementPrint() {
         {error && <p style={{ color: 'red', padding: 12 }}>{error}</p>}
         {!rows && !error && <p style={{ padding: 12, color: '#6b7280' }}>Loading…</p>}
 
-        {rows && type === 'products' && (
-          productRows.length === 0 ? (
-            <p style={{ padding: 12, color: '#6b7280' }}>No products purchased in this period</p>
+        {rows && type === 'dispatch' && (
+          summary.brands.length === 0 ? (
+            <p style={{ padding: 12, color: '#6b7280' }}>No dispatch data for this period</p>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', width: '16%' }}>Date</th>
-                  <th style={{ textAlign: 'left' }}>Brand</th>
+                  <th style={{ textAlign: 'left', width: '34%' }}>Product</th>
+                  <th className="right">Crates</th>
                   <th className="right">Quantity</th>
-                  <th className="right">Amount (₹)</th>
+                  <th className="right">Liters</th>
+                  <th className="right">Kgs</th>
+                  <th className="right">Total (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                {productRows.map((r, i) => (
-                  <tr key={i}>
-                    <td>{formatDateShortNoYear(r.date)}</td>
-                    <td>{r.brandName}</td>
-                    <td className="right">{r.quantity.toLocaleString('en-IN')}</td>
-                    <td className="right">{formatCurrency(r.amount)}</td>
-                  </tr>
-                ))}
+                {summary.brands.map((brand) => {
+                  const multiCat = brand.categories.length > 1;
+                  return [
+                    <tr key={`brand-${brand.brandName}`} className="brand-row">
+                      <td>
+                        {brand.brandName}&nbsp;
+                        <span style={{ fontWeight: 400, fontSize: 9, opacity: 0.8 }}>
+                          ({brand.categories.reduce((s, c) => s + c.products.length, 0)} items)
+                        </span>
+                      </td>
+                      <td className="right">{fmtQty(brand.totalCrates)}</td>
+                      <td className="right">{fmtQty(brand.totalQty)}</td>
+                      <td className="right">{fmtQty(brand.totalLiters)}</td>
+                      <td className="right">{fmtQty(brand.totalKgs)}</td>
+                      <td className="right">{formatCurrency(brand.totalValue)}</td>
+                    </tr>,
+
+                    ...brand.categories.flatMap((cat) => [
+                      multiCat && (
+                        <tr key={`cat-${brand.brandName}-${cat.categoryName}`} className="cat-row">
+                          <td colSpan={6}>{cat.categoryName}</td>
+                        </tr>
+                      ),
+                      ...cat.products.map((p) => (
+                        <tr key={`${brand.brandName}-${cat.categoryName}-${p.productName}`}>
+                          <td>{p.productName}</td>
+                          <td className="right">{fmtQty(p.totalCrates)}</td>
+                          <td className="right">{fmtQty(p.totalQty)}</td>
+                          <td className="right">{fmtQty(p.totalLiters)}</td>
+                          <td className="right">{fmtQty(p.totalKgs)}</td>
+                          <td className="right">{formatCurrency(p.totalValue)}</td>
+                        </tr>
+                      )),
+                    ].filter(Boolean)),
+                  ];
+                })}
               </tbody>
               <tfoot>
                 <tr className="total-row">
-                  <td colSpan={2}>TOTAL</td>
-                  <td className="right">{productTotalQty.toLocaleString('en-IN')}</td>
-                  <td className="right">{formatCurrency(productTotalAmt)}</td>
+                  <td>TOTAL</td>
+                  <td className="right">{fmtQty(summary.totalCrates)}</td>
+                  <td className="right">{fmtQty(summary.totalQty)}</td>
+                  <td className="right">{fmtQty(summary.totalLiters)}</td>
+                  <td className="right">{fmtQty(summary.totalKgs)}</td>
+                  <td className="right">{formatCurrency(summary.totalValue)}</td>
                 </tr>
               </tfoot>
             </table>

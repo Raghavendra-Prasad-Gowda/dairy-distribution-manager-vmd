@@ -15,6 +15,15 @@ const { setupSuite, makeSalesmanToken, makeExpiredToken } = require('../helpers/
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
+// The handler now also queries category display orders (for the Dispatch
+// Stock Summary tab's brand → category → product sort) — every 200-path
+// test below needs this mocked or buildCategoryOrderMap crashes on
+// undefined. None of the existing tests care about category ordering
+// itself, so an empty list is a safe default.
+test.beforeEach(() => {
+  ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+});
+
 // A salesman-role token with no salespersonId — exercises the "account not
 // linked" guard, distinct from every other salesman token in this file.
 const makeUnlinkedSalesmanToken = () => jwt.sign({ id: 42, role: 'salesman' }, 'test-secret-for-ci', { expiresIn: '1h' });
@@ -244,6 +253,65 @@ test.describe('GET /api/v1/salesperson-statement/me — item measurement fields'
 
     expect(res.status()).toBe(200);
     expect((await res.json()).data[0].items[0]).toMatchObject({ unitSize: null, unitsPerContainer: null });
+  });
+
+  // ─── Dispatch Stock Summary tab fields ───────────────────────────────────
+  test('exposes category, displayOrder, brandDisplayOrder and containerType for the Dispatch Stock Summary tab', async ({ request }) => {
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([BALANCE_ROW]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
+      dispatchDate: new Date('2026-04-30'),
+      items: [{
+        quantity: 120, unitPrice: 44.5, totalAmount: 5340,
+        product: {
+          name: 'HTM 1000ml', category: 'Milk', displayOrder: 3,
+          unitType: 'ml', unitSize: 1000, unitsPerContainer: 12, containerType: 'crate',
+          brandId: 2, brand: { name: 'Jersey', displayOrder: 2 },
+        },
+      }],
+    }]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([
+      { brandId: 2, name: 'Milk', displayOrder: 1 },
+    ]);
+
+    const res = await request.get('/api/v1/salesperson-statement/me?from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(7)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const item = (await res.json()).data[0].items[0];
+    expect(item).toMatchObject({
+      category: 'Milk', categoryDisplayOrder: 1,
+      displayOrder: 3, brandDisplayOrder: 2,
+      containerType: 'crate',
+    });
+  });
+
+  test('defaults category-less items to null category and a 999 display order', async ({ request }) => {
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([BALANCE_ROW]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
+      dispatchDate: new Date('2026-04-30'),
+      items: [{
+        quantity: 5, unitPrice: 10, totalAmount: 50,
+        product: {
+          name: 'Loose item', category: null, unitType: 'piece', unitSize: null,
+          unitsPerContainer: null, containerType: null, brandId: 1, brand: { name: 'Nandini' },
+        },
+      }],
+    }]);
+    ctx.mockPrisma.salespersonPayment.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salesperson-statement/me?from=2026-04-01&to=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(7)}` },
+    });
+
+    expect(res.status()).toBe(200);
+    const item = (await res.json()).data[0].items[0];
+    expect(item).toMatchObject({
+      category: null, categoryDisplayOrder: 999,
+      displayOrder: 999, brandDisplayOrder: 999,
+      containerType: null,
+    });
   });
 });
 
