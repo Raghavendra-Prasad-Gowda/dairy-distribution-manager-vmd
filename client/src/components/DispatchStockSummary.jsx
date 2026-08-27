@@ -14,6 +14,15 @@ function Dash() {
   return <span className="text-slate-300">—</span>;
 }
 
+// The Product column is pinned to the left while the numeric columns scroll
+// horizontally (same treatment the Salesperson column gets in the Stock
+// Balance Summary report), so a row never loses its label on a narrow phone
+// screen. Every first cell in the table — header, brand row, category row,
+// product row, grand total — carries this width AND an opaque background of
+// its own; without a background the scrolled columns show through the pinned
+// cell.
+const PRODUCT_COL_MIN_WIDTH = 150;
+
 /**
  * Dispatch Stock Summary — a Brand → Category → Product breakdown of what a
  * salesperson (or every salesperson, on the admin side) was dispatched over
@@ -77,7 +86,12 @@ export default function DispatchStockSummaryView({
         <table className="min-w-full text-sm border-separate border-spacing-0">
           <thead className="bg-emerald-700 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-2.5 text-left   text-[11px] font-bold text-white uppercase tracking-wider">Product</th>
+              <th
+                className="sticky left-0 z-20 bg-emerald-700 px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider border-r border-emerald-600"
+                style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+              >
+                Product
+              </th>
               <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Crates</th>
               <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider">Quantity</th>
               <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider">Liters</th>
@@ -96,7 +110,10 @@ export default function DispatchStockSummaryView({
                 <React.Fragment key={brand.brandName}>
                   {/* Brand header */}
                   <tr className={colors.header}>
-                    <td className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                    <td
+                      className={`sticky left-0 z-[1] ${colors.header} px-4 py-2 text-xs font-bold text-white uppercase tracking-wider`}
+                      style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                    >
                       {brand.brandName}
                       <span className="ml-2 font-normal text-slate-300 normal-case tracking-normal">
                         {productCount} product{productCount !== 1 ? 's' : ''}
@@ -121,15 +138,24 @@ export default function DispatchStockSummaryView({
                           with just one category, so the category is never
                           left unlabeled. */}
                       <tr className="bg-slate-100 border-b border-slate-200">
-                        <td colSpan={6} className="px-4 py-2 text-left text-xs font-bold text-slate-700">
+                        <td
+                          className="sticky left-0 z-[1] bg-slate-100 px-4 py-2 text-left text-xs font-bold text-slate-700"
+                          style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                        >
                           {cat.categoryName}
                         </td>
+                        <td colSpan={5} className="bg-slate-100" />
                       </tr>
 
                       {/* Product rows */}
                       {cat.products.map((p, idx) => (
                         <tr key={p.productName} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
-                          <td className="px-4 py-2.5 pl-5 text-sm font-medium text-slate-800">{p.productName}</td>
+                          <td
+                            className={`sticky left-0 z-[1] ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} px-4 py-2.5 pl-5 text-sm font-medium text-slate-800 border-r border-slate-100`}
+                            style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                          >
+                            {p.productName}
+                          </td>
                           <td className="px-3 py-2.5 text-center font-bold text-slate-700 tabular-nums">
                             {p.totalCrates != null ? fmtQty(p.totalCrates) : <Dash />}
                           </td>
@@ -153,7 +179,12 @@ export default function DispatchStockSummaryView({
           {/* Grand total footer */}
           <tfoot>
             <tr className="bg-slate-800">
-              <td className="px-4 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider border-r border-slate-600">Grand Total</td>
+              <td
+                className="sticky left-0 z-[1] bg-slate-800 px-4 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider border-r border-slate-600"
+                style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+              >
+                Grand Total
+              </td>
               <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                 {summary.totalCrates != null ? fmtQty(summary.totalCrates) : <span className="text-slate-500">—</span>}
               </td>

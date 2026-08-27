@@ -213,3 +213,56 @@ describe('DispatchStockSummaryView — grand total footer', () => {
     expect(within(row).getByText('5')).toBeInTheDocument();
   });
 });
+
+describe('DispatchStockSummaryView — pinned Product column', () => {
+  // The numeric columns scroll horizontally on a phone; the Product column
+  // stays pinned so a row never loses its label. Every first cell needs
+  // `sticky left-0` AND an opaque background of its own, otherwise the
+  // scrolled columns show through it.
+  function firstCell(row) {
+    return row.querySelector('th, td');
+  }
+
+  it('pins the Product header cell with its own opaque background', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    const cell = screen.getByText('Product');
+    expect(cell).toHaveClass('sticky', 'left-0', 'bg-emerald-700');
+  });
+
+  it('pins the brand header cell with the brand color as its background', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    const cell = firstCell(screen.getByText(/Nandini/).closest('tr'));
+    expect(cell).toHaveClass('sticky', 'left-0', 'bg-nandini-700');
+  });
+
+  it('pins the category label and keeps the rest of the row spanned', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    const row = screen.getByText('Milk').closest('tr');
+    expect(firstCell(row)).toHaveClass('sticky', 'left-0', 'bg-slate-100');
+    // Label cell + a filler spanning the five numeric columns.
+    const cells = row.querySelectorAll('td');
+    expect(cells).toHaveLength(2);
+    expect(cells[1]).toHaveAttribute('colspan', '5');
+  });
+
+  it('pins the product name cell with a fully opaque stripe background', () => {
+    render(<DispatchStockSummaryView summary={summary({
+      brands: [brand({ categories: [category({ products: [
+        product({ productName: 'Even Row' }),
+        product({ productName: 'Odd Row' }),
+      ] })] })],
+    })} />);
+    const even = firstCell(screen.getByText('Even Row').closest('tr'));
+    const odd  = firstCell(screen.getByText('Odd Row').closest('tr'));
+    expect(even).toHaveClass('sticky', 'left-0', 'bg-white');
+    // bg-slate-50, not the row's translucent bg-slate-50/60 — a see-through
+    // pinned cell would show the scrolled columns underneath it.
+    expect(odd).toHaveClass('sticky', 'left-0', 'bg-slate-50');
+  });
+
+  it('pins the Grand Total cell with its own opaque background', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    const cell = firstCell(screen.getByText('Grand Total').closest('tr'));
+    expect(cell).toHaveClass('sticky', 'left-0', 'bg-slate-800');
+  });
+});
