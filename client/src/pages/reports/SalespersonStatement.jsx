@@ -169,73 +169,73 @@ export default function SalespersonStatement() {
       </div>
 
     {/* ── Split panel ──────────────────────────────────────────────── */}
-    <div className="flex flex-1 overflow-hidden">
+    <div className="relative flex flex-1 overflow-hidden">
 
       {/* ── Left panel: salesperson list, collapsible ────────────────── */}
-      <div className="flex flex-shrink-0">
-        <div
-          className={`flex flex-col border-r border-slate-200 bg-white overflow-hidden transition-all duration-200 ${
-            sidebarCollapsed ? 'w-0 border-r-0' : 'w-64'
-          }`}
-        >
-          {!sidebarCollapsed && (
-            <>
-              <div className="w-64 p-3 border-b border-slate-100">
-                <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search name or route…"
-                    className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
-                  />
-                  {search && (
-                    <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="w-64 flex-1 overflow-y-auto">
-                {filteredSps.length === 0 ? (
-                  <p className="px-3 py-6 text-center text-slate-400 text-xs">No results</p>
-                ) : (
-                  filteredSps.map(sp => {
-                    const isSelected = String(sp.id) === String(selectedSp);
-                    return (
-                      <button
-                        key={sp.id}
-                        onClick={() => setSelectedSp(String(sp.id))}
-                        className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
-                          isSelected
-                            ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
-                            : 'border-l-4 border-l-transparent hover:bg-slate-50'
-                        }`}
-                      >
-                        <p className={`text-sm font-semibold truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
-                          {sp.name}
-                        </p>
-                        {sp.route && <p className="text-xs text-slate-400 truncate mt-0.5">{sp.route}</p>}
-                      </button>
-                    );
-                  })
+      <div
+        className={`flex flex-col flex-shrink-0 border-r border-slate-200 bg-white overflow-hidden transition-all duration-200 ${
+          sidebarCollapsed ? 'w-0 border-r-0' : 'w-64'
+        }`}
+      >
+        {!sidebarCollapsed && (
+          <>
+            <div className="w-64 p-3 border-b border-slate-100">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search name or route…"
+                  className="w-full pl-8 pr-7 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X size={12} />
+                  </button>
                 )}
               </div>
-            </>
-          )}
-        </div>
-
-        {/* ── Collapse/expand rail ────────────────────────────────────── */}
-        <button
-          onClick={() => setSidebarCollapsed(v => !v)}
-          title={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
-          aria-label={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
-          className="flex items-center justify-center w-5 flex-shrink-0 border-r border-slate-200 bg-slate-50 hover:bg-emerald-50 text-slate-400 hover:text-emerald-700 transition-colors"
-        >
-          {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-        </button>
+            </div>
+            <div className="w-64 flex-1 overflow-y-auto">
+              {filteredSps.length === 0 ? (
+                <p className="px-3 py-6 text-center text-slate-400 text-xs">No results</p>
+              ) : (
+                filteredSps.map(sp => {
+                  const isSelected = String(sp.id) === String(selectedSp);
+                  return (
+                    <button
+                      key={sp.id}
+                      onClick={() => setSelectedSp(String(sp.id))}
+                      className={`w-full text-left px-4 py-3 border-b border-slate-100 transition-colors ${
+                        isSelected
+                          ? 'bg-emerald-50 border-l-4 border-l-emerald-600'
+                          : 'border-l-4 border-l-transparent hover:bg-slate-50'
+                      }`}
+                    >
+                      <p className={`text-sm font-semibold truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+                        {sp.name}
+                      </p>
+                      {sp.route && <p className="text-xs text-slate-400 truncate mt-0.5">{sp.route}</p>}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </>
+        )}
       </div>
+
+      {/* ── Collapse/expand handle — a prominent floating pill straddling
+           the sidebar's edge, not a thin border-width sliver ─────────── */}
+      <button
+        onClick={() => setSidebarCollapsed(v => !v)}
+        title={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
+        aria-label={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
+        style={{ left: sidebarCollapsed ? '0px' : '16rem' }}
+        className="absolute top-16 z-20 flex items-center justify-center w-7 h-7 -translate-x-1/2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg ring-2 ring-white transition-[left,background-color] duration-200"
+      >
+        {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+      </button>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto bg-slate-50">
