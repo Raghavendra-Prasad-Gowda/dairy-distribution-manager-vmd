@@ -331,7 +331,11 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                   <div className="overflow-auto max-h-[60vh]">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
                       <thead className="bg-emerald-700 sticky top-0 z-10">
-                        <tr>
+                        {/* h-10 (40px) is the natural height of this
+                            single-line row, pinned explicitly because the
+                            brand rows below stick at top-10 — the two must
+                            stay in step. */}
+                        <tr className="h-10">
                           <th
                             className="sticky left-0 z-20 bg-emerald-700 px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider border-r border-emerald-600"
                             style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
@@ -355,12 +359,27 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                           // Brands list and Dispatch Stock Summary, instead
                           // of a uniform slate.
                           const colors = getBrandColors(brand.brandName, brandIndex);
+                          const brandCell = `sticky top-10 ${colors.header}`;
                           return (
                             <React.Fragment key={brand.brandName}>
-                              {/* Brand header */}
+                              {/* Brand header — pinned just under the column
+                                  header (top-10 = the thead's h-10) so the
+                                  brand a row belongs to stays visible while
+                                  its products scroll past. The next brand's
+                                  row takes over the slot as it arrives.
+                                  Sticky goes on the cells, not the <tr>:
+                                  Safari does not honor position:sticky on a
+                                  table row, and a stuck cell leaves the row's
+                                  own background behind, so each cell repeats
+                                  colors.header. The pinned Product cell
+                                  outranks its siblings (z-[6] vs z-[5]) so it
+                                  stays on top when they scroll underneath it;
+                                  both outrank the z-[1] cells pinned in the
+                                  rows below, and both stay under the z-10
+                                  thead. */}
                               <tr className={colors.header}>
                                 <td
-                                  className={`sticky left-0 z-[1] ${colors.header} px-4 py-2 text-xs font-bold text-white uppercase tracking-wider`}
+                                  className={`${brandCell} left-0 z-[6] px-4 py-2 text-xs font-bold text-white uppercase tracking-wider`}
                                   style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
                                 >
                                   {brand.brandName}
@@ -368,25 +387,25 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                     {productCount} product{productCount !== 1 ? 's' : ''}
                                   </span>
                                 </td>
-                                <td className={colors.header} />
-                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
+                                <td className={`${brandCell} z-[5]`} />
+                                <td className={`${brandCell} z-[5] px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums`}>
                                   {brand.hasCrates
                                     ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(2))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">{brand.totalQty}</td>
-                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
+                                <td className={`${brandCell} z-[5] px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums`}>{brand.totalQty}</td>
+                                <td className={`${brandCell} z-[5] px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums`}>
                                   {brand.totalLiters != null
                                     ? (Number.isInteger(brand.totalLiters) ? brand.totalLiters : brand.totalLiters.toFixed(2))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
+                                <td className={`${brandCell} z-[5] px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums`}>
                                   {brand.totalKgs != null
                                     ? (Number.isInteger(brand.totalKgs) ? brand.totalKgs : brand.totalKgs.toFixed(2))
                                     : <span className="text-slate-500">—</span>}
                                 </td>
-                                <td className="px-3 py-2 text-center text-xs text-slate-500">—</td>
-                                <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">{formatCurrency(brand.totalValue)}</td>
+                                <td className={`${brandCell} z-[5] px-3 py-2 text-center text-xs text-slate-500`}>—</td>
+                                <td className={`${brandCell} z-[5] px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums`}>{formatCurrency(brand.totalValue)}</td>
                               </tr>
 
                               {brand.categories.map(cat => (
