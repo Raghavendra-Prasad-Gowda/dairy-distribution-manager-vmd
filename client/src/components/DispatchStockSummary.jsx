@@ -2,7 +2,7 @@ import React from 'react';
 import { Package } from 'lucide-react';
 import BrandedLoader from './ui/BrandedLoader';
 import { formatCurrency } from '../utils/dateUtils';
-import { getBrandColors } from '../utils/constants';
+import { getBrandColors, PRODUCT_COL_MIN_WIDTH } from '../utils/constants';
 
 // Whole numbers render plain; anything else shows to 2dp — same convention
 // StockSummary.jsx (the Dairy Stock Summary report) uses for crates/litres/kgs.
@@ -18,10 +18,9 @@ function Dash() {
 // horizontally (same treatment the Salesperson column gets in the Stock
 // Balance Summary report), so a row never loses its label on a narrow phone
 // screen. Every first cell in the table — header, brand row, category row,
-// product row, grand total — carries this width AND an opaque background of
-// its own; without a background the scrolled columns show through the pinned
-// cell.
-const PRODUCT_COL_MIN_WIDTH = 150;
+// product row, grand total — carries PRODUCT_COL_MIN_WIDTH AND an opaque
+// background of its own; without a background the scrolled columns show
+// through the pinned cell.
 
 /**
  * Dispatch Stock Summary — a Brand → Category → Product breakdown of what a
