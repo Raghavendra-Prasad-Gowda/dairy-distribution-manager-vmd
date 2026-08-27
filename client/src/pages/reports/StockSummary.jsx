@@ -3,7 +3,7 @@ import { AlertCircle, Package, ChevronRight, ChevronDown, Printer } from 'lucide
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getIndiaDate, getFirstDayOfMonth, formatCurrency } from '../../utils/dateUtils';
 import { useApiResource } from '../../hooks/useApiResource';
-import { getBrandColors } from '../../utils/constants';
+import { getBrandColors, PRODUCT_COL_MIN_WIDTH } from '../../utils/constants';
 import api from '../../api/axios';
 
 function fmtCrates(qty, upc) {
@@ -319,11 +319,25 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                       {data.rows.length} day{data.rows.length !== 1 ? 's' : ''} · stock received from dairy · tap a product to see route breakdown
                     </p>
                   </div>
+                  {/* Single overflow:auto container so the sticky header row
+                      and the pinned Product column both work. The Product
+                      column stays put while Route and the numeric columns
+                      scroll — same treatment Stock Balance Summary gives its
+                      Salesperson column — so a row never loses its label. Each
+                      first cell needs an opaque background of its own, and the
+                      brand/grand-total rows split their old colSpan={2} cell
+                      in two: a pinned cell spanning Product and Route would
+                      cover Total Crates once scrolled. */}
                   <div className="overflow-auto max-h-[60vh]">
                     <table className="min-w-full text-sm border-separate border-spacing-0">
                       <thead className="bg-emerald-700 sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-2.5 text-left   text-[11px] font-bold text-white uppercase tracking-wider">Product</th>
+                          <th
+                            className="sticky left-0 z-20 bg-emerald-700 px-4 py-2.5 text-left text-[11px] font-bold text-white uppercase tracking-wider border-r border-emerald-600"
+                            style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                          >
+                            Product
+                          </th>
                           <th className="px-3 py-2.5 text-left   text-[11px] font-bold text-white uppercase tracking-wider">Route</th>
                           <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Crates</th>
                           <th className="px-3 py-2.5 text-center text-[11px] font-bold text-white uppercase tracking-wider">Quantity</th>
@@ -345,12 +359,16 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                             <React.Fragment key={brand.brandName}>
                               {/* Brand header */}
                               <tr className={colors.header}>
-                                <td colSpan={2} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                                <td
+                                  className={`sticky left-0 z-[1] ${colors.header} px-4 py-2 text-xs font-bold text-white uppercase tracking-wider`}
+                                  style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                                >
                                   {brand.brandName}
                                   <span className="ml-2 font-normal text-slate-300 normal-case tracking-normal">
                                     {productCount} product{productCount !== 1 ? 's' : ''}
                                   </span>
                                 </td>
+                                <td className={colors.header} />
                                 <td className="px-3 py-2 text-center text-xs font-bold text-slate-200 tabular-nums">
                                   {brand.hasCrates
                                     ? (Number.isInteger(brand.totalCrates) ? brand.totalCrates : brand.totalCrates.toFixed(2))
@@ -376,9 +394,13 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                   {/* Category sub-header — only when brand has multiple categories */}
                                   {multiCategory && (
                                     <tr className="bg-slate-100 border-b border-slate-200">
-                                      <td colSpan={8} className="px-4 py-2 text-left text-xs font-bold text-slate-700">
+                                      <td
+                                        className="sticky left-0 z-[1] bg-slate-100 px-4 py-2 text-left text-xs font-bold text-slate-700"
+                                        style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                                      >
                                         {cat.name}
                                       </td>
+                                      <td colSpan={7} className="bg-slate-100" />
                                     </tr>
                                   )}
 
@@ -394,9 +416,12 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                         {/* Product summary row */}
                                         <tr
                                           onClick={() => multiRoute && toggle(expandKey)}
-                                          className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${multiRoute ? 'cursor-pointer hover:bg-emerald-50/40' : ''}`}
+                                          className={`group border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} ${multiRoute ? 'cursor-pointer hover:bg-emerald-50/40' : ''}`}
                                         >
-                                          <td className="px-4 py-2.5 pl-5">
+                                          <td
+                                            className={`sticky left-0 z-[1] ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${multiRoute ? 'group-hover:bg-emerald-50' : ''} px-4 py-2.5 pl-5 border-r border-slate-100`}
+                                            style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                                          >
                                             <div className="flex items-center gap-1.5">
                                               {multiRoute
                                                 ? (isOpen
@@ -437,7 +462,12 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                                             key={`${expandKey}::${rt.routeNumber ?? ''}`}
                                             className="bg-emerald-50/60 border-b border-emerald-100"
                                           >
-                                            <td className="px-4 py-2 pl-10 text-xs text-slate-500 italic">{p.productName}</td>
+                                            <td
+                                              className="sticky left-0 z-[1] bg-emerald-50 px-4 py-2 pl-10 text-xs text-slate-500 italic border-r border-emerald-100"
+                                              style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                                            >
+                                              {p.productName}
+                                            </td>
                                             <td className="px-3 py-2">
                                               {rt.routeNumber
                                                 ? <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">{rt.routeNumber}</span>
@@ -470,7 +500,13 @@ export default function StockSummary({ shellActiveBrandId, inShell } = {}) {
                       {/* Grand total footer */}
                       <tfoot>
                         <tr className="bg-slate-800">
-                          <td colSpan={2} className="px-4 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider border-r border-slate-600">Grand Total</td>
+                          <td
+                            className="sticky left-0 z-[1] bg-slate-800 px-4 py-3 text-xs font-bold text-slate-300 uppercase tracking-wider"
+                            style={{ minWidth: PRODUCT_COL_MIN_WIDTH }}
+                          >
+                            Grand Total
+                          </td>
+                          <td className="bg-slate-800 border-r border-slate-600" />
                           <td className="px-3 py-3 text-center text-xs font-bold text-white tabular-nums border-r border-slate-600">
                             {grandHasCrates
                               ? (Number.isInteger(grandTotalCrates) ? grandTotalCrates : grandTotalCrates.toFixed(2))

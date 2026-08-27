@@ -234,3 +234,97 @@ describe('StockSummary — print', () => {
     );
   });
 });
+
+describe('StockSummary — pinned Product column', () => {
+  // Route and the numeric columns scroll horizontally; the Product column
+  // stays pinned so a row never loses its label. Every first cell needs
+  // `sticky left-0` AND an opaque background of its own, otherwise the
+  // scrolled columns show through it.
+  const firstCell = (row) => row.querySelector('th, td');
+
+  it('pins the Product header cell with its own opaque background', async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    expect(screen.getByText('Product')).toHaveClass('sticky', 'left-0', 'bg-emerald-700');
+  });
+
+  it('pins the brand header cell and leaves the Route column its own cell', async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    const row = screen.getByText('Nandini').closest('tr');
+    // A pinned cell spanning Product AND Route would cover Total Crates once
+    // scrolled, so the old colSpan={2} cell is split in two.
+    expect(firstCell(row)).toHaveClass('sticky', 'left-0', 'bg-nandini-700');
+    expect(firstCell(row)).not.toHaveAttribute('colspan');
+    expect(row.querySelectorAll('td')).toHaveLength(8);
+  });
+
+  it('pins the category label and keeps the rest of the row spanned', async () => {
+    mockApi({ data: summaryData({
+      receipts: [
+        receipt({ productName: 'Toned Milk', category: 'Milk', categoryDisplayOrder: 0 }),
+        receipt({ productName: 'Curd 200g', category: 'Curd', categoryDisplayOrder: 1, containerType: null, unitSize: null, unitSizeGrams: 200, costPrice: 10, quantity: 5, amount: 50 }),
+      ],
+    }) });
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    const row = screen.getByText('Milk').closest('tr');
+    expect(firstCell(row)).toHaveClass('sticky', 'left-0', 'bg-slate-100');
+    const cells = row.querySelectorAll('td');
+    expect(cells).toHaveLength(2);
+    expect(cells[1]).toHaveAttribute('colspan', '7');
+  });
+
+  it('pins the product name cell with a fully opaque stripe background', async () => {
+    mockApi({ data: summaryData({
+      receipts: [
+        receipt({ productName: 'Even Row' }),
+        receipt({ productName: 'Odd Row', displayOrder: 1, quantity: 5, amount: 100 }),
+      ],
+    }) });
+    render(<StockSummary />);
+    await screen.findByText('Even Row');
+    // bg-slate-50, not the row's translucent bg-slate-50/60 — a see-through
+    // pinned cell would show the scrolled columns underneath it.
+    expect(firstCell(screen.getByText('Even Row').closest('tr'))).toHaveClass('sticky', 'left-0', 'bg-white');
+    expect(firstCell(screen.getByText('Odd Row').closest('tr'))).toHaveClass('sticky', 'left-0', 'bg-slate-50');
+  });
+
+  it('keeps the row hover reaching the pinned cell on an expandable product', async () => {
+    mockApi({ data: summaryData({
+      receipts: [
+        receipt({ routeNumber: 'R1', quantity: 20, amount: 400 }),
+        receipt({ routeNumber: 'R2', quantity: 20, amount: 400 }),
+      ],
+    }) });
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    const row = screen.getByText('Toned Milk').closest('tr');
+    // The pinned cell paints its own background, so the row's hover tint can
+    // only reach it via group-hover.
+    expect(row).toHaveClass('group');
+    expect(firstCell(row)).toHaveClass('group-hover:bg-emerald-50');
+  });
+
+  it('pins the product name on an expanded route sub-row', async () => {
+    mockApi({ data: summaryData({
+      receipts: [
+        receipt({ routeNumber: 'R1', quantity: 20, amount: 400 }),
+        receipt({ routeNumber: 'R2', quantity: 20, amount: 400 }),
+      ],
+    }) });
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    fireEvent.click(screen.getByText('Toned Milk').closest('tr'));
+    const subRowName = screen.getAllByText('Toned Milk').find(el => el.tagName === 'TD');
+    expect(subRowName).toHaveClass('sticky', 'left-0', 'bg-emerald-50');
+  });
+
+  it('pins the Grand Total cell with its own opaque background', async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    const row = screen.getByText('Grand Total').closest('tr');
+    expect(firstCell(row)).toHaveClass('sticky', 'left-0', 'bg-slate-800');
+    expect(row.querySelectorAll('td')).toHaveLength(8);
+  });
+});
