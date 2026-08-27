@@ -2,6 +2,17 @@ export const BRANDS = ['Nandini', 'Jersey', 'Gowardhan'];
 
 export const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque'];
 
+// Width of the pinned Product column in the two Brand → Category → Product
+// tables that scroll horizontally — the Dairy Stock Summary report
+// (StockSummary.jsx) and the Dispatch Stock Summary shared by the admin
+// Salesperson Statement and the salesman's own My Statement
+// (DispatchStockSummary.jsx). Both tables pin their first column the way the
+// Stock Balance Summary report pins Salesperson, so a row never loses its
+// label once the numeric columns scroll off a phone screen. Shared from here
+// because the two tables are deliberate mirrors of each other and a width
+// that drifted between them would misalign them side by side.
+export const PRODUCT_COL_MIN_WIDTH = 150;
+
 // `header` is a solid, dark tone of the same brand color (its Tailwind
 // "700" shade) for a full-width header bar with white text — e.g. the
 // Dispatch Stock Summary report's per-brand row — distinct from `bg`, which
