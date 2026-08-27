@@ -226,15 +226,20 @@ export default function SalespersonStatement() {
       </div>
 
       {/* ── Collapse/expand handle — a prominent floating pill straddling
-           the sidebar's edge, not a thin border-width sliver ─────────── */}
+           the sidebar's edge when open. When collapsed, centering it on
+           the panel's own left edge (x=0) would clip half the circle off
+           the viewport, so it's anchored fully inside instead — and sized
+           up a bit, since it's the only cue the list still exists. ────── */}
       <button
         onClick={() => setSidebarCollapsed(v => !v)}
         title={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
         aria-label={sidebarCollapsed ? 'Show salesperson list' : 'Hide salesperson list'}
-        style={{ left: sidebarCollapsed ? '0px' : '16rem' }}
-        className="absolute top-16 z-20 flex items-center justify-center w-7 h-7 -translate-x-1/2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg ring-2 ring-white transition-[left,background-color] duration-200"
+        style={{ left: sidebarCollapsed ? '6px' : '16rem' }}
+        className={`absolute top-16 z-20 flex items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg ring-2 ring-white transition-[left,background-color] duration-200 ${
+          sidebarCollapsed ? 'w-10 h-10' : 'w-7 h-7 -translate-x-1/2'
+        }`}
       >
-        {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+        {sidebarCollapsed ? <ChevronRight size={19} /> : <ChevronLeft size={15} />}
       </button>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
