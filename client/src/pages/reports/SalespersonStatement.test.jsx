@@ -483,6 +483,44 @@ describe('SalespersonStatement — Dispatch Stock Summary tab', () => {
   });
 });
 
+// ─── Sidebar collapse/expand ────────────────────────────────────────────────
+
+describe('SalespersonStatement — sidebar collapse/expand', () => {
+  const TWO_SP = [
+    { id: 1, name: 'Ramesh Kumar', route: 'Route 3' },
+    { id: 2, name: 'Suresh Babu', route: 'Route 5' },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApi({ salespeople: TWO_SP });
+  });
+
+  it('hides the salesperson list when the collapse rail is clicked, and restores it on click again', async () => {
+    render(<SalespersonStatement />);
+    await screen.findAllByText('Ramesh Kumar');
+    expect(screen.getByRole('button', { name: /Suresh Babu/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Hide salesperson list/i }));
+    expect(screen.queryByRole('button', { name: /Suresh Babu/ })).not.toBeInTheDocument();
+    // Search box (also inside the collapsible panel) is hidden too.
+    expect(screen.queryByPlaceholderText('Search name or route…')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Show salesperson list/i }));
+    expect(screen.getByRole('button', { name: /Suresh Babu/ })).toBeInTheDocument();
+  });
+
+  it('keeps the selected salesperson and statement visible while the sidebar is collapsed', async () => {
+    render(<SalespersonStatement />);
+    await screen.findAllByText('Ramesh Kumar');
+
+    fireEvent.click(screen.getByRole('button', { name: /Hide salesperson list/i }));
+    // Header band + statement content still render.
+    expect(screen.getAllByText('Ramesh Kumar').length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('Totals')).toBeInTheDocument();
+  });
+});
+
 // ─── getInitials ─────────────────────────────────────────────────────────────
 
 describe('SalespersonStatement — initials avatar', () => {
