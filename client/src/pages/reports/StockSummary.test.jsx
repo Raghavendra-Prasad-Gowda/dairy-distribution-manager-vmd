@@ -328,3 +328,33 @@ describe('StockSummary — pinned Product column', () => {
     expect(row.querySelectorAll('td')).toHaveLength(8);
   });
 });
+
+describe('StockSummary — sticky brand row', () => {
+  // The brand row pins under the column header while its products scroll
+  // past. Sticky lives on the cells rather than the <tr> (Safari ignores
+  // position:sticky on a table row), and a stuck cell leaves the row's
+  // background behind — so every cell repeats the brand color itself.
+  it('pins every cell of the brand row under the header', async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    const cells = [...screen.getByText('Nandini').closest('tr').querySelectorAll('td')];
+    expect(cells).toHaveLength(8);
+    cells.forEach((cell) => {
+      expect(cell).toHaveClass('sticky', 'top-10', 'bg-nandini-700');
+    });
+  });
+
+  it('keeps the pinned Product cell above its scrolling siblings', async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    const cells = [...screen.getByText('Nandini').closest('tr').querySelectorAll('td')];
+    expect(cells[0]).toHaveClass('left-0', 'z-[6]');
+    cells.slice(1).forEach((cell) => expect(cell).toHaveClass('z-[5]'));
+  });
+
+  it('locks the header row height the brand row offset is measured against', async () => {
+    render(<StockSummary />);
+    await screen.findByText('Toned Milk');
+    expect(screen.getByText('Product').closest('tr')).toHaveClass('h-10');
+  });
+});
