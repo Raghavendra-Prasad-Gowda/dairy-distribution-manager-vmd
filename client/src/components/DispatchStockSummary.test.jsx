@@ -266,3 +266,33 @@ describe('DispatchStockSummaryView — pinned Product column', () => {
     expect(cell).toHaveClass('sticky', 'left-0', 'bg-slate-800');
   });
 });
+
+describe('DispatchStockSummaryView — sticky brand row', () => {
+  // The brand row pins under the column header while its products scroll
+  // past, so a row's brand is never off-screen. Sticky lives on the cells
+  // rather than the <tr> (Safari ignores position:sticky on a table row),
+  // and a stuck cell leaves the row's background behind — so every cell in
+  // the row has to repeat the brand color itself.
+  it('pins every cell of the brand row under the header', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    const cells = [...screen.getByText(/Nandini/).closest('tr').querySelectorAll('td')];
+    expect(cells).toHaveLength(6);
+    cells.forEach((cell) => {
+      expect(cell).toHaveClass('sticky', 'top-10', 'bg-nandini-700');
+    });
+  });
+
+  it('keeps the pinned Product cell above its scrolling siblings', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    const cells = [...screen.getByText(/Nandini/).closest('tr').querySelectorAll('td')];
+    expect(cells[0]).toHaveClass('left-0', 'z-[6]');
+    cells.slice(1).forEach((cell) => expect(cell).toHaveClass('z-[5]'));
+  });
+
+  it('locks the header row height the brand row offset is measured against', () => {
+    render(<DispatchStockSummaryView summary={summary()} />);
+    // top-10 on the brand cells only lands right under the header while the
+    // header row stays h-10.
+    expect(screen.getByText('Product').closest('tr')).toHaveClass('h-10');
+  });
+});
