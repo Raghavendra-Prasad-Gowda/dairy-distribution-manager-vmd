@@ -37,11 +37,8 @@ vi.mock('../../components/ui/BrandedLoader', () => ({
   TumblerSpinner: () => <span data-testid="tumbler" />,
 }));
 
-const BRAND = { id: 1, name: 'Nandini' };
-
 function mockApi({ availability = [], dispatch = null } = {}) {
   vi.mocked(api.get).mockImplementation((url) => {
-    if (url.includes('/brands'))                     return Promise.resolve({ data: { data: [BRAND] } });
     if (url.includes('/stock-receipts/availability')) return Promise.resolve({ data: { data: availability } });
     if (url.includes('/reports/daily-dispatch'))     return Promise.resolve({ data: { data: dispatch } });
     return Promise.resolve({ data: { data: [] } });
@@ -178,5 +175,21 @@ describe('StockBalanceSummary — dispatcher access', () => {
     await screen.findByText('Ramesh');
     expect(screen.getAllByText('Supply').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Shortage').length).toBeGreaterThan(0);
+  });
+
+  // GET /brands is admin-only (routes/brands.js), while this page is reached
+  // by dispatchers too. It must derive its brand tabs from the daily-dispatch
+  // response instead of calling /brands directly — otherwise a dispatcher's
+  // 403 on that call broke the whole page ("Failed to load brands").
+  it('never calls the admin-only /brands endpoint', async () => {
+    mockApi({
+      availability: [{ brandId: 1, productId: 10, received: 50 }],
+      dispatch: DISPATCH_DATA,
+    });
+    render(<StockBalanceSummary />);
+
+    await screen.findByText('Ramesh');
+    const calledUrls = vi.mocked(api.get).mock.calls.map(([url]) => url);
+    expect(calledUrls.some(url => url.includes('/brands'))).toBe(false);
   });
 });

@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlertCircle, Warehouse } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate } from '../../utils/dateUtils';
 import { useApiResources } from '../../hooks/useApiResources';
-import api from '../../api/axios';
 
 // Whole crate counts render plain; a partial crate shows to 2 decimal
 // places — the same precision level as every other crate figure in the app.
@@ -14,31 +13,38 @@ function formatCrates(crates) {
 }
 
 export default function StockBalanceSummary() {
-  const [date, setDate]                   = useState(getIndiaDate());
-  const [brands, setBrands]               = useState([]);
-  const [activeBrandId, setActiveBrandId] = useState(null);
-  const [brandsError, setBrandsError]     = useState('');
+  const [date, setDate]                     = useState(getIndiaDate());
+  const [selectedBrandId, setSelectedBrandId] = useState(null);
   const [showEmptyProducts, setShowEmptyProducts] = useState(false);
-
-  useEffect(() => {
-    api.get('/brands')
-      .then(r => {
-        const b = r.data.data ?? [];
-        setBrands(b);
-        if (b.length > 0) setActiveBrandId(b[0].id);
-      })
-      .catch(() => setBrandsError('Failed to load brands'));
-  }, []);
 
   // A monotonic request-id inside useApiResources drops a slow, now-stale
   // response if the date changes again before it lands — the same
   // protection the old cancelled-flag effect gave, now built into the hook.
-  const { data, loading, error: fetchError } = useApiResources(
+  const { data, loading, error } = useApiResources(
     [`/stock-receipts/availability?date=${date}`, `/reports/daily-dispatch?date=${date}&includeReceipts=1`],
     { initialData: [[], null], notifyOnError: false }
   );
   const [availData, dispatchData] = data;
-  const error = fetchError || brandsError;
+
+  // Brand tabs are derived from the daily-dispatch response rather than a
+  // separate GET /brands call: /brands is admin-only (see routes/brands.js),
+  // but this page is also reachable by a dispatcher (requireAdminOrDispatcher
+  // on /reports/daily-dispatch), so fetching /brands directly used to 403 for
+  // that role and break the whole page with "Failed to load brands" even
+  // though the dispatch data itself loaded fine.
+  const brands = useMemo(
+    () => (dispatchData?.brands ?? []).map(b => ({ id: b.brandId, name: b.brandName })),
+    [dispatchData]
+  );
+
+  // Falls back to the first brand whenever the current selection isn't (or
+  // is no longer) in the list — e.g. before any dispatch data has loaded, or
+  // if a previously-selected brand has no activity for the picked date.
+  // Derived instead of synced via an effect so there's no extra render.
+  const activeBrandId = useMemo(() => {
+    if (brands.some(b => b.id === selectedBrandId)) return selectedBrandId;
+    return brands[0]?.id ?? null;
+  }, [brands, selectedBrandId]);
 
   // Column definitions — products for the active brand
   const products = useMemo(() => {
@@ -173,7 +179,7 @@ export default function StockBalanceSummary() {
 
       {/* Brand strip */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex-shrink-0">
-        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setActiveBrandId} />
+        <BrandTabs brands={brands} activeBrandId={activeBrandId} onChange={setSelectedBrandId} />
       </div>
 
       {loading ? (
