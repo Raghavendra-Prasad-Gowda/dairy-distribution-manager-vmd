@@ -40,7 +40,14 @@ const dailyDispatch = asyncHandler(async (req, res) => {
       }
     : { isActive: true, showInStockReceipt: true, salespersonEnabled: true, brand: { isActive: true } };
 
-  const [dispatches, allProducts, allCategories] = await Promise.all([
+  // Salespeople with no dispatch row for this date need to surface as blank
+  // "No entry" rows so the sidebar reflects who is still pending — for every
+  // role that can see the sheet, not just admin. This used to be assembled
+  // client-side from a separate /salespeople call, but that endpoint is
+  // admin-only and 403s for a dispatcher, so a dispatcher never saw the
+  // no-entry names. Resolving it here instead means both roles get the same
+  // list from the one endpoint they already share.
+  const [dispatches, allProducts, allCategories, allSalespeople] = await Promise.all([
     prisma.stockDispatch.findMany({
       where: dispatchWhere,
       include: {
@@ -59,6 +66,13 @@ const dailyDispatch = asyncHandler(async (req, res) => {
       orderBy: [{ brand: { displayOrder: 'asc' } }, { displayOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
+    req.user.role === 'salesman'
+      ? Promise.resolve([])
+      : prisma.salesperson.findMany({
+          where: { isActive: true },
+          orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true },
+        }),
   ]);
 
   // Always sort by brand → category → product displayOrder → name.
@@ -115,9 +129,26 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     };
   });
 
+  // Append blank rows for active salespeople who have no dispatch this date —
+  // after the entered rows, in the same displayOrder/name ordering as the
+  // /salespeople list they used to be assembled from client-side.
+  const dispatchedIds = new Set(rows.map(r => r.salespersonId));
+  const blankRows = allSalespeople
+    .filter(s => !dispatchedIds.has(s.id))
+    .map(s => ({
+      salespersonId:   s.id,
+      salespersonName: s.name,
+      items:           {},
+      totalAmount:     0,
+      dispatchId:      null,
+      isSubmitted:     false,
+      isAdminUnlocked: false,
+      isLocked:        isPastDate,
+    }));
+
   const isDayFinalized = await isDayFinalizedForDispatcher(date, getIndiaDateStr());
 
-  res.json({ success: true, data: { date, brands, rows, totals: productTotals, isDayFinalized } });
+  res.json({ success: true, data: { date, brands, rows: [...rows, ...blankRows], totals: productTotals, isDayFinalized } });
 });
 
 module.exports = { dailyDispatch };
