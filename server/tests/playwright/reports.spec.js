@@ -1036,8 +1036,12 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
   // category.findMany is now always called (the category-aware sort runs for
   // both the dispatch sheet and the includeReceipts view). Default to an empty
   // list so existing tests that don't exercise category ordering still pass.
+  // salesperson.findMany is also always called (for admin/dispatcher) to
+  // synthesize blank "No entry" rows — default to empty so existing tests
+  // that don't exercise that behavior still pass.
   test.beforeEach(() => {
     ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([]);
   });
 
   test('returns 403 when no token is provided', async ({ request }) => {
@@ -1284,4 +1288,50 @@ test.describe('GET /api/v1/reports/daily-dispatch', () => {
     const body = await res.json();
     expect(body.data.isDayFinalized).toBe(true);
   });
+
+  // ── Blank "No entry" rows ─────────────────────────────────────────────
+  // Previously assembled client-side from a separate, admin-only /salespeople
+  // call — which 403s for a dispatcher, so a dispatcher never saw who hadn't
+  // entered anything. Now the report itself appends these rows, for both
+  // roles that can read it.
+
+  test('appends a blank "No entry" row for an active salesperson with no dispatch that date', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([
+      {
+        id: 1, totalAmount: 100, isSubmitted: true, isAdminUnlocked: false,
+        salesperson: { id: 1, name: 'Alice' },
+        items: [{ productId: 1, product: { id: 1, brandId: 1 }, quantity: 5, unitPrice: 40 }],
+      },
+    ]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.rows).toHaveLength(2);
+    const blank = body.data.rows.find(r => r.salespersonId === 2);
+    expect(blank).toMatchObject({
+      salespersonName: 'Bob', totalAmount: 0, dispatchId: null, isSubmitted: false,
+    });
+  });
+
+  test('blank rows are also returned for a dispatcher token, same as admin', async ({ request }) => {
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockResolvedValue(ACTIVE_PRODUCTS);
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([{ id: 3, name: 'Carol' }]);
+
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
+      headers: { Authorization: `Bearer ${makeDispatcherToken()}` },
+    });
+    const body = await res.json();
+    expect(body.data.rows).toEqual([
+      expect.objectContaining({ salespersonId: 3, salespersonName: 'Carol', totalAmount: 0, dispatchId: null }),
+    ]);
+  });
+
 });

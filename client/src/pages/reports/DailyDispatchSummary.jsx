@@ -43,38 +43,21 @@ export default function DailyDispatchSummary() {
   // expand a brand row landing in that window would get silently reverted
   // when the stale effect finally fired.
 
-  // Dispatchers can't open blank rows for entry, so skip the /salespeople
-  // call — it's admin-only and would return 403 for a dispatcher.
+  // Salespeople with no dispatch row for this date come back from the API
+  // already as blank rows (see server/controllers/reports/dailyDispatch.js) —
+  // admin and dispatcher both get the full list from this one endpoint, so
+  // there's no separate /salespeople call (admin-only, 403s for a dispatcher)
+  // to merge in client-side.
   const { data, loading, error, refetch: fetchData } = useApiResources(
-    [`/reports/daily-dispatch?date=${date}`, isDispatcher ? null : '/salespeople'],
+    [`/reports/daily-dispatch?date=${date}`],
     {
       notifyOnError: false,
-      select: ([d, sp]) => {
-        // Salespeople with no dispatch row for this date don't appear in
-        // d.rows at all — surface them as blank rows so an admin can still
-        // select them and open the date for entry. Dispatchers don't get
-        // this: they can't open dates for entry, and they don't have
-        // access to /salespeople.
-        const blankRows = sp
-          ? (sp ?? [])
-              .filter(s => !new Set(d.rows.map(r => r.salespersonId)).has(s.id))
-              .map(s => ({
-                salespersonId:   s.id,
-                salespersonName: s.name,
-                items:           {},
-                totalAmount:     0,
-                dispatchId:      null,
-                isSubmitted:     false,
-                isAdminUnlocked: false,
-                isLocked:        date < getIndiaDate(),
-              }))
-          : [];
-        const merged = { ...d, rows: [...d.rows, ...blankRows] };
-        const autoId = merged.rows.find(row => row.totalAmount > 0)?.salespersonId
-                       ?? merged.rows[0]?.salespersonId ?? null;
+      select: ([d]) => {
+        const autoId = d.rows.find(row => row.totalAmount > 0)?.salespersonId
+                       ?? d.rows[0]?.salespersonId ?? null;
         setSelectedSpId(autoId);
         setCollapsedBrands({});
-        return merged;
+        return d;
       },
     }
   );

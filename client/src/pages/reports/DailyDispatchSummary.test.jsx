@@ -3,10 +3,10 @@
  *
  * Covers the two-panel layout: left sidebar salesperson list (search, "No
  * entry" state, auto-select of the first row with a total, and blank rows
- * synthesized for salespeople with no dispatch row that date), the right
- * panel's brand/product breakdown (Entered-only vs All-products toggle,
- * brand collapse/expand, brand + grand totals), and the lock/unlock and
- * open-for-entry confirmation flows.
+ * the API synthesizes for salespeople with no dispatch row that date), the
+ * right panel's brand/product breakdown (Entered-only vs All-products
+ * toggle, brand collapse/expand, brand + grand totals), and the lock/unlock
+ * and open-for-entry confirmation flows.
  */
 
 import React from 'react';
@@ -60,12 +60,21 @@ function row(overrides) {
   };
 }
 
-const SALESPEOPLE = [{ id: 1, name: 'Ramu K' }];
+// Shape of the blank "No entry" row the API now synthesizes server-side for
+// a salesperson with no dispatch that date (see dailyDispatch.js) — used to
+// appear via a separate client-side merge with an admin-only /salespeople
+// call; now it's just another row in the report response, for every role.
+function blankRow(overrides) {
+  return {
+    salespersonId: 1, salespersonName: 'Ramu K',
+    items: {}, totalAmount: 0, dispatchId: null, isSubmitted: false, isAdminUnlocked: false, isLocked: false,
+    ...overrides,
+  };
+}
 
-function mockApi({ rows = [row()], brands = [brand()], salespeople = SALESPEOPLE, isDayFinalized = false } = {}) {
+function mockApi({ rows = [row()], brands = [brand()], isDayFinalized = false } = {}) {
   vi.mocked(api.get).mockImplementation((url) => {
     if (url.includes('/reports/daily-dispatch')) return Promise.resolve({ data: { data: { rows, brands, isDayFinalized } } });
-    if (url.includes('/salespeople'))            return Promise.resolve({ data: { data: salespeople } });
     return Promise.resolve({ data: { data: [] } });
   });
 }
@@ -91,8 +100,11 @@ describe('DailyDispatchSummary — sidebar', () => {
     expect(await screen.findByText('Toned Milk')).toBeInTheDocument();
   });
 
-  it('synthesizes a blank "No entry" row for a salesperson with no dispatch that date', async () => {
-    mockApi({ rows: [], salespeople: [{ id: 1, name: 'Ramu K' }, { id: 2, name: 'Suresh M' }] });
+  it('renders the blank "No entry" rows the API synthesizes for salespeople with no dispatch that date', async () => {
+    mockApi({ rows: [
+      blankRow({ salespersonId: 1, salespersonName: 'Ramu K' }),
+      blankRow({ salespersonId: 2, salespersonName: 'Suresh M' }),
+    ] });
     render(<DailyDispatchSummary />);
     await screen.findByText('Suresh M');
     expect(screen.getAllByText('No entry').length).toBe(2);
@@ -185,7 +197,7 @@ describe('DailyDispatchSummary — product table', () => {
   });
 
   it('shows "No dispatch entry for this date" for a blank row', async () => {
-    mockApi({ rows: [], salespeople: [{ id: 1, name: 'Ramu K' }] });
+    mockApi({ rows: [blankRow()] });
     render(<DailyDispatchSummary />);
     expect(await screen.findByText('No dispatch entry for this date')).toBeInTheDocument();
   });
@@ -307,7 +319,7 @@ describe('DailyDispatchSummary — lock / unlock', () => {
 
 describe('DailyDispatchSummary — open for entry', () => {
   it('offers "Open for Entry" for a past date with no dispatch row, and posts on confirm', async () => {
-    mockApi({ rows: [], salespeople: [{ id: 1, name: 'Ramu K' }] });
+    mockApi({ rows: [blankRow({ salespersonId: 1, salespersonName: 'Ramu K' })] });
     render(<DailyDispatchSummary />);
     await screen.findByText('No dispatch entry for this date');
     fireEvent.click(screen.getByText('change-date')); // navigates to a past date (2026-08-05)
@@ -323,12 +335,15 @@ describe('DailyDispatchSummary — open for entry', () => {
   });
 });
 
-// ─── Dispatcher: /salespeople not called ──────────────────────────────────────
+// ─── Blank "No entry" rows: same source for every role ─────────────────────
+//
+// The report endpoint (readable by both admin and dispatcher) now synthesizes
+// blank rows itself, so there's no separate /salespeople call (admin-only,
+// 403s for a dispatcher) to merge client-side — and a dispatcher sees the
+// same no-entry names an admin does.
 
-describe('DailyDispatchSummary — dispatcher skips /salespeople fetch', () => {
-  beforeEach(() => { mockRole = 'dispatcher'; });
-
-  it('does not call GET /salespeople when the user is a dispatcher', async () => {
+describe('DailyDispatchSummary — blank rows come from the report endpoint only', () => {
+  it('never calls GET /salespeople, for admin or dispatcher', async () => {
     mockApi({ rows: [row()], isDayFinalized: false });
     render(<DailyDispatchSummary />);
     await screen.findByText('Nandini');
@@ -338,12 +353,21 @@ describe('DailyDispatchSummary — dispatcher skips /salespeople fetch', () => {
   });
 
   it('still loads dispatch data without error when user is dispatcher', async () => {
+    mockRole = 'dispatcher';
     mockApi({ rows: [row()], isDayFinalized: false });
     render(<DailyDispatchSummary />);
     await screen.findByText('Nandini');
     // Salesperson name appears in both the sidebar list and the right-panel
     // sub-header — use getAllByText so both occurrences are acceptable.
     expect(screen.getAllByText('Ramu K').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows blank "No entry" rows for a dispatcher too, same as admin', async () => {
+    mockRole = 'dispatcher';
+    mockApi({ rows: [row(), blankRow({ salespersonId: 2, salespersonName: 'Suresh M' })] });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Suresh M');
+    expect(screen.getByText('No entry')).toBeInTheDocument();
   });
 });
 
