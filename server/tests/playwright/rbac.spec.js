@@ -147,6 +147,7 @@ test.describe('RBAC — dispatcher access', () => {
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     ctx.mockPrisma.product.findMany.mockResolvedValue([]);
     ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([]);
     ctx.mockPrisma.dispatchDayFinalization.findUnique.mockResolvedValue(null);
     const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-04-30', {
       headers: { Authorization: `Bearer ${dispatcherToken()}` },
