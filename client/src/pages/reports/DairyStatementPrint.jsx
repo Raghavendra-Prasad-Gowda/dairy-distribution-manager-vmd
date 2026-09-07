@@ -36,6 +36,10 @@ export default function DairyStatementPrint() {
   const totalBill   = rows?.reduce((s, r) => s + r.stockValue + (r.depositValue ?? 0), 0) ?? 0;
   const totalPaid   = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing     = rows?.length ? rows[rows.length - 1].closingBalance : 0;
+  // Top-ups ADD to the closing balance, so the printed sheet must show them
+  // or its own columns won't reconcile. Column appears only when non-zero.
+  const totalTopUp  = rows?.reduce((s, r) => s + Number(r.topUpAmount ?? 0), 0) ?? 0;
+  const showTopUp   = totalTopUp !== 0;
 
   return (
     <>
@@ -99,6 +103,7 @@ export default function DairyStatementPrint() {
                 <th style={{ textAlign: 'left', width: '16%' }}>Date</th>
                 <th className="right">Opening (₹)</th>
                 <th className="right">Bill (₹)</th>
+                {showTopUp && <th className="right">Old Bal (₹)</th>}
                 <th className="right">Paid (₹)</th>
                 <th className="right">Closing (₹)</th>
               </tr>
@@ -111,6 +116,7 @@ export default function DairyStatementPrint() {
                     <td>{formatDateShortNoYear(row.date)}</td>
                     <td className="right">{formatCurrency(row.openingBalance)}</td>
                     <td className="right">{formatCurrency(row.stockValue + (row.depositValue ?? 0))}</td>
+                    {showTopUp && <td className="right">{formatCurrency(Number(row.topUpAmount ?? 0))}</td>}
                     <td className="right">{formatCurrency(row.amountPaid)}</td>
                     <td className="right" style={{ fontWeight: 700, color: owing ? '#dc2626' : '#059669' }}>
                       {formatCurrency(row.closingBalance)}
@@ -124,6 +130,7 @@ export default function DairyStatementPrint() {
                 <td>TOTAL</td>
                 <td />
                 <td className="right">{formatCurrency(totalBill)}</td>
+                {showTopUp && <td className="right">{formatCurrency(totalTopUp)}</td>}
                 <td className="right">{formatCurrency(totalPaid)}</td>
                 <td className="right" style={{ color: closing > 0 ? '#fca5a5' : '#86efac' }}>
                   {formatCurrency(closing)}

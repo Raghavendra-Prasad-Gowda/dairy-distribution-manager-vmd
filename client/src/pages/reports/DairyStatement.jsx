@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, AlertCircle, FileText, Wallet } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -71,13 +71,14 @@ function ReceiptsDetail({ receipts }) {
   );
 }
 
-function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
+function ExpandableRow({ row, open, onToggle, selectedRouteId, showTopUp }) {
   const isOwing  = row.closingBalance > 0;
   const isCredit = row.closingBalance < 0;
+  const topUp    = Number(row.topUpAmount ?? 0);
   const visibleReceipts = selectedRouteId
     ? (row.receipts ?? []).filter(r => String(r.routeId) === String(selectedRouteId))
     : row.receipts;
-  const hasDetail = visibleReceipts?.length > 0 || row.payments?.length > 0;
+  const hasDetail = visibleReceipts?.length > 0 || row.payments?.length > 0 || row.topUps?.length > 0;
   const billDisplay = selectedRouteId
     ? visibleReceipts.reduce((s, r) => s + r.amount, 0)
     : row.stockValue + (row.depositValue ?? 0);
@@ -96,6 +97,11 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
         <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
           {formatCurrency(billDisplay)}
         </td>
+        {showTopUp && (
+          <td className="px-4 py-2.5 text-right text-xs text-amber-600 tabular-nums whitespace-nowrap">
+            {topUp !== 0 ? formatCurrency(topUp) : <span className="text-slate-300">—</span>}
+          </td>
+        )}
         {!selectedRouteId && (
           <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
             {formatCurrency(row.amountPaid)}
@@ -112,7 +118,7 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
       </tr>
       {open && hasDetail && (
         <tr>
-          <td colSpan={selectedRouteId ? 4 : 6} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
+          <td colSpan={selectedRouteId ? 4 : (showTopUp ? 7 : 6)} className="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
             <div className="space-y-3">
               {visibleReceipts?.length > 0 && (
                 <div>
@@ -122,6 +128,21 @@ function ExpandableRow({ row, open, onToggle, selectedRouteId }) {
               )}
               {selectedRouteId && visibleReceipts?.length === 0 && row.receipts?.length > 0 && (
                 <p className="text-xs text-slate-400 italic">No receipts for this route on this date</p>
+              )}
+              {row.topUps?.length > 0 && (
+                <div>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-1.5">
+                    <Wallet size={12} className="text-amber-600" /> Old Balance Added
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {row.topUps.map((t, i) => (
+                      <span key={i} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                        {formatCurrency(t.amount)} by {t.createdBy || 'admin'}
+                        {t.notes ? ` — ${t.notes}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
               {row.payments?.length > 0 && (
                 <div>
@@ -174,7 +195,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
 
   // Use date strings as keys so filtering doesn't break expanded-state indices.
   const expandableDates = visibleRows
-    .filter(r => r.receipts?.length > 0 || r.payments?.length > 0)
+    .filter(r => r.receipts?.length > 0 || r.payments?.length > 0 || r.topUps?.length > 0)
     .map(r => r.date);
   const allExpanded = expandableDates.length > 0 && expandableDates.every(d => expandedRows.has(d));
 
@@ -219,6 +240,11 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
   }, [activeBrandId]);
 
   const closingBalance = rows.length ? rows[rows.length - 1].closingBalance : 0;
+  // Top-ups ADD to what is owed to the brand, so the closing balance already
+  // contains them. Shown only when the range has any, and never in the
+  // route-filtered view — a top-up belongs to the brand, not to one route.
+  const totalTopUp = rows.reduce((s, r) => s + Number(r.topUpAmount ?? 0), 0);
+  const showTopUp  = !selectedRouteId && totalTopUp !== 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -327,6 +353,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                 <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Bill</th>
+                {showTopUp && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Old Balance</th>}
                 {!selectedRouteId && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Paid</th>}
                 {!selectedRouteId && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Closing</th>}
                 <th className="px-4 py-3 w-8" />
@@ -334,15 +361,15 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
             </thead>
             <tbody className="bg-white">
               {loading ? (
-                <tr><td colSpan={selectedRouteId ? 4 : 6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+                <tr><td colSpan={selectedRouteId ? 4 : (showTopUp ? 7 : 6)}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
               ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={selectedRouteId ? 4 : 6} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={selectedRouteId ? 4 : (showTopUp ? 7 : 6)} className="py-12 text-center text-slate-400 text-sm">
                     {selectedRouteId ? 'No receipts for this route in the selected period' : 'No data for this period'}
                   </td>
                 </tr>
               ) : (
-                visibleRows.map(row => <ExpandableRow key={row.date} row={row} open={expandedRows.has(row.date)} onToggle={() => toggleRow(row.date)} selectedRouteId={selectedRouteId} />)
+                visibleRows.map(row => <ExpandableRow key={row.date} row={row} open={expandedRows.has(row.date)} onToggle={() => toggleRow(row.date)} selectedRouteId={selectedRouteId} showTopUp={showTopUp} />)
               )}
             </tbody>
             {visibleRows.length > 0 && !loading && (() => {
@@ -356,6 +383,7 @@ export default function DairyStatement({ shellActiveBrandId, shellBrands } = {})
                     <td className="px-4 py-3 text-xs font-bold text-white uppercase tracking-wider">Total</td>
                     <td className="px-4 py-3" />
                     <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalBill)}</td>
+                    {showTopUp && <td className="px-4 py-3 text-right text-xs font-bold text-amber-200 tabular-nums">{formatCurrency(totalTopUp)}</td>}
                     {!selectedRouteId && <td className="px-4 py-3 text-right text-xs font-bold text-white tabular-nums">{formatCurrency(totalPaid)}</td>}
                     {!selectedRouteId && <td className="px-4 py-3" />}
                     <td className="px-4 py-3" />

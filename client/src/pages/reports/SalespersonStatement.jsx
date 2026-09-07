@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
@@ -7,9 +7,10 @@ import { useApiResource } from '../../hooks/useApiResource';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
 import api from '../../api/axios';
 
-function ExpandableRow({ row, open, onToggle }) {
+function ExpandableRow({ row, open, onToggle, showTopUp }) {
   const isOwing  = row.closingBalance > 0;
   const isCredit = row.closingBalance < 0;
+  const topUp    = Number(row.topUpAmount ?? 0);
   return (
     <React.Fragment>
       <tr
@@ -25,6 +26,11 @@ function ExpandableRow({ row, open, onToggle }) {
         <td className="px-4 py-2.5 text-right text-xs text-blue-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.stockGiven)}
         </td>
+        {showTopUp && (
+          <td className="px-4 py-2.5 text-right text-xs text-amber-600 tabular-nums whitespace-nowrap">
+            {topUp !== 0 ? formatCurrency(topUp) : <span className="text-slate-300">—</span>}
+          </td>
+        )}
         <td className="px-4 py-2.5 text-right text-xs text-emerald-600 tabular-nums whitespace-nowrap">
           {formatCurrency(row.amountPaid)}
         </td>
@@ -35,9 +41,9 @@ function ExpandableRow({ row, open, onToggle }) {
           {open ? <ChevronDown size={13} className="ml-auto" /> : <ChevronRight size={13} className="ml-auto" />}
         </td>
       </tr>
-      {open && (row.items?.length > 0 || row.payments?.length > 0) && (
+      {open && (row.items?.length > 0 || row.payments?.length > 0 || row.topUps?.length > 0) && (
         <tr>
-          <td colSpan={6} className="px-4 py-3 bg-emerald-50/50 border-b border-slate-100">
+          <td colSpan={showTopUp ? 7 : 6} className="px-4 py-3 bg-emerald-50/50 border-b border-slate-100">
             <div className="space-y-3">
               {row.items?.length > 0 && (
                 <div>
@@ -49,6 +55,21 @@ function ExpandableRow({ row, open, onToggle }) {
                         <span className="text-right text-slate-500">{item.quantity} × ₹{item.unitPrice}</span>
                         <span className="text-right font-semibold text-slate-700">{formatCurrency(item.totalAmount)}</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {row.topUps?.length > 0 && (
+                <div>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-1.5">
+                    <Wallet size={12} className="text-amber-600" /> Old Balance Added
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {row.topUps.map((t, i) => (
+                      <span key={i} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                        {formatCurrency(t.amount)} by {t.createdBy || 'admin'}
+                        {t.notes ? ` — ${t.notes}` : ''}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -108,7 +129,7 @@ export default function SalespersonStatement() {
   const error = reportError || spError;
 
   const expandableIndices = rows.reduce((acc, r, i) => {
-    if (r.items?.length > 0 || r.payments?.length > 0) acc.push(i);
+    if (r.items?.length > 0 || r.payments?.length > 0 || r.topUps?.length > 0) acc.push(i);
     return acc;
   }, []);
   const allExpanded = expandableIndices.length > 0 && expandableIndices.every(i => expandedRows.has(i));
@@ -136,6 +157,12 @@ export default function SalespersonStatement() {
   const closingBalance  = rows.length ? rows[rows.length - 1].closingBalance : 0;
   const totalGiven      = rows.reduce((s, r) => s + r.stockGiven,  0);
   const totalCollected  = rows.reduce((s, r) => s + r.amountPaid,  0);
+  // Top-ups ADD to what the salesman owes, so the closing balance already
+  // contains them. Surfacing the column only when there is something to show
+  // keeps the usual statement unchanged, while making the arithmetic
+  // (opening + given + top-ups − collected = due) visible whenever it matters.
+  const totalTopUp      = rows.reduce((s, r) => s + Number(r.topUpAmount ?? 0), 0);
+  const showTopUp       = totalTopUp !== 0;
   const selectedSpObj   = salespeople.find(sp => String(sp.id) === String(selectedSp));
 
   const dispatchSummary = useMemo(() => buildDispatchStockSummary(rows), [rows]);
@@ -346,6 +373,7 @@ export default function SalespersonStatement() {
                       <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Date</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Opening</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Given</th>
+                      {showTopUp && <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Old Balance</th>}
                       <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Collected</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-white uppercase tracking-wider">Due</th>
                       <th className="px-4 py-3 w-8" />
@@ -353,13 +381,13 @@ export default function SalespersonStatement() {
                   </thead>
                   <tbody className="bg-white">
                     {loading ? (
-                      <tr><td colSpan={6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
+                      <tr><td colSpan={showTopUp ? 7 : 6}><BrandedLoader size="sm" hideBrand inlinePadY="py-12" /></td></tr>
                     ) : rows.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
+                        <td colSpan={showTopUp ? 7 : 6} className="py-12 text-center text-slate-400 text-sm">No data for this period</td>
                       </tr>
                     ) : (
-                      rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} />)
+                      rows.map((row, i) => <ExpandableRow key={i} row={row} open={expandedRows.has(i)} onToggle={() => toggleRow(i)} showTopUp={showTopUp} />)
                     )}
                   </tbody>
                   {rows.length > 0 && (
@@ -368,6 +396,7 @@ export default function SalespersonStatement() {
                         <td className="px-4 py-3 bg-slate-700 text-xs font-bold text-white uppercase tracking-wider">Totals</td>
                         <td className="px-4 py-3 bg-slate-700 text-right text-xs text-slate-400">—</td>
                         <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-blue-300 tabular-nums">{formatCurrency(totalGiven)}</td>
+                        {showTopUp && <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-amber-300 tabular-nums">{formatCurrency(totalTopUp)}</td>}
                         <td className="px-4 py-3 bg-slate-700 text-right text-xs font-bold text-emerald-300 tabular-nums">{formatCurrency(totalCollected)}</td>
                         <td className={`px-4 py-3 bg-slate-700 text-right text-xs font-bold tabular-nums ${closingBalance > 0 ? 'text-red-300' : closingBalance < 0 ? 'text-violet-300' : 'text-emerald-300'}`}>
                           {formatCurrency(closingBalance)}

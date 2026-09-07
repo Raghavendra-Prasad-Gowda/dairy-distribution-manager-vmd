@@ -54,6 +54,10 @@ const dairyStatement = asyncHandler(async (req, res) => {
       openingBalance: Number(b.openingBalance),
       stockValue:     Number(b.stockValue),
       depositValue:   Number(b.depositValue ?? 0),
+      // Part of the closing formula (opening + stockValue + depositValue +
+      // topUpAmount − amountPaid), so it MUST be returned: without it the row
+      // cannot be reconciled and "bill − paid" silently misses the top-up.
+      topUpAmount:    Number(b.topUpAmount ?? 0),
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       receipts: (receiptsByDate.get(key) ?? []).map((r) => ({
@@ -64,11 +68,23 @@ const dairyStatement = asyncHandler(async (req, res) => {
         routeId:     r.routeId,
         routeNumber: r.routeId !== 0 ? (routeMap.get(r.routeId) ?? null) : null,
       })),
-      payments: (paymentsByDate.get(key) ?? []).map((p) => ({
-        amount: Number(p.amount),
-        mode:   p.paymentMode,
-        ref:    p.reference,
-      })),
+      // Top-ups are admin-loaded pre-existing dues owed to this brand — they
+      // ADD to the balance. Listing them among payments made would both
+      // overstate what was paid and leave the row unable to add up.
+      payments: (paymentsByDate.get(key) ?? [])
+        .filter((p) => !p.isTopUp)
+        .map((p) => ({
+          amount: Number(p.amount),
+          mode:   p.paymentMode,
+          ref:    p.reference,
+        })),
+      topUps: (paymentsByDate.get(key) ?? [])
+        .filter((p) => p.isTopUp)
+        .map((p) => ({
+          amount:    Number(p.amount),
+          notes:     p.notes,
+          createdBy: p.createdBy,
+        })),
     };
   });
 

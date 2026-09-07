@@ -46,6 +46,10 @@ export default function SalespersonStatementPrint() {
   const totalGiven     = rows?.reduce((s, r) => s + r.stockGiven, 0) ?? 0;
   const totalCollected = rows?.reduce((s, r) => s + r.amountPaid, 0) ?? 0;
   const closing         = rows?.length ? rows[rows.length - 1].closingBalance : 0;
+  // Top-ups ADD to the due, so the printed sheet must show them or its own
+  // columns won't reconcile. Column appears only when the range has any.
+  const totalTopUp     = rows?.reduce((s, r) => s + Number(r.topUpAmount ?? 0), 0) ?? 0;
+  const showTopUp      = totalTopUp !== 0;
 
   const summary = type === 'dispatch' ? buildDispatchStockSummary(rows ?? []) : null;
 
@@ -196,6 +200,7 @@ export default function SalespersonStatementPrint() {
                 <th style={{ textAlign: 'left', width: '16%' }}>Date</th>
                 <th className="right">Opening (₹)</th>
                 <th className="right">Given (₹)</th>
+                {showTopUp && <th className="right">Old Bal (₹)</th>}
                 <th className="right">Collected (₹)</th>
                 <th className="right">Due (₹)</th>
               </tr>
@@ -209,6 +214,7 @@ export default function SalespersonStatementPrint() {
                     <td>{formatDateShortNoYear(row.date)}</td>
                     <td className="right">{formatCurrency(row.openingBalance)}</td>
                     <td className="right">{formatCurrency(row.stockGiven)}</td>
+                    {showTopUp && <td className="right">{formatCurrency(Number(row.topUpAmount ?? 0))}</td>}
                     <td className="right">{formatCurrency(row.amountPaid)}</td>
                     <td className="right" style={{ fontWeight: 700, color: owing ? '#dc2626' : credit ? '#7c3aed' : '#059669' }}>
                       {formatCurrency(row.closingBalance)}
@@ -222,6 +228,7 @@ export default function SalespersonStatementPrint() {
                 <td>TOTAL</td>
                 <td />
                 <td className="right">{formatCurrency(totalGiven)}</td>
+                {showTopUp && <td className="right">{formatCurrency(totalTopUp)}</td>}
                 <td className="right">{formatCurrency(totalCollected)}</td>
                 <td className="right" style={{ color: closing > 0 ? '#fca5a5' : closing < 0 ? '#c4b5fd' : '#86efac' }}>
                   {formatCurrency(closing)}
