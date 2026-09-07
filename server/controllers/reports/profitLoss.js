@@ -16,8 +16,16 @@ const { assertAdmin, round2, round3, marginPct } = require('./_shared');
  *
  * Cost is deliberately the ProductCostPrice effective on each line's OWN
  * dispatchDate, not the product's current costPrice — a cost change must never
- * retroactively rewrite last month's profit. Products with no price-history row
- * fall back to the denormalised Product.costPrice.
+ * retroactively rewrite last month's profit. When nothing is effective yet on
+ * that date the EARLIEST known cost row is used rather than the denormalised
+ * Product.costPrice: the denorm is deliberately held at 0 while a future-dated
+ * price is pending (products.controller.js), and costing a line at 0 books its
+ * whole revenue as profit. Lines whose cost still can't be resolved are counted
+ * and reported in `unpriced` instead of being passed off as pure margin.
+ *
+ * Every salesperson who was dispatched to in the range is listed, active or
+ * not, so the per-salesman rows always add up to the totals — an inactive
+ * salesman's dispatches used to sit in the totals with no row to explain them.
  *
  * A negative result is a real loss (salesman billed below the dairy's cost) and
  * is reported as-is, never clamped. Outstanding dues are intentionally NOT part
@@ -33,8 +41,7 @@ const profitLoss = asyncHandler(async (req, res) => {
 
   const [salespeople, dispatches, allCategories] = await Promise.all([
     prisma.salesperson.findMany({
-      where:   { isActive: true },
-      select:  { id: true, name: true, route: true, displayOrder: true },
+      select:  { id: true, name: true, route: true, displayOrder: true, isActive: true },
       orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.stockDispatch.findMany({
@@ -61,9 +68,12 @@ const profitLoss = asyncHandler(async (req, res) => {
   const productIds = [...new Set(
     dispatches.flatMap(d => d.items.map(i => i.productId))
   )];
+  // No effectiveFrom filter: a product whose only row is future-dated would
+  // otherwise return nothing here and fall through to a denorm that is 0 by
+  // design while that schedule is pending.
   const costRows = productIds.length
     ? await prisma.productCostPrice.findMany({
-        where:   { productId: { in: productIds }, effectiveFrom: { lte: toDate } },
+        where:   { productId: { in: productIds } },
         orderBy: { effectiveFrom: 'desc' },
         select:  { productId: true, costPrice: true, effectiveFrom: true },
       })
@@ -76,10 +86,26 @@ const profitLoss = asyncHandler(async (req, res) => {
     if (!costHistory.has(row.productId)) costHistory.set(row.productId, []);
     costHistory.get(row.productId).push(row);
   }
+  // Products dispatched at a cost we could not establish. Reported rather than
+  // silently costed at 0, which would show the line at a 100% margin.
+  const unpriced = new Map();
+
   const costOn = (product, date) => {
     const rows = costHistory.get(product.id);
-    const hit  = rows?.find(r => r.effectiveFrom <= date);
-    return Number(hit ? hit.costPrice : product.costPrice);
+    // rows are newest-first, so the first at or before `date` is the one in
+    // force; with none yet in force, the last entry is the earliest known cost
+    // — a far better estimate of what the dairy charged than a 0 denorm.
+    const hit  = rows?.find(r => r.effectiveFrom <= date) ?? rows?.[rows.length - 1];
+    const cost = Number(hit ? hit.costPrice : product.costPrice);
+
+    if (!(cost > 0) && !unpriced.has(product.id)) {
+      unpriced.set(product.id, {
+        productId:   product.id,
+        productName: product.name,
+        brandName:   product.brand?.name ?? null,
+      });
+    }
+    return cost;
   };
 
   // Accumulate per salesperson (and per product within), plus an overall
@@ -128,42 +154,49 @@ const profitLoss = asyncHandler(async (req, res) => {
   }
 
   // Every active salesperson is listed, dispatches or not, so the sidebar shows
-  // the full roster the way Collections does.
-  const rows = salespeople.map((s) => {
-    const agg     = bySalesperson.get(s.id) ?? { revenue: 0, cost: 0, products: new Map() };
-    const profit  = agg.revenue - agg.cost;
-    const products = [...agg.products.values()]
-      .map(p => ({
-        ...p,
-        quantity:        round2(p.quantity),
-        avgBilledPrice:  p.quantity ? round3(p.revenue / p.quantity) : 0,
-        avgCostPrice:    p.quantity ? round3(p.cost / p.quantity)    : 0,
-        revenue:         round2(p.revenue),
-        cost:            round2(p.cost),
-        profit:          round2(p.revenue - p.cost),
-      }))
-      // Same layout order as the salesman pricing tab and stock-receipt entry
-      // (brand → category → product display order → name), so a product sits
-      // in the same place here as everywhere else, rather than jumping around
-      // by profit rank on every date-range change.
-      .sort((a, b) =>
-        a.brandDisplayOrder - b.brandDisplayOrder ||
-        a.categoryDisplayOrder - b.categoryDisplayOrder ||
-        a.displayOrder - b.displayOrder ||
-        a.productName.localeCompare(b.productName)
-      );
+  // the full roster the way Collections does — plus any INACTIVE salesperson
+  // who was dispatched to inside the range. Without that second group their
+  // revenue and cost still reached the totals below (which sum every dispatch)
+  // while no row accounted for it, so the listed rows didn't add up to the
+  // summary cards.
+  const rows = salespeople
+    .filter((s) => s.isActive || bySalesperson.has(s.id))
+    .map((s) => {
+      const agg     = bySalesperson.get(s.id) ?? { revenue: 0, cost: 0, products: new Map() };
+      const profit  = agg.revenue - agg.cost;
+      const products = [...agg.products.values()]
+        .map(p => ({
+          ...p,
+          quantity:        round2(p.quantity),
+          avgBilledPrice:  p.quantity ? round3(p.revenue / p.quantity) : 0,
+          avgCostPrice:    p.quantity ? round3(p.cost / p.quantity)    : 0,
+          revenue:         round2(p.revenue),
+          cost:            round2(p.cost),
+          profit:          round2(p.revenue - p.cost),
+        }))
+        // Same layout order as the salesman pricing tab and stock-receipt entry
+        // (brand → category → product display order → name), so a product sits
+        // in the same place here as everywhere else, rather than jumping around
+        // by profit rank on every date-range change.
+        .sort((a, b) =>
+          a.brandDisplayOrder - b.brandDisplayOrder ||
+          a.categoryDisplayOrder - b.categoryDisplayOrder ||
+          a.displayOrder - b.displayOrder ||
+          a.productName.localeCompare(b.productName)
+        );
 
-    return {
-      salespersonId: s.id,
-      name:          s.name,
-      route:         s.route,
-      revenue:   round2(agg.revenue),
-      cost:      round2(agg.cost),
-      profit:    round2(profit),
-      marginPct: marginPct(profit, agg.revenue),
-      products,
-    };
-  });
+      return {
+        salespersonId: s.id,
+        name:          s.name,
+        route:         s.route,
+        isActive:      s.isActive,
+        revenue:   round2(agg.revenue),
+        cost:      round2(agg.cost),
+        profit:    round2(profit),
+        marginPct: marginPct(profit, agg.revenue),
+        products,
+      };
+    });
 
   const totalRevenue = [...bySalesperson.values()].reduce((s, a) => s + a.revenue, 0);
   const totalCost    = [...bySalesperson.values()].reduce((s, a) => s + a.cost, 0);
@@ -191,6 +224,10 @@ const profitLoss = asyncHandler(async (req, res) => {
         marginPct: marginPct(totalProfit, totalRevenue),
       },
       daily,
+      // Non-empty means some dispatched lines were costed at 0 because no cost
+      // price could be resolved — their revenue is sitting in profit untaxed by
+      // any cost, so the figures above read high until these are priced.
+      unpriced: [...unpriced.values()],
       salespeople: rows,
     },
   });

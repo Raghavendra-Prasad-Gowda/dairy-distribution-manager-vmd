@@ -179,8 +179,8 @@ describe('SalesmanProfitLoss — summary + range', () => {
     // These labels are shared with the daily table's own column headers
     // (deliberately, so the two read as the same table family) — the
     // summary card is always the first match.
-    expect(screen.getAllByText('Cost (Dairy Paid)')[0]).toBeInTheDocument();
-    expect(screen.getAllByText('Revenue (Dairy Earned)')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Cost of Goods Dispatched')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Revenue (Billed to Salesmen)')[0]).toBeInTheDocument();
     expect(screen.getAllByText('Profit/Loss')[0]).toBeInTheDocument();
     expect(within(container).getAllByText('21.67%')[0]).toBeInTheDocument();
   });
@@ -245,7 +245,7 @@ describe('SalesmanProfitLoss — sidebar', () => {
     const headerRow = screen.getByText('Date').closest('tr');
     const headers = within(headerRow).getAllByRole('columnheader');
     expect(headers.map(h => h.textContent)).toEqual([
-      'Date', 'Cost (Dairy Paid)', 'Revenue (Dairy Earned)', 'Profit/Loss', 'Margin',
+      'Date', 'Cost of Goods Dispatched', 'Revenue (Billed to Salesmen)', 'Profit/Loss', 'Margin',
     ]);
     for (const th of headers) expect(th.className).toContain('text-center');
 
@@ -413,5 +413,89 @@ describe('SalesmanProfitLoss — detail panel', () => {
     // Jersey has just the one loss-making line — a loss chip.
     const jerseyChip = within(jerseyHeader).getByText(/600/);
     expect(jerseyChip.className).toContain('text-red-600');
+  });
+});
+
+// ─── Unpriced products ───────────────────────────────────────────────────────
+
+/**
+ * A dispatched product with no resolvable cost price is costed at ₹0, so its
+ * whole revenue lands in profit. The page must say so rather than quietly
+ * showing an inflated margin.
+ */
+describe('SalesmanProfitLoss — unpriced products', () => {
+  function mockWith(unpriced) {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      return Promise.resolve({ data: { data: { ...REPORT, unpriced } } });
+    });
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('warns that profit is overstated and names the products', async () => {
+    mockWith([{ productId: 9, productName: 'Ghee 500ml', brandName: 'Nandini' }]);
+    await renderPage();
+
+    expect(await screen.findByText(/1 product had no cost price/)).toBeInTheDocument();
+    expect(screen.getByText('Nandini Ghee 500ml')).toBeInTheDocument();
+  });
+
+  it('pluralises and lists every unpriced product', async () => {
+    mockWith([
+      { productId: 9,  productName: 'Ghee 500ml', brandName: 'Nandini' },
+      { productId: 10, productName: 'Paneer',     brandName: 'Jersey'  },
+    ]);
+    await renderPage();
+
+    expect(await screen.findByText(/2 products had no cost price/)).toBeInTheDocument();
+    expect(screen.getByText('Nandini Ghee 500ml, Jersey Paneer')).toBeInTheDocument();
+  });
+
+  it('shows no warning when every product is priced', async () => {
+    mockWith([]);
+    await renderPage();
+
+    expect(screen.queryByText(/had no cost price/)).not.toBeInTheDocument();
+  });
+
+  it('shows no warning when the API omits the field entirely', async () => {
+    await renderPage();
+    expect(screen.queryByText(/had no cost price/)).not.toBeInTheDocument();
+  });
+});
+
+// ─── Inactive salespeople ────────────────────────────────────────────────────
+
+describe('SalesmanProfitLoss — inactive salespeople', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      return Promise.resolve({
+        data: { data: {
+          ...REPORT,
+          salespeople: REPORT.salespeople.map(s =>
+            s.salespersonId === 2 ? { ...s, isActive: false } : { ...s, isActive: true }
+          ),
+        } },
+      });
+    });
+  });
+
+  it('marks a former salesman whose dispatches are still in the totals', async () => {
+    await renderPage();
+
+    const row = screen.getByRole('button', { name: /Mahesh/ });
+    expect(within(row).getByText('Inactive')).toBeInTheDocument();
+  });
+
+  it('does not mark an active salesman', async () => {
+    await renderPage();
+
+    const row = screen.getByRole('button', { name: /K Pandu/ });
+    expect(within(row).queryByText('Inactive')).not.toBeInTheDocument();
   });
 });

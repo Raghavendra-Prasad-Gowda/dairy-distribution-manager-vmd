@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Search, X } from 'lucide-react';
+import { TrendingUp, Search, X, AlertTriangle } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
@@ -169,8 +169,13 @@ export default function SalesmanProfitLoss() {
       {!loading && data && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 md:px-6 py-3 bg-slate-50 border-b border-slate-200 flex-shrink-0">
           {[
-            { label: 'Cost (Dairy Paid)',      value: formatCurrency(totals.cost),    cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
-            { label: 'Revenue (Dairy Earned)', value: formatCurrency(totals.revenue), cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
+            // Not "Dairy Paid"/"Dairy Earned": cost here is the dairy's cost
+            // price for the units DISPATCHED, while the money actually paid to
+            // the dairy is the receipt value on the Dairy Statement (a
+            // different price source and a different quantity). Labelling
+            // these as paid/earned invited a reconciliation that can't hold.
+            { label: 'Cost of Goods Dispatched',    value: formatCurrency(totals.cost),    cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
+            { label: 'Revenue (Billed to Salesmen)', value: formatCurrency(totals.revenue), cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
             { label: 'Profit/Loss', value: formatCurrency(totals.profit), cls: totalTone.text, bg: totalTone.bg },
             { label: 'Margin', value: `${totals.marginPct}%`, cls: totalTone.text, bg: totalTone.bg },
           ].map(({ label, value, cls, bg }) => (
@@ -179,6 +184,25 @@ export default function SalesmanProfitLoss() {
               <p className={`text-lg font-bold tabular-nums ${cls}`}>{value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* A dispatched product with no resolvable cost price is costed at 0, so
+          its entire revenue lands in profit. Say so plainly rather than let the
+          margin above read high for an unexplained reason. */}
+      {!loading && data?.unpriced?.length > 0 && (
+        <div className="flex items-start gap-2 px-4 md:px-6 py-2.5 bg-amber-50 border-b border-amber-200 flex-shrink-0">
+          <AlertTriangle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800">
+            <span className="font-bold">
+              {data.unpriced.length} product{data.unpriced.length !== 1 ? 's' : ''} had no cost price
+            </span>{' '}
+            for this period, so {data.unpriced.length !== 1 ? 'they were' : 'it was'} costed at ₹0 and
+            profit is overstated by that much. Set a cost price in Products setup:{' '}
+            <span className="font-semibold">
+              {data.unpriced.map(u => [u.brandName, u.productName].filter(Boolean).join(' ')).join(', ')}
+            </span>
+          </p>
         </div>
       )}
 
@@ -249,6 +273,13 @@ export default function SalesmanProfitLoss() {
                       <span className={`text-sm font-semibold flex-1 truncate ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>
                         {sp.name}
                       </span>
+                      {/* Listed because they were dispatched to in this range;
+                          their figures are part of the totals above. */}
+                      {sp.isActive === false && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                          Inactive
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center justify-between pl-8">
                       {sp.route && <p className="text-xs text-slate-400 truncate">{sp.route}</p>}
@@ -298,7 +329,7 @@ function OverallPanel({ daily, totals }) {
         <table className="w-full text-sm" style={{ minWidth: 560 }}>
           <thead>
             <tr>
-              {['Date', 'Cost (Dairy Paid)', 'Revenue (Dairy Earned)', 'Profit/Loss', 'Margin'].map(h => (
+              {['Date', 'Cost of Goods Dispatched', 'Revenue (Billed to Salesmen)', 'Profit/Loss', 'Margin'].map(h => (
                 <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                   {h}
                 </th>
