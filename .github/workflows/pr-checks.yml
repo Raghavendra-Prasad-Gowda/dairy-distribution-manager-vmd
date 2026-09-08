@@ -134,8 +134,16 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.package }}/package-lock.json
       - run: npm ci
-      # Fails the PR on any moderate-or-worse known vulnerability. Both
-      # packages are clean as of this writing — this is a regression gate,
-      # not a backlog. Dependabot (.github/dependabot.yml) keeps deps current
-      # so this stays green.
-      - run: npm audit --audit-level=moderate
+      # Fails the PR on any moderate-or-worse known vulnerability, EXCEPT the
+      # advisories explicitly accepted in server/scripts/check-vulnerabilities.js
+      # (currently: mysql2, bundled by the prisma CLI for its multi-database
+      # driver support and never loaded for this app's postgresql-only
+      # datasource — see that script for the full reasoning per entry). client
+      # has no accepted exceptions, so it runs the plain audit unchanged; this
+      # is a regression gate, not a backlog — Dependabot keeps deps current so
+      # both stay green, and a new or escalated advisory on the same package
+      # still fails, since the allowlist matches severity, not just name.
+      - if: matrix.package == 'server'
+        run: node scripts/check-vulnerabilities.js
+      - if: matrix.package == 'client'
+        run: npm audit --audit-level=moderate
