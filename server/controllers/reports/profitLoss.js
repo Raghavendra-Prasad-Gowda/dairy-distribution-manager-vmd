@@ -30,6 +30,15 @@ const { assertAdmin, round2, round3, marginPct } = require('./_shared');
  * A negative result is a real loss (salesman billed below the dairy's cost) and
  * is reported as-is, never clamped. Outstanding dues are intentionally NOT part
  * of this — it's trading margin, not collection performance.
+ *
+ * `reconciliation` bridges this report to the Dairy Statement, which prices
+ * RECEIVED stock (whatever brand+quantity the dairy billed that day) rather
+ * than DISPATCHED stock — the two numbers only coincide on a day where
+ * everything received also went out the same day, and even then the Dairy
+ * Statement's bill includes crate deposits, which are a refundable balance,
+ * not a cost. Built from the already-persisted DairyBalance rows (the same
+ * source the Dairy Statement itself reads), summed across every active brand
+ * for the range, so it costs one extra aggregate query, not a full re-scan.
  */
 const profitLoss = asyncHandler(async (req, res) => {
   assertAdmin(req);
@@ -39,7 +48,7 @@ const profitLoss = asyncHandler(async (req, res) => {
   const fromDate = new Date(from);
   const toDate   = new Date(to);
 
-  const [salespeople, dispatches, allCategories] = await Promise.all([
+  const [salespeople, dispatches, allCategories, dairyBalanceAgg] = await Promise.all([
     prisma.salesperson.findMany({
       select:  { id: true, name: true, route: true, displayOrder: true, isActive: true },
       orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
@@ -61,6 +70,13 @@ const profitLoss = asyncHandler(async (req, res) => {
       orderBy: { dispatchDate: 'asc' },
     }),
     prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
+    // Same range as the dispatches above, so the bridge lines up date-for-date
+    // with what's being costed — reads the persisted ledger, same as the
+    // Dairy Statement, rather than recomputing it here.
+    prisma.dairyBalance.aggregate({
+      where: { balanceDate: { gte: fromDate, lte: toDate }, brand: { isActive: true } },
+      _sum:  { stockValue: true, depositValue: true },
+    }),
   ]);
   const catOrderMap = buildCategoryOrderMap(allCategories);
 
@@ -202,6 +218,24 @@ const profitLoss = asyncHandler(async (req, res) => {
   const totalCost    = [...bySalesperson.values()].reduce((s, a) => s + a.cost, 0);
   const totalProfit  = totalRevenue - totalCost;
 
+  // The bridge to the Dairy Statement's Bill for the same range:
+  //   dairyStockValue  = what the dairy billed for goods RECEIVED
+  //   depositValue     = crate deposits charged — refundable, not a cost
+  //   otherDifference  = whatever is left once deposits are set aside; mainly
+  //                      stock received but not yet dispatched (billed by the
+  //                      dairy, not yet costed here), plus any receipt-price
+  //                      vs cost-price-history timing mismatch. Not split
+  //                      further — Stock Balance Summary has the per-product
+  //                      received-vs-dispatched detail when this is nonzero.
+  const dairyStockValue = Number(dairyBalanceAgg._sum.stockValue ?? 0);
+  const dairyDepositValue = Number(dairyBalanceAgg._sum.depositValue ?? 0);
+  const reconciliation = {
+    dairyBill:             round2(dairyStockValue + dairyDepositValue),
+    depositValue:          round2(dairyDepositValue),
+    costOfGoodsDispatched: round2(totalCost),
+    otherDifference:       round2(dairyStockValue - totalCost),
+  };
+
   const daily = [...byDate.values()]
     .sort((a, b) => a.date - b.date)
     .map(d => ({
@@ -228,6 +262,7 @@ const profitLoss = asyncHandler(async (req, res) => {
       // price could be resolved — their revenue is sitting in profit untaxed by
       // any cost, so the figures above read high until these are priced.
       unpriced: [...unpriced.values()],
+      reconciliation,
       salespeople: rows,
     },
   });

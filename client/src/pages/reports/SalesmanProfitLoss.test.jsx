@@ -499,3 +499,70 @@ describe('SalesmanProfitLoss — inactive salespeople', () => {
     expect(within(row).queryByText('Inactive')).not.toBeInTheDocument();
   });
 });
+
+// ─── Reconciliation with Dairy Statement ────────────────────────────────────
+
+describe('SalesmanProfitLoss — reconciliation with Dairy Statement', () => {
+  const RECON = {
+    dairyBill: 741374.50, depositValue: 1116.60,
+    costOfGoodsDispatched: 737161.66, otherDifference: 3096.24,
+  };
+
+  function mockWith(reconciliation) {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings'))
+        return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      return Promise.resolve({ data: { data: { ...REPORT, reconciliation } } });
+    });
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('is collapsed by default', async () => {
+    mockWith(RECON);
+    await renderPage();
+
+    expect(screen.getByText('Reconcile with Dairy Statement')).toBeInTheDocument();
+    expect(screen.queryByText('= Dairy Statement Bill (all brands)')).not.toBeInTheDocument();
+  });
+
+  it('expands to show the bridge, which foots to the dairy bill', async () => {
+    mockWith(RECON);
+    await renderPage();
+
+    fireEvent.click(screen.getByText('Reconcile with Dairy Statement'));
+
+    expect(await screen.findByText('= Dairy Statement Bill (all brands)')).toBeInTheDocument();
+    // 737161.66 + 3096.24 + 1116.60 = 741374.50
+    expect(screen.getByText('₹7,41,374.50')).toBeInTheDocument();
+    expect(screen.getByText('₹7,37,161.66')).toBeInTheDocument();
+    expect(screen.getByText('₹3,096.24')).toBeInTheDocument();
+    expect(screen.getByText('₹1,116.60')).toBeInTheDocument();
+  });
+
+  it('collapses again on a second click', async () => {
+    mockWith(RECON);
+    await renderPage();
+
+    const toggle = screen.getByText('Reconcile with Dairy Statement');
+    fireEvent.click(toggle);
+    expect(await screen.findByText('= Dairy Statement Bill (all brands)')).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByText('= Dairy Statement Bill (all brands)')).not.toBeInTheDocument();
+  });
+
+  it('shows no reconciliation section when the API omits the field', async () => {
+    await renderPage();
+    expect(screen.queryByText('Reconcile with Dairy Statement')).not.toBeInTheDocument();
+  });
+
+  it('renders zero difference cleanly when the dairy bill matches cost exactly', async () => {
+    mockWith({ dairyBill: 250, depositValue: 0, costOfGoodsDispatched: 250, otherDifference: 0 });
+    await renderPage();
+
+    fireEvent.click(screen.getByText('Reconcile with Dairy Statement'));
+    await screen.findByText('= Dairy Statement Bill (all brands)');
+    expect(screen.getAllByText('₹0.00').length).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Search, X, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Search, X, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import PinModal from '../../components/PinModal';
 import { useNotification } from '../../context/NotificationContext';
@@ -74,6 +74,9 @@ export default function SalesmanProfitLoss() {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [selected, setSelected] = useState(ALL);
+  // Collapsed by default — most visits don't need the bridge to the Dairy
+  // Statement, only the occasional "why doesn't this match" check.
+  const [showRecon, setShowRecon] = useState(false);
 
   // Fetch lives inside the effect so no state is set synchronously during
   // render, and the `cancelled` flag drops a slow in-flight response if the
@@ -184,6 +187,45 @@ export default function SalesmanProfitLoss() {
               <p className={`text-lg font-bold tabular-nums ${cls}`}>{value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Bridges Cost of Goods Dispatched to the Dairy Statement's Bill for the
+          same range — the two never claim to be the same figure, so show the
+          difference instead of leaving people to hand-add three brand tabs. */}
+      {!loading && data?.reconciliation && (
+        <div className="px-4 md:px-6 py-2 bg-white border-b border-slate-200 flex-shrink-0">
+          <button
+            onClick={() => setShowRecon(v => !v)}
+            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
+          >
+            Reconcile with Dairy Statement
+            {showRecon ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+          {showRecon && (
+            <div className="mt-2 max-w-sm text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span>Cost of Goods Dispatched</span>
+                <span className="tabular-nums font-medium">{formatCurrency(data.reconciliation.costOfGoodsDispatched)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>+ Received but not yet dispatched</span>
+                <span className="tabular-nums font-medium">{formatCurrency(data.reconciliation.otherDifference)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>+ Crate deposits <span className="text-[10px]">(refundable, not a cost)</span></span>
+                <span className="tabular-nums">{formatCurrency(data.reconciliation.depositValue)}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1.5 border-t border-slate-200 font-bold text-slate-800">
+                <span>= Dairy Statement Bill (all brands)</span>
+                <span className="tabular-nums">{formatCurrency(data.reconciliation.dairyBill)}</span>
+              </div>
+              <p className="text-[10px] text-slate-400 pt-1">
+                A leftover "received but not dispatched" figure is normal when stock
+                carries over — see Stock Balance Summary for the per-product detail.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

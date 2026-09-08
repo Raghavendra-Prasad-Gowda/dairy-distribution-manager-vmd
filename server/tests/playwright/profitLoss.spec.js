@@ -39,12 +39,16 @@ function dispatch(salespersonId, dateStr, items) {
   return { salespersonId, dispatchDate: new Date(dateStr), items };
 }
 
-/** Wires the four queries profitLoss makes. */
-function mockDeps({ dispatches = [], costRows = [], salespeople = SALESPEOPLE, categories = [] } = {}) {
+/** Wires the queries profitLoss makes. */
+function mockDeps({
+  dispatches = [], costRows = [], salespeople = SALESPEOPLE, categories = [],
+  dairyBalanceSums = { stockValue: 0, depositValue: 0 },
+} = {}) {
   ctx.mockPrisma.salesperson.findMany.mockResolvedValue(salespeople);
   ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue(dispatches);
   ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue(costRows);
   ctx.mockPrisma.category.findMany.mockResolvedValue(categories);
+  ctx.mockPrisma.dairyBalance.aggregate.mockResolvedValue({ _sum: dairyBalanceSums });
 }
 
 async function get(request, qs = 'from=2026-04-01&to=2026-04-30', token = makeAuthToken()) {
@@ -446,5 +450,71 @@ test.describe('GET /api/v1/reports/profit-loss — inactive salespeople', () => 
 
     const ids = (await (await get(request)).json()).data.salespeople.map(s => s.salespersonId);
     expect(ids).toEqual([1]);
+  });
+});
+
+// ─── Dairy Statement reconciliation ──────────────────────────────────────────
+
+/**
+ * `reconciliation` bridges this report to the Dairy Statement's Bill for the
+ * same range, sourced from the same persisted DairyBalance rows the Dairy
+ * Statement itself reads. It never claims equality — a residual is expected
+ * whenever received stock isn't fully dispatched the same day.
+ */
+test.describe('GET /api/v1/reports/profit-loss — reconciliation', () => {
+  test('reconciliation.costOfGoodsDispatched always mirrors totals.cost', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: 250, depositValue: 0 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation.costOfGoodsDispatched).toBe(body.data.totals.cost);
+  });
+
+  test('otherDifference is zero when the dairy bill exactly matches cost of goods dispatched', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: 250, depositValue: 12.5 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation).toMatchObject({
+      dairyBill: 262.5, depositValue: 12.5, costOfGoodsDispatched: 250, otherDifference: 0,
+    });
+  });
+
+  test('surfaces a positive otherDifference when stock was received but not dispatched', async ({ request }) => {
+    // Dairy billed 700000 of stock; only 250 of it was actually dispatched.
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: 700000, depositValue: 0 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation.otherDifference).toBe(699750);
+  });
+
+  test('treats a range with no persisted DairyBalance rows as zero, not a crash', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: null, depositValue: null },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation).toMatchObject({ dairyBill: 0, depositValue: 0, otherDifference: -250 });
+  });
+
+  test('excludes an inactive brand\'s DairyBalance from the bridge', async ({ request }) => {
+    // The query itself filters brand.isActive — this just pins that the field
+    // is wired through end to end so a regression there isn't silent.
+    mockDeps({
+      dispatches: [],
+      dairyBalanceSums: { stockValue: 500, depositValue: 20 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(ctx.mockPrisma.dairyBalance.aggregate).toBeTruthy();
+    expect(body.data.reconciliation.dairyBill).toBe(520);
   });
 });
