@@ -202,3 +202,24 @@ describe('SalespersonStatementPrint — printing', () => {
     expect(window.print).toHaveBeenCalledTimes(1);
   });
 });
+
+// ─── Top-ups ─────────────────────────────────────────────────────────────────
+
+describe('SalespersonStatementPrint — top-ups', () => {
+  it('prints an Old Bal column so the sheet reconciles to the Due', async () => {
+    mockApi({ rows: [row({ openingBalance: 0, stockGiven: 720000, topUpAmount: 1500, amountPaid: 520000, closingBalance: 201500 })] });
+    renderWithParams('salespersonId=1&from=2026-08-01&to=2026-08-09&type=balance');
+
+    expect(await screen.findByText('Old Bal (₹)')).toBeInTheDocument();
+    // Given 720000 + old balance 1500 − collected 520000 = due 201500.
+    await waitFor(() => expect(screen.getAllByText('₹1,500.00').length).toBeGreaterThanOrEqual(1));
+  });
+
+  it('omits the Old Bal column when the range has no top-ups', async () => {
+    mockApi({ rows: [row({})] });
+    renderWithParams('salespersonId=1&from=2026-08-01&to=2026-08-09&type=balance');
+
+    await screen.findByText('TOTAL');
+    expect(screen.queryByText('Old Bal (₹)')).not.toBeInTheDocument();
+  });
+});

@@ -150,3 +150,55 @@ describe('SalesmanDayBalance', () => {
     expect(await screen.findByText('Server exploded')).toBeInTheDocument();
   });
 });
+
+// ─── Top-ups ─────────────────────────────────────────────────────────────────
+
+/**
+ * closing = opening + stockGiven + topUpAmount − amountPaid. The derived
+ * columns used to omit topUpAmount, so "Bill + Outstanding Balance" minus
+ * "Paid" disagreed with "Total Balance" by exactly the top-up.
+ */
+describe('SalesmanDayBalance — top-ups', () => {
+  const WITH_TOPUP = [
+    {
+      salespersonId: 1, salespersonName: 'Ramesh', route: 'Route 1',
+      openingBalance: 1000, stockGiven: 500, topUpAmount: 1500,
+      amountPaid: 400, closingBalance: 2600,
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows an Old Balance Added column and folds the top-up into the derived columns', async () => {
+    mockApi(WITH_TOPUP);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('Ramesh');
+
+    expect(screen.getByRole('columnheader', { name: 'Old Balance Added' })).toBeInTheDocument();
+    // bill 500 + top-up 1500 + opening 1000 = 3000, and 3000 − paid 400 = 2600,
+    // which must equal the ledger's Total Balance.
+    expect(screen.getAllByText('₹3000.00').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('₹1600.00').length).toBeGreaterThanOrEqual(1); // day balance: 500 + 1500 − 400
+    expect(screen.getAllByText('₹2600.00').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('hides the Old Balance Added column when no salesman has a top-up', async () => {
+    mockApi(BALANCES);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('Ramesh');
+
+    expect(screen.queryByRole('columnheader', { name: 'Old Balance Added' })).not.toBeInTheDocument();
+  });
+
+  it('treats a row with no topUpAmount field as zero', async () => {
+    mockApi([{ ...WITH_TOPUP[0], topUpAmount: undefined, closingBalance: 1100 }]);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('Ramesh');
+
+    expect(screen.queryByRole('columnheader', { name: 'Old Balance Added' })).not.toBeInTheDocument();
+    // Falls back to bill 500 + opening 1000 = 1500 with no top-up added in.
+    expect(screen.getAllByText('₹1500.00').length).toBeGreaterThanOrEqual(1);
+  });
+});

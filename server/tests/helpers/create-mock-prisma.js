@@ -66,6 +66,7 @@ function createMockPrisma() {
       update:     mockFn(),
       upsert:     mockFn(),
       deleteMany: mockFn(),
+      aggregate:  mockFn(),
     },
     dairyPayment: {
       findMany:   mockFn(),

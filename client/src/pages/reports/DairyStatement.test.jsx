@@ -211,3 +211,63 @@ describe('DairyStatement — print', () => {
     );
   });
 });
+
+// ─── Top-ups ─────────────────────────────────────────────────────────────────
+
+/**
+ * closing = opening + stockValue + depositValue + topUpAmount − amountPaid.
+ * topUpAmount was never returned or rendered, so "bill − paid" disagreed with
+ * the closing balance, and dairy top-ups were listed among Payments Made.
+ */
+describe('DairyStatement — top-ups', () => {
+  const TOPUP_ROW = row({
+    openingBalance: 0, stockValue: 700000, depositValue: 0, topUpAmount: 3000,
+    amountPaid: 500000, closingBalance: 203000,
+    payments: [{ amount: 500000, mode: 'Bank', ref: 'NEFT1' }],
+    topUps:   [{ amount: 3000, notes: 'carried forward', createdBy: 'raghav' }],
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('shows an Old Balance column that accounts for the gap to the closing balance', async () => {
+    mockApi({ rows: [TOPUP_ROW] });
+    render(<DairyStatement />);
+    await screen.findByText('05 Aug');
+
+    expect(screen.getByRole('columnheader', { name: 'Old Balance' })).toBeInTheDocument();
+    // bill 700000 + top-up 3000 − paid 500000 = closing 203000.
+    expect(screen.getAllByText('₹3,000.00').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('lists the top-up separately from Payments Made', async () => {
+    mockApi({ rows: [TOPUP_ROW] });
+    render(<DairyStatement />);
+    fireEvent.click(await screen.findByText('05 Aug'));
+
+    expect(await screen.findByText('Old Balance Added')).toBeInTheDocument();
+    expect(screen.getByText(/₹3,000\.00 by raghav — carried forward/)).toBeInTheDocument();
+    expect(screen.getByText('Payments Made')).toBeInTheDocument();
+  });
+
+  it('hides the Old Balance column in the route-filtered view', async () => {
+    mockApi({ rows: [{ ...TOPUP_ROW, receipts: [{ productName: 'Milk', quantity: 1, unitPrice: 10, amount: 10, routeId: 100, routeNumber: 'R1' }] }] });
+    render(<DairyStatement />);
+    await screen.findByText('05 Aug');
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '100' } });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('columnheader', { name: 'Old Balance' })).not.toBeInTheDocument()
+    );
+  });
+
+  it('hides the Old Balance column when there are no top-ups', async () => {
+    mockApi({ rows: [row({})] });
+    render(<DairyStatement />);
+    await screen.findByText('05 Aug');
+
+    expect(screen.queryByRole('columnheader', { name: 'Old Balance' })).not.toBeInTheDocument();
+  });
+});
