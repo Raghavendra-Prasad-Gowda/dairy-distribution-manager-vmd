@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import StockBalanceSummary from './StockBalanceSummary';
 import api from '../../api/axios';
@@ -20,9 +20,10 @@ vi.mock('../../api/axios', () => ({
   default: { get: vi.fn() },
 }));
 
-vi.mock('../../utils/dateUtils', () => ({
-  getIndiaDate: () => '2026-07-09',
-}));
+vi.mock('../../utils/dateUtils', async () => {
+  const actual = await vi.importActual('../../utils/dateUtils');
+  return { ...actual, getIndiaDate: () => '2026-07-09' };
+});
 
 vi.mock('../../components/DateSelector', () => ({
   default: ({ date }) => <span data-testid="date-selector">{date}</span>,
@@ -191,5 +192,98 @@ describe('StockBalanceSummary — dispatcher access', () => {
     await screen.findByText('Ramesh');
     const calledUrls = vi.mocked(api.get).mock.calls.map(([url]) => url);
     expect(calledUrls.some(url => url.includes('/brands'))).toBe(false);
+  });
+});
+
+// ─── "Not fully dispatched" filter ──────────────────────────────────────────
+
+/**
+ * The quick answer to "which products were received but not dispatched for
+ * this date": a chip (built from the FULL column set, independent of the
+ * Entered-only/All-products toggle) that narrows the table down to exactly
+ * those columns on click — including a product with zero dispatches, which
+ * the default Entered-only view hides entirely.
+ */
+describe('StockBalanceSummary — not fully dispatched filter', () => {
+  const PRODUCTS_WITH_LEFTOVER = [
+    { productId: 10, productName: 'Milk 500ml', category: 'Milk', unitsPerContainer: 20 },
+    { productId: 20, productName: 'Curd 200g',  category: 'Curd', unitsPerContainer: 24 },
+  ];
+  const DISPATCH_WITH_LEFTOVER = {
+    ...DISPATCH_DATA,
+    brands: [{ brandId: 1, brandName: 'Nandini', products: PRODUCTS_WITH_LEFTOVER }],
+    // Product 20 (Curd 200g) was never dispatched at all — the case the
+    // default "Entered only" view hides entirely.
+    totals: { 10: 40 },
+  };
+  const AVAILABILITY_WITH_LEFTOVER = [
+    { brandId: 1, productId: 10, received: 50,  costPrice: 5 },  // remaining 10 → ₹50
+    { brandId: 1, productId: 20, received: 100, costPrice: 10 }, // remaining 100 → ₹1000
+  ];
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows a chip with the leftover count and rupee value, built from every column not just the visible ones', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    // 10 × ₹5 + 100 × ₹10 = ₹1,050 — counted even though Curd 200g's column
+    // is hidden by the default Entered-only filter.
+    expect(screen.getByText('2 not fully dispatched · ₹1,050.00')).toBeInTheDocument();
+    expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
+  });
+
+  it('reveals every leftover column, including a zero-dispatch product, on click', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    const { container } = render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    fireEvent.click(screen.getByText('2 not fully dispatched · ₹1,050.00'));
+
+    expect(await screen.findByText('Curd 200g')).toBeInTheDocument();
+    expect(screen.getByText('Milk 500ml')).toBeInTheDocument();
+    // Shortage row for each: 10 and 100. "Shortage" also labels the summary
+    // chip, so scope to the tfoot row specifically, per the pattern above.
+    const shortageRow = [...container.querySelectorAll('tfoot tr')]
+      .find(tr => tr.textContent.includes('Shortage'));
+    expect(within(shortageRow).getByText('10')).toBeInTheDocument();
+    expect(within(shortageRow).getByText('100')).toBeInTheDocument();
+  });
+
+  it('hides the Entered-only/All-products toggle while the leftover filter is active', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    fireEvent.click(screen.getByText('2 not fully dispatched · ₹1,050.00'));
+
+    await screen.findByText('Curd 200g');
+    expect(screen.queryByText('Entered only')).not.toBeInTheDocument();
+    expect(screen.queryByText('All products')).not.toBeInTheDocument();
+  });
+
+  it('clicking the active chip clears the filter and returns to the default view', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    const chip = screen.getByText('2 not fully dispatched · ₹1,050.00');
+    fireEvent.click(chip);
+    await screen.findByText('Curd 200g');
+
+    fireEvent.click(screen.getByText('✕ Showing 2 not fully dispatched'));
+    expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
+  });
+
+  it('shows no chip when every received product was fully dispatched', async () => {
+    mockApi({
+      availability: [{ brandId: 1, productId: 10, received: 40, costPrice: 5 }],
+      dispatch: DISPATCH_DATA, // dispatched 40, received 40 → remaining 0
+    });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    expect(screen.queryByText(/not fully dispatched/)).not.toBeInTheDocument();
   });
 });
