@@ -44,6 +44,18 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockApi();
   vi.spyOn(window, 'print').mockImplementation(() => {});
+  // Fake timers for EVERY test, not just the auto-print one below: the
+  // component schedules a real `setTimeout(() => window.print(), 400)` on
+  // every render, so a test that renders the page under real timers leaves
+  // a genuine pending Node timer behind. afterEach's useRealTimers() only
+  // stops installing fake ones going forward — it does not cancel that real
+  // timer, which can then fire mid-suite and pollute a LATER test's fresh
+  // window.print spy (this is what caused the auto-print test to
+  // intermittently see a call before it ever advanced the clock). Fake
+  // timers everywhere means that setTimeout always lands on the fake clock
+  // and is discarded harmlessly when the test ends.
+  // shouldAdvanceTime keeps findByText/waitFor's real-time polling working.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
@@ -181,7 +193,6 @@ describe('SalespersonStatementPrint — dispatch stock summary (type=dispatch)',
 
 describe('SalespersonStatementPrint — printing', () => {
   it('auto-triggers window.print() once data has loaded', async () => {
-    vi.useFakeTimers();
     mockApi({ rows: [row()] });
     renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05');
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -194,9 +205,12 @@ describe('SalespersonStatementPrint — printing', () => {
     mockApi({ rows: [row()] });
     renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05');
     await screen.findByText('TOTAL');
-    // A real (non-fake-timer) setTimeout from an earlier test's auto-print
-    // can still be pending and fire mid-suite — clear the count right before
-    // the assertion so this test only measures its own click.
+    // This render ALSO scheduled its own auto-print (every render does),
+    // and shouldAdvanceTime lets the fake clock creep forward in near-real
+    // time while findByText polls above — under load, 400ms can elapse
+    // during that wait and fire the auto-print before the click below.
+    // Clear right before the deliberate click so this test measures only
+    // that action, not whichever of the two fired the mock first.
     vi.mocked(window.print).mockClear();
     screen.getByText('Print / Save PDF').click();
     expect(window.print).toHaveBeenCalledTimes(1);
