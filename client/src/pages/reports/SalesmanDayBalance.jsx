@@ -30,14 +30,25 @@ export default function SalesmanDayBalance() {
     );
   }, [rows, search]);
 
+  // A top-up is a pre-existing due an admin loaded — it ADDS to what the
+  // salesman owes (closing = opening + stockGiven + topUpAmount − amountPaid).
+  // Leaving it out of the derived columns made "bill + outstanding − paid"
+  // disagree with Total Balance by exactly the top-up, with nothing on screen
+  // to explain the gap. Fold it in, and surface the column when there is one.
   const totals = useMemo(() => ({
     bill:            filteredRows.reduce((s, r) => s + Number(r.stockGiven),     0),
     balance:         filteredRows.reduce((s, r) => s + Number(r.openingBalance), 0),
-    billPlusBalance: filteredRows.reduce((s, r) => s + Number(r.stockGiven) + Number(r.openingBalance), 0),
+    topUp:           filteredRows.reduce((s, r) => s + Number(r.topUpAmount ?? 0), 0),
+    billPlusBalance: filteredRows.reduce((s, r) => s + Number(r.stockGiven) + Number(r.topUpAmount ?? 0) + Number(r.openingBalance), 0),
     paid:            filteredRows.reduce((s, r) => s + Number(r.amountPaid),     0),
-    todayBalance:    filteredRows.reduce((s, r) => s + Number(r.stockGiven) - Number(r.amountPaid), 0),
+    todayBalance:    filteredRows.reduce((s, r) => s + Number(r.stockGiven) + Number(r.topUpAmount ?? 0) - Number(r.amountPaid), 0),
     remaining:       filteredRows.reduce((s, r) => s + Number(r.closingBalance), 0),
   }), [filteredRows]);
+
+  const showTopUp = useMemo(
+    () => filteredRows.some(r => Number(r.topUpAmount ?? 0) !== 0),
+    [filteredRows]
+  );
 
   const remColor = (v) => v > 0 ? 'text-red-600' : v < 0 ? 'text-violet-600' : 'text-emerald-600';
 
@@ -107,6 +118,7 @@ export default function SalesmanDayBalance() {
                   <tr>
                     <th className="bg-emerald-700 px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 sticky left-0 z-20">Salesman</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billHeader}</th>
+                    {showTopUp && <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Old Balance Added</th>}
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billBalanceHeader}</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{paidHeader}</th>
@@ -117,7 +129,7 @@ export default function SalesmanDayBalance() {
                 <tbody>
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
+                      <td colSpan={showTopUp ? 8 : 7} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
                     </tr>
                   ) : (
                     filteredRows.map((r, idx) => (
@@ -129,17 +141,22 @@ export default function SalesmanDayBalance() {
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
                           {Number(r.stockGiven) > 0 ? formatCurrency(r.stockGiven) : <span className="text-slate-300">—</span>}
                         </td>
+                        {showTopUp && (
+                          <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-amber-600 border-b border-r border-slate-100">
+                            {Number(r.topUpAmount ?? 0) !== 0 ? formatCurrency(r.topUpAmount) : <span className="text-slate-300">—</span>}
+                          </td>
+                        )}
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
                           {formatCurrency(r.openingBalance)}
                         </td>
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-slate-800 border-b border-r border-slate-100">
-                          {formatCurrency(Number(r.stockGiven) + Number(r.openingBalance))}
+                          {formatCurrency(Number(r.stockGiven) + Number(r.topUpAmount ?? 0) + Number(r.openingBalance))}
                         </td>
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
                           {Number(r.amountPaid) > 0 ? formatCurrency(r.amountPaid) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${remColor(Number(r.stockGiven) - Number(r.amountPaid))}`}>
-                          {formatCurrency(Number(r.stockGiven) - Number(r.amountPaid))}
+                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${remColor(Number(r.stockGiven) + Number(r.topUpAmount ?? 0) - Number(r.amountPaid))}`}>
+                          {formatCurrency(Number(r.stockGiven) + Number(r.topUpAmount ?? 0) - Number(r.amountPaid))}
                         </td>
                         <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(Number(r.closingBalance))}`}>
                           {formatCurrency(r.closingBalance)}
@@ -157,6 +174,11 @@ export default function SalesmanDayBalance() {
                       <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.bill)}
                       </td>
+                      {showTopUp && (
+                        <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-amber-300 tabular-nums border-r border-slate-600">
+                          {formatCurrency(totals.topUp)}
+                        </td>
+                      )}
                       <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-white tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.balance)}
                       </td>

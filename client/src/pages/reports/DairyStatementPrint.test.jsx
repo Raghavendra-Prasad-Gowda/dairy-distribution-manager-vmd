@@ -140,3 +140,24 @@ describe('DairyStatementPrint — printing', () => {
     expect(window.print).toHaveBeenCalledTimes(1);
   });
 });
+
+// ─── Top-ups ─────────────────────────────────────────────────────────────────
+
+describe('DairyStatementPrint — top-ups', () => {
+  it('prints an Old Bal column so the sheet reconciles to the Closing', async () => {
+    mockApi({ rows: [row({ openingBalance: 0, stockValue: 700000, topUpAmount: 3000, amountPaid: 500000, closingBalance: 203000 })] });
+    renderWithParams('brandId=1&from=2026-08-01&to=2026-08-09');
+
+    expect(await screen.findByText('Old Bal (₹)')).toBeInTheDocument();
+    // Bill 700000 + old balance 3000 − paid 500000 = closing 203000.
+    await waitFor(() => expect(screen.getAllByText('₹3,000.00').length).toBeGreaterThanOrEqual(1));
+  });
+
+  it('omits the Old Bal column when the range has no top-ups', async () => {
+    mockApi({ rows: [row({})] });
+    renderWithParams('brandId=1&from=2026-08-01&to=2026-08-09');
+
+    await screen.findByText('TOTAL');
+    expect(screen.queryByText('Old Bal (₹)')).not.toBeInTheDocument();
+  });
+});

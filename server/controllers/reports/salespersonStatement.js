@@ -68,6 +68,10 @@ const salespersonStatement = asyncHandler(async (req, res) => {
       date:           b.balanceDate,
       openingBalance: Number(b.openingBalance),
       stockGiven:     Number(b.stockGiven),
+      // Part of the closing formula (opening + stockGiven + topUpAmount −
+      // amountPaid), so it MUST be returned: without it the row cannot be
+      // reconciled and "given − collected" silently misses the top-up.
+      topUpAmount:    Number(b.topUpAmount ?? 0),
       amountPaid:     Number(b.amountPaid),
       closingBalance: Number(b.closingBalance),
       items: sortedItems.map((i) => ({
@@ -92,11 +96,24 @@ const salespersonStatement = asyncHandler(async (req, res) => {
         unitsPerContainer:    i.product.unitsPerContainer ?? null,
         containerType:        i.product.containerType ?? null,
       })),
-      payments: (paymentsByDate.get(key) ?? []).map((p) => ({
-        amount: Number(p.amount),
-        mode:   p.paymentMode,
-        ref:    p.reference,
-      })),
+      // Top-ups are admin-loaded pre-existing dues — they ADD to what the
+      // salesman owes. They must never be listed among collections, or the
+      // payments shown here won't sum to amountPaid. Split them out the same
+      // way the salesman-facing statement controller does.
+      payments: (paymentsByDate.get(key) ?? [])
+        .filter((p) => !p.isTopUp)
+        .map((p) => ({
+          amount: Number(p.amount),
+          mode:   p.paymentMode,
+          ref:    p.reference,
+        })),
+      topUps: (paymentsByDate.get(key) ?? [])
+        .filter((p) => p.isTopUp)
+        .map((p) => ({
+          amount:    Number(p.amount),
+          notes:     p.notes,
+          createdBy: p.createdBy,
+        })),
     };
   });
 

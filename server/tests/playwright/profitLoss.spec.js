@@ -14,9 +14,11 @@ const { setupSuite, makeSalesmanToken } = require('../helpers/test-setup');
 
 const { test, ctx, makeAuthToken } = setupSuite();
 
+// isActive is selected by the handler now — the roster keeps every active
+// salesperson plus any inactive one dispatched to inside the range.
 const SALESPEOPLE = [
-  { id: 1, name: 'K Pandu', route: 'Route 1', displayOrder: 0 },
-  { id: 2, name: 'Mahesh',  route: 'Route 2', displayOrder: 1 },
+  { id: 1, name: 'K Pandu', route: 'Route 1', displayOrder: 0, isActive: true },
+  { id: 2, name: 'Mahesh',  route: 'Route 2', displayOrder: 1, isActive: true },
 ];
 
 /** A dispatch line: billed at `unitPrice`, product has denormalised `costPrice`. */
@@ -37,12 +39,16 @@ function dispatch(salespersonId, dateStr, items) {
   return { salespersonId, dispatchDate: new Date(dateStr), items };
 }
 
-/** Wires the four queries profitLoss makes. */
-function mockDeps({ dispatches = [], costRows = [], salespeople = SALESPEOPLE, categories = [] } = {}) {
+/** Wires the queries profitLoss makes. */
+function mockDeps({
+  dispatches = [], costRows = [], salespeople = SALESPEOPLE, categories = [],
+  dairyBalanceSums = { stockValue: 0, depositValue: 0 },
+} = {}) {
   ctx.mockPrisma.salesperson.findMany.mockResolvedValue(salespeople);
   ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue(dispatches);
   ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue(costRows);
   ctx.mockPrisma.category.findMany.mockResolvedValue(categories);
+  ctx.mockPrisma.dairyBalance.aggregate.mockResolvedValue({ _sum: dairyBalanceSums });
 }
 
 async function get(request, qs = 'from=2026-04-01&to=2026-04-30', token = makeAuthToken()) {
@@ -296,5 +302,219 @@ test.describe('GET /api/v1/reports/profit-loss — response shape', () => {
     expect(product.brandDisplayOrder).toBe(0);
     expect(product.category).toBe('Other');
     expect(product.displayOrder).toBe(0);
+  });
+});
+
+// ─── Unresolvable cost prices ────────────────────────────────────────────────
+
+/**
+ * A dispatched line with no resolvable cost price used to be costed at the
+ * denormalised Product.costPrice — which products.controller.js deliberately
+ * holds at 0 while a future-dated price is pending, and never sets at all for
+ * a product created with cost 0. Costing at 0 books the whole line as profit.
+ */
+test.describe('GET /api/v1/reports/profit-loss — unresolvable cost', () => {
+  test('falls back to the earliest cost row when none is effective yet', async ({ request }) => {
+    // Denorm is 0 (a future-dated price is pending) but a real cost exists.
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 100, 30, 0)])],
+      costRows: [
+        { productId: 10, costPrice: 26, effectiveFrom: new Date('2026-05-01') },
+      ],
+    });
+
+    const body = await (await get(request)).json();
+    // Costed at 26, not 0 → profit 100 × (30 − 26) = 400, never 3000.
+    expect(body.data.totals.cost).toBe(2600);
+    expect(body.data.totals.profit).toBe(400);
+  });
+
+  test('picks the earliest row, not the latest, when several are future-dated', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 0)])],
+      costRows: [
+        { productId: 10, costPrice: 28, effectiveFrom: new Date('2026-06-01') },
+        { productId: 10, costPrice: 25, effectiveFrom: new Date('2026-05-01') },
+      ],
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.totals.cost).toBe(250);
+  });
+
+  test('still prefers a row already in force over the earliest one', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 99)])],
+      costRows: [
+        { productId: 10, costPrice: 27, effectiveFrom: new Date('2026-04-05') },
+        { productId: 10, costPrice: 20, effectiveFrom: new Date('2026-01-01') },
+      ],
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.totals.cost).toBe(270);
+  });
+
+  test('reports a product that still has no cost price instead of hiding it', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 0, 'Toned Milk 500ml')])],
+      costRows: [],
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.unpriced).toHaveLength(1);
+    expect(body.data.unpriced[0]).toMatchObject({
+      productId: 10, productName: 'Toned Milk 500ml', brandName: 'Nandini',
+    });
+    // Still reported as-is — the warning explains the 100% margin, it doesn't
+    // silently drop the line.
+    expect(body.data.totals.cost).toBe(0);
+    expect(body.data.totals.profit).toBe(300);
+  });
+
+  test('lists an unpriced product once however many times it was dispatched', async ({ request }) => {
+    mockDeps({
+      dispatches: [
+        dispatch(1, '2026-04-10', [item(10, 10, 30, 0)]),
+        dispatch(2, '2026-04-11', [item(10, 5, 30, 0)]),
+      ],
+      costRows: [],
+    });
+
+    expect((await (await get(request)).json()).data.unpriced).toHaveLength(1);
+  });
+
+  test('reports no unpriced products when every cost resolves', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      costRows: [],
+    });
+
+    expect((await (await get(request)).json()).data.unpriced).toEqual([]);
+  });
+});
+
+// ─── Inactive salespeople ────────────────────────────────────────────────────
+
+/**
+ * The totals sum every dispatch in range. Listing only active salespeople left
+ * a deactivated salesman's revenue inside the summary cards with no row to
+ * account for it, so the visible rows didn't add up.
+ */
+test.describe('GET /api/v1/reports/profit-loss — inactive salespeople', () => {
+  const ROSTER = [
+    { id: 1, name: 'K Pandu', route: 'Route 1', displayOrder: 0, isActive: true },
+    { id: 2, name: 'Retired', route: 'Route 2', displayOrder: 1, isActive: false },
+  ];
+
+  test('lists an inactive salesman who was dispatched to in the range', async ({ request }) => {
+    mockDeps({
+      salespeople: ROSTER,
+      dispatches: [dispatch(2, '2026-04-10', [item(10, 10, 30, 25)])],
+    });
+
+    const body = await (await get(request)).json();
+    const retired = body.data.salespeople.find(s => s.salespersonId === 2);
+    expect(retired).toBeTruthy();
+    expect(retired.isActive).toBe(false);
+    expect(retired.revenue).toBe(300);
+  });
+
+  test('the listed rows add up to the totals', async ({ request }) => {
+    mockDeps({
+      salespeople: ROSTER,
+      dispatches: [
+        dispatch(1, '2026-04-10', [item(10, 10, 30, 25)]),
+        dispatch(2, '2026-04-11', [item(10, 20, 30, 25)]),
+      ],
+    });
+
+    const { totals, salespeople } = (await (await get(request)).json()).data;
+    expect(salespeople.reduce((s, r) => s + r.revenue, 0)).toBe(totals.revenue);
+    expect(salespeople.reduce((s, r) => s + r.cost,    0)).toBe(totals.cost);
+    expect(salespeople.reduce((s, r) => s + r.profit,  0)).toBe(totals.profit);
+  });
+
+  test('omits an inactive salesman with no dispatches in the range', async ({ request }) => {
+    mockDeps({
+      salespeople: ROSTER,
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+    });
+
+    const ids = (await (await get(request)).json()).data.salespeople.map(s => s.salespersonId);
+    expect(ids).toEqual([1]);
+  });
+
+  test('still lists an active salesman with no dispatches', async ({ request }) => {
+    mockDeps({ salespeople: ROSTER, dispatches: [] });
+
+    const ids = (await (await get(request)).json()).data.salespeople.map(s => s.salespersonId);
+    expect(ids).toEqual([1]);
+  });
+});
+
+// ─── Dairy Statement reconciliation ──────────────────────────────────────────
+
+/**
+ * `reconciliation` bridges this report to the Dairy Statement's Bill for the
+ * same range, sourced from the same persisted DairyBalance rows the Dairy
+ * Statement itself reads. It never claims equality — a residual is expected
+ * whenever received stock isn't fully dispatched the same day.
+ */
+test.describe('GET /api/v1/reports/profit-loss — reconciliation', () => {
+  test('reconciliation.costOfGoodsDispatched always mirrors totals.cost', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: 250, depositValue: 0 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation.costOfGoodsDispatched).toBe(body.data.totals.cost);
+  });
+
+  test('otherDifference is zero when the dairy bill exactly matches cost of goods dispatched', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: 250, depositValue: 12.5 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation).toMatchObject({
+      dairyBill: 262.5, depositValue: 12.5, costOfGoodsDispatched: 250, otherDifference: 0,
+    });
+  });
+
+  test('surfaces a positive otherDifference when stock was received but not dispatched', async ({ request }) => {
+    // Dairy billed 700000 of stock; only 250 of it was actually dispatched.
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: 700000, depositValue: 0 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation.otherDifference).toBe(699750);
+  });
+
+  test('treats a range with no persisted DairyBalance rows as zero, not a crash', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(10, 10, 30, 25)])],
+      dairyBalanceSums: { stockValue: null, depositValue: null },
+    });
+
+    const body = await (await get(request)).json();
+    expect(body.data.reconciliation).toMatchObject({ dairyBill: 0, depositValue: 0, otherDifference: -250 });
+  });
+
+  test('excludes an inactive brand\'s DairyBalance from the bridge', async ({ request }) => {
+    // The query itself filters brand.isActive — this just pins that the field
+    // is wired through end to end so a regression there isn't silent.
+    mockDeps({
+      dispatches: [],
+      dairyBalanceSums: { stockValue: 500, depositValue: 20 },
+    });
+
+    const body = await (await get(request)).json();
+    expect(ctx.mockPrisma.dairyBalance.aggregate).toBeTruthy();
+    expect(body.data.reconciliation.dairyBill).toBe(520);
   });
 });

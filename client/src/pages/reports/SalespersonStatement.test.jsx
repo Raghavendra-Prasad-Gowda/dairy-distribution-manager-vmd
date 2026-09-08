@@ -532,3 +532,72 @@ describe('SalespersonStatement — initials avatar', () => {
     expect(await screen.findByText('C')).toBeInTheDocument();
   });
 });
+
+// ─── Top-ups ─────────────────────────────────────────────────────────────────
+
+/**
+ * A top-up is a pre-existing due an admin loaded: closing = opening +
+ * stockGiven + topUpAmount − amountPaid. It used to be absent from this
+ * report entirely, so "given − collected" disagreed with the outstanding by
+ * exactly the top-up, and the top-up itself was listed among the collections.
+ */
+describe('SalespersonStatement — top-ups', () => {
+  const TOPUP_ROWS = [
+    {
+      date: '2026-07-08', openingBalance: 0, stockGiven: 720000, topUpAmount: 1500,
+      amountPaid: 520000, closingBalance: 201500, items: [],
+      payments: [{ amount: 520000, mode: 'Cash', ref: 'R1' }],
+      topUps:   [{ amount: 1500, notes: 'old dues', createdBy: 'raghav' }],
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApi({ rows: TOPUP_ROWS });
+  });
+
+  it('shows an Old Balance column whose total explains the gap to the outstanding', async () => {
+    render(<SalespersonStatement />);
+    await screen.findByText('Totals');
+
+    expect(screen.getByRole('columnheader', { name: 'Old Balance' })).toBeInTheDocument();
+    // Given 720000 + top-up 1500 − collected 520000 = outstanding 201500.
+    expect(screen.getAllByText('₹1500.00').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('₹201500.00').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('lists the top-up separately from collections when the row is expanded', async () => {
+    render(<SalespersonStatement />);
+    await screen.findByText('Totals');
+
+    fireEvent.click(screen.getByText('08 Jul'));
+
+    expect(await screen.findByText('Old Balance Added')).toBeInTheDocument();
+    expect(screen.getByText(/₹1500\.00 by raghav — old dues/)).toBeInTheDocument();
+    // The collection is still shown under Collections, and only once.
+    expect(screen.getByText('₹520000.00 via Cash')).toBeInTheDocument();
+  });
+
+  it('expands a day that has only a top-up and no dispatch or collection', async () => {
+    mockApi({
+      rows: [{
+        date: '2026-07-08', openingBalance: 0, stockGiven: 0, topUpAmount: 1500,
+        amountPaid: 0, closingBalance: 1500, items: [], payments: [],
+        topUps: [{ amount: 1500, notes: null, createdBy: 'raghav' }],
+      }],
+    });
+    render(<SalespersonStatement />);
+    await screen.findByText('Totals');
+
+    fireEvent.click(screen.getByText('08 Jul'));
+    expect(await screen.findByText('Old Balance Added')).toBeInTheDocument();
+  });
+
+  it('hides the Old Balance column entirely when there are no top-ups', async () => {
+    mockApi();
+    render(<SalespersonStatement />);
+    await screen.findByText('Totals');
+
+    expect(screen.queryByRole('columnheader', { name: 'Old Balance' })).not.toBeInTheDocument();
+  });
+});
