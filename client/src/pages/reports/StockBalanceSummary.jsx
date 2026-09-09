@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { AlertCircle, Warehouse } from 'lucide-react';
+import { AlertCircle, ChevronRight, Warehouse } from 'lucide-react';
 import BrandTabs from '../../components/BrandTabs';
 import BrandedLoader from '../../components/ui/BrandedLoader';
 import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { useApiResources } from '../../hooks/useApiResources';
+import NotDispatchedModal from './NotDispatchedModal';
 
 // Whole crate counts render plain; a partial crate shows to 2 decimal
 // places — the same precision level as every other crate figure in the app.
@@ -16,10 +17,10 @@ export default function StockBalanceSummary() {
   const [date, setDate]                     = useState(getIndiaDate());
   const [selectedBrandId, setSelectedBrandId] = useState(null);
   const [showEmptyProducts, setShowEmptyProducts] = useState(false);
-  // Narrows the product columns down to only those with leftover stock —
-  // the direct answer to "which products were received but not dispatched",
-  // instead of switching "All products" on and scanning every column by eye.
-  const [remainingOnly, setRemainingOnly] = useState(false);
+  // The leftover chip opens a detail dialog rather than filtering the table:
+  // narrowing the columns still left the reader decoding a wide grid to work
+  // out what was actually left over. The dialog names the products outright.
+  const [leftoverOpen, setLeftoverOpen] = useState(false);
 
   // A monotonic request-id inside useApiResources drops a slow, now-stale
   // response if the date changes again before it lands — the same
@@ -93,25 +94,18 @@ export default function StockBalanceSummary() {
   }, [products, availData, activeBrandId, dispatchData]);
 
   // Columns with zero dispatched are hidden by default (even if received) —
-  // toggled back on via showEmptyProducts. remainingOnly takes priority over
-  // both — it's a targeted filter, not just a wider view, and needs to
-  // include zero-dispatched columns too (those are often the biggest
-  // leftovers), so it can't be layered under the entered-only gate.
+  // toggled back on via showEmptyProducts.
   const visibleProducts = useMemo(() => {
-    if (remainingOnly) {
-      const remainingIds = new Set(colTotals.filter(c => c.remaining !== 0).map(c => c.productId));
-      return products.filter(p => remainingIds.has(p.productId));
-    }
     if (showEmptyProducts) return products;
     const dispatchedIds = new Set(
       colTotals.filter(c => c.dispatched > 0).map(c => c.productId)
     );
     return products.filter(p => dispatchedIds.has(p.productId));
-  }, [products, colTotals, showEmptyProducts, remainingOnly]);
+  }, [products, colTotals, showEmptyProducts]);
 
   // costPrice isn't on the daily-dispatch product list, only on the
-  // availability response — build a lookup so the leftover chip can show a
-  // rupee figure, not just a product count.
+  // availability response — build a lookup so the leftover chip and dialog can
+  // show a rupee figure, not just a product count.
   const costMap = useMemo(
     () => Object.fromEntries(
       availData.filter(p => p.brandId === activeBrandId).map(p => [p.productId, Number(p.costPrice ?? 0)])
@@ -119,15 +113,41 @@ export default function StockBalanceSummary() {
     [availData, activeBrandId]
   );
 
-  // Computed from the FULL colTotals, not the filtered visibleColTotals, so
-  // the chip's count/value stays correct regardless of which view is active.
-  const remainingProducts = useMemo(
-    () => colTotals.filter(c => c.remaining !== 0),
-    [colTotals]
-  );
-  const remainingValue = useMemo(
-    () => remainingProducts.reduce((s, c) => s + c.remaining * (costMap[c.productId] ?? 0), 0),
-    [remainingProducts, costMap]
+  // Every product whose supply and dispatch disagree, in the layout order the
+  // API already sorted `products` into (brand → category → displayOrder →
+  // name), so the dialog's category grouping needs no re-sort. Built from the
+  // FULL column set rather than visibleColTotals, so a product with zero
+  // dispatches — hidden by the default Entered-only view and often the biggest
+  // leftover — is still counted.
+  const leftoverItems = useMemo(() => {
+    const totalsById = new Map(colTotals.map(c => [c.productId, c]));
+    return products.reduce((acc, p) => {
+      const totals = totalsById.get(p.productId);
+      if (!totals || totals.remaining === 0) return acc;
+      acc.push({
+        productId:         p.productId,
+        productName:       p.productName,
+        category:          p.category ?? null,
+        unitsPerContainer: p.unitsPerContainer ?? 0,
+        supply:            totals.received,
+        dispatched:        totals.dispatched,
+        left:              totals.remaining,
+        // Cost value of the mismatch in either direction — the sections in the
+        // dialog keep the two apart, so this stays a positive figure.
+        value:             Math.abs(totals.remaining) * (costMap[p.productId] ?? 0),
+      });
+      return acc;
+    }, []);
+  }, [products, colTotals, costMap]);
+
+  // The chip counts and prices only genuine leftovers (supply > dispatched) —
+  // that is what "not fully dispatched" means, and it keeps an over-dispatched
+  // product from subtracting its value and making a real leftover look smaller
+  // than it is. Over-dispatches still surface, in their own dialog section.
+  const shortProducts = useMemo(() => leftoverItems.filter(i => i.left > 0), [leftoverItems]);
+  const shortValue = useMemo(
+    () => shortProducts.reduce((s, i) => s + i.value, 0),
+    [shortProducts]
   );
 
   const visibleProductIds = useMemo(
@@ -248,22 +268,18 @@ export default function StockBalanceSummary() {
               <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wide">Crates Dispatched</span>
               <span className="text-sm font-extrabold text-violet-700 tabular-nums">{grandTotals.cratesDispatched ? formatCrates(grandTotals.cratesDispatched) : '—'}</span>
             </div>
-            {remainingProducts.length > 0 && (
+            {shortProducts.length > 0 && (
               <button
                 type="button"
-                onClick={() => setRemainingOnly(v => !v)}
-                className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition whitespace-nowrap ${
-                  remainingOnly
-                    ? 'bg-amber-600 text-white border-amber-600'
-                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}
+                onClick={() => setLeftoverOpen(true)}
+                aria-haspopup="dialog"
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
               >
-                {remainingOnly
-                  ? `✕ Showing ${remainingProducts.length} not fully dispatched`
-                  : `${remainingProducts.length} not fully dispatched · ${formatCurrency(remainingValue)}`}
+                {`${shortProducts.length} not fully dispatched · ${formatCurrency(shortValue)}`}
+                <ChevronRight size={13} className="text-amber-500" />
               </button>
             )}
-            {!remainingOnly && (showEmptyProducts || visibleProducts.length < products.length) && (
+            {(showEmptyProducts || visibleProducts.length < products.length) && (
               <button
                 type="button"
                 onClick={() => setShowEmptyProducts(v => !v)}
@@ -281,21 +297,10 @@ export default function StockBalanceSummary() {
           {visibleProducts.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-400">
               <AlertCircle size={22} className="text-slate-300" />
-              {remainingOnly ? (
-                <>
-                  <p className="text-sm">Every product received was fully dispatched.</p>
-                  <button type="button" onClick={() => setRemainingOnly(false)} className="text-xs text-emerald-600 underline">
-                    Clear filter
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm">No products with activity for this date</p>
-                  <button type="button" onClick={() => setShowEmptyProducts(true)} className="text-xs text-emerald-600 underline">
-                    Show all products
-                  </button>
-                </>
-              )}
+              <p className="text-sm">No products with activity for this date</p>
+              <button type="button" onClick={() => setShowEmptyProducts(true)} className="text-xs text-emerald-600 underline">
+                Show all products
+              </button>
             </div>
           ) : (
           <div className="flex-1 min-h-0 px-4 pb-4">
@@ -494,6 +499,14 @@ export default function StockBalanceSummary() {
           )}
         </div>
       )}
+
+      <NotDispatchedModal
+        open={leftoverOpen}
+        onClose={() => setLeftoverOpen(false)}
+        brandName={brands.find(b => b.id === activeBrandId)?.name ?? ''}
+        date={date}
+        items={leftoverItems}
+      />
     </div>
   );
 }
