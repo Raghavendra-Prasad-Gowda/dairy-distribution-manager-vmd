@@ -195,16 +195,18 @@ describe('StockBalanceSummary — dispatcher access', () => {
   });
 });
 
-// ─── "Not fully dispatched" filter ──────────────────────────────────────────
+// ─── "Not fully dispatched" detail dialog ───────────────────────────────────
 
 /**
  * The quick answer to "which products were received but not dispatched for
  * this date": a chip (built from the FULL column set, independent of the
- * Entered-only/All-products toggle) that narrows the table down to exactly
- * those columns on click — including a product with zero dispatches, which
- * the default Entered-only view hides entirely.
+ * Entered-only/All-products toggle) that opens a dialog naming each leftover
+ * product with its supply → dispatched → left figures, grouped under category
+ * headers in dairy layout order. The chip used to filter the table's columns
+ * instead, which left the reader decoding a wide grid; the table is now left
+ * untouched when the dialog opens.
  */
-describe('StockBalanceSummary — not fully dispatched filter', () => {
+describe('StockBalanceSummary — not fully dispatched dialog', () => {
   const PRODUCTS_WITH_LEFTOVER = [
     { productId: 10, productName: 'Milk 500ml', category: 'Milk', unitsPerContainer: 20 },
     { productId: 20, productName: 'Curd 200g',  category: 'Curd', unitsPerContainer: 24 },
@@ -217,9 +219,12 @@ describe('StockBalanceSummary — not fully dispatched filter', () => {
     totals: { 10: 40 },
   };
   const AVAILABILITY_WITH_LEFTOVER = [
-    { brandId: 1, productId: 10, received: 50,  costPrice: 5 },  // remaining 10 → ₹50
-    { brandId: 1, productId: 20, received: 100, costPrice: 10 }, // remaining 100 → ₹1000
+    { brandId: 1, productId: 10, received: 50,  costPrice: 5 },  // left 10 → ₹50
+    { brandId: 1, productId: 20, received: 100, costPrice: 10 }, // left 100 → ₹1000
   ];
+
+  const openDialog = () => fireEvent.click(screen.getByText(/not fully dispatched/));
+  const getDialog  = () => screen.getByRole('dialog');
 
   beforeEach(() => vi.clearAllMocks());
 
@@ -230,50 +235,101 @@ describe('StockBalanceSummary — not fully dispatched filter', () => {
 
     // 10 × ₹5 + 100 × ₹10 = ₹1,050 — counted even though Curd 200g's column
     // is hidden by the default Entered-only filter.
-    expect(screen.getByText('2 not fully dispatched · ₹1,050.00')).toBeInTheDocument();
+    expect(screen.getByText(/2 not fully dispatched · ₹1,050\.00/)).toBeInTheDocument();
     expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('reveals every leftover column, including a zero-dispatch product, on click', async () => {
+  it('lists each leftover product with its supply, dispatched and left figures', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    openDialog();
+
+    const dialog = getDialog();
+    // The zero-dispatch product the default table view hides entirely.
+    expect(within(dialog).getByText('Curd 200g')).toBeInTheDocument();
+    expect(within(dialog).getByText('Milk 500ml')).toBeInTheDocument();
+    expect(within(dialog).getByText('Left 10')).toBeInTheDocument();
+    expect(within(dialog).getByText('Left 100')).toBeInTheDocument();
+    // 100 units left ÷ 24 per crate = 4.17
+    expect(within(dialog).getByText('4.17 crates')).toBeInTheDocument();
+    // Per-product cost value, plus the ₹1,050 section/footer totals.
+    expect(within(dialog).getByText('₹50.00')).toBeInTheDocument();
+    expect(within(dialog).getByText('₹1,000.00')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('₹1,050.00').length).toBeGreaterThan(0);
+  });
+
+  it('groups the products under category headers in layout order', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    openDialog();
+
+    // The API sends products already in dairy layout order (brand →
+    // categoryDisplayOrder → displayOrder → name); the dialog must preserve it
+    // rather than re-sorting alphabetically, which would put Curd first.
+    const dialog = getDialog();
+    const headers = [...dialog.querySelectorAll('.sticky')].map(el => el.textContent);
+    expect(headers[0]).toContain('Milk');
+    expect(headers[1]).toContain('Curd');
+    expect(within(dialog).getByText('Milk')).toBeInTheDocument();
+    expect(within(dialog).getByText('Curd')).toBeInTheDocument();
+  });
+
+  it('leaves the table alone — opening the dialog is not a column filter', async () => {
     mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
     const { container } = render(<StockBalanceSummary />);
     await screen.findByText('Ramesh');
 
-    fireEvent.click(screen.getByText('2 not fully dispatched · ₹1,050.00'));
+    openDialog();
 
-    expect(await screen.findByText('Curd 200g')).toBeInTheDocument();
-    expect(screen.getByText('Milk 500ml')).toBeInTheDocument();
-    // Shortage row for each: 10 and 100. "Shortage" also labels the summary
-    // chip, so scope to the tfoot row specifically, per the pattern above.
-    const shortageRow = [...container.querySelectorAll('tfoot tr')]
-      .find(tr => tr.textContent.includes('Shortage'));
-    expect(within(shortageRow).getByText('10')).toBeInTheDocument();
-    expect(within(shortageRow).getByText('100')).toBeInTheDocument();
+    // Curd 200g appears in the dialog but is still absent from the table's
+    // columns, and the Entered-only toggle stays available.
+    const table = container.querySelector('table');
+    expect(within(table).queryByText('Curd 200g')).not.toBeInTheDocument();
+    expect(screen.getByText('Entered only')).toBeInTheDocument();
   });
 
-  it('hides the Entered-only/All-products toggle while the leftover filter is active', async () => {
+  it('closes on the Close button', async () => {
     mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
     render(<StockBalanceSummary />);
     await screen.findByText('Ramesh');
 
-    fireEvent.click(screen.getByText('2 not fully dispatched · ₹1,050.00'));
+    openDialog();
+    fireEvent.click(within(getDialog()).getByText('Close'));
 
-    await screen.findByText('Curd 200g');
-    expect(screen.queryByText('Entered only')).not.toBeInTheDocument();
-    expect(screen.queryByText('All products')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('clicking the active chip clears the filter and returns to the default view', async () => {
-    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+  it('splits over-dispatch into its own section so it never nets against the leftover value', async () => {
+    mockApi({
+      availability: [
+        { brandId: 1, productId: 10, received: 50, costPrice: 5 },  // left 10 → ₹50
+        { brandId: 1, productId: 20, received: 0,  costPrice: 10 }, // 30 dispatched from earlier stock → ₹300
+      ],
+      dispatch: {
+        ...DISPATCH_WITH_LEFTOVER,
+        rows: [{ salespersonId: 1, salespersonName: 'Ramesh', items: { 10: { qty: 40 }, 20: { qty: 30 } }, totalAmount: 880 }],
+        totals: { 10: 40, 20: 30 },
+      },
+    });
     render(<StockBalanceSummary />);
     await screen.findByText('Ramesh');
 
-    const chip = screen.getByText('2 not fully dispatched · ₹1,050.00');
-    fireEvent.click(chip);
-    await screen.findByText('Curd 200g');
+    // Chip counts and prices only the genuine leftover: 1 product, ₹50 — the
+    // −30 over-dispatch must not cancel ₹300 off it.
+    expect(screen.getByText(/1 not fully dispatched · ₹50\.00/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('✕ Showing 2 not fully dispatched'));
-    expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
+    openDialog();
+    const dialog = getDialog();
+    expect(within(dialog).getByText('Left in stock')).toBeInTheDocument();
+    expect(within(dialog).getByText('Dispatched beyond supply')).toBeInTheDocument();
+    expect(within(dialog).getByText('Extra 30')).toBeInTheDocument();
+    // Once on the product row, once as that section's own total.
+    expect(within(dialog).getAllByText('₹300.00')).toHaveLength(2);
   });
 
   it('shows no chip when every received product was fully dispatched', async () => {
