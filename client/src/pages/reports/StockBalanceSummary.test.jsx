@@ -332,6 +332,47 @@ describe('StockBalanceSummary — not fully dispatched dialog', () => {
     expect(within(dialog).getAllByText('₹300.00')).toHaveLength(2);
   });
 
+  /**
+   * On a phone the product list used to be its own scroll box inside the
+   * dialog body, so its overlay scrollbar sat hard against the list card's
+   * right edge — painted over the section band and the product rows — with a
+   * second scrollbar beside it. The dialog body is now the only scroller.
+   */
+  it('scrolls in one place — the dialog body, with no nested scroll box over the list', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    openDialog();
+
+    const dialog = getDialog();
+    const scrollers = dialog.querySelectorAll('[class*="overflow-y-auto"], [class*="overflow-auto"]');
+    expect(scrollers).toHaveLength(1);
+
+    // That one scroller is the body wrapping the content, not the list card.
+    const scroller = scrollers[0];
+    expect(scroller).toContainElement(within(dialog).getByText('Milk 500ml'));
+    expect(scroller.className).toContain('min-h-0');
+
+    // The list card must stay unclipped — overflow-hidden on it would make it
+    // a scroll container and stop the category headers from sticking.
+    const listCard = within(dialog).getByText('Left in stock').closest('.rounded-xl.border');
+    expect(listCard.className).not.toMatch(/overflow-/);
+  });
+
+  it('rounds the top of the first section band to match the list card corner', async () => {
+    mockApi({ availability: AVAILABILITY_WITH_LEFTOVER, dispatch: DISPATCH_WITH_LEFTOVER });
+    render(<StockBalanceSummary />);
+    await screen.findByText('Ramesh');
+
+    openDialog();
+
+    const dialog = getDialog();
+    // "Left in stock" is first here; the over-dispatch band below it is not.
+    expect(within(dialog).getByText('Left in stock').closest('div').parentElement.className)
+      .toContain('rounded-t-xl');
+  });
+
   it('shows no chip when every received product was fully dispatched', async () => {
     mockApi({
       availability: [{ brandId: 1, productId: 10, received: 40, costPrice: 5 }],

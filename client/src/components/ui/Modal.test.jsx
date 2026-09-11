@@ -181,6 +181,36 @@ describe('Modal — footer, size, and header omission', () => {
   });
 });
 
+describe('Modal — viewport cap and single scroll region', () => {
+  it('caps the card to the viewport and lets the body scroll', () => {
+    render(
+      <Modal open onClose={vi.fn()} title="Long dialog" footer={<button>Close</button>}>
+        <p>Body text</p>
+      </Modal>
+    );
+
+    const body = screen.getByText('Body text').closest('div');
+    expect(body.className).toContain('overflow-y-auto');
+    expect(body.className).toContain('min-h-0');
+
+    const card = screen.getByRole('dialog').firstElementChild;
+    expect(card.style.maxHeight).toBe('calc(100dvh - 2rem)');
+    expect(card.className).toContain('flex-col');
+  });
+
+  it('keeps the header and footer out of the scroll region so they stay put', () => {
+    render(
+      <Modal open onClose={vi.fn()} accent="amber" title="Bulk Top-up" footer={<button>Save</button>}>
+        <p>Body text</p>
+      </Modal>
+    );
+
+    const scroller = screen.getByText('Body text').closest('div');
+    expect(scroller).not.toContainElement(screen.getByText('Bulk Top-up'));
+    expect(scroller).not.toContainElement(screen.getByText('Save'));
+  });
+});
+
 describe('Modal — focus trap', () => {
   // With a title, the header's own X (Close dialog) button is the first
   // focusable element in DOM order — it comes before any of the children.
