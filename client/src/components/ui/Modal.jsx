@@ -96,15 +96,21 @@ export default function Modal({
       onClick={closeOnBackdrop ? onClose : undefined}
       style={{ animation: 'fadeIn 0.15s ease' }}
     >
+      {/* The card is capped to the viewport and scrolls in its body, so a long
+          dialog never grows past the screen (the card's overflow-hidden would
+          otherwise clip the overflowing part out of reach). dvh — not vh — so
+          a mobile browser's collapsing address bar is accounted for; browsers
+          without dvh drop the declaration and keep the previous uncapped
+          behaviour. */}
       <div
         ref={containerRef}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${sizeCls} bg-white rounded-2xl shadow-2xl overflow-hidden`}
-        style={{ animation: 'popIn 0.2s ease' }}
+        className={`w-full ${sizeCls} flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden`}
+        style={{ animation: 'popIn 0.2s ease', maxHeight: 'calc(100dvh - 2rem)' }}
       >
         {accentCls ? (
           (title || showClose) && (
-            <div className={`flex items-center justify-between gap-3 px-6 py-4 ${accentCls.band}`}>
+            <div className={`flex-shrink-0 flex items-center justify-between gap-3 px-6 py-4 ${accentCls.band}`}>
               <div className="flex items-center gap-3 min-w-0">
                 {Icon && <Icon size={18} className={`${accentCls.subtitle} flex-shrink-0`} />}
                 <div className="min-w-0">
@@ -126,7 +132,7 @@ export default function Modal({
           )
         ) : (
           (title || showClose) && (
-            <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3">
+            <div className="flex-shrink-0 flex items-start justify-between gap-3 px-6 pt-5 pb-3">
               <h3 id="modal-title" className="text-base font-bold text-slate-900 leading-tight">{title}</h3>
               {showClose && (
                 <button
@@ -141,9 +147,16 @@ export default function Modal({
             </div>
           )
         )}
-        <div className={title ? 'px-6 pb-5' : 'p-6'}>{children}</div>
+        {/* The body is the dialog's single scroll region — callers should lay
+            their content out plainly rather than nesting another scroll box,
+            which puts two scrollbars side by side and paints the inner one
+            over the content. overscroll-contain keeps a scroll gesture that
+            reaches the end from chaining to the page behind the backdrop. */}
+        <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${title ? 'px-6 pb-5' : 'p-6'}`}>
+          {children}
+        </div>
         {footer && (
-          <div className="bg-slate-50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100">
+          <div className="flex-shrink-0 bg-slate-50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100">
             {footer}
           </div>
         )}
