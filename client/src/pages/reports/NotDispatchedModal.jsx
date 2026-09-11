@@ -76,7 +76,7 @@ function ProductRow({ item, tone }) {
   );
 }
 
-function Section({ heading, hint, items, tone, total }) {
+function Section({ heading, hint, items, tone, total, first = false }) {
   if (items.length === 0) return null;
   const groups = groupByCategory(items);
   const bandCls = tone === 'over'
@@ -85,7 +85,10 @@ function Section({ heading, hint, items, tone, total }) {
 
   return (
     <div>
-      <div className={`flex items-center justify-between gap-3 px-3 py-2 ${bandCls}`}>
+      {/* The topmost band has to carry the card's own top rounding: the card
+          can't clip it with overflow-hidden, because that would make the card
+          a scroll container and kill the sticky category headers below. */}
+      <div className={`flex items-center justify-between gap-3 px-3 py-2 ${bandCls} ${first ? 'rounded-t-xl' : ''}`}>
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wide leading-tight">{heading}</p>
           {hint && <p className="text-[10px] opacity-80 leading-tight mt-0.5">{hint}</p>}
@@ -181,13 +184,19 @@ export default function NotDispatchedModal({ open, onClose, brandName, date, ite
         )}
       </div>
 
-      <div className="max-h-[55vh] overflow-y-auto rounded-xl border border-slate-200 bg-white">
+      {/* No scroll box of its own — the dialog body scrolls. A nested scroller
+          here sat its scrollbar hard against the card's right edge, painting
+          the thumb over the section band and the product rows, and stacked a
+          second scrollbar beside the body's. The category headers stay sticky
+          against the body's scrollport instead. */}
+      <div className="rounded-xl border border-slate-200 bg-white">
         <Section
           heading="Left in stock"
           hint="Received today, not dispatched"
           items={shortItems}
           tone="short"
           total={shortValue}
+          first
         />
         <Section
           heading="Dispatched beyond supply"
@@ -195,6 +204,7 @@ export default function NotDispatchedModal({ open, onClose, brandName, date, ite
           items={overItems}
           tone="over"
           total={overValue}
+          first={shortItems.length === 0}
         />
       </div>
     </Modal>
