@@ -43,7 +43,7 @@ export default function SalesmanDayBalance() {
   // a negative and quietly subtracted from every other salesman's genuine
   // shortfall in the totals row — understating the day's uncollected billing
   // by exactly the amount recovered against old dues. Floor the day balance at
-  // zero and surface that recovery separately instead.
+  // zero and carry that overpayment in its own Excess Paid column instead.
   const decorated = useMemo(() => filteredRows.map((r) => {
     const opening   = Number(r.openingBalance);
     const stock     = Number(r.stockGiven);
@@ -60,14 +60,13 @@ export default function SalesmanDayBalance() {
       ...r,
       opening, stock, topUp, paid,
       billPlusBalance: round2(todayBill + opening),
-      paidToday:       round2(paid - excess),
-      todayBalance, oldRecovered, advance,
+      todayBalance, excess, advance,
       closing: Number(r.closingBalance),
     };
   }), [filteredRows]);
 
-  // opening + todayBalance − oldRecovered must equal Total Balance, so the
-  // recovered figure is carried in the footer alongside the day balance.
+  // Outstanding + Day Balance − Excess Paid must equal Total Balance, so the
+  // excess is totalled as a column of its own and the footer reconciles across.
   const totals = useMemo(() => decorated.reduce((t, r) => ({
     bill:            round2(t.bill            + r.stock),
     topUp:           round2(t.topUp           + r.topUp),
@@ -75,15 +74,22 @@ export default function SalesmanDayBalance() {
     billPlusBalance: round2(t.billPlusBalance + r.billPlusBalance),
     paid:            round2(t.paid            + r.paid),
     todayBalance:    round2(t.todayBalance    + r.todayBalance),
-    oldRecovered:    round2(t.oldRecovered    + r.oldRecovered),
+    excess:          round2(t.excess          + r.excess),
     remaining:       round2(t.remaining       + r.closing),
   }), {
     bill: 0, topUp: 0, balance: 0, billPlusBalance: 0,
-    paid: 0, todayBalance: 0, oldRecovered: 0, remaining: 0,
+    paid: 0, todayBalance: 0, excess: 0, remaining: 0,
   }), [decorated]);
 
   const showTopUp = useMemo(
     () => decorated.some(r => r.topUp !== 0),
+    [decorated]
+  );
+
+  // Most days nobody pays past their bill — only surface the column when
+  // someone did, the same way Old Balance Added appears only when relevant.
+  const showExcess = useMemo(
+    () => decorated.some(r => r.excess > 0),
     [decorated]
   );
 
@@ -100,7 +106,6 @@ export default function SalesmanDayBalance() {
   const billHeader        = `${dayLabel}'s Bill`;
   const billBalanceHeader = `${dayLabel} Bill + Outstanding Balance`;
   const paidHeader        = `${dayLabel} Paid`;
-  const splitLabel        = isToday ? 'today' : dayLabel;
 
   return (
     <div className="flex flex-col h-full bg-slate-100">
@@ -162,6 +167,14 @@ export default function SalesmanDayBalance() {
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billBalanceHeader}</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{paidHeader}</th>
+                    {showExcess && (
+                      <th
+                        className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap"
+                        title={`Paid beyond ${dayLabel.toLowerCase()}'s bill — goes to the old outstanding balance.`}
+                      >
+                        Excess Paid
+                      </th>
+                    )}
                     <th
                       className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap"
                       title={`${dayLabel}'s bill still uncollected. Anything paid beyond it goes to the old outstanding balance.`}
@@ -174,7 +187,7 @@ export default function SalesmanDayBalance() {
                 <tbody>
                   {decorated.length === 0 ? (
                     <tr>
-                      <td colSpan={showTopUp ? 8 : 7} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
+                      <td colSpan={7 + (showTopUp ? 1 : 0) + (showExcess ? 1 : 0)} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
                     </tr>
                   ) : (
                     decorated.map((r, idx) => (
@@ -197,20 +210,14 @@ export default function SalesmanDayBalance() {
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-slate-800 border-b border-r border-slate-100">
                           {formatCurrency(r.billPlusBalance)}
                         </td>
-                        <td className="px-4 py-2.5 text-center border-b border-r border-slate-100">
-                          {r.paid > 0 ? (
-                            <>
-                              <p className="text-sm tabular-nums font-semibold text-emerald-600 leading-tight">{formatCurrency(r.paid)}</p>
-                              {(r.oldRecovered > 0 || r.advance > 0) && (
-                                <p className="text-[10px] font-medium text-slate-400 leading-tight mt-0.5 whitespace-nowrap">
-                                  {r.paidToday > 0 && <>{formatCurrency(r.paidToday)} {splitLabel} · </>}
-                                  {r.oldRecovered > 0 && <>{formatCurrency(r.oldRecovered)} old dues</>}
-                                  {r.advance > 0 && <>{r.oldRecovered > 0 ? ' · ' : ''}{formatCurrency(r.advance)} advance</>}
-                                </p>
-                              )}
-                            </>
-                          ) : <span className="text-slate-300 text-sm">—</span>}
+                        <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
+                          {r.paid > 0 ? formatCurrency(r.paid) : <span className="text-slate-300">—</span>}
                         </td>
+                        {showExcess && (
+                          <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${r.advance > 0 ? 'text-violet-600' : 'text-amber-600'}`}>
+                            {r.excess > 0 ? formatCurrency(r.excess) : <span className="text-slate-300">—</span>}
+                          </td>
+                        )}
                         <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${remColor(r.todayBalance)}`}>
                           {formatCurrency(r.todayBalance)}
                         </td>
@@ -244,15 +251,15 @@ export default function SalesmanDayBalance() {
                       <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.paid)}
                       </td>
-                      <td className={`bg-slate-700 px-4 py-3 text-center border-r border-slate-600 ${
+                      {showExcess && (
+                        <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-amber-300 tabular-nums border-r border-slate-600">
+                          {formatCurrency(totals.excess)}
+                        </td>
+                      )}
+                      <td className={`bg-slate-700 px-4 py-3 text-center text-sm font-bold tabular-nums border-r border-slate-600 ${
                         totals.todayBalance > 0 ? 'text-red-300' : 'text-emerald-300'
                       }`}>
-                        <p className="text-sm font-bold tabular-nums leading-tight">{formatCurrency(totals.todayBalance)}</p>
-                        {totals.oldRecovered > 0 && (
-                          <p className="text-[10px] font-medium text-slate-300 leading-tight mt-0.5 whitespace-nowrap">
-                            −{formatCurrency(totals.oldRecovered)} recovered from old dues
-                          </p>
-                        )}
+                        {formatCurrency(totals.todayBalance)}
                       </td>
                       <td className={`bg-slate-700 px-4 py-3 text-center text-sm font-bold tabular-nums ${
                         totals.remaining > 0 ? 'text-red-300' : totals.remaining < 0 ? 'text-violet-300' : 'text-emerald-300'

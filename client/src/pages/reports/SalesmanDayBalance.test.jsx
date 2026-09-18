@@ -113,7 +113,7 @@ describe('SalesmanDayBalance', () => {
     // Day balance floors at zero per row, so Mahesh's ₹200 old-dues recovery no
     // longer nets off Ramesh's genuine ₹100 shortfall.
     expect(totalsRow.textContent).toContain('₹100.00');  // today balance: max(500-400,0) + max(0-200,0)
-    expect(totalsRow.textContent).toContain('−₹200.00 recovered from old dues');
+    expect(totalsRow.textContent).toContain('₹200.00');  // excess paid: Mahesh's 200 over a nil bill
     expect(totalsRow.textContent).not.toContain('₹-100.00');
     expect(totalsRow.textContent).toContain('₹1100.00'); // total balance: 1100 + 0
   });
@@ -242,13 +242,14 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     expect(row.textContent).toContain('₹4999.00');
   });
 
-  it('splits the payment into the day\'s bill and the old dues it recovered', async () => {
+  it('shows the overpayment in its own Excess Paid column', async () => {
     mockApi(OVERPAID);
     render(<SalesmanDayBalance />);
     const row = (await screen.findByText('K Pandu')).closest('tr');
 
-    expect(row.textContent).toContain('₹28227.00');                        // what he handed over
-    expect(row.textContent).toContain('₹27797.00 today · ₹430.00 old dues'); // where it went
+    expect(screen.getByRole('columnheader', { name: 'Excess Paid' })).toBeInTheDocument();
+    expect(row.textContent).toContain('₹28227.00'); // what he handed over
+    expect(row.textContent).toContain('₹430.00');   // the part that went to his old balance
   });
 
   it('keeps one salesman\'s overpayment out of the day\'s total shortfall', async () => {
@@ -264,10 +265,10 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     // Hari is 1,000 short; K Pandu's 430 recovery must not cancel any of it.
     expect(totalsRow.textContent).toContain('₹1000.00');
     expect(totalsRow.textContent).not.toContain('₹570.00');
-    expect(totalsRow.textContent).toContain('−₹430.00 recovered from old dues');
+    expect(totalsRow.textContent).toContain('₹430.00'); // totalled under Excess Paid
   });
 
-  it('reconciles: outstanding + day balance − recovered = total balance', async () => {
+  it('reconciles: outstanding + day balance − excess paid = total balance', async () => {
     mockApi([
       ...OVERPAID,
       { salespersonId: 2, salespersonName: 'Hari', route: 'Route B',
@@ -277,14 +278,14 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     await screen.findByText('K Pandu');
     const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
 
-    // opening 5429 + day balance 1000 − recovered 430 = total balance 5999
+    // opening 5429 + day balance 1000 − excess paid 430 = total balance 5999
     expect(totalsRow.textContent).toContain('₹5429.00');
     expect(totalsRow.textContent).toContain('₹1000.00');
-    expect(totalsRow.textContent).toContain('−₹430.00 recovered from old dues');
+    expect(totalsRow.textContent).toContain('₹430.00');
     expect(totalsRow.textContent).toContain('₹5999.00');
   });
 
-  it('shows no split when the payment does not cover the day\'s bill', async () => {
+  it('hides the Excess Paid column when nobody pays past the day\'s bill', async () => {
     mockApi([{
       salespersonId: 1, salespersonName: 'Ramesh', route: null,
       openingBalance: 1000, stockGiven: 500, amountPaid: 400, closingBalance: 1100,
@@ -292,8 +293,8 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     render(<SalesmanDayBalance />);
     const row = (await screen.findByText('Ramesh')).closest('tr');
 
-    expect(row.textContent).toContain('₹100.00');       // 500 − 400 still uncollected
-    expect(row.textContent).not.toContain('old dues');
+    expect(row.textContent).toContain('₹100.00'); // 500 − 400 still uncollected
+    expect(screen.queryByRole('columnheader', { name: 'Excess Paid' })).not.toBeInTheDocument();
   });
 
   it('reports a genuine advance when there are no old dues left to recover', async () => {
@@ -304,8 +305,7 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     render(<SalesmanDayBalance />);
     const row = (await screen.findByText('Seena')).closest('tr');
 
-    expect(row.textContent).toContain('₹300.00 today · ₹200.00 advance');
-    expect(row.textContent).not.toContain('old dues');
+    expect(row.textContent).toContain('₹200.00'); // excess paid, with no old dues to absorb it
     // A real credit still reads negative on Total Balance, where it belongs.
     expect(row.textContent).toContain('₹-200.00');
   });
@@ -320,7 +320,8 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     const row = (await screen.findByText('Nagraj')).closest('tr');
 
     // Bill 500 + top-up 1500 = 2000 cleared first; only the last 100 hits old dues.
-    expect(row.textContent).toContain('₹2000.00 today · ₹100.00 old dues');
-    expect(row.textContent).toContain('₹900.00');
+    expect(row.textContent).toContain('₹100.00'); // excess paid
+    expect(row.textContent).toContain('₹0.00');   // day balance fully covered
+    expect(row.textContent).toContain('₹900.00'); // total balance
   });
 });
