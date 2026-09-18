@@ -207,7 +207,7 @@ describe('SalesmanDayBalance — top-ups', () => {
   });
 });
 
-// ─── Day balance vs. old-dues recovery ───────────────────────────────────────
+// ─── Day balance vs. old-dues recovery ──────────────────────────────
 
 /**
  * A salesman's collection clears THAT DAY'S bill first; only what he hands over
@@ -226,6 +226,28 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     openingBalance: 5429, stockGiven: 27797, amountPaid: 28227, closingBalance: 4999,
   }];
 
+  const SHORT_PAID = {
+    salespersonId: 2, salespersonName: 'Hari', route: 'Route B',
+    openingBalance: 0, stockGiven: 10000, amountPaid: 9000, closingBalance: 1000,
+  };
+
+  /** Column headers in render order, so cell lookups are position-aware. */
+  const headersOf = (row) =>
+    [...row.closest('table').querySelectorAll('thead th')].map(th => th.textContent.trim());
+
+  /**
+   * Read one cell of a row BY COLUMN, not by scanning the row's text. A plain
+   * `row.textContent).toContain('₹430.00')` passes even when the figure lands in
+   * the wrong column, which is exactly the regression these tests must catch.
+   */
+  function cellFor(row, header) {
+    const idx = headersOf(row).indexOf(header);
+    expect(idx, `no "${header}" column in [${headersOf(row).join(' | ')}]`).toBeGreaterThanOrEqual(0);
+    return row.children[idx];
+  }
+
+  const amountIn = (row, header) => Number(cellFor(row, header).textContent.replace(/[₹,]/g, ''));
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -236,10 +258,10 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     const row = (await screen.findByText('K Pandu')).closest('tr');
 
     // Today's bill is fully covered — not −430.
-    expect(row.textContent).toContain('₹0.00');
-    expect(row.textContent).not.toContain('₹-430.00');
+    expect(cellFor(row, 'Today Balance')).toHaveTextContent('₹0.00');
+    expect(cellFor(row, 'Today Balance')).not.toHaveTextContent('-430');
     // The old balance still owed is unchanged and stays on Total Balance.
-    expect(row.textContent).toContain('₹4999.00');
+    expect(cellFor(row, 'Total Balance')).toHaveTextContent('₹4999.00');
   });
 
   it('shows the overpayment in its own Excess Paid column', async () => {
@@ -247,42 +269,45 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     render(<SalesmanDayBalance />);
     const row = (await screen.findByText('K Pandu')).closest('tr');
 
-    expect(screen.getByRole('columnheader', { name: 'Excess Paid' })).toBeInTheDocument();
-    expect(row.textContent).toContain('₹28227.00'); // what he handed over
-    expect(row.textContent).toContain('₹430.00');   // the part that went to his old balance
+    expect(cellFor(row, 'Today Paid')).toHaveTextContent('₹28227.00');  // what he handed over
+    expect(cellFor(row, 'Excess Paid')).toHaveTextContent('₹430.00');   // the part that hit his old balance
+  });
+
+  it('places Excess Paid between Today Paid and Today Balance', async () => {
+    mockApi(OVERPAID);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('K Pandu');
+
+    const headers = headersOf(screen.getByText('K Pandu').closest('tr'));
+    expect(headers.indexOf('Excess Paid')).toBe(headers.indexOf('Today Paid') + 1);
+    expect(headers.indexOf('Today Balance')).toBe(headers.indexOf('Excess Paid') + 1);
   });
 
   it('keeps one salesman\'s overpayment out of the day\'s total shortfall', async () => {
-    mockApi([
-      ...OVERPAID,
-      { salespersonId: 2, salespersonName: 'Hari', route: 'Route B',
-        openingBalance: 0, stockGiven: 10000, amountPaid: 9000, closingBalance: 1000 },
-    ]);
+    mockApi([...OVERPAID, SHORT_PAID]);
     render(<SalesmanDayBalance />);
     await screen.findByText('K Pandu');
     const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
 
     // Hari is 1,000 short; K Pandu's 430 recovery must not cancel any of it.
-    expect(totalsRow.textContent).toContain('₹1000.00');
-    expect(totalsRow.textContent).not.toContain('₹570.00');
-    expect(totalsRow.textContent).toContain('₹430.00'); // totalled under Excess Paid
+    expect(amountIn(totalsRow, 'Today Balance')).toBe(1000);
+    expect(amountIn(totalsRow, 'Today Balance')).not.toBe(570); // the old signed-net answer
+    expect(amountIn(totalsRow, 'Excess Paid')).toBe(430);
   });
 
   it('reconciles: outstanding + day balance − excess paid = total balance', async () => {
-    mockApi([
-      ...OVERPAID,
-      { salespersonId: 2, salespersonName: 'Hari', route: 'Route B',
-        openingBalance: 0, stockGiven: 10000, amountPaid: 9000, closingBalance: 1000 },
-    ]);
+    mockApi([...OVERPAID, SHORT_PAID]);
     render(<SalesmanDayBalance />);
     await screen.findByText('K Pandu');
     const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
 
-    // opening 5429 + day balance 1000 − excess paid 430 = total balance 5999
-    expect(totalsRow.textContent).toContain('₹5429.00');
-    expect(totalsRow.textContent).toContain('₹1000.00');
-    expect(totalsRow.textContent).toContain('₹430.00');
-    expect(totalsRow.textContent).toContain('₹5999.00');
+    const outstanding = amountIn(totalsRow, 'Outstanding Balance');
+    const dayBalance  = amountIn(totalsRow, 'Today Balance');
+    const excess      = amountIn(totalsRow, 'Excess Paid');
+    const total       = amountIn(totalsRow, 'Total Balance');
+
+    expect(outstanding + dayBalance - excess).toBeCloseTo(total, 2);
+    expect(total).toBe(5999); // 5429 + 1000 − 430, and the ledger's own closing sum
   });
 
   it('hides the Excess Paid column when nobody pays past the day\'s bill', async () => {
@@ -293,7 +318,33 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     render(<SalesmanDayBalance />);
     const row = (await screen.findByText('Ramesh')).closest('tr');
 
-    expect(row.textContent).toContain('₹100.00'); // 500 − 400 still uncollected
+    expect(cellFor(row, 'Today Balance')).toHaveTextContent('₹100.00'); // 500 − 400 still uncollected
+    expect(screen.queryByRole('columnheader', { name: 'Excess Paid' })).not.toBeInTheDocument();
+  });
+
+  it('shows no excess when the payment exactly equals the day\'s bill', async () => {
+    mockApi([{
+      salespersonId: 1, salespersonName: 'Hari', route: null,
+      openingBalance: 2000, stockGiven: 41443, amountPaid: 41443, closingBalance: 2000,
+    }]);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('Hari')).closest('tr');
+
+    expect(cellFor(row, 'Today Balance')).toHaveTextContent('₹0.00');
+    expect(screen.queryByRole('columnheader', { name: 'Excess Paid' })).not.toBeInTheDocument();
+    // Paying the bill exactly must not touch the old balance.
+    expect(cellFor(row, 'Total Balance')).toHaveTextContent('₹2000.00');
+  });
+
+  it('drops the Excess Paid column when the search filters the overpayer out', async () => {
+    mockApi([...OVERPAID, SHORT_PAID]);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('K Pandu');
+    expect(screen.getByRole('columnheader', { name: 'Excess Paid' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/Search name or route/i), { target: { value: 'hari' } });
+
+    expect(screen.queryByText('K Pandu')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Excess Paid' })).not.toBeInTheDocument();
   });
 
@@ -305,9 +356,20 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     render(<SalesmanDayBalance />);
     const row = (await screen.findByText('Seena')).closest('tr');
 
-    expect(row.textContent).toContain('₹200.00'); // excess paid, with no old dues to absorb it
+    expect(cellFor(row, 'Excess Paid')).toHaveTextContent('₹200.00');
+    // Violet marks money with no old dues to absorb it, unlike an ordinary recovery.
+    expect(cellFor(row, 'Excess Paid').className).toContain('text-violet-600');
     // A real credit still reads negative on Total Balance, where it belongs.
-    expect(row.textContent).toContain('₹-200.00');
+    expect(cellFor(row, 'Total Balance')).toHaveTextContent('₹-200.00');
+  });
+
+  it('marks an ordinary old-dues recovery amber rather than violet', async () => {
+    mockApi(OVERPAID);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('K Pandu')).closest('tr');
+
+    expect(cellFor(row, 'Excess Paid').className).toContain('text-amber-600');
+    expect(cellFor(row, 'Excess Paid').className).not.toContain('text-violet-600');
   });
 
   it('counts a top-up on the day\'s side before any old dues are touched', async () => {
@@ -320,8 +382,31 @@ describe('SalesmanDayBalance — day balance vs old dues', () => {
     const row = (await screen.findByText('Nagraj')).closest('tr');
 
     // Bill 500 + top-up 1500 = 2000 cleared first; only the last 100 hits old dues.
-    expect(row.textContent).toContain('₹100.00'); // excess paid
-    expect(row.textContent).toContain('₹0.00');   // day balance fully covered
-    expect(row.textContent).toContain('₹900.00'); // total balance
+    expect(cellFor(row, 'Excess Paid')).toHaveTextContent('₹100.00');
+    expect(cellFor(row, 'Today Balance')).toHaveTextContent('₹0.00');
+    expect(cellFor(row, 'Total Balance')).toHaveTextContent('₹900.00');
+  });
+
+  it('carries paise through the derived columns and the totals', async () => {
+    // Real collections land on paise (₹25,000.25, ₹18,027.50 in production).
+    mockApi([
+      { salespersonId: 1, salespersonName: 'Shabari', route: null,
+        openingBalance: 3.75, stockGiven: 25000.25, amountPaid: 25000.5, closingBalance: 3.5 },
+      { salespersonId: 2, salespersonName: 'S Manu', route: null,
+        openingBalance: 1991.25, stockGiven: 18027.5, amountPaid: 18000.25, closingBalance: 2018.5 },
+    ]);
+    render(<SalesmanDayBalance />);
+    const shabari = (await screen.findByText('Shabari')).closest('tr');
+    const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
+
+    expect(cellFor(shabari, 'Excess Paid')).toHaveTextContent('₹0.25');   // 25000.50 − 25000.25
+    expect(amountIn(totalsRow, 'Today Balance')).toBeCloseTo(27.25, 2);        // S Manu short by 27.25
+    expect(amountIn(totalsRow, 'Excess Paid')).toBeCloseTo(0.25, 2);
+    // And the footer still reconciles on paise.
+    expect(
+      amountIn(totalsRow, 'Outstanding Balance') +
+      amountIn(totalsRow, 'Today Balance') -
+      amountIn(totalsRow, 'Excess Paid')
+    ).toBeCloseTo(amountIn(totalsRow, 'Total Balance'), 2);
   });
 });
