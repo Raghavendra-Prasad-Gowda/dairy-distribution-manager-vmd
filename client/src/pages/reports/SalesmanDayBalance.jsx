@@ -5,6 +5,9 @@ import DateSelector from '../../components/DateSelector';
 import { getIndiaDate, formatCurrency } from '../../utils/dateUtils';
 import { useApiResource } from '../../hooks/useApiResource';
 
+/** Decimals arrive as strings — round derived sums so 22797.999999 never surfaces. */
+const round2 = (n) => Math.round(n * 100) / 100;
+
 export default function SalesmanDayBalance() {
   const [date, setDate]       = useState(getIndiaDate());
   const [search, setSearch]   = useState('');
@@ -31,25 +34,67 @@ export default function SalesmanDayBalance() {
   }, [rows, search]);
 
   // A top-up is a pre-existing due an admin loaded — it ADDS to what the
-  // salesman owes (closing = opening + stockGiven + topUpAmount − amountPaid).
-  // Leaving it out of the derived columns made "bill + outstanding − paid"
-  // disagree with Total Balance by exactly the top-up, with nothing on screen
-  // to explain the gap. Fold it in, and surface the column when there is one.
-  const totals = useMemo(() => ({
-    bill:            filteredRows.reduce((s, r) => s + Number(r.stockGiven),     0),
-    balance:         filteredRows.reduce((s, r) => s + Number(r.openingBalance), 0),
-    topUp:           filteredRows.reduce((s, r) => s + Number(r.topUpAmount ?? 0), 0),
-    billPlusBalance: filteredRows.reduce((s, r) => s + Number(r.stockGiven) + Number(r.topUpAmount ?? 0) + Number(r.openingBalance), 0),
-    paid:            filteredRows.reduce((s, r) => s + Number(r.amountPaid),     0),
-    todayBalance:    filteredRows.reduce((s, r) => s + Number(r.stockGiven) + Number(r.topUpAmount ?? 0) - Number(r.amountPaid), 0),
-    remaining:       filteredRows.reduce((s, r) => s + Number(r.closingBalance), 0),
+  // salesman owes (closing = opening + stockGiven + topUpAmount − amountPaid),
+  // so it belongs on the same side as the day's bill.
+  //
+  // A salesman's collection clears THAT DAY'S bill first; only what he hands
+  // over beyond it reaches the dues carried in from earlier days. The day
+  // balance used to be a signed net (bill − paid), so an overpayment showed as
+  // a negative and quietly subtracted from every other salesman's genuine
+  // shortfall in the totals row — understating the day's uncollected billing
+  // by exactly the amount recovered against old dues. Floor the day balance at
+  // zero and carry that overpayment in its own Excess Paid column instead.
+  const decorated = useMemo(() => filteredRows.map((r) => {
+    const opening   = Number(r.openingBalance);
+    const stock     = Number(r.stockGiven);
+    const topUp     = Number(r.topUpAmount ?? 0);
+    const paid      = Number(r.amountPaid);
+    const todayBill = round2(stock + topUp);
+
+    const todayBalance = round2(Math.max(todayBill - paid, 0)); // today's bill still uncollected
+    const excess       = round2(Math.max(paid - todayBill, 0)); // handed over beyond today's bill
+    const oldRecovered = round2(Math.min(excess, Math.max(opening, 0)));
+    const advance      = round2(excess - oldRecovered);         // genuine credit — no old dues left
+
+    return {
+      ...r,
+      opening, stock, topUp, paid,
+      billPlusBalance: round2(todayBill + opening),
+      todayBalance, excess, advance,
+      closing: Number(r.closingBalance),
+    };
   }), [filteredRows]);
 
+  // Outstanding + Day Balance − Excess Paid must equal Total Balance, so the
+  // excess is totalled as a column of its own and the footer reconciles across.
+  const totals = useMemo(() => decorated.reduce((t, r) => ({
+    bill:            round2(t.bill            + r.stock),
+    topUp:           round2(t.topUp           + r.topUp),
+    balance:         round2(t.balance         + r.opening),
+    billPlusBalance: round2(t.billPlusBalance + r.billPlusBalance),
+    paid:            round2(t.paid            + r.paid),
+    todayBalance:    round2(t.todayBalance    + r.todayBalance),
+    excess:          round2(t.excess          + r.excess),
+    remaining:       round2(t.remaining       + r.closing),
+  }), {
+    bill: 0, topUp: 0, balance: 0, billPlusBalance: 0,
+    paid: 0, todayBalance: 0, excess: 0, remaining: 0,
+  }), [decorated]);
+
   const showTopUp = useMemo(
-    () => filteredRows.some(r => Number(r.topUpAmount ?? 0) !== 0),
-    [filteredRows]
+    () => decorated.some(r => r.topUp !== 0),
+    [decorated]
   );
 
+  // Most days nobody pays past their bill — only surface the column when
+  // someone did, the same way Old Balance Added appears only when relevant.
+  const showExcess = useMemo(
+    () => decorated.some(r => r.excess > 0),
+    [decorated]
+  );
+
+  // Total Balance can still go negative — that is a real advance sitting with
+  // the dairy. The day balance cannot, so it only ever reads red or green.
   const remColor = (v) => v > 0 ? 'text-red-600' : v < 0 ? 'text-violet-600' : 'text-emerald-600';
 
   // Column headers read "Today" when viewing today's date, and fall back to
@@ -122,54 +167,72 @@ export default function SalesmanDayBalance() {
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">Outstanding Balance</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{billBalanceHeader}</th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{paidHeader}</th>
-                    <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap">{dayLabel} Balance</th>
+                    {showExcess && (
+                      <th
+                        className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap"
+                        title={`Paid beyond ${dayLabel.toLowerCase()}'s bill — goes to the old outstanding balance.`}
+                      >
+                        Excess Paid
+                      </th>
+                    )}
+                    <th
+                      className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-emerald-600 whitespace-nowrap"
+                      title={`${dayLabel}'s bill still uncollected. Anything paid beyond it goes to the old outstanding balance.`}
+                    >
+                      {dayLabel} Balance
+                    </th>
                     <th className="bg-emerald-700 px-4 py-3 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">Total Balance</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.length === 0 ? (
+                  {decorated.length === 0 ? (
                     <tr>
-                      <td colSpan={showTopUp ? 8 : 7} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
+                      <td colSpan={7 + (showTopUp ? 1 : 0) + (showExcess ? 1 : 0)} className="py-10 text-center text-slate-400 text-sm">No salesmen match your search.</td>
                     </tr>
                   ) : (
-                    filteredRows.map((r, idx) => (
+                    decorated.map((r, idx) => (
                       <tr key={r.salespersonId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
                         <td className={`px-4 py-2.5 border-b border-r border-slate-100 sticky left-0 z-[5] ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                           <p className="text-sm font-semibold text-slate-800 leading-tight">{r.salespersonName}</p>
                           {r.route && <p className="text-xs text-slate-400 leading-tight mt-0.5">{r.route}</p>}
                         </td>
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-blue-600 border-b border-r border-slate-100">
-                          {Number(r.stockGiven) > 0 ? formatCurrency(r.stockGiven) : <span className="text-slate-300">—</span>}
+                          {r.stock > 0 ? formatCurrency(r.stock) : <span className="text-slate-300">—</span>}
                         </td>
                         {showTopUp && (
                           <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-amber-600 border-b border-r border-slate-100">
-                            {Number(r.topUpAmount ?? 0) !== 0 ? formatCurrency(r.topUpAmount) : <span className="text-slate-300">—</span>}
+                            {r.topUp !== 0 ? formatCurrency(r.topUp) : <span className="text-slate-300">—</span>}
                           </td>
                         )}
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums text-slate-600 border-b border-r border-slate-100">
-                          {formatCurrency(r.openingBalance)}
+                          {formatCurrency(r.opening)}
                         </td>
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-slate-800 border-b border-r border-slate-100">
-                          {formatCurrency(Number(r.stockGiven) + Number(r.topUpAmount ?? 0) + Number(r.openingBalance))}
+                          {formatCurrency(r.billPlusBalance)}
                         </td>
                         <td className="px-4 py-2.5 text-center text-sm tabular-nums font-semibold text-emerald-600 border-b border-r border-slate-100">
-                          {Number(r.amountPaid) > 0 ? formatCurrency(r.amountPaid) : <span className="text-slate-300">—</span>}
+                          {r.paid > 0 ? formatCurrency(r.paid) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${remColor(Number(r.stockGiven) + Number(r.topUpAmount ?? 0) - Number(r.amountPaid))}`}>
-                          {formatCurrency(Number(r.stockGiven) + Number(r.topUpAmount ?? 0) - Number(r.amountPaid))}
+                        {showExcess && (
+                          <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${r.advance > 0 ? 'text-violet-600' : 'text-amber-600'}`}>
+                            {r.excess > 0 ? formatCurrency(r.excess) : <span className="text-slate-300">—</span>}
+                          </td>
+                        )}
+                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-semibold border-b border-r border-slate-100 ${remColor(r.todayBalance)}`}>
+                          {formatCurrency(r.todayBalance)}
                         </td>
-                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(Number(r.closingBalance))}`}>
-                          {formatCurrency(r.closingBalance)}
+                        <td className={`px-4 py-2.5 text-center text-sm tabular-nums font-bold border-b border-slate-100 ${remColor(r.closing)}`}>
+                          {formatCurrency(r.closing)}
                         </td>
                       </tr>
                     ))
                   )}
                 </tbody>
-                {filteredRows.length > 0 && (
+                {decorated.length > 0 && (
                   <tfoot className="sticky bottom-0 z-10">
                     <tr>
                       <td className="bg-slate-700 px-4 py-3 text-xs font-bold text-white uppercase tracking-wider border-r border-slate-600 sticky left-0 z-20">
-                        Totals · {filteredRows.length} salesm{filteredRows.length === 1 ? 'an' : 'en'}
+                        Totals · {decorated.length} salesm{decorated.length === 1 ? 'an' : 'en'}
                       </td>
                       <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-blue-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.bill)}
@@ -188,8 +251,13 @@ export default function SalesmanDayBalance() {
                       <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-emerald-300 tabular-nums border-r border-slate-600">
                         {formatCurrency(totals.paid)}
                       </td>
+                      {showExcess && (
+                        <td className="bg-slate-700 px-4 py-3 text-center text-sm font-bold text-amber-300 tabular-nums border-r border-slate-600">
+                          {formatCurrency(totals.excess)}
+                        </td>
+                      )}
                       <td className={`bg-slate-700 px-4 py-3 text-center text-sm font-bold tabular-nums border-r border-slate-600 ${
-                        totals.todayBalance > 0 ? 'text-red-300' : totals.todayBalance < 0 ? 'text-violet-300' : 'text-emerald-300'
+                        totals.todayBalance > 0 ? 'text-red-300' : 'text-emerald-300'
                       }`}>
                         {formatCurrency(totals.todayBalance)}
                       </td>
