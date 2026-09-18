@@ -110,7 +110,11 @@ describe('SalesmanDayBalance', () => {
     expect(totalsRow.textContent).toContain('₹1200.00'); // balance: 1000 + 200
     expect(totalsRow.textContent).toContain('₹1700.00'); // bill+balance: 1500 + 200
     expect(totalsRow.textContent).toContain('₹600.00');  // paid: 400 + 200
-    expect(totalsRow.textContent).toContain('₹-100.00'); // today balance: (500 - 400) + (0 - 200) = -100
+    // Day balance floors at zero per row, so Mahesh's ₹200 old-dues recovery no
+    // longer nets off Ramesh's genuine ₹100 shortfall.
+    expect(totalsRow.textContent).toContain('₹100.00');  // today balance: max(500-400,0) + max(0-200,0)
+    expect(totalsRow.textContent).toContain('−₹200.00 recovered from old dues');
+    expect(totalsRow.textContent).not.toContain('₹-100.00');
     expect(totalsRow.textContent).toContain('₹1100.00'); // total balance: 1100 + 0
   });
 
@@ -200,5 +204,123 @@ describe('SalesmanDayBalance — top-ups', () => {
     expect(screen.queryByRole('columnheader', { name: 'Old Balance Added' })).not.toBeInTheDocument();
     // Falls back to bill 500 + opening 1000 = 1500 with no top-up added in.
     expect(screen.getAllByText('₹1500.00').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─── Day balance vs. old-dues recovery ───────────────────────────────────────
+
+/**
+ * A salesman's collection clears THAT DAY'S bill first; only what he hands over
+ * beyond it reaches the dues carried in from earlier days.
+ *
+ * The day balance was a signed net (bill − paid), so an overpayment rendered as
+ * a negative and — because the totals row summed those signed values — quietly
+ * subtracted from every other salesman's genuine shortfall, understating the
+ * day's uncollected billing by exactly the amount recovered against old dues.
+ */
+describe('SalesmanDayBalance — day balance vs old dues', () => {
+  // Real figures from the reported case: today's bill 27,797, handed over
+  // 28,227 — the extra 430 came off an opening balance of 5,429.
+  const OVERPAID = [{
+    salespersonId: 1, salespersonName: 'K Pandu', route: 'Route A',
+    openingBalance: 5429, stockGiven: 27797, amountPaid: 28227, closingBalance: 4999,
+  }];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('floors the day balance at zero when a salesman pays past the day\'s bill', async () => {
+    mockApi(OVERPAID);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('K Pandu')).closest('tr');
+
+    // Today's bill is fully covered — not −430.
+    expect(row.textContent).toContain('₹0.00');
+    expect(row.textContent).not.toContain('₹-430.00');
+    // The old balance still owed is unchanged and stays on Total Balance.
+    expect(row.textContent).toContain('₹4999.00');
+  });
+
+  it('splits the payment into the day\'s bill and the old dues it recovered', async () => {
+    mockApi(OVERPAID);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('K Pandu')).closest('tr');
+
+    expect(row.textContent).toContain('₹28227.00');                        // what he handed over
+    expect(row.textContent).toContain('₹27797.00 today · ₹430.00 old dues'); // where it went
+  });
+
+  it('keeps one salesman\'s overpayment out of the day\'s total shortfall', async () => {
+    mockApi([
+      ...OVERPAID,
+      { salespersonId: 2, salespersonName: 'Hari', route: 'Route B',
+        openingBalance: 0, stockGiven: 10000, amountPaid: 9000, closingBalance: 1000 },
+    ]);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('K Pandu');
+    const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
+
+    // Hari is 1,000 short; K Pandu's 430 recovery must not cancel any of it.
+    expect(totalsRow.textContent).toContain('₹1000.00');
+    expect(totalsRow.textContent).not.toContain('₹570.00');
+    expect(totalsRow.textContent).toContain('−₹430.00 recovered from old dues');
+  });
+
+  it('reconciles: outstanding + day balance − recovered = total balance', async () => {
+    mockApi([
+      ...OVERPAID,
+      { salespersonId: 2, salespersonName: 'Hari', route: 'Route B',
+        openingBalance: 0, stockGiven: 10000, amountPaid: 9000, closingBalance: 1000 },
+    ]);
+    render(<SalesmanDayBalance />);
+    await screen.findByText('K Pandu');
+    const totalsRow = screen.getByText(/Totals · 2 salesmen/i).closest('tr');
+
+    // opening 5429 + day balance 1000 − recovered 430 = total balance 5999
+    expect(totalsRow.textContent).toContain('₹5429.00');
+    expect(totalsRow.textContent).toContain('₹1000.00');
+    expect(totalsRow.textContent).toContain('−₹430.00 recovered from old dues');
+    expect(totalsRow.textContent).toContain('₹5999.00');
+  });
+
+  it('shows no split when the payment does not cover the day\'s bill', async () => {
+    mockApi([{
+      salespersonId: 1, salespersonName: 'Ramesh', route: null,
+      openingBalance: 1000, stockGiven: 500, amountPaid: 400, closingBalance: 1100,
+    }]);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('Ramesh')).closest('tr');
+
+    expect(row.textContent).toContain('₹100.00');       // 500 − 400 still uncollected
+    expect(row.textContent).not.toContain('old dues');
+  });
+
+  it('reports a genuine advance when there are no old dues left to recover', async () => {
+    mockApi([{
+      salespersonId: 1, salespersonName: 'Seena', route: null,
+      openingBalance: 0, stockGiven: 300, amountPaid: 500, closingBalance: -200,
+    }]);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('Seena')).closest('tr');
+
+    expect(row.textContent).toContain('₹300.00 today · ₹200.00 advance');
+    expect(row.textContent).not.toContain('old dues');
+    // A real credit still reads negative on Total Balance, where it belongs.
+    expect(row.textContent).toContain('₹-200.00');
+  });
+
+  it('counts a top-up on the day\'s side before any old dues are touched', async () => {
+    mockApi([{
+      salespersonId: 1, salespersonName: 'Nagraj', route: null,
+      openingBalance: 1000, stockGiven: 500, topUpAmount: 1500,
+      amountPaid: 2100, closingBalance: 900,
+    }]);
+    render(<SalesmanDayBalance />);
+    const row = (await screen.findByText('Nagraj')).closest('tr');
+
+    // Bill 500 + top-up 1500 = 2000 cleared first; only the last 100 hits old dues.
+    expect(row.textContent).toContain('₹2000.00 today · ₹100.00 old dues');
+    expect(row.textContent).toContain('₹900.00');
   });
 });
