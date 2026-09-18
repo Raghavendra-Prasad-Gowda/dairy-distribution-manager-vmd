@@ -164,6 +164,27 @@ describe('SalespersonStatementPrint — dispatch stock summary (type=dispatch)',
     expect(footer.textContent).toContain('₹535.00'); // 445 + 90
   });
 
+  // Regression: `tr:nth-child(even) td` (specificity 0,1,2) used to outrank
+  // `.brand-row td` (0,1,1), so a brand header landing on an even row — the
+  // second brand onwards — was repainted #f9fafb and its white text vanished
+  // from the printed sheet. jsdom does not resolve var(), so the brand color
+  // itself can't be asserted here; what matters is that the zebra fill no
+  // longer claims the row.
+  it('keeps the brand color on a brand header that falls on an even row', async () => {
+    mockApi({ rows: [row({
+      items: [
+        item({ brandName: 'Nandini', quantity: 10, totalAmount: 445 }),
+        item({ brandName: 'Jersey', brandDisplayOrder: 2, quantity: 2, totalAmount: 90 }),
+      ],
+    })] });
+    renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05&type=dispatch');
+
+    // Row order: Nandini (1) · Milk (2) · product (3) · Jersey (4 — even).
+    const jerseyRow = (await screen.findByText(/Jersey/)).closest('tr');
+    expect(jerseyRow.matches('tr:nth-child(even)')).toBe(true);
+    expect(getComputedStyle(jerseyRow.querySelector('td')).backgroundColor).not.toBe('rgb(249, 250, 251)');
+  });
+
   it('shows an empty-state message when nothing was dispatched in the period', async () => {
     mockApi({ rows: [row({ items: [] })] });
     renderWithParams('salespersonId=1&from=2026-08-05&to=2026-08-05&type=dispatch');

@@ -100,6 +100,26 @@ describe('StockSummaryPrint — aggregation', () => {
     expect(row).toHaveStyle({ '--brand-color': '#b45309' });
   });
 
+  // Regression: tr:nth-child(even) td (specificity 0,1,2) used to outrank
+  // .brand-row td (0,1,1), so a brand header landing on an even row — the
+  // second brand onwards — was repainted #f9fafb and its white text vanished
+  // from the printed sheet. jsdom does not resolve var(), so the brand color
+  // itself can't be asserted here; what matters is that the zebra fill no
+  // longer claims the row.
+  it('keeps the brand color on a brand header that falls on an even row', async () => {
+    mockApi(summaryData({ receipts: [
+      receipt({ productName: 'Toned Milk' }),
+      receipt({ productName: 'Homogenised Milk 500ml', displayOrder: 1 }),
+      receipt({ brandName: 'Jersey', brandDisplayOrder: 1, productName: 'HTM 1000ml' }),
+    ] }));
+    renderWithParams('from=2026-08-05&to=2026-08-05');
+
+    // Row order: Nandini (1) · two products (2, 3) · Jersey (4 — even).
+    const jerseyRow = (await screen.findByText(/Jersey/)).closest('tr');
+    expect(jerseyRow.matches('tr:nth-child(even)')).toBe(true);
+    expect(getComputedStyle(jerseyRow.querySelector('td')).backgroundColor).not.toBe('rgb(249, 250, 251)');
+  });
+
   it('shows a category sub-header only when the brand has more than one category', async () => {
     mockApi(summaryData({ receipts: [
       receipt({ productName: 'Toned Milk', category: 'Milk' }),

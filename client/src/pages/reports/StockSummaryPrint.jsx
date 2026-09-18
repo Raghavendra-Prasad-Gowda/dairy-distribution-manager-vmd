@@ -129,11 +129,15 @@ export default function StockSummaryPrint() {
         th { background: #f3f4f6; font-size: 9px; font-weight: 700; text-transform: uppercase;
              letter-spacing: 0.05em; padding: 6px 8px; border: 1px solid #d1d5db; }
         td { padding: 5px 8px; border: 1px solid #e5e7eb; vertical-align: middle; }
-        tr:nth-child(even) td { background: #f9fafb; }
+        /* Zebra striping is for plain data rows only: tr:nth-child(even) td
+           has a higher specificity (0,1,2) than .brand-row td (0,1,1), so
+           without this exclusion an even-numbered brand header row lost its
+           brand color and printed white text on #f9fafb — invisible. */
+        tr:nth-child(even):not(.brand-row):not(.cat-row) td { background: #f9fafb; }
         /* background comes from the --brand-color custom property set per
            row (getBrandHeaderHex) — same brand color identity as Dairy
            Settings' Brands list; #374151 only if that's somehow unset. */
-        .brand-row td { background: var(--brand-color, #374151); color: #fff; font-weight: 700;
+        .brand-row td { background: var(--brand-color, #374151) !important; color: #fff; font-weight: 700;
                         font-size: 10px; border-color: #4b5563; }
         .cat-row td   { background: #f0f0f0 !important; font-weight: 700; color: #374151;
                         font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border-color: #d1d5db; }

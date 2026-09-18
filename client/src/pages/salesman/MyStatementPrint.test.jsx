@@ -107,6 +107,30 @@ describe('MyStatementPrint — table', () => {
 });
 
 describe('MyStatementPrint — dispatch stock summary (type=dispatch)', () => {
+  // Regression: tr:nth-child(even) td (specificity 0,1,2) used to outrank
+  // .brand-row td (0,1,1), so a brand header landing on an even row — the
+  // second brand onwards — was repainted #f9fafb and its white text vanished
+  // from the printed sheet. jsdom does not resolve var(), so the brand color
+  // itself can't be asserted here; what matters is that the zebra fill no
+  // longer claims the row.
+  it('keeps the brand color on a brand header that falls on an even row', async () => {
+    mockApi([
+      row({
+        date: '2026-08-05',
+        items: [
+          { brandName: 'Jersey', productName: 'HTM 1000ml', quantity: 10, totalAmount: 500 },
+          { brandName: 'Nandini', productName: 'Toned Milk', quantity: 2, totalAmount: 100 },
+        ],
+      }),
+    ]);
+    renderWithParams('from=2026-08-05&to=2026-08-05&type=dispatch');
+
+    // Row order: Jersey (1) · category (2) · product (3) · Nandini (4 — even).
+    const nandiniRow = (await screen.findByText(/Nandini/)).closest('tr');
+    expect(nandiniRow.matches('tr:nth-child(even)')).toBe(true);
+    expect(getComputedStyle(nandiniRow.querySelector('td')).backgroundColor).not.toBe('rgb(249, 250, 251)');
+  });
+
   it('renders one row per brand+product with summed quantity and amount', async () => {
     mockApi([
       row({
