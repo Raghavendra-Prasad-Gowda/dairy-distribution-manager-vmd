@@ -48,6 +48,7 @@ dairy-distribution-manager-vmd/
 │   │   ├── salespersonPayments.controller.js
 │   │   ├── salespersonStatement.controller.js
 │   │   ├── reports.controller.js
+│   │   ├── bills.controller.js
 │   │   ├── routes.controller.js
 │   │   ├── pin.controller.js
 │   │   ├── adminUsers.controller.js
@@ -65,6 +66,7 @@ dairy-distribution-manager-vmd/
 │   │   ├── AppError.js                # Operational error class
 │   │   ├── slack.js                   # notifySlack, SLACK_EVENTS, buildCard
 │   │   ├── dateUtils.js               # getIndiaDateStr, getIndiaTomorrowStr (IST helpers)
+│   │   ├── billFormat.js              # Six fixed bill rows + rate/qty derivation
 │   │   └── constants.js               # JWT_EXPIRES_IN, BCRYPT_ROUNDS
 │   ├── lib/prisma.js                  # Singleton Prisma client — ALWAYS import this
 │   ├── config/logger.js               # Winston — use instead of console.log
@@ -106,6 +108,8 @@ dairy-distribution-manager-vmd/
         │   │   ├── SalesmanDayBalance.jsx
         │   │   ├── SalesmanProfitLoss.jsx
         │   │   ├── DairyReports.jsx
+        │   │   ├── BillGenerator.jsx
+        │   │   ├── BillPrint.jsx
         │   │   └── *Print.jsx          # Print/PDF variants
         │   ├── setup/
         │   │   ├── ProductsSetup.jsx
@@ -179,6 +183,7 @@ dairy-distribution-manager-vmd/
 | `AdminUser` | Admin/superadmin/dispatcher login | roles: admin/superadmin/dispatcher |
 | `DispatchDayFinalization` | Explicit finalization of a dispatch day | unique `(date)` |
 | `ClientErrorLog` | Frontend crash reports | |
+| `Bill` | Cash/credit bill issued to a salesperson | unique `billNumber`; `lines` is a frozen JSON snapshot of the six printed rows |
 
 ### Critical: `category` is a String on `Product`
 
@@ -275,6 +280,11 @@ await prisma.$transaction(async (tx) => {
 | `DELETE /salesperson-payments/:id` | admin | salespersonPayments |
 | `GET /salesperson-statement` | JWT | salespersonStatement |
 | `GET /reports/*` | JWT (per-route gating inside router) | reports |
+| `GET /bills` | admin | bills |
+| `GET /bills/preview` | admin | bills |
+| `GET /bills/:id` | admin | bills |
+| `POST /bills` | admin | bills |
+| `DELETE /bills/:id` | admin | bills |
 | `POST /pin/verify` | admin | pin |
 | `GET /routes` | admin | routes |
 | `POST /routes` | admin | routes |
@@ -302,6 +312,7 @@ await prisma.$transaction(async (tx) => {
 - `/dairy/reports` → DairyReports
 - `/reports/dairy` → DairyStatement
 - `/reports/salespeople` → SalespersonStatement
+- `/reports/bills` → BillGenerator
 - `/salesman/dispatch-sheet` → DailyDispatchSummary
 - `/salesman/day-balance` → SalesmanDayBalance
 - `/salesman/profit-loss` → SalesmanProfitLoss
@@ -324,7 +335,7 @@ await prisma.$transaction(async (tx) => {
 - `/salesman/change-password` → ChangePassword
 
 **Print routes (no Layout shell):**
-- `/print/stock-summary`, `/print/deposit`, `/print/dairy-statement`, `/print/salesperson-statement` (admin only)
+- `/print/stock-summary`, `/print/deposit`, `/print/dairy-statement`, `/print/salesperson-statement`, `/print/bill` (admin only)
 - `/print/salesman-my-statement` (any authenticated)
 
 ---
@@ -519,6 +530,8 @@ await notifySlack(...);
 **Setup — Routes:** `ROUTE_CREATED`, `ROUTE_UPDATED`, `ROUTE_DELETED`
 
 **Setup — Brands:** `BRAND_CREATED`, `BRAND_UPDATED`
+
+**Bills:** `BILL_GENERATED`, `BILL_DELETED`
 
 **Superadmin:** `ADMIN_USER_CREATED`, `ADMIN_USER_UPDATED`, `ADMIN_USER_DELETED`
 

@@ -169,6 +169,14 @@ function createMockPrisma() {
       createMany: mockFn(),
       updateMany: mockFn(),
     },
+    bill: {
+      findMany:   mockFn(),
+      findUnique: mockFn(),
+      findFirst:  mockFn(),
+      create:     mockFn(),
+      delete:     mockFn(),
+      count:      mockFn(),
+    },
     appSettings: {
       findUnique: mockFn(),
       create:     mockFn(),
