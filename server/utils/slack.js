@@ -101,6 +101,9 @@ const SLACK_EVENTS = {
   // Setup — brands (dairies) — renaming, enabling/disabling, deposit config
   BRAND_CREATED: 'BRAND_CREATED',
   BRAND_UPDATED: 'BRAND_UPDATED',
+  // Bills — the printed cash/credit bill issued to a salesperson
+  BILL_GENERATED: 'BILL_GENERATED',
+  BILL_DELETED: 'BILL_DELETED',
   // Superadmin — who can log in as admin at all
   ADMIN_USER_CREATED: 'ADMIN_USER_CREATED',
   ADMIN_USER_UPDATED: 'ADMIN_USER_UPDATED',
@@ -147,6 +150,8 @@ const EVENT_COLOR = {
   [SLACK_EVENTS.CATEGORY_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.CATEGORY_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.CATEGORY_DELETED]: COLORS.RED,
+  [SLACK_EVENTS.BILL_GENERATED]: COLORS.GREEN,
+  [SLACK_EVENTS.BILL_DELETED]: COLORS.RED,
   [SLACK_EVENTS.ROUTE_CREATED]: COLORS.GREEN,
   [SLACK_EVENTS.ROUTE_UPDATED]: COLORS.AMBER,
   [SLACK_EVENTS.ROUTE_DELETED]: COLORS.RED,
@@ -1135,6 +1140,39 @@ function buildCard(event, data) {
       );
 
     // ── Routes ─────────────────────────────────────────────────────────────
+    case SLACK_EVENTS.BILL_GENERATED:
+      return card(
+        event,
+        [
+          headerBlock('🧾 Bill Generated'),
+          fieldsBlock([
+            ['🔢 Bill No.', String(data.billNumber)],
+            ['👤 M/s', data.partyName],
+            ['🚚 Salesman', data.salespersonName],
+            ['📅 Period', `${data.from} to ${data.to}`],
+            ['💰 Total', formatINR(data.totalAmount)],
+            ['✍️ By', data.createdBy],
+          ]),
+        ],
+        `Bill #${data.billNumber} — ${data.partyName} — ${formatINR(data.totalAmount)}`
+      );
+
+    case SLACK_EVENTS.BILL_DELETED:
+      return card(
+        event,
+        [
+          headerBlock('🗑️ Bill Deleted'),
+          fieldsBlock([
+            ['🔢 Bill No.', String(data.billNumber)],
+            ['👤 M/s', data.partyName],
+            ['🚚 Salesman', data.salespersonName],
+            ['💰 Total', formatINR(data.totalAmount)],
+            ['✍️ By', data.deletedBy],
+          ]),
+        ],
+        `Bill #${data.billNumber} deleted — ${data.partyName}`
+      );
+
     case SLACK_EVENTS.ROUTE_CREATED:
       return card(
         event,

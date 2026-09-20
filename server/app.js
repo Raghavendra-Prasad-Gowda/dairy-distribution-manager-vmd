@@ -26,6 +26,7 @@ const dispatchesRoutes          = require('./routes/dispatches');
 const salespersonBalanceRoutes  = require('./routes/salespersonBalance');
 const salespersonPaymentsRoutes = require('./routes/salespersonPayments');
 const reportsRoutes             = require('./routes/reports');
+const billsRoutes               = require('./routes/bills');
 const pinRoutes                 = require('./routes/pin');
 const routesRoutes              = require('./routes/routes');
 const clientErrorsRoutes        = require('./routes/clientErrors');
@@ -143,6 +144,7 @@ app.use('/api/v1/dairy-payments',       requireAdmin, dairyPaymentsRoutes);
 app.use('/api/v1/dairy-deposit-topups', requireAdmin, dairyDepositTopUpsRoutes);
 app.use('/api/v1/salespeople',          requireAdmin, salespeopleRoutes);
 app.use('/api/v1/reports',              reportsRoutes);
+app.use('/api/v1/bills',                requireAdmin, billsRoutes);
 app.use('/api/v1/pin',                  requireAdmin, pinRoutes);
 app.use('/api/v1/routes',               requireAdmin, routesRoutes);
 

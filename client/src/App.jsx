@@ -35,6 +35,7 @@ const StockSummaryPrint      = lazy(() => import('./pages/reports/StockSummaryPr
 const DepositPrint           = lazy(() => import('./pages/reports/DepositPrint'));
 const DairyStatementPrint    = lazy(() => import('./pages/reports/DairyStatementPrint'));
 const SalespersonStatementPrint = lazy(() => import('./pages/reports/SalespersonStatementPrint'));
+const BillPrint              = lazy(() => import('./pages/reports/BillPrint'));
 
 const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
 
@@ -79,6 +80,9 @@ function AppRoutes() {
       } />
       <Route path="/print/salesperson-statement" element={
         <ProtectedRoute adminOnly>{S(SalespersonStatementPrint)}</ProtectedRoute>
+      } />
+      <Route path="/print/bill" element={
+        <ProtectedRoute adminOnly>{S(BillPrint)}</ProtectedRoute>
       } />
       {/* Salesman print route: API-gated (403 for non-salesman), accessible from any auth'd session */}
       <Route path="/print/salesman-my-statement" element={
@@ -155,6 +159,8 @@ function AppRoutes() {
             } />
 
             {/* Legacy redirects */}
+            {/* Bill generation folded into the Statements page as a tab */}
+            <Route path="reports/bills"        element={<Navigate to="/reports/salespeople" replace />} />
             <Route path="daily/receipt"        element={<Navigate to="/dairy/stock/nandini" replace />} />
             <Route path="daily/dispatch"       element={<Navigate to="/salesman/setup" replace />} />
             <Route path="payments/dairy"       element={<Navigate to="/dairy/payments" replace />} />

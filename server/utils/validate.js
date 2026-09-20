@@ -446,6 +446,19 @@ const schemas = {
     isActive: z.boolean().optional(),
   }),
 
+  // Bills — the printed cash/credit bill handed to a salesperson for a supply
+  // period. The date range is historical by nature (a month that has already
+  // been supplied), so unlike stock entry there is no today/tomorrow ceiling;
+  // the range is only checked for from <= to, in the controller.
+  createBill: z.object({
+    salespersonId: z.number().int().positive('Salesperson is required'),
+    from: dateString('From date must be YYYY-MM-DD'),
+    to: dateString('To date must be YYYY-MM-DD'),
+    // M/s on the pad — defaults to the salesperson's own name when omitted.
+    partyName: z.string().max(120, 'M/s name is too long').optional(),
+    poNumber: z.string().max(50, 'PO number is too long').optional(),
+  }),
+
   // Client error reporting (public, unauthenticated — see routes/clientErrors.js).
   // All fields optional (a crash report with nothing useful should still be
   // accepted, not rejected), but capped so an unauthenticated caller can't
