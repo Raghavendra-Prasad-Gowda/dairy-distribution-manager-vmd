@@ -458,3 +458,34 @@ test.describe('Process-level error cards', () => {
     expect(c.attachments[0].color).toBe('#e01e5a'); // RED
   });
 });
+
+test.describe('Bill cards', () => {
+  test('BILL_GENERATED shows the bill number, party, period, total and who issued it', () => {
+    const c = buildCard(SLACK_EVENTS.BILL_GENERATED, {
+      billNumber: 799, salespersonName: 'Ramesh', partyName: 'A.T & S',
+      from: '2026-08-01', to: '2026-08-31', totalAmount: 299854, createdBy: 'raghav',
+    });
+    expect(headerText(c)).toBe('🧾 Bill Generated');
+    expect(c.attachments[0].color).toBe('#2eb886'); // GREEN
+    const text = allText(c);
+    expect(text).toContain('799');
+    expect(text).toContain('A.T & S');
+    expect(text).toContain('Ramesh');
+    expect(text).toContain('2026-08-01 to 2026-08-31');
+    expect(text).toContain('raghav');
+    expect(text).toContain('₹');
+  });
+
+  test('BILL_DELETED is colored red and names who deleted it', () => {
+    const c = buildCard(SLACK_EVENTS.BILL_DELETED, {
+      billNumber: 799, salespersonName: 'Ramesh', partyName: 'A.T & S',
+      totalAmount: 299854, deletedBy: 'raghav',
+    });
+    expect(headerText(c)).toBe('🗑️ Bill Deleted');
+    expect(c.attachments[0].color).toBe('#e01e5a'); // RED
+    const text = allText(c);
+    expect(text).toContain('799');
+    expect(text).toContain('A.T & S');
+    expect(text).toContain('raghav');
+  });
+});

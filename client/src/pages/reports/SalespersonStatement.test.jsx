@@ -716,9 +716,32 @@ describe('SalespersonStatement — Bills tab', () => {
     expect(screen.getByRole('button', { name: /generate bill/i })).toBeDisabled();
   });
 
+  it('notifies when the preview fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/salespeople')) return Promise.resolve({ data: { data: SALESPEOPLE } });
+      if (url === '/bills/preview') return Promise.reject({ response: { data: { error: 'Salesperson not found' } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await selectRameshAndOpenBills();
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Salesperson not found', 'error'));
+  });
+
+  it('notifies when the history fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/salespeople')) return Promise.resolve({ data: { data: SALESPEOPLE } });
+      if (url === '/bills/preview') return Promise.resolve({ data: { data: BILL_PREVIEW } });
+      if (url === '/bills') return Promise.reject({ response: { data: { error: 'Failed to load bills' } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await selectRameshAndOpenBills();
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load bills', 'error'));
+  });
+
   it('posts the shared period and opens the printable bill', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('MILK');
 
@@ -729,13 +752,14 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09', partyName: 'A.T & S', poNumber: '798',
     }));
-    await waitFor(() => expect(window.open).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
     expect(notify).toHaveBeenCalledWith('Bill #799 generated', 'success');
+    openSpy.mockRestore();
   });
 
   it('omits M/s and PO No when left blank', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('MILK');
 
@@ -744,11 +768,12 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09',
     }));
+    openSpy.mockRestore();
   });
 
   it('adds the new bill to the history without re-fetching it', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('MILK');
 
@@ -757,6 +782,7 @@ describe('SalespersonStatement — Bills tab', () => {
 
     expect(await screen.findByText('#799')).toBeInTheDocument();
     expect(vi.mocked(api.get).mock.calls.filter(([url]) => url === '/bills').length).toBe(getsBefore);
+    openSpy.mockRestore();
   });
 
   it('notifies when issuing fails', async () => {
@@ -803,12 +829,13 @@ describe('SalespersonStatement — Bills tab', () => {
 
   it('reprints a bill from the history', async () => {
     mockBillsApi({ bills: [ISSUED_BILL] });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('#799');
 
     fireEvent.click(screen.getByRole('button', { name: /print bill #799/i }));
-    expect(window.open).toHaveBeenCalledWith('/print/bill?id=7', '_blank');
+    expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank');
+    openSpy.mockRestore();
   });
 
   it('deletes a bill after confirmation', async () => {

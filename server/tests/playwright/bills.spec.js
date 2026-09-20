@@ -202,6 +202,14 @@ test.describe('POST /api/v1/bills', () => {
     expect(res.status()).toBe(403);
   });
 
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.post('/api/v1/bills', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+      data: { salespersonId: 1, from: '2026-08-01', to: '2026-08-31' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('returns 403 for a salesman token', async ({ request }) => {
     const res = await request.post('/api/v1/bills', {
       headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
@@ -214,6 +222,14 @@ test.describe('POST /api/v1/bills', () => {
     const res = await request.post('/api/v1/bills', {
       headers: auth(),
       data: { from: '2026-08-01', to: '2026-08-31' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 for a malformed date', async ({ request }) => {
+    const res = await request.post('/api/v1/bills', {
+      headers: auth(),
+      data: { salespersonId: 1, from: '01-08-2026', to: '2026-08-31' },
     });
     expect(res.status()).toBe(400);
   });
@@ -291,11 +307,25 @@ test.describe('POST /api/v1/bills', () => {
   });
 });
 
-// ─── GET /api/v1/bills and /:id ───────────────────────────────────────────────
+// ─── GET /api/v1/bills ─────────────────────────────────────────────────────────
 
 test.describe('GET /api/v1/bills', () => {
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.get('/api/v1/bills');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
     expect(res.status()).toBe(403);
   });
 
@@ -317,6 +347,37 @@ test.describe('GET /api/v1/bills', () => {
     await request.get('/api/v1/bills?salespersonId=3', { headers: auth() });
 
     expect(findManyCalls[0][0].where).toEqual({ salespersonId: 3 });
+  });
+
+  test('returns an empty list when the salesperson has no bills', async ({ request }) => {
+    capture(ctx.mockPrisma.bill.findMany, []);
+    const res = await request.get('/api/v1/bills?salespersonId=3', { headers: auth() });
+    expect(res.status()).toBe(200);
+    const { data } = await res.json();
+    expect(data).toEqual([]);
+  });
+});
+
+// ─── GET /api/v1/bills/:id ──────────────────────────────────────────────────────
+
+test.describe('GET /api/v1/bills/:id', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.get('/api/v1/bills/7');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills/7', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills/7', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
   });
 
   test('returns 400 for a non-numeric id', async ({ request }) => {
@@ -345,11 +406,28 @@ test.describe('GET /api/v1/bills', () => {
 // ─── DELETE /api/v1/bills/:id ─────────────────────────────────────────────────
 
 test.describe('DELETE /api/v1/bills/:id', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.delete('/api/v1/bills/7');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.delete('/api/v1/bills/7', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('returns 403 for a salesman token', async ({ request }) => {
     const res = await request.delete('/api/v1/bills/7', {
       headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
     });
     expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 for a non-numeric id', async ({ request }) => {
+    const res = await request.delete('/api/v1/bills/abc', { headers: auth() });
+    expect(res.status()).toBe(400);
   });
 
   test('returns 404 for an unknown bill', async ({ request }) => {
