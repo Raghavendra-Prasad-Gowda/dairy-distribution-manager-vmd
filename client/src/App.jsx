@@ -35,7 +35,6 @@ const StockSummaryPrint      = lazy(() => import('./pages/reports/StockSummaryPr
 const DepositPrint           = lazy(() => import('./pages/reports/DepositPrint'));
 const DairyStatementPrint    = lazy(() => import('./pages/reports/DairyStatementPrint'));
 const SalespersonStatementPrint = lazy(() => import('./pages/reports/SalespersonStatementPrint'));
-const BillGenerator          = lazy(() => import('./pages/reports/BillGenerator'));
 const BillPrint              = lazy(() => import('./pages/reports/BillPrint'));
 
 const AdminUsersSetup        = lazy(() => import('./pages/setup/AdminUsersSetup'));
@@ -146,7 +145,6 @@ function AppRoutes() {
             <Route path="dairy/reports"           element={S(DairyReports)} />
             <Route path="reports/dairy"           element={S(DairyStatement)} />
             <Route path="reports/salespeople"       element={S(SalespersonStatement)} />
-            <Route path="reports/bills"             element={S(BillGenerator)} />
             <Route path="salesman/dispatch-sheet"   element={S(DailyDispatchSummary)} />
             <Route path="salesman/day-balance"      element={S(SalesmanDayBalance)} />
             <Route path="salesman/profit-loss"      element={S(SalesmanProfitLoss)} />
@@ -161,6 +159,8 @@ function AppRoutes() {
             } />
 
             {/* Legacy redirects */}
+            {/* Bill generation folded into the Statements page as a tab */}
+            <Route path="reports/bills"        element={<Navigate to="/reports/salespeople" replace />} />
             <Route path="daily/receipt"        element={<Navigate to="/dairy/stock/nandini" replace />} />
             <Route path="daily/dispatch"       element={<Navigate to="/salesman/setup" replace />} />
             <Route path="payments/dairy"       element={<Navigate to="/dairy/payments" replace />} />

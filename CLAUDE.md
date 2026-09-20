@@ -108,7 +108,6 @@ dairy-distribution-manager-vmd/
         │   │   ├── SalesmanDayBalance.jsx
         │   │   ├── SalesmanProfitLoss.jsx
         │   │   ├── DairyReports.jsx
-        │   │   ├── BillGenerator.jsx
         │   │   ├── BillPrint.jsx
         │   │   └── *Print.jsx          # Print/PDF variants
         │   ├── setup/
@@ -311,8 +310,8 @@ await prisma.$transaction(async (tx) => {
 - `/salesman/setup/prices` → SalesmanPricesSetup
 - `/dairy/reports` → DairyReports
 - `/reports/dairy` → DairyStatement
-- `/reports/salespeople` → SalespersonStatement
-- `/reports/bills` → BillGenerator
+- `/reports/salespeople` → SalespersonStatement (includes a "Bills" tab — generate/reprint/delete the printed
+  cash/credit bill for the sidebar-selected salesperson over the page's own date range, plus their bill history)
 - `/salesman/dispatch-sheet` → DailyDispatchSummary
 - `/salesman/day-balance` → SalesmanDayBalance
 - `/salesman/profit-loss` → SalesmanProfitLoss
