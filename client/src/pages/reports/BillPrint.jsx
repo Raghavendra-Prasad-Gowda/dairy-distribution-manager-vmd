@@ -34,6 +34,51 @@ function formatAmount(n) {
   return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * The faint cow watermark the paper pad prints behind its line-item table.
+ * A plain inline SVG (not a CSS background-image) so it always renders when
+ * printed — "print background graphics" browser settings only suppress CSS
+ * backgrounds, never visible foreground vector content like this.
+ */
+function CowWatermark() {
+  return (
+    <svg viewBox="0 0 240 160" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {/* Horns — short curved hooks, not straight antennae */}
+        <path d="M44,46 Q36,38 40,28 Q46,32 46,40" />
+        <path d="M68,44 Q77,37 74,27 Q68,31 67,39" />
+        {/* Ears */}
+        <ellipse cx="41" cy="53" rx="11" ry="6" transform="rotate(-25 41 53)" />
+        <ellipse cx="69" cy="51" rx="11" ry="6" transform="rotate(20 69 51)" />
+        {/* Head + snout */}
+        <ellipse cx="55" cy="72" rx="27" ry="25" />
+        <ellipse cx="29" cy="80" rx="13" ry="10" />
+        {/* Body */}
+        <ellipse cx="122" cy="96" rx="72" ry="36" />
+        {/* Legs */}
+        <path d="M75,128 L72,158" />
+        <path d="M102,132 L100,160" />
+        <path d="M152,132 L154,160" />
+        <path d="M178,128 L182,158" />
+        {/* Tail */}
+        <path d="M190,88 Q210,102 202,132" />
+      </g>
+      <g fill="currentColor" stroke="none">
+        {/* Nostrils + eye */}
+        <circle cx="23" cy="78" r="2" />
+        <circle cx="23" cy="84" r="2" />
+        <circle cx="52" cy="66" r="3" />
+        {/* Body patches */}
+        <path d="M92,72 Q104,61 118,70 Q122,83 108,90 Q94,86 92,72 Z" />
+        <path d="M142,102 Q158,96 169,107 Q163,121 147,117 Q136,111 142,102 Z" />
+        <path d="M97,110 Q105,105 112,111 Q109,119 100,117 Q95,114 97,110 Z" />
+        {/* Tail tuft */}
+        <circle cx="203" cy="135" r="6" />
+      </g>
+    </svg>
+  );
+}
+
 export default function BillPrint() {
   const [params] = useSearchParams();
   const id = params.get('id') ?? '';
@@ -82,7 +127,17 @@ export default function BillPrint() {
         .meta-line { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; }
         .field { flex: 1; display: flex; gap: 4px; align-items: baseline; }
         .field .value { flex: 1; border-bottom: 1px dotted #1a1a6e; font-weight: 700; padding: 0 3px; min-height: 14px; }
-        table { width: 100%; border-collapse: collapse; }
+        /* Watermark sits behind the table, the same way the pad's printed cow
+           does — an absolutely positioned layer under the (borderless-fill)
+           table cells, so it shows through the empty space in every row. */
+        .table-wrap { position: relative; }
+        .watermark {
+          position: absolute; inset: 0; z-index: 0;
+          display: flex; align-items: center; justify-content: center;
+          pointer-events: none;
+        }
+        .watermark svg { width: 62%; max-width: 260px; height: auto; color: #1a1a6e; opacity: 0.09; }
+        table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #1a1a6e; padding: 6px 6px; }
         th { font-size: 10px; font-weight: 700; }
         td { height: 26px; }
@@ -144,35 +199,38 @@ export default function BillPrint() {
           </div>
 
           {/* ── The six printed rows ─────────────────────────────────── */}
-          <table>
-            <thead>
-              <tr>
-                <th className="sl">Sl.<br />No.</th>
-                <th>Description</th>
-                <th className="rate">Rate/Qty.</th>
-                <th className="qty">Qty.</th>
-                <th className="amt">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bill.lines.map((line, i) => (
-                <tr key={line.label}>
-                  <td className="sl">{i + 1}.</td>
-                  <td className="desc">{line.label}</td>
-                  <td className="num">{formatRate(line)}</td>
-                  <td className="num">{formatQty(line)}</td>
-                  <td className="num">{formatAmount(line.amount)}</td>
+          <div className="table-wrap">
+            <div className="watermark"><CowWatermark /></div>
+            <table>
+              <thead>
+                <tr>
+                  <th className="sl">Sl.<br />No.</th>
+                  <th>Description</th>
+                  <th className="rate">Rate/Qty.</th>
+                  <th className="qty">Qty.</th>
+                  <th className="amt">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td className="no-border" colSpan={2}></td>
-                <td className="total-label" colSpan={2}>Total</td>
-                <td className="num total-amt">{formatAmount(bill.totalAmount)}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {bill.lines.map((line, i) => (
+                  <tr key={line.label}>
+                    <td className="sl">{i + 1}.</td>
+                    <td className="desc">{line.label}</td>
+                    <td className="num">{formatRate(line)}</td>
+                    <td className="num">{formatQty(line)}</td>
+                    <td className="num">{formatAmount(line.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="no-border" colSpan={2}></td>
+                  <td className="total-label" colSpan={2}>Total</td>
+                  <td className="num total-amt">{formatAmount(bill.totalAmount)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
           {/* ── In words + signature ─────────────────────────────────── */}
           <div className="footer">
