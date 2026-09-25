@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { formatDateShort } from '../../utils/dateUtils';
@@ -16,16 +16,16 @@ const DAIRY = {
   phones:     '9845073830, 9900168388, 9845585343',
 };
 
-/** "52/ltr" — the Rate/Qty cell, blank when the row has nothing on it. */
-function formatRate(line) {
-  if (line.rate == null || !line.unit) return '';
-  return `${line.rate}/${line.unit}`;
+/** "52/ltr" — a product's rate, blank when there's nothing to derive it from. */
+function formatRate(product) {
+  if (product.rate == null) return '';
+  return `${product.rate}/${product.unit}`;
 }
 
-/** Quantities print whole where they are whole, 2dp otherwise. */
-function formatQty(line) {
-  if (line.quantity == null) return '';
-  return Number.isInteger(line.quantity) ? String(line.quantity) : line.quantity.toFixed(2);
+/** Quantities print whole where they are whole, 2dp otherwise, with their unit. */
+function formatQty(product) {
+  const qty = Number.isInteger(product.quantity) ? String(product.quantity) : product.quantity.toFixed(2);
+  return `${qty} ${product.unit}`;
 }
 
 /** Plain grouped figures — the pad writes amounts without a ₹ symbol. */
@@ -127,60 +127,61 @@ export default function BillPrint() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a6e; background: #fff; }
         @media print {
-          @page { margin: 10mm; size: A5 portrait; }
+          /* A4, not the pad's own small A5 slip — the bill now lists every
+             product actually supplied instead of six pre-printed rows, so
+             its length varies with how much was dispatched and needs the
+             extra room; a long bill flows onto further A4 pages normally. */
+          @page { margin: 12mm 14mm; size: A4 portrait; }
           .no-print { display: none !important; }
-          /* On screen the sheet is a fixed-width slip centred below the Print
-             button; on paper it fills the A5 page box instead — 520px is
-             ~137mm, wider than A5 minus margins, and would otherwise be
-             scaled down or clipped by the browser. */
           .sheet { max-width: none; width: 100%; margin: 0; }
         }
-        /* Top margin clears the fixed Print button, which would otherwise sit
-           on top of the "Cash / Credit Bill" line on this narrow sheet. */
-        .sheet { max-width: 520px; margin: 56px auto 0; padding: 18px; border: 2px solid #1a1a6e; }
+        /* Top margin clears the fixed Print button. */
+        .sheet { max-width: 760px; margin: 56px auto 0; position: relative; z-index: 1; }
+        /* Watermark is page-fixed (not scoped to the table), since the item
+           list is now variable-length — position:fixed repeats it on every
+           printed page, the way a letterhead watermark would, rather than
+           centering once inside content that may run past one page. */
+        .watermark {
+          position: fixed; inset: 0; z-index: 0;
+          display: flex; align-items: center; justify-content: center;
+          pointer-events: none;
+        }
+        .watermark svg { width: 46%; max-width: 280px; height: auto; color: #1a1a6e; opacity: 0.08; }
+        .identity { border: 2px solid #1a1a6e; padding: 16px 18px; margin-bottom: 14px; }
         .toprow { display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; margin-bottom: 6px; }
         .masthead { text-align: center; }
         .dairy-name { display: inline-block; border: 2px solid #1a1a6e; padding: 3px 14px; font-size: 22px;
                       font-weight: 700; letter-spacing: 0.14em; }
         .address { font-size: 10px; margin-top: 4px; }
         .phones  { font-size: 10px; margin-top: 2px; }
-        .meta { margin: 12px 0 8px; font-size: 11px; }
+        .meta { margin: 12px 0 0; font-size: 11px; }
         .meta-line { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; }
         .field { flex: 1; display: flex; gap: 4px; align-items: baseline; }
         .field .value { flex: 1; border-bottom: 1px dotted #1a1a6e; font-weight: 700; padding: 0 3px; min-height: 14px; }
-        /* Watermark sits behind the table, the same way the pad's printed cow
-           does — an absolutely positioned layer under the (borderless-fill)
-           table cells, so it shows through the empty space in every row. */
-        .table-wrap { position: relative; }
-        .watermark {
-          position: absolute; inset: 0; z-index: 0;
-          display: flex; align-items: center; justify-content: center;
-          pointer-events: none;
-        }
-        .watermark svg { width: 62%; max-width: 260px; height: auto; color: #1a1a6e; opacity: 0.09; }
-        table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #1a1a6e; padding: 6px 6px; }
-        th { font-size: 10px; font-weight: 700; }
-        td { height: 26px; }
-        .sl   { width: 34px; text-align: center; font-weight: 700; }
-        .desc { font-weight: 700; letter-spacing: 0.03em; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #1a1a6e; padding: 6px 8px; }
+        th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+        .desc { font-weight: 500; }
         .num  { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .qty  { width: 90px; }
         .rate { width: 72px; }
-        .qty  { width: 64px; }
-        .amt  { width: 96px; }
+        .amt  { width: 100px; }
+        .brand-row td { background: rgba(26,26,110,0.12); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .cat-row td   { background: rgba(26,26,110,0.05); font-weight: 700; padding-left: 16px; font-size: 10px;
+                        text-transform: uppercase; letter-spacing: 0.04em; }
+        .product-row .desc { padding-left: 22px; }
         .total-label { text-align: right; font-weight: 700; border-left: none; }
         .total-amt   { font-weight: 700; }
         .no-border { border: none; }
         .footer { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-top: 10px; font-size: 10px; }
-        .words { flex: 1; }
-        .words { font-size: 9px; line-height: 1.6; }
+        .words { flex: 1; font-size: 9px; line-height: 1.6; }
         .words .value { border-bottom: 1px dotted #1a1a6e; font-weight: 700; min-height: 14px; padding: 0 3px; }
         .sign { text-align: center; font-size: 10px; }
         .sign .for { font-weight: 700; margin-bottom: 26px; }
         .sign .role { border-top: 1px solid #1a1a6e; padding-top: 2px; }
         .print-btn { position: fixed; top: 12px; right: 16px; background: #059669; color: #fff;
                      border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px;
-                     font-weight: 600; cursor: pointer; }
+                     font-weight: 600; cursor: pointer; z-index: 2; }
         .print-btn:hover { background: #047857; }
         .msg { padding: 24px; text-align: center; color: #6b7280; font-family: Arial, sans-serif; }
       `}</style>
@@ -191,79 +192,92 @@ export default function BillPrint() {
       {!bill && !error && <p className="msg">Loading…</p>}
 
       {bill && (
-        <div className="sheet">
+        <>
+          <div className="watermark" aria-hidden="true"><CowWatermark /></div>
 
-          {/* ── Masthead ─────────────────────────────────────────────── */}
-          <div className="toprow">
-            <span>{DAIRY.proprietor}</span>
-            <span>Cash / Credit Bill</span>
-          </div>
-          <div className="masthead">
-            <div className="dairy-name">{DAIRY.name}</div>
-            <div className="address">{DAIRY.address}</div>
-            <div className="phones">☎ {DAIRY.phones}</div>
-          </div>
+          <div className="sheet">
 
-          {/* ── Bill No / dates / M/s ────────────────────────────────── */}
-          <div className="meta">
-            <div className="meta-line">
-              <span className="field">Bill No.<span className="value">{bill.billNumber}</span></span>
-              <span className="field">Date<span className="value">{formatDateShort(bill.fromDate)} to</span></span>
-            </div>
-            <div className="meta-line">
-              <span className="field">PO No.<span className="value">{bill.poNumber ?? ''}</span></span>
-              <span className="field">Date<span className="value">{formatDateShort(bill.toDate)}</span></span>
-            </div>
-            <div className="meta-line">
-              <span className="field">M/s<span className="value">{bill.partyName}</span></span>
-            </div>
-          </div>
+            {/* ── Masthead, Bill No / dates / M/s ─────────────────────── */}
+            <div className="identity">
+              <div className="toprow">
+                <span>{DAIRY.proprietor}</span>
+                <span>Cash / Credit Bill</span>
+              </div>
+              <div className="masthead">
+                <div className="dairy-name">{DAIRY.name}</div>
+                <div className="address">{DAIRY.address}</div>
+                <div className="phones">☎ {DAIRY.phones}</div>
+              </div>
 
-          {/* ── The six printed rows ─────────────────────────────────── */}
-          <div className="table-wrap">
-            <div className="watermark"><CowWatermark /></div>
+              <div className="meta">
+                <div className="meta-line">
+                  <span className="field">Bill No.<span className="value">{bill.billNumber}</span></span>
+                  <span className="field">Date<span className="value">{formatDateShort(bill.fromDate)} to</span></span>
+                </div>
+                <div className="meta-line">
+                  <span className="field">PO No.<span className="value">{bill.poNumber ?? ''}</span></span>
+                  <span className="field">Date<span className="value">{formatDateShort(bill.toDate)}</span></span>
+                </div>
+                <div className="meta-line">
+                  <span className="field">M/s<span className="value">{bill.partyName}</span></span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Line items — Brand → Category → Product ─────────────── */}
             <table>
               <thead>
                 <tr>
-                  <th className="sl">Sl.<br />No.</th>
                   <th>Description</th>
-                  <th className="rate">Rate/Qty.</th>
                   <th className="qty">Qty.</th>
+                  <th className="rate">Rate</th>
                   <th className="amt">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {bill.lines.map((line, i) => (
-                  <tr key={line.label}>
-                    <td className="sl">{i + 1}.</td>
-                    <td className="desc">{line.label}</td>
-                    <td className="num">{formatRate(line)}</td>
-                    <td className="num">{formatQty(line)}</td>
-                    <td className="num">{formatAmount(line.amount)}</td>
-                  </tr>
+                {bill.lines.map((brand) => (
+                  <React.Fragment key={brand.brandName}>
+                    <tr className="brand-row">
+                      <td colSpan={4}>{brand.brandName}</td>
+                    </tr>
+                    {brand.categories.map((category) => (
+                      <React.Fragment key={category.categoryName}>
+                        <tr className="cat-row">
+                          <td colSpan={4}>{category.categoryName}</td>
+                        </tr>
+                        {category.products.map((product) => (
+                          <tr key={product.productName} className="product-row">
+                            <td className="desc">{product.productName}</td>
+                            <td className="num">{formatQty(product)}</td>
+                            <td className="num">{formatRate(product)}</td>
+                            <td className="num">{formatAmount(product.amount)}</td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </React.Fragment>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td className="no-border" colSpan={2}></td>
-                  <td className="total-label" colSpan={2}>Total</td>
+                  <td className="total-label" colSpan={3}>Total</td>
                   <td className="num total-amt">{formatAmount(bill.totalAmount)}</td>
                 </tr>
               </tfoot>
             </table>
-          </div>
 
-          {/* ── In words + signature ─────────────────────────────────── */}
-          <div className="footer">
-            <div className="words">
-              in words <span className="value">{numberToWords(bill.totalAmount)}</span>
-            </div>
-            <div className="sign">
-              <div className="for">For {DAIRY.signName}</div>
-              <div className="role">Proprietor</div>
+            {/* ── In words + signature ─────────────────────────────────── */}
+            <div className="footer">
+              <div className="words">
+                in words <span className="value">{numberToWords(bill.totalAmount)}</span>
+              </div>
+              <div className="sign">
+                <div className="for">For {DAIRY.signName}</div>
+                <div className="role">Proprietor</div>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );

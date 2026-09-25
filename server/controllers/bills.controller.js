@@ -7,6 +7,7 @@ const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { buildBillLines } = require('../utils/billFormat');
 const { getActingUsername } = require('../utils/actor');
+const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
 
 // When the bill register is empty, the first bill continues from the paper
 // pad's last number instead of restarting at 1 — the dairy's books are one
@@ -24,31 +25,50 @@ function parseDateParam(value, label) {
 
 /**
  * Loads every dispatch line supplied to a salesperson in [from, to] and folds
- * it into the six printed bill rows.
+ * it into a Brand → Category → Product breakdown.
  *
  * Reads dispatches (stock handed to the salesperson), not payments: the bill
  * states what was supplied over the period, which is what the pad's Total
  * column has always meant. Collections against it live in the statement.
+ *
+ * category.findMany + the catOrder Map is the canonical pattern (CLAUDE.md
+ * §9) for sorting by category display order — Product.category is a plain
+ * string, not a relation, so Prisma can't ORDER BY it directly.
  */
 async function computeBill(salespersonId, fromDate, toDate) {
-  const dispatches = await prisma.stockDispatch.findMany({
-    where: { salespersonId, dispatchDate: { gte: fromDate, lte: toDate } },
-    include: {
-      items: {
-        include: {
-          product: { select: { category: true, unitType: true, unitSize: true } },
+  const [dispatches, categories] = await Promise.all([
+    prisma.stockDispatch.findMany({
+      where: { salespersonId, dispatchDate: { gte: fromDate, lte: toDate } },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true, category: true, displayOrder: true, unitType: true, unitSize: true, brandId: true,
+                brand: { select: { name: true, displayOrder: true } },
+              },
+            },
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.category.findMany({ select: { brandId: true, name: true, displayOrder: true } }),
+  ]);
+
+  const catOrder = buildCategoryOrderMap(categories);
 
   const items = dispatches.flatMap((d) =>
     d.items.map((i) => ({
-      category:    i.product.category ?? null,
-      quantity:    Number(i.quantity),
-      totalAmount: Number(i.totalAmount),
-      unitType:    i.product.unitType,
-      unitSize:    i.product.unitSize != null ? Number(i.product.unitSize) : null,
+      brandName:            i.product.brand.name,
+      brandDisplayOrder:    i.product.brand.displayOrder ?? 999,
+      category:             i.product.category ?? null,
+      categoryDisplayOrder: getCategoryOrder(catOrder, i.product.brandId, i.product.category),
+      productName:          i.product.name,
+      displayOrder:         i.product.displayOrder ?? 999,
+      quantity:             Number(i.quantity),
+      totalAmount:          Number(i.totalAmount),
+      unitType:             i.product.unitType,
+      unitSize:             i.product.unitSize != null ? Number(i.product.unitSize) : null,
     }))
   );
 
@@ -90,9 +110,10 @@ const getAll = asyncHandler(async (req, res) => {
 });
 
 /**
- * GET /bills/preview — the six rows for a period, computed but NOT saved.
- * Backs the "check before you issue it" preview; issuing recomputes server-side
- * so a tampered preview can never become a stored bill.
+ * GET /bills/preview — the Brand → Category → Product breakdown for a
+ * period, computed but NOT saved. Backs the "check before you issue it"
+ * preview; issuing recomputes server-side so a tampered preview can never
+ * become a stored bill.
  */
 const preview = asyncHandler(async (req, res) => {
   const salespersonId = parseId(req.query.salespersonId, 'Salesperson ID');
@@ -103,7 +124,10 @@ const preview = asyncHandler(async (req, res) => {
   const salesperson = await prisma.salesperson.findUnique({ where: { id: salespersonId } });
   if (!salesperson) throw new AppError('Salesperson not found', 404);
 
-  const { lines, totalAmount } = await computeBill(salespersonId, fromDate, toDate);
+  // buildBillLines returns { brands, totalAmount } — the API's own `lines`
+  // field name stays put (the frontend already reads bill.lines), it now
+  // just carries the brands array instead of the old six fixed rows.
+  const { brands: lines, totalAmount } = await computeBill(salespersonId, fromDate, toDate);
   res.json({
     success: true,
     data: {
@@ -147,7 +171,7 @@ const create = asyncHandler(async (req, res) => {
   const salesperson = await prisma.salesperson.findUnique({ where: { id: data.salespersonId } });
   if (!salesperson) throw new AppError('Salesperson not found', 404);
 
-  const { lines, totalAmount } = await computeBill(data.salespersonId, fromDate, toDate);
+  const { brands: lines, totalAmount } = await computeBill(data.salespersonId, fromDate, toDate);
   if (totalAmount === 0) {
     throw new AppError('No stock was dispatched in this period — there is nothing to bill', 400);
   }

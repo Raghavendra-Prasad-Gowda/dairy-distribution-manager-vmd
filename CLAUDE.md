@@ -66,7 +66,7 @@ dairy-distribution-manager-vmd/
 │   │   ├── AppError.js                # Operational error class
 │   │   ├── slack.js                   # notifySlack, SLACK_EVENTS, buildCard
 │   │   ├── dateUtils.js               # getIndiaDateStr, getIndiaTomorrowStr (IST helpers)
-│   │   ├── billFormat.js              # Six fixed bill rows + rate/qty derivation
+│   │   ├── billFormat.js              # Bill Brand → Category → Product aggregation + rate derivation
 │   │   └── constants.js               # JWT_EXPIRES_IN, BCRYPT_ROUNDS
 │   ├── lib/prisma.js                  # Singleton Prisma client — ALWAYS import this
 │   ├── config/logger.js               # Winston — use instead of console.log
@@ -182,7 +182,7 @@ dairy-distribution-manager-vmd/
 | `AdminUser` | Admin/superadmin/dispatcher login | roles: admin/superadmin/dispatcher |
 | `DispatchDayFinalization` | Explicit finalization of a dispatch day | unique `(date)` |
 | `ClientErrorLog` | Frontend crash reports | |
-| `Bill` | Cash/credit bill issued to a salesperson | unique `billNumber`; `lines` is a frozen JSON snapshot of the six printed rows |
+| `Bill` | Cash/credit bill issued to a salesperson | unique `billNumber`; `lines` is a frozen JSON snapshot — an array of brands, each with categories, each with the individual products actually dispatched (not a generalized bucket) |
 
 ### Critical: `category` is a String on `Product`
 

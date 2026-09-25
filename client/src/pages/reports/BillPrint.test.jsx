@@ -1,9 +1,9 @@
 /**
  * BillPrint tests.
  *
- * Covers reading the bill id from the query string, rendering all six printed
- * rows (including the blank ones), the pad's masthead, the total and the
- * amount in words, loading/error states, and auto/manual print.
+ * Covers reading the bill id from the query string, rendering the frozen
+ * Brand → Category → Product line items, the pad's masthead, the total and
+ * the amount in words, loading/error states, and auto/manual print.
  */
 
 import React from 'react';
@@ -18,12 +18,14 @@ vi.mock('../../api/axios', () => ({
 }));
 
 const LINES = [
-  { label: 'MILK',           unit: 'ltr',  quantity: 3325, rate: 52, amount: 172900 },
-  { label: 'CURD',           unit: 'ltr',  quantity: 2351, rate: 54, amount: 126954 },
-  { label: 'GHEE',           unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'PANNEER / KOVA', unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'BUTTER',         unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'OTHERS',         unit: null, quantity: null, rate: null, amount: 0 },
+  {
+    brandName: 'Nandini',
+    categories: [
+      { categoryName: 'Milk', products: [{ productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 }], amount: 172900 },
+      { categoryName: 'Curd', products: [{ productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 }], amount: 126954 },
+    ],
+    amount: 299854,
+  },
 ];
 
 const BILL = {
@@ -107,17 +109,35 @@ describe('BillPrint — the printed bill', () => {
     expect(screen.getByText('31 Aug 2026')).toBeInTheDocument();
   });
 
-  it('renders all six rows, blank ones included', async () => {
+  it('renders each product under its category and brand', async () => {
     renderWithParams('id=7');
-    for (const label of ['MILK', 'CURD', 'GHEE', 'PANNEER / KOVA', 'BUTTER', 'OTHERS']) {
-      expect(await screen.findByText(label)).toBeInTheDocument();
-    }
+    expect(await screen.findByText('Nandini')).toBeInTheDocument();
+    expect(screen.getByText('Milk')).toBeInTheDocument();
+    expect(screen.getByText('Curd')).toBeInTheDocument();
+    expect(screen.getByText('Toned Milk 500ml')).toBeInTheDocument();
+    expect(screen.getByText('Curd 500ml')).toBeInTheDocument();
   });
 
-  it('renders rate, quantity and amount for a supplied row', async () => {
+  it('lists a second brand as its own section, separate from the first', async () => {
+    mockBill({
+      ...BILL,
+      lines: [
+        ...LINES,
+        { brandName: 'Jersey', categories: [{ categoryName: 'Milk', products: [{ productName: 'HTM 1L', unit: 'ltr', quantity: 10, rate: 45, amount: 450 }], amount: 450 }], amount: 450 },
+      ],
+      totalAmount: 300304,
+    });
+    renderWithParams('id=7');
+    expect(await screen.findByText('Jersey')).toBeInTheDocument();
+    expect(screen.getByText('HTM 1L')).toBeInTheDocument();
+    // Two separate "Milk" category headers, one per brand.
+    expect(screen.getAllByText('Milk')).toHaveLength(2);
+  });
+
+  it('renders rate, quantity and amount for a product', async () => {
     renderWithParams('id=7');
     expect(await screen.findByText('52/ltr')).toBeInTheDocument();
-    expect(screen.getByText('3325')).toBeInTheDocument();
+    expect(screen.getByText('3325 ltr')).toBeInTheDocument();
     expect(screen.getByText('1,72,900.00')).toBeInTheDocument();
     expect(screen.getByText('54/ltr')).toBeInTheDocument();
   });
@@ -133,11 +153,15 @@ describe('BillPrint — the printed bill', () => {
   it('prints a fractional quantity to 2dp', async () => {
     mockBill({
       ...BILL,
-      lines: [{ label: 'GHEE', unit: 'kg', quantity: 12.5, rate: 640, amount: 8000 }],
+      lines: [{
+        brandName: 'Nandini',
+        categories: [{ categoryName: 'Ghee', products: [{ productName: 'Ghee 500ml', unit: 'kg', quantity: 12.5, rate: 640, amount: 8000 }], amount: 8000 }],
+        amount: 8000,
+      }],
       totalAmount: 8000,
     });
     renderWithParams('id=7');
-    expect(await screen.findByText('12.50')).toBeInTheDocument();
+    expect(await screen.findByText('12.50 kg')).toBeInTheDocument();
     expect(screen.getByText('640/kg')).toBeInTheDocument();
   });
 
