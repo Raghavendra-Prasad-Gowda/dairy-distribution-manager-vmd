@@ -1,15 +1,14 @@
 'use strict';
 
 /**
- * utils/billFormat.js — Brand → Category → Product aggregation for the
- * printed bill. Pure functions, tested directly (no HTTP/Prisma needed) —
- * see depositRules.spec.js and productLayout.spec.js for the same
- * convention.
+ * utils/billFormat.js — Brand → Product aggregation for the printed bill.
+ * Pure functions, tested directly (no HTTP/Prisma needed) — see
+ * depositRules.spec.js and productLayout.spec.js for the same convention.
  *
  * bills.spec.js exercises this module end-to-end through /bills/preview with
  * a representative fixture; this file pins the aggregation edge cases
- * (multiple products per category, multiple categories per brand, multiple
- * brands, unit conversion, the divide-by-zero rate guard) that a
+ * (multiple products per brand, multiple brands, unit conversion, the
+ * divide-by-zero rate guard, category-order-as-sort-key-only) that a
  * Prisma-shaped fixture would be awkward to hit precisely.
  */
 
@@ -58,86 +57,80 @@ test.describe('buildBillLines', () => {
     expect(totalAmount).toBe(0);
   });
 
-  test('lists a single product under its category and brand, with a derived rate', () => {
+  test('lists a single product under its brand, with a derived rate', () => {
     const { brands, totalAmount } = buildBillLines([
-      { brandName: 'Nandini', category: 'Milk', productName: 'Toned Milk 500ml', quantity: 100, totalAmount: 5200, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', productName: 'Toned Milk 500ml', quantity: 100, totalAmount: 5200, unitType: 'ml', unitSize: 500 },
     ]);
     expect(brands).toEqual([{
       brandName: 'Nandini',
-      categories: [{
-        categoryName: 'Milk',
-        products: [{ productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 50, rate: 104, amount: 5200 }],
-        amount: 5200,
-      }],
+      products: [{ productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 50, rate: 104, amount: 5200 }],
       amount: 5200,
     }]);
     expect(totalAmount).toBe(5200);
   });
 
-  test('keeps two different products separate under the same category', () => {
+  test('keeps two different products separate under the same brand', () => {
     const { brands } = buildBillLines([
-      { brandName: 'Nandini', category: 'Milk', productName: 'Toned Milk 500ml', quantity: 6650, totalAmount: 172900, unitType: 'ml', unitSize: 500 },
-      { brandName: 'Nandini', category: 'Milk', productName: 'Full Cream Milk 500ml', quantity: 200, totalAmount: 6000, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', productName: 'Toned Milk 500ml', displayOrder: 1, quantity: 6650, totalAmount: 172900, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', productName: 'Full Cream Milk 500ml', displayOrder: 2, quantity: 200, totalAmount: 6000, unitType: 'ml', unitSize: 500 },
     ]);
-    const milk = brands[0].categories.find((c) => c.categoryName === 'Milk');
-    // Neither item sets a displayOrder, so both default equal and the tie
-    // breaks alphabetically — "Full Cream" before "Toned Milk".
-    expect(milk.products.map((p) => p.productName)).toEqual(['Full Cream Milk 500ml', 'Toned Milk 500ml']);
-    const tonedMilk = milk.products.find((p) => p.productName === 'Toned Milk 500ml');
-    expect(tonedMilk).toMatchObject({ quantity: 3325, rate: 52, amount: 172900 });
-    const fullCream = milk.products.find((p) => p.productName === 'Full Cream Milk 500ml');
-    expect(fullCream).toMatchObject({ quantity: 100, rate: 60, amount: 6000 });
-    expect(milk.amount).toBe(178900);
+    expect(brands[0].products.map((p) => p.productName)).toEqual(['Toned Milk 500ml', 'Full Cream Milk 500ml']);
+    expect(brands[0].products[0]).toMatchObject({ quantity: 3325, rate: 52, amount: 172900 });
+    expect(brands[0].products[1]).toMatchObject({ quantity: 100, rate: 60, amount: 6000 });
+    expect(brands[0].amount).toBe(178900);
   });
 
   test('sums repeated dispatches of the same product across the period into one row', () => {
     const { brands } = buildBillLines([
-      { brandName: 'Nandini', category: 'Milk', productName: 'Toned Milk 500ml', quantity: 100, totalAmount: 5200, unitType: 'ml', unitSize: 500 },
-      { brandName: 'Nandini', category: 'Milk', productName: 'Toned Milk 500ml', quantity: 200, totalAmount: 10400, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', productName: 'Toned Milk 500ml', quantity: 100, totalAmount: 5200, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', productName: 'Toned Milk 500ml', quantity: 200, totalAmount: 10400, unitType: 'ml', unitSize: 500 },
     ]);
-    const products = brands[0].categories[0].products;
+    const products = brands[0].products;
     expect(products).toHaveLength(1);
     expect(products[0]).toMatchObject({ quantity: 150, amount: 15600, rate: 104 });
   });
 
-  test('groups multiple categories under one brand and multiple brands separately', () => {
+  test('keeps multiple brands separate, each with its own products', () => {
     const { brands, totalAmount } = buildBillLines([
-      { brandName: 'Nandini', brandDisplayOrder: 1, category: 'Milk', categoryDisplayOrder: 1, productName: 'Toned Milk', quantity: 100, totalAmount: 5000, unitType: 'ml', unitSize: 500 },
-      { brandName: 'Nandini', brandDisplayOrder: 1, category: 'Curd', categoryDisplayOrder: 2, productName: 'Curd Cup',   quantity: 40,  totalAmount: 2000, unitType: 'ml', unitSize: 500 },
-      { brandName: 'Jersey',  brandDisplayOrder: 2, category: 'Milk', categoryDisplayOrder: 1, productName: 'HTM 1L',     quantity: 20,  totalAmount: 900,  unitType: 'ml', unitSize: 1000 },
+      { brandName: 'Nandini', brandDisplayOrder: 1, productName: 'Toned Milk', quantity: 100, totalAmount: 5000, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', brandDisplayOrder: 1, productName: 'Curd Cup',   quantity: 40,  totalAmount: 2000, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Jersey',  brandDisplayOrder: 2, productName: 'HTM 1L',     quantity: 20,  totalAmount: 900,  unitType: 'ml', unitSize: 1000 },
     ]);
     expect(brands.map((b) => b.brandName)).toEqual(['Nandini', 'Jersey']);
-    const nandini = brands.find((b) => b.brandName === 'Nandini');
-    expect(nandini.categories.map((c) => c.categoryName)).toEqual(['Milk', 'Curd']);
+    // Neither item sets a categoryDisplayOrder, so both default equal and
+    // the tie breaks alphabetically — "Curd Cup" before "Toned Milk".
+    expect(brands[0].products.map((p) => p.productName)).toEqual(['Curd Cup', 'Toned Milk']);
     expect(totalAmount).toBe(7900);
   });
 
-  test('sorts brands, categories and products by display order, falling back to name', () => {
+  test('orders products by category display order first, even though no category is shown', () => {
+    // Curd's product name sorts alphabetically before Milk's, but Milk's
+    // category (1) is meant to print ahead of Curd's (2) — a plain
+    // alphabetical or displayOrder-only sort would get this backwards.
     const { brands } = buildBillLines([
-      { brandName: 'Jersey',  brandDisplayOrder: 2, category: 'Milk', productName: 'HTM',  quantity: 1, totalAmount: 40, unitType: 'piece' },
-      { brandName: 'Nandini', brandDisplayOrder: 1, category: 'Curd', categoryDisplayOrder: 2, productName: 'Curd', quantity: 1, totalAmount: 40, unitType: 'piece' },
-      { brandName: 'Nandini', brandDisplayOrder: 1, category: 'Milk', categoryDisplayOrder: 1, productName: 'Full Cream', displayOrder: 2, quantity: 1, totalAmount: 40, unitType: 'piece' },
-      { brandName: 'Nandini', brandDisplayOrder: 1, category: 'Milk', categoryDisplayOrder: 1, productName: 'Toned Milk', displayOrder: 1, quantity: 1, totalAmount: 40, unitType: 'piece' },
+      { brandName: 'Nandini', categoryDisplayOrder: 2, productName: 'Curd 500ml',       displayOrder: 1, quantity: 1, totalAmount: 50, unitType: 'piece' },
+      { brandName: 'Nandini', categoryDisplayOrder: 1, productName: 'Toned Milk 500ml', displayOrder: 1, quantity: 1, totalAmount: 50, unitType: 'piece' },
     ]);
-    expect(brands.map((b) => b.brandName)).toEqual(['Nandini', 'Jersey']);
-    expect(brands[0].categories.map((c) => c.categoryName)).toEqual(['Milk', 'Curd']);
-    expect(brands[0].categories[0].products.map((p) => p.productName)).toEqual(['Toned Milk', 'Full Cream']);
+    expect(brands[0].products.map((p) => p.productName)).toEqual(['Toned Milk 500ml', 'Curd 500ml']);
   });
 
-  test('falls back to "Uncategorized" for a product with no category, without crashing the sort', () => {
+  test('sorts brands and products by display order, falling back to name', () => {
     const { brands } = buildBillLines([
-      { brandName: 'Nandini', category: null, productName: 'Misc Item', quantity: 1, totalAmount: 50, unitType: 'piece' },
+      { brandName: 'Jersey',  brandDisplayOrder: 2, productName: 'HTM',  quantity: 1, totalAmount: 40, unitType: 'piece' },
+      { brandName: 'Nandini', brandDisplayOrder: 1, productName: 'Full Cream', displayOrder: 2, quantity: 1, totalAmount: 40, unitType: 'piece' },
+      { brandName: 'Nandini', brandDisplayOrder: 1, productName: 'Toned Milk', displayOrder: 1, quantity: 1, totalAmount: 40, unitType: 'piece' },
     ]);
-    expect(brands[0].categories[0].categoryName).toBe('Uncategorized');
+    expect(brands.map((b) => b.brandName)).toEqual(['Nandini', 'Jersey']);
+    expect(brands[0].products.map((p) => p.productName)).toEqual(['Toned Milk', 'Full Cream']);
   });
 
   test('never divides by zero when quantity nets to zero but amount does not', () => {
     // Guards `quantity ? amount / quantity : null` — without it this would
     // print "Infinity/ltr" on the bill instead of a blank rate.
     const { brands } = buildBillLines([
-      { brandName: 'Nandini', category: 'Milk', productName: 'Toned Milk', quantity: 0, totalAmount: 100, unitType: 'ml', unitSize: 500 },
+      { brandName: 'Nandini', productName: 'Toned Milk', quantity: 0, totalAmount: 100, unitType: 'ml', unitSize: 500 },
     ]);
-    const product = brands[0].categories[0].products[0];
+    const product = brands[0].products[0];
     expect(product.quantity).toBe(0);
     expect(product.rate).toBeNull();
     expect(product.amount).toBe(100);
@@ -145,17 +138,17 @@ test.describe('buildBillLines', () => {
 
   test('collapses float noise from summing many small quantities to a clean 2dp figure', () => {
     const items = Array.from({ length: 7 }, () => (
-      { brandName: 'Nandini', category: 'Milk', productName: 'Toned Milk', quantity: 1, totalAmount: 5.2, unitType: 'ml', unitSize: 100 }
+      { brandName: 'Nandini', productName: 'Toned Milk', quantity: 1, totalAmount: 5.2, unitType: 'ml', unitSize: 100 }
     ));
     const { brands, totalAmount } = buildBillLines(items);
-    expect(brands[0].categories[0].products[0].quantity).toBe(0.7); // 7 × 0.1 litre, not float noise
+    expect(brands[0].products[0].quantity).toBe(0.7); // 7 × 0.1 litre, not float noise
     expect(totalAmount).toBe(36.4);
   });
 
   test('bills a piece product without a unit conversion', () => {
     const { brands } = buildBillLines([
-      { brandName: 'Nandini', category: 'Ghee', productName: 'Ghee 500ml Tin', quantity: 12, totalAmount: 7200, unitType: 'piece', unitSize: null },
+      { brandName: 'Nandini', productName: 'Ghee 500ml Tin', quantity: 12, totalAmount: 7200, unitType: 'piece', unitSize: null },
     ]);
-    expect(brands[0].categories[0].products[0]).toMatchObject({ unit: 'pcs', quantity: 12, rate: 600, amount: 7200 });
+    expect(brands[0].products[0]).toMatchObject({ unit: 'pcs', quantity: 12, rate: 600, amount: 7200 });
   });
 });

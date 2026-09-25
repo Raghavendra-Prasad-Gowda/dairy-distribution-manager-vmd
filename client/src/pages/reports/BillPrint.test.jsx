@@ -20,9 +20,9 @@ vi.mock('../../api/axios', () => ({
 const LINES = [
   {
     brandName: 'Nandini',
-    categories: [
-      { categoryName: 'Milk', products: [{ productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 }], amount: 172900 },
-      { categoryName: 'Curd', products: [{ productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 }], amount: 126954 },
+    products: [
+      { productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 },
+      { productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 },
     ],
     amount: 299854,
   },
@@ -109,11 +109,9 @@ describe('BillPrint — the printed bill', () => {
     expect(screen.getByText('31 Aug 2026')).toBeInTheDocument();
   });
 
-  it('renders each product under its category and brand', async () => {
+  it('renders each product under its brand', async () => {
     renderWithParams('id=7');
     expect(await screen.findByText('Nandini')).toBeInTheDocument();
-    expect(screen.getByText('Milk')).toBeInTheDocument();
-    expect(screen.getByText('Curd')).toBeInTheDocument();
     expect(screen.getByText('Toned Milk 500ml')).toBeInTheDocument();
     expect(screen.getByText('Curd 500ml')).toBeInTheDocument();
   });
@@ -123,15 +121,15 @@ describe('BillPrint — the printed bill', () => {
       ...BILL,
       lines: [
         ...LINES,
-        { brandName: 'Jersey', categories: [{ categoryName: 'Milk', products: [{ productName: 'HTM 1L', unit: 'ltr', quantity: 10, rate: 45, amount: 450 }], amount: 450 }], amount: 450 },
+        { brandName: 'Jersey', products: [{ productName: 'HTM 1L', unit: 'ltr', quantity: 10, rate: 45, amount: 450 }], amount: 450 },
       ],
       totalAmount: 300304,
     });
     renderWithParams('id=7');
     expect(await screen.findByText('Jersey')).toBeInTheDocument();
     expect(screen.getByText('HTM 1L')).toBeInTheDocument();
-    // Two separate "Milk" category headers, one per brand.
-    expect(screen.getAllByText('Milk')).toHaveLength(2);
+    // The first brand's own products are still there, unaffected.
+    expect(screen.getByText('Toned Milk 500ml')).toBeInTheDocument();
   });
 
   it('renders rate, quantity and amount for a product', async () => {
@@ -155,7 +153,7 @@ describe('BillPrint — the printed bill', () => {
       ...BILL,
       lines: [{
         brandName: 'Nandini',
-        categories: [{ categoryName: 'Ghee', products: [{ productName: 'Ghee 500ml', unit: 'kg', quantity: 12.5, rate: 640, amount: 8000 }], amount: 8000 }],
+        products: [{ productName: 'Ghee 500ml', unit: 'kg', quantity: 12.5, rate: 640, amount: 8000 }],
         amount: 8000,
       }],
       totalAmount: 8000,

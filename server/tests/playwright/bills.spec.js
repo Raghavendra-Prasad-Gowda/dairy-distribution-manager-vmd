@@ -4,10 +4,10 @@
  * Bills API Tests
  * Covers: GET /preview, GET, GET /:id, POST, DELETE /:id on /api/v1/bills
  *
- * The bill lists each product actually dispatched, grouped under its
- * category and brand (not folded into generic buckets), so the cases that
- * matter most are that grouping, the frozen snapshot, and bill-number
- * allocation continuing the series.
+ * The bill lists each product actually dispatched, grouped under its brand
+ * (not folded into generic buckets, and not further split by category), so
+ * the cases that matter most are that grouping, the frozen snapshot, and
+ * bill-number allocation continuing the series.
  */
 
 const { expect } = require('@playwright/test');
@@ -40,9 +40,11 @@ const DISPATCHES = [
 const BILL_LINES = [
   {
     brandName: 'Nandini',
-    categories: [
-      { categoryName: 'Milk', products: [{ productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 }], amount: 172900 },
-      { categoryName: 'Curd', products: [{ productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 }], amount: 126954 },
+    // Milk (categoryDisplayOrder 1) before Curd (2) — still ordered by
+    // category internally even though no category row is shown.
+    products: [
+      { productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 },
+      { productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 },
     ],
     amount: 299854,
   },
@@ -126,7 +128,7 @@ test.describe('GET /api/v1/bills/preview', () => {
     expect(res.status()).toBe(404);
   });
 
-  test('lists each product under its category and brand, with a derived rate', async ({ request }) => {
+  test('lists each product under its brand, with a derived rate', async ({ request }) => {
     const res = await request.get('/api/v1/bills/preview?salespersonId=1&from=2026-08-01&to=2026-08-31', {
       headers: auth(),
     });
@@ -150,9 +152,9 @@ test.describe('GET /api/v1/bills/preview', () => {
     expect(data.totalAmount).toBe(0);
   });
 
-  test('keeps a litre-priced and a kg-priced product in the same category as two separate rows', async ({ request }) => {
-    // Each product carries its own unit — unlike the old six-bucket format,
-    // there is no shared "row" for a category to mix units on.
+  test('keeps a litre-priced and a kg-priced product in the same brand as two separate rows', async ({ request }) => {
+    // Each product carries its own unit — there is no shared "row" for
+    // several products to mix units on.
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
       id: 12,
       items: [
@@ -166,15 +168,14 @@ test.describe('GET /api/v1/bills/preview', () => {
     });
 
     const { data } = await res.json();
-    const ghee = data.lines[0].categories[0];
-    expect(ghee.products).toEqual([
+    expect(data.lines[0].products).toEqual([
       { productName: 'Ghee 500ml', unit: 'ltr', quantity: 50, rate: 52, amount: 2600 },
       { productName: 'Paneer 250g', unit: 'kg', quantity: 10, rate: 640, amount: 6400 },
     ]);
     expect(data.totalAmount).toBe(9000);
   });
 
-  test('groups a product with no category under "Uncategorized" by its own name, not a generic bucket', async ({ request }) => {
+  test('lists a product with no category under its brand by its own name, not a generic bucket', async ({ request }) => {
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
       id: 11,
       items: [{ quantity: 10, totalAmount: 500, product: { name: 'Sweet Lassi 200ml', category: null, displayOrder: 1, unitType: 'piece', unitSize: null, brandId: 1, brand: NANDINI } }],
@@ -185,8 +186,8 @@ test.describe('GET /api/v1/bills/preview', () => {
     });
 
     const { data } = await res.json();
-    expect(data.lines[0].categories[0].categoryName).toBe('Uncategorized');
-    expect(data.lines[0].categories[0].products[0]).toMatchObject({ productName: 'Sweet Lassi 200ml', unit: 'pcs', quantity: 10, rate: 50 });
+    expect(data.lines[0].brandName).toBe('Nandini');
+    expect(data.lines[0].products[0]).toMatchObject({ productName: 'Sweet Lassi 200ml', unit: 'pcs', quantity: 10, rate: 50 });
   });
 });
 

@@ -617,9 +617,9 @@ describe('SalespersonStatement — top-ups', () => {
 const BILL_LINES = [
   {
     brandName: 'Nandini',
-    categories: [
-      { categoryName: 'Milk', products: [{ productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 }], amount: 172900 },
-      { categoryName: 'Curd', products: [{ productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 }], amount: 126954 },
+    products: [
+      { productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 },
+      { productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 },
     ],
     amount: 299854,
   },
@@ -661,12 +661,10 @@ describe('SalespersonStatement — Bills tab', () => {
     mockBillsApi();
   });
 
-  it('previews each product under its category and brand for the sidebar-selected salesperson and date range', async () => {
+  it('previews each product under its brand for the sidebar-selected salesperson and date range', async () => {
     await selectRameshAndOpenBills();
 
     expect(await screen.findByText('Nandini')).toBeInTheDocument();
-    expect(screen.getByText('Milk')).toBeInTheDocument();
-    expect(screen.getByText('Curd')).toBeInTheDocument();
     expect(screen.getByText('Toned Milk 500ml')).toBeInTheDocument();
     expect(screen.getByText('Curd 500ml')).toBeInTheDocument();
     expect(screen.getByText('52/ltr')).toBeInTheDocument();

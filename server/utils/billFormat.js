@@ -1,20 +1,23 @@
 'use strict';
 
 /**
- * Bill line-item aggregation — Brand → Category → Product, the same
- * canonical dairy layout order as everywhere else (CLAUDE.md §9):
- * brand.displayOrder → categoryDisplayOrder → product.displayOrder → name.
+ * Bill line-item aggregation — Brand → Product. Products are still ordered
+ * by the canonical dairy layout (CLAUDE.md §9) — brand.displayOrder →
+ * categoryDisplayOrder → product.displayOrder → name — so items still cluster
+ * sensibly (all the milk together, then curd, …) even though the bill no
+ * longer prints a category header row; category is purely a sort key here,
+ * not a grouping level.
  *
  * The bill used to fold every dispatch into six pre-printed pad rows (MILK /
  * CURD / GHEE / …), mirroring the physical stationery. That generalized real
  * products away — a bill listing "MILK ₹1,72,900" doesn't say which of the
  * salesperson's several milk SKUs that covers. This version lists each
- * product actually dispatched, grouped under its category and brand, so the
- * bill reads like an itemized invoice instead of a lump-sum slip.
+ * product actually dispatched under its brand, so the bill reads like an
+ * itemized invoice instead of a lump-sum slip.
  *
  * @typedef {{
  *   brandName: string, brandDisplayOrder?: number,
- *   category?: string|null, categoryDisplayOrder?: number,
+ *   categoryDisplayOrder?: number,
  *   productName: string, displayOrder?: number,
  *   quantity: number, totalAmount: number,
  *   unitType?: string|null, unitSize?: number|null,
@@ -22,7 +25,6 @@
  * }} BillItem
  */
 
-const UNCATEGORIZED = 'Uncategorized';
 const DEFAULT_ORDER = 999;
 
 /** Rounds to 2dp, collapsing float noise from summing quantities/amounts. */
@@ -51,8 +53,8 @@ function measureOf(item) {
 }
 
 /**
- * Groups dispatch line items into Brand → Category → Product, each product
- * summed across the whole billed period with a derived rate.
+ * Groups dispatch line items into Brand → Product, each product summed
+ * across the whole billed period with a derived rate.
  *
  * Rate is amount ÷ quantity — read-only and never invented, so a product
  * supplied at more than one price over the period bills at the weighted
@@ -62,13 +64,9 @@ function measureOf(item) {
  * @returns {{
  *   brands: Array<{
  *     brandName: string,
- *     categories: Array<{
- *       categoryName: string,
- *       products: Array<{
- *         productName: string, unit: string,
- *         quantity: number, rate: number|null, amount: number,
- *       }>,
- *       amount: number,
+ *     products: Array<{
+ *       productName: string, unit: string,
+ *       quantity: number, rate: number|null, amount: number,
  *     }>,
  *     amount: number,
  *   }>,
@@ -76,29 +74,24 @@ function measureOf(item) {
  * }}
  */
 function buildBillLines(items = []) {
-  // brandName -> { displayOrder, categories: Map(categoryName -> {...}) }
+  // brandName -> { displayOrder, products: Map(productName -> {...}) }
   const brandMap = new Map();
 
-  const ensureProduct = (brandName, brandDisplayOrder, categoryName, categoryDisplayOrder, productName, displayOrder, unit) => {
+  const ensureProduct = (brandName, brandDisplayOrder, categoryDisplayOrder, productName, displayOrder, unit) => {
     if (!brandMap.has(brandName)) {
-      brandMap.set(brandName, { displayOrder: brandDisplayOrder, categories: new Map() });
+      brandMap.set(brandName, { displayOrder: brandDisplayOrder, products: new Map() });
     }
     const brand = brandMap.get(brandName);
-    if (!brand.categories.has(categoryName)) {
-      brand.categories.set(categoryName, { displayOrder: categoryDisplayOrder, products: new Map() });
+    if (!brand.products.has(productName)) {
+      brand.products.set(productName, { displayOrder, categoryOrder: categoryDisplayOrder, unit, quantity: 0, amount: 0 });
     }
-    const category = brand.categories.get(categoryName);
-    if (!category.products.has(productName)) {
-      category.products.set(productName, { displayOrder, unit, quantity: 0, amount: 0 });
-    }
-    return category.products.get(productName);
+    return brand.products.get(productName);
   };
 
   for (const item of items) {
-    const categoryName = item.category ?? UNCATEGORIZED;
     const product = ensureProduct(
       item.brandName, item.brandDisplayOrder ?? DEFAULT_ORDER,
-      categoryName, item.categoryDisplayOrder ?? DEFAULT_ORDER,
+      item.categoryDisplayOrder ?? DEFAULT_ORDER,
       item.productName, item.displayOrder ?? DEFAULT_ORDER,
       unitLabel(item.unitType),
     );
@@ -108,33 +101,26 @@ function buildBillLines(items = []) {
 
   const brands = Array.from(brandMap.entries())
     .map(([brandName, brand]) => {
-      const categories = Array.from(brand.categories.entries())
-        .map(([categoryName, category]) => {
-          const products = Array.from(category.products.entries())
-            .map(([productName, p]) => {
-              const quantity = round2(p.quantity);
-              const amount   = round2(p.amount);
-              return {
-                productName, _displayOrder: p.displayOrder,
-                unit: p.unit, quantity,
-                rate: quantity ? round2(amount / quantity) : null,
-                amount,
-              };
-            })
-            .sort((a, b) => a._displayOrder - b._displayOrder || a.productName.localeCompare(b.productName))
-            .map(({ _displayOrder, ...rest }) => rest);
-
+      const products = Array.from(brand.products.entries())
+        .map(([productName, p]) => {
+          const quantity = round2(p.quantity);
+          const amount   = round2(p.amount);
           return {
-            categoryName, _displayOrder: category.displayOrder, products,
-            amount: round2(products.reduce((s, p) => s + p.amount, 0)),
+            productName, _categoryOrder: p.categoryOrder, _displayOrder: p.displayOrder,
+            unit: p.unit, quantity,
+            rate: quantity ? round2(amount / quantity) : null,
+            amount,
           };
         })
-        .sort((a, b) => a._displayOrder - b._displayOrder || a.categoryName.localeCompare(b.categoryName))
-        .map(({ _displayOrder, ...rest }) => rest); // internal sort key only — array order already carries it
+        // Category order is still the primary tiebreak, even though it's
+        // never shown — otherwise curd could print ahead of milk just
+        // because its product name sorts earlier.
+        .sort((a, b) => a._categoryOrder - b._categoryOrder || a._displayOrder - b._displayOrder || a.productName.localeCompare(b.productName))
+        .map(({ _categoryOrder, _displayOrder, ...rest }) => rest);
 
       return {
-        brandName, _displayOrder: brand.displayOrder, categories,
-        amount: round2(categories.reduce((s, c) => s + c.amount, 0)),
+        brandName, _displayOrder: brand.displayOrder, products,
+        amount: round2(products.reduce((s, p) => s + p.amount, 0)),
       };
     })
     .sort((a, b) => a._displayOrder - b._displayOrder || a.brandName.localeCompare(b.brandName))

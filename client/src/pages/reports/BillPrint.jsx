@@ -167,9 +167,7 @@ export default function BillPrint() {
         .rate { width: 72px; }
         .amt  { width: 100px; }
         .brand-row td { background: rgba(26,26,110,0.12); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-        .cat-row td   { background: rgba(26,26,110,0.05); font-weight: 700; padding-left: 16px; font-size: 10px;
-                        text-transform: uppercase; letter-spacing: 0.04em; }
-        .product-row .desc { padding-left: 22px; }
+        .product-row .desc { padding-left: 18px; }
         .total-label { text-align: right; font-weight: 700; border-left: none; }
         .total-amt   { font-weight: 700; }
         .no-border { border: none; }
@@ -224,7 +222,7 @@ export default function BillPrint() {
               </div>
             </div>
 
-            {/* ── Line items — Brand → Category → Product ─────────────── */}
+            {/* ── Line items — Brand → Product ─────────────────────────── */}
             <table>
               <thead>
                 <tr>
@@ -240,20 +238,13 @@ export default function BillPrint() {
                     <tr className="brand-row">
                       <td colSpan={4}>{brand.brandName}</td>
                     </tr>
-                    {brand.categories.map((category) => (
-                      <React.Fragment key={category.categoryName}>
-                        <tr className="cat-row">
-                          <td colSpan={4}>{category.categoryName}</td>
-                        </tr>
-                        {category.products.map((product) => (
-                          <tr key={product.productName} className="product-row">
-                            <td className="desc">{product.productName}</td>
-                            <td className="num">{formatQty(product)}</td>
-                            <td className="num">{formatRate(product)}</td>
-                            <td className="num">{formatAmount(product.amount)}</td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
+                    {brand.products.map((product) => (
+                      <tr key={product.productName} className="product-row">
+                        <td className="desc">{product.productName}</td>
+                        <td className="num">{formatQty(product)}</td>
+                        <td className="num">{formatRate(product)}</td>
+                        <td className="num">{formatAmount(product.amount)}</td>
+                      </tr>
                     ))}
                   </React.Fragment>
                 ))}

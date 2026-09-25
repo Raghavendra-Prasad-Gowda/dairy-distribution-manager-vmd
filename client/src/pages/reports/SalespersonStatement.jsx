@@ -251,24 +251,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
                     <tr className={getBrandColors(brand.brandName, brandIndex).header}>
                       <td colSpan={4} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wide">{brand.brandName}</td>
                     </tr>
-                    {brand.categories.map((category) => (
-                      <React.Fragment key={category.categoryName}>
-                        <tr className="bg-slate-100">
-                          <td colSpan={4} className="px-4 py-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                            {category.categoryName}
-                          </td>
-                        </tr>
-                        {category.products.map((product) => (
-                          <tr key={product.productName} className="border-b border-slate-100">
-                            <td className="px-4 py-2.5 pl-6 text-xs font-medium text-slate-700">{product.productName}</td>
-                            <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillQty(product)}</td>
-                            <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillRate(product)}</td>
-                            <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
-                              {formatCurrency(product.amount)}
-                            </td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
+                    {brand.products.map((product) => (
+                      <tr key={product.productName} className="border-b border-slate-100">
+                        <td className="px-4 py-2.5 pl-6 text-xs font-medium text-slate-700">{product.productName}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillQty(product)}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillRate(product)}</td>
+                        <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                          {formatCurrency(product.amount)}
+                        </td>
+                      </tr>
                     ))}
                   </React.Fragment>
                 ))}

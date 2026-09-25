@@ -25,7 +25,7 @@ function parseDateParam(value, label) {
 
 /**
  * Loads every dispatch line supplied to a salesperson in [from, to] and folds
- * it into a Brand → Category → Product breakdown.
+ * it into a Brand → Product breakdown.
  *
  * Reads dispatches (stock handed to the salesperson), not payments: the bill
  * states what was supplied over the period, which is what the pad's Total
@@ -33,7 +33,9 @@ function parseDateParam(value, label) {
  *
  * category.findMany + the catOrder Map is the canonical pattern (CLAUDE.md
  * §9) for sorting by category display order — Product.category is a plain
- * string, not a relation, so Prisma can't ORDER BY it directly.
+ * string, not a relation, so Prisma can't ORDER BY it directly. The bill
+ * doesn't show a category row, but still sorts products by it internally
+ * (via billFormat.js) so, say, milk still clusters ahead of curd.
  */
 async function computeBill(salespersonId, fromDate, toDate) {
   const [dispatches, categories] = await Promise.all([
@@ -61,7 +63,7 @@ async function computeBill(salespersonId, fromDate, toDate) {
     d.items.map((i) => ({
       brandName:            i.product.brand.name,
       brandDisplayOrder:    i.product.brand.displayOrder ?? 999,
-      category:             i.product.category ?? null,
+      // Sort key only — the bill lists Brand → Product, no category row.
       categoryDisplayOrder: getCategoryOrder(catOrder, i.product.brandId, i.product.category),
       productName:          i.product.name,
       displayOrder:         i.product.displayOrder ?? 999,
@@ -110,7 +112,7 @@ const getAll = asyncHandler(async (req, res) => {
 });
 
 /**
- * GET /bills/preview — the Brand → Category → Product breakdown for a
+ * GET /bills/preview — the Brand → Product breakdown for a
  * period, computed but NOT saved. Backs the "check before you issue it"
  * preview; issuing recomputes server-side so a tampered preview can never
  * become a stored bill.
