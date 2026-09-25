@@ -35,15 +35,36 @@ function formatAmount(n) {
 }
 
 /**
- * The faint cow watermark the paper pad prints behind its line-item table.
- * A plain inline SVG (not a CSS background-image) so it always renders when
- * printed — "print background graphics" browser settings only suppress CSS
- * backgrounds, never visible foreground vector content like this.
+ * The faint pastoral watermark the paper pad prints behind its line-item
+ * table. An original composition (sunrise + ground line + grazing cow) — not
+ * a reproduction of any dairy brand's logo or trade dress, since this bill
+ * belongs to Vikas Milk Dairy specifically. A plain inline SVG (not a CSS
+ * background-image) so it always renders when printed — "print background
+ * graphics" browser settings only suppress CSS backgrounds, never visible
+ * foreground vector content like this.
  */
 function CowWatermark() {
   return (
-    <svg viewBox="0 0 240 160" aria-hidden="true">
+    <svg viewBox="0 0 240 180" aria-hidden="true">
       <g fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        {/* Sun, tucked in the corner — not a disc filling the space behind
+            the cow's neck, which is the distinctive part of a certain
+            well-known dairy cooperative's badge logo. */}
+        <circle cx="205" cy="26" r="13" />
+        <path d="M205,6 L205,1" />
+        <path d="M223,26 L228,26" />
+        <path d="M191,12 L188,9" />
+        <path d="M219,12 L222,9" />
+        <path d="M191,40 L188,43" />
+        {/* Ground line, with a few sparse grass ticks — not a dense grass
+            strip running the full width. */}
+        <path d="M12,163 Q120,168 228,163" />
+        <path d="M28,163 L25,155" />
+        <path d="M34,163 L38,154" />
+        <path d="M118,166 L115,158" />
+        <path d="M124,166 L128,157" />
+        <path d="M208,163 L205,155" />
+        <path d="M214,163 L218,154" />
         {/* Horns — short curved hooks, not straight antennae */}
         <path d="M44,46 Q36,38 40,28 Q46,32 46,40" />
         <path d="M68,44 Q77,37 74,27 Q68,31 67,39" />
