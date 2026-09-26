@@ -133,6 +133,7 @@ function formatBillQty(product) {
 function BillsTab({ salespersonId, salespersonName, from, to }) {
   const { notify } = useNotification();
   const [issuing, setIssuing]         = useState(false);
+  const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [confirmBill, setConfirmBill] = useState(null);
   // The bill currently being rendered off-screen for a share tap (see
   // shareBill below), and the row it belongs to (for the button's spinner).
@@ -264,13 +265,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
       <div className="ddm-card overflow-hidden">
         <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-white">Bill Preview</h2>
-          <button
-            onClick={issueBill}
-            disabled={!hasSupply || issuing || previewLoading}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-500 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition"
+          <Button
+            variant="success"
+            icon={Receipt}
+            loading={issuing}
+            disabled={!hasSupply || previewLoading}
+            onClick={() => setConfirmGenerate(true)}
           >
-            {issuing ? <TumblerSpinner size={13} /> : <Receipt size={13} />} Generate Bill
-          </button>
+            Generate Bill
+          </Button>
         </div>
 
         {previewLoading ? (
@@ -406,6 +409,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmGenerate}
+        onClose={() => setConfirmGenerate(false)}
+        onConfirm={issueBill}
+        title="Generate Bill"
+        message={`Generate a bill for ${salespersonName} covering ${periodLabel}? Bill No. is allocated automatically and continues the dairy's series — it can't be reused once issued.`}
+        confirmText="Generate"
+      />
 
       <ConfirmationModal
         isOpen={!!confirmBill}
