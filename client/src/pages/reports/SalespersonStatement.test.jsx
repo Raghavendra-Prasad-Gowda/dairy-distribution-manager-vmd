@@ -748,35 +748,22 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load bills', 'error'));
   });
 
-  it('posts the shared period and opens the printable bill', async () => {
+  it('posts the shared period and opens the printable bill — no M/s or PO No to fill in, the dairy sets those itself', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('Nandini');
 
-    fireEvent.change(screen.getByPlaceholderText('Ramesh Kumar'), { target: { value: 'A.T & S' } });
-    fireEvent.change(screen.getByPlaceholderText('Optional'), { target: { value: '798' } });
-    fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
-
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
-      salespersonId: 1, from: '2026-07-01', to: '2026-07-09', partyName: 'A.T & S', poNumber: '798',
-    }));
-    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
-    expect(notify).toHaveBeenCalledWith('Bill #799 generated', 'success');
-    openSpy.mockRestore();
-  });
-
-  it('omits M/s and PO No when left blank', async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
-    await selectRameshAndOpenBills();
-    await screen.findByText('Nandini');
+    expect(screen.queryByText('M/s')).not.toBeInTheDocument();
+    expect(screen.queryByText('PO No.')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09',
     }));
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
+    expect(notify).toHaveBeenCalledWith('Bill #799 generated', 'success');
     openSpy.mockRestore();
   });
 

@@ -132,8 +132,6 @@ function formatBillQty(product) {
  */
 function BillsTab({ salespersonId, salespersonName, from, to }) {
   const { notify } = useNotification();
-  const [partyName, setPartyName]     = useState('');
-  const [poNumber, setPoNumber]       = useState('');
   const [issuing, setIssuing]         = useState(false);
   const [confirmBill, setConfirmBill] = useState(null);
   // The bill currently being rendered off-screen for a share tap (see
@@ -174,15 +172,12 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
         salespersonId: Number(salespersonId),
         from,
         to,
-        ...(partyName.trim() ? { partyName: partyName.trim() } : {}),
-        ...(poNumber.trim()  ? { poNumber:  poNumber.trim()  } : {}),
       });
       const bill = res.data.data;
       notify(`Bill #${bill.billNumber} generated`, 'success');
       // Prepend locally instead of re-fetching — the history is ordered by
       // bill number desc and this bill carries the highest one.
       setBills((prev) => [bill, ...prev]);
-      setPoNumber('');
       window.open(`/print/bill?id=${bill.id}`, '_blank');
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to generate bill', 'error');
@@ -259,27 +254,9 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
 
       {/* ── Bill details ──────────────────────────────────────────── */}
       <div className="ddm-card p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-          <label className="block">
-            <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">M/s</span>
-            <input
-              type="text" value={partyName} onChange={(e) => setPartyName(e.target.value)}
-              placeholder={salespersonName ?? 'Party name'}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">PO No.</span>
-            <input
-              type="text" value={poNumber} onChange={(e) => setPoNumber(e.target.value)}
-              placeholder="Optional"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-            />
-          </label>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Bills the period selected above (<strong>{periodLabel}</strong>). Bill No. is allocated
-          automatically when you generate — it continues the dairy&rsquo;s series.
+        <p className="text-xs text-slate-500">
+          Bills the period selected above (<strong>{periodLabel}</strong>) for <strong>{salespersonName}</strong>.
+          Bill No. is allocated automatically when you generate — it continues the dairy&rsquo;s series.
         </p>
       </div>
 
