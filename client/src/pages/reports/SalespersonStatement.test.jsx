@@ -615,12 +615,14 @@ describe('SalespersonStatement — top-ups', () => {
  * Bills tab) alongside the generate/preview/history/delete flows themselves.
  */
 const BILL_LINES = [
-  { label: 'MILK',           unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 },
-  { label: 'CURD',           unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 },
-  { label: 'GHEE',           unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'PANNEER / KOVA', unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'BUTTER',         unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'OTHERS',         unit: null, quantity: null, rate: null, amount: 0 },
+  {
+    brandName: 'Nandini',
+    products: [
+      { productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 },
+      { productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 },
+    ],
+    amount: 299854,
+  },
 ];
 
 const BILL_PREVIEW = {
@@ -629,11 +631,7 @@ const BILL_PREVIEW = {
   lines: BILL_LINES, totalAmount: 299854,
 };
 
-const EMPTY_BILL_PREVIEW = {
-  ...BILL_PREVIEW,
-  lines: BILL_LINES.map((l) => ({ ...l, quantity: null, rate: null, unit: null, amount: 0 })),
-  totalAmount: 0,
-};
+const EMPTY_BILL_PREVIEW = { ...BILL_PREVIEW, lines: [], totalAmount: 0 };
 
 const ISSUED_BILL = {
   id: 7, billNumber: 799, poNumber: '798', partyName: 'A.T & S',
@@ -663,14 +661,14 @@ describe('SalespersonStatement — Bills tab', () => {
     mockBillsApi();
   });
 
-  it('previews the six fixed rows for the sidebar-selected salesperson and the page\'s date range', async () => {
+  it('previews each product under its brand for the sidebar-selected salesperson and date range', async () => {
     await selectRameshAndOpenBills();
 
-    expect(await screen.findByText('MILK')).toBeInTheDocument();
-    for (const label of ['CURD', 'GHEE', 'PANNEER / KOVA', 'BUTTER', 'OTHERS']) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
+    expect(await screen.findByText('Nandini')).toBeInTheDocument();
+    expect(screen.getByText('Toned Milk 500ml')).toBeInTheDocument();
+    expect(screen.getByText('Curd 500ml')).toBeInTheDocument();
     expect(screen.getByText('52/ltr')).toBeInTheDocument();
+    expect(screen.getByText('3325 ltr')).toBeInTheDocument();
     expect(screen.getByText('₹172900.00')).toBeInTheDocument();
     expect(screen.getByText('₹299854.00')).toBeInTheDocument();
 
@@ -687,7 +685,7 @@ describe('SalespersonStatement — Bills tab', () => {
       ],
     });
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
 
     fireEvent.click(screen.getByRole('button', { name: /Suresh Babu/ }));
 
@@ -698,7 +696,7 @@ describe('SalespersonStatement — Bills tab', () => {
 
   it('re-previews when the page\'s shared From/To filters change', async () => {
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
 
     const [fromInput] = screen.getAllByDisplayValue(/2026-07-0[19]/);
     fireEvent.change(fromInput, { target: { value: '2026-06-01' } });
@@ -716,11 +714,34 @@ describe('SalespersonStatement — Bills tab', () => {
     expect(screen.getByRole('button', { name: /generate bill/i })).toBeDisabled();
   });
 
+  it('notifies when the preview fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/salespeople')) return Promise.resolve({ data: { data: SALESPEOPLE } });
+      if (url === '/bills/preview') return Promise.reject({ response: { data: { error: 'Salesperson not found' } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await selectRameshAndOpenBills();
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Salesperson not found', 'error'));
+  });
+
+  it('notifies when the history fetch fails', async () => {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/salespeople')) return Promise.resolve({ data: { data: SALESPEOPLE } });
+      if (url === '/bills/preview') return Promise.resolve({ data: { data: BILL_PREVIEW } });
+      if (url === '/bills') return Promise.reject({ response: { data: { error: 'Failed to load bills' } } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await selectRameshAndOpenBills();
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load bills', 'error'));
+  });
+
   it('posts the shared period and opens the printable bill', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
 
     fireEvent.change(screen.getByPlaceholderText('Ramesh Kumar'), { target: { value: 'A.T & S' } });
     fireEvent.change(screen.getByPlaceholderText('Optional'), { target: { value: '798' } });
@@ -729,40 +750,43 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09', partyName: 'A.T & S', poNumber: '798',
     }));
-    await waitFor(() => expect(window.open).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
     expect(notify).toHaveBeenCalledWith('Bill #799 generated', 'success');
+    openSpy.mockRestore();
   });
 
   it('omits M/s and PO No when left blank', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
 
     fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09',
     }));
+    openSpy.mockRestore();
   });
 
   it('adds the new bill to the history without re-fetching it', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
 
     const getsBefore = vi.mocked(api.get).mock.calls.filter(([url]) => url === '/bills').length;
     fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
 
     expect(await screen.findByText('#799')).toBeInTheDocument();
     expect(vi.mocked(api.get).mock.calls.filter(([url]) => url === '/bills').length).toBe(getsBefore);
+    openSpy.mockRestore();
   });
 
   it('notifies when issuing fails', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'No stock was dispatched in this period' } } });
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
 
     fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
 
@@ -803,12 +827,13 @@ describe('SalespersonStatement — Bills tab', () => {
 
   it('reprints a bill from the history', async () => {
     mockBillsApi({ bills: [ISSUED_BILL] });
-    vi.stubGlobal('open', vi.fn());
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('#799');
 
     fireEvent.click(screen.getByRole('button', { name: /print bill #799/i }));
-    expect(window.open).toHaveBeenCalledWith('/print/bill?id=7', '_blank');
+    expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank');
+    openSpy.mockRestore();
   });
 
   it('deletes a bill after confirmation', async () => {
@@ -841,7 +866,7 @@ describe('SalespersonStatement — Bills tab', () => {
   it('hides the header Print button on the Bills tab (printing happens per-bill in the history table)', async () => {
     mockBillsApi({ bills: [ISSUED_BILL] });
     await selectRameshAndOpenBills();
-    await screen.findByText('MILK');
+    await screen.findByText('Nandini');
     expect(screen.queryByText('Print')).not.toBeInTheDocument();
   });
 });

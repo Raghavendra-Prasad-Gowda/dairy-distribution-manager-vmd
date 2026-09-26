@@ -4,8 +4,9 @@
  * Bills API Tests
  * Covers: GET /preview, GET, GET /:id, POST, DELETE /:id on /api/v1/bills
  *
- * The bill is the printed cash/credit pad the dairy hands to a salesperson, so
- * the cases that matter most are the six fixed rows, the frozen snapshot, and
+ * The bill lists each product actually dispatched, grouped under its brand
+ * (not folded into generic buckets, and not further split by category), so
+ * the cases that matter most are that grouping, the frozen snapshot, and
  * bill-number allocation continuing the series.
  */
 
@@ -16,6 +17,13 @@ const { test, ctx, makeAuthToken } = setupSuite();
 
 const SALESPERSON = { id: 1, name: 'Ramesh', route: '220', isActive: true };
 
+const CATEGORIES = [
+  { brandId: 1, name: 'Milk', displayOrder: 1 },
+  { brandId: 1, name: 'Curd', displayOrder: 2 },
+];
+
+const NANDINI = { name: 'Nandini', displayOrder: 1 };
+
 /** A dispatch whose lines reproduce the numbers on the client's paper bill. */
 const DISPATCHES = [
   {
@@ -23,19 +31,23 @@ const DISPATCHES = [
     salespersonId: 1,
     dispatchDate: new Date('2026-08-05'),
     items: [
-      { quantity: 6650, totalAmount: 172900, product: { category: 'Milk', unitType: 'ml', unitSize: 500 } },
-      { quantity: 4702, totalAmount: 126954, product: { category: 'Curd', unitType: 'ml', unitSize: 500 } },
+      { quantity: 6650, totalAmount: 172900, product: { name: 'Toned Milk 500ml', category: 'Milk', displayOrder: 1, unitType: 'ml', unitSize: 500, brandId: 1, brand: NANDINI } },
+      { quantity: 4702, totalAmount: 126954, product: { name: 'Curd 500ml',       category: 'Curd', displayOrder: 1, unitType: 'ml', unitSize: 500, brandId: 1, brand: NANDINI } },
     ],
   },
 ];
 
 const BILL_LINES = [
-  { label: 'MILK',           unit: 'ltr',  quantity: 3325, rate: 52, amount: 172900 },
-  { label: 'CURD',           unit: 'ltr',  quantity: 2351, rate: 54, amount: 126954 },
-  { label: 'GHEE',           unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'PANNEER / KOVA', unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'BUTTER',         unit: null, quantity: null, rate: null, amount: 0 },
-  { label: 'OTHERS',         unit: null, quantity: null, rate: null, amount: 0 },
+  {
+    brandName: 'Nandini',
+    // Milk (categoryDisplayOrder 1) before Curd (2) — still ordered by
+    // category internally even though no category row is shown.
+    products: [
+      { productName: 'Toned Milk 500ml', unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 },
+      { productName: 'Curd 500ml',       unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 },
+    ],
+    amount: 299854,
+  },
 ];
 
 const BILL = {
@@ -72,6 +84,7 @@ test.describe('GET /api/v1/bills/preview', () => {
   test.beforeEach(() => {
     ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue(DISPATCHES);
+    ctx.mockPrisma.category.findMany.mockResolvedValue(CATEGORIES);
   });
 
   test('returns 403 when no token is provided', async ({ request }) => {
@@ -115,24 +128,19 @@ test.describe('GET /api/v1/bills/preview', () => {
     expect(res.status()).toBe(404);
   });
 
-  test('returns the six fixed rows with derived per-litre rates', async ({ request }) => {
+  test('lists each product under its brand, with a derived rate', async ({ request }) => {
     const res = await request.get('/api/v1/bills/preview?salespersonId=1&from=2026-08-01&to=2026-08-31', {
       headers: auth(),
     });
 
     expect(res.status()).toBe(200);
     const { data } = await res.json();
-    expect(data.lines).toHaveLength(6);
-    expect(data.lines.map((l) => l.label)).toEqual([
-      'MILK', 'CURD', 'GHEE', 'PANNEER / KOVA', 'BUTTER', 'OTHERS',
-    ]);
-    expect(data.lines[0]).toMatchObject({ unit: 'ltr', quantity: 3325, rate: 52, amount: 172900 });
-    expect(data.lines[1]).toMatchObject({ unit: 'ltr', quantity: 2351, rate: 54, amount: 126954 });
+    expect(data.lines).toEqual(BILL_LINES);
     expect(data.totalAmount).toBe(299854);
     expect(data.salespersonName).toBe('Ramesh');
   });
 
-  test('still returns all six rows when nothing was dispatched', async ({ request }) => {
+  test('returns no brands and a zero total when nothing was dispatched', async ({ request }) => {
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
     const res = await request.get('/api/v1/bills/preview?salespersonId=1&from=2026-08-01&to=2026-08-31', {
       headers: auth(),
@@ -140,19 +148,18 @@ test.describe('GET /api/v1/bills/preview', () => {
 
     expect(res.status()).toBe(200);
     const { data } = await res.json();
-    expect(data.lines).toHaveLength(6);
+    expect(data.lines).toEqual([]);
     expect(data.totalAmount).toBe(0);
   });
 
-  test('reports amount only when one row mixes litre- and kg-priced products', async ({ request }) => {
-    // A single category holding both a litre product and a kg product: summing
-    // them into one quantity would make the printed rate meaningless, so the
-    // row carries the amount alone.
+  test('keeps a litre-priced and a kg-priced product in the same brand as two separate rows', async ({ request }) => {
+    // Each product carries its own unit — there is no shared "row" for
+    // several products to mix units on.
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
       id: 12,
       items: [
-        { quantity: 100, totalAmount: 2600, product: { category: 'Others', unitType: 'ml',   unitSize: 500 } },
-        { quantity: 20,  totalAmount: 6400, product: { category: 'Others', unitType: 'gram', unitSize: 500 } },
+        { quantity: 100, totalAmount: 2600, product: { name: 'Ghee 500ml', category: 'Ghee', displayOrder: 1, unitType: 'ml',   unitSize: 500, brandId: 1, brand: NANDINI } },
+        { quantity: 20,  totalAmount: 6400, product: { name: 'Paneer 250g', category: 'Ghee', displayOrder: 2, unitType: 'gram', unitSize: 500, brandId: 1, brand: NANDINI } },
       ],
     }]);
 
@@ -161,15 +168,17 @@ test.describe('GET /api/v1/bills/preview', () => {
     });
 
     const { data } = await res.json();
-    const others = data.lines.find((l) => l.label === 'OTHERS');
-    expect(others).toMatchObject({ unit: null, quantity: null, rate: null, amount: 9000 });
+    expect(data.lines[0].products).toEqual([
+      { productName: 'Ghee 500ml', unit: 'ltr', quantity: 50, rate: 52, amount: 2600 },
+      { productName: 'Paneer 250g', unit: 'kg', quantity: 10, rate: 640, amount: 6400 },
+    ]);
     expect(data.totalAmount).toBe(9000);
   });
 
-  test('bills an unrecognised category under OTHERS', async ({ request }) => {
+  test('lists a product with no category under its brand by its own name, not a generic bucket', async ({ request }) => {
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
       id: 11,
-      items: [{ quantity: 10, totalAmount: 500, product: { category: 'Lassi', unitType: 'piece', unitSize: null } }],
+      items: [{ quantity: 10, totalAmount: 500, product: { name: 'Sweet Lassi 200ml', category: null, displayOrder: 1, unitType: 'piece', unitSize: null, brandId: 1, brand: NANDINI } }],
     }]);
 
     const res = await request.get('/api/v1/bills/preview?salespersonId=1&from=2026-08-01&to=2026-08-31', {
@@ -177,8 +186,8 @@ test.describe('GET /api/v1/bills/preview', () => {
     });
 
     const { data } = await res.json();
-    const others = data.lines.find((l) => l.label === 'OTHERS');
-    expect(others).toMatchObject({ unit: 'pcs', quantity: 10, rate: 50, amount: 500 });
+    expect(data.lines[0].brandName).toBe('Nandini');
+    expect(data.lines[0].products[0]).toMatchObject({ productName: 'Sweet Lassi 200ml', unit: 'pcs', quantity: 10, rate: 50 });
   });
 });
 
@@ -190,6 +199,7 @@ test.describe('POST /api/v1/bills', () => {
   test.beforeEach(() => {
     ctx.mockPrisma.salesperson.findUnique.mockResolvedValue(SALESPERSON);
     ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue(DISPATCHES);
+    ctx.mockPrisma.category.findMany.mockResolvedValue(CATEGORIES);
     ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin' });
     ctx.mockPrisma.bill.findFirst.mockResolvedValue({ billNumber: 798 });
     createCalls = capture(ctx.mockPrisma.bill.create, BILL);
@@ -200,6 +210,14 @@ test.describe('POST /api/v1/bills', () => {
       data: { salespersonId: 1, from: '2026-08-01', to: '2026-08-31' },
     });
     expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.post('/api/v1/bills', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+      data: { salespersonId: 1, from: '2026-08-01', to: '2026-08-31' },
+    });
+    expect(res.status()).toBe(401);
   });
 
   test('returns 403 for a salesman token', async ({ request }) => {
@@ -214,6 +232,14 @@ test.describe('POST /api/v1/bills', () => {
     const res = await request.post('/api/v1/bills', {
       headers: auth(),
       data: { from: '2026-08-01', to: '2026-08-31' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('returns 400 for a malformed date', async ({ request }) => {
+    const res = await request.post('/api/v1/bills', {
+      headers: auth(),
+      data: { salespersonId: 1, from: '01-08-2026', to: '2026-08-31' },
     });
     expect(res.status()).toBe(400);
   });
@@ -241,8 +267,7 @@ test.describe('POST /api/v1/bills', () => {
     expect(data.totalAmount).toBe(299854);
 
     const created = createCalls[0][0].data;
-    expect(created.lines).toHaveLength(6);
-    expect(created.lines[0]).toMatchObject({ label: 'MILK', quantity: 3325, rate: 52 });
+    expect(created.lines).toEqual(BILL_LINES);
     expect(created.totalAmount).toBe(299854);
     expect(created.partyName).toBe('A.T & S');
     expect(created.createdBy).toBe('admin');
@@ -291,11 +316,25 @@ test.describe('POST /api/v1/bills', () => {
   });
 });
 
-// ─── GET /api/v1/bills and /:id ───────────────────────────────────────────────
+// ─── GET /api/v1/bills ─────────────────────────────────────────────────────────
 
 test.describe('GET /api/v1/bills', () => {
   test('returns 403 when no token is provided', async ({ request }) => {
     const res = await request.get('/api/v1/bills');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
     expect(res.status()).toBe(403);
   });
 
@@ -319,6 +358,37 @@ test.describe('GET /api/v1/bills', () => {
     expect(findManyCalls[0][0].where).toEqual({ salespersonId: 3 });
   });
 
+  test('returns an empty list when the salesperson has no bills', async ({ request }) => {
+    capture(ctx.mockPrisma.bill.findMany, []);
+    const res = await request.get('/api/v1/bills?salespersonId=3', { headers: auth() });
+    expect(res.status()).toBe(200);
+    const { data } = await res.json();
+    expect(data).toEqual([]);
+  });
+});
+
+// ─── GET /api/v1/bills/:id ──────────────────────────────────────────────────────
+
+test.describe('GET /api/v1/bills/:id', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.get('/api/v1/bills/7');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills/7', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('returns 403 for a salesman token', async ({ request }) => {
+    const res = await request.get('/api/v1/bills/7', {
+      headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('returns 400 for a non-numeric id', async ({ request }) => {
     const res = await request.get('/api/v1/bills/abc', { headers: auth() });
     expect(res.status()).toBe(400);
@@ -337,7 +407,7 @@ test.describe('GET /api/v1/bills', () => {
 
     expect(res.status()).toBe(200);
     const { data } = await res.json();
-    expect(data.lines).toHaveLength(6);
+    expect(data.lines).toEqual(BILL_LINES);
     expect(data.partyName).toBe('A.T & S');
   });
 });
@@ -345,11 +415,28 @@ test.describe('GET /api/v1/bills', () => {
 // ─── DELETE /api/v1/bills/:id ─────────────────────────────────────────────────
 
 test.describe('DELETE /api/v1/bills/:id', () => {
+  test('returns 403 when no token is provided', async ({ request }) => {
+    const res = await request.delete('/api/v1/bills/7');
+    expect(res.status()).toBe(403);
+  });
+
+  test('returns 401 for an expired token', async ({ request }) => {
+    const res = await request.delete('/api/v1/bills/7', {
+      headers: { Authorization: `Bearer ${makeExpiredToken()}` },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('returns 403 for a salesman token', async ({ request }) => {
     const res = await request.delete('/api/v1/bills/7', {
       headers: { Authorization: `Bearer ${makeSalesmanToken(1)}` },
     });
     expect(res.status()).toBe(403);
+  });
+
+  test('returns 400 for a non-numeric id', async ({ request }) => {
+    const res = await request.delete('/api/v1/bills/abc', { headers: auth() });
+    expect(res.status()).toBe(400);
   });
 
   test('returns 404 for an unknown bill', async ({ request }) => {

@@ -5,6 +5,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
 import { useNotification } from '../../context/NotificationContext';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
+import { getBrandColors } from '../../utils/constants';
 import { useApiResource } from '../../hooks/useApiResource';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
 import api from '../../api/axios';
@@ -102,16 +103,16 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** "52/ltr" — the Rate/Qty cell as the printed pad writes it. */
-function formatBillRate(line) {
-  if (line.rate == null || !line.unit) return '';
-  return `${line.rate}/${line.unit}`;
+/** "52/ltr" — a product's rate, blank when there's nothing to derive it from. */
+function formatBillRate(product) {
+  if (product.rate == null) return '';
+  return `${product.rate}/${product.unit}`;
 }
 
-/** Quantities print whole where they are whole, 2dp otherwise. */
-function formatBillQty(line) {
-  if (line.quantity == null) return '';
-  return Number.isInteger(line.quantity) ? String(line.quantity) : line.quantity.toFixed(2);
+/** Quantities print whole where they are whole, 2dp otherwise, with their unit. */
+function formatBillQty(product) {
+  const qty = Number.isInteger(product.quantity) ? String(product.quantity) : product.quantity.toFixed(2);
+  return `${qty} ${product.unit}`;
 }
 
 /**
@@ -233,39 +234,46 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
           <BrandedLoader size="sm" hideBrand inlinePadY="py-12" />
         ) : !preview ? (
           <p className="px-4 py-10 text-center text-slate-400 text-xs">Select a salesperson and period</p>
-        ) : (
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 w-12">Sl. No.</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Description</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Rate/Qty</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Qty</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.lines.map((line, i) => (
-                <tr key={line.label} className="border-b border-slate-100">
-                  <td className="px-4 py-2.5 text-xs text-slate-400 tabular-nums">{i + 1}.</td>
-                  <td className="px-4 py-2.5 text-xs font-semibold text-slate-700">{line.label}</td>
-                  <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillRate(line)}</td>
-                  <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillQty(line)}</td>
-                  <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
-                    {line.amount ? formatCurrency(line.amount) : ''}
+        ) : !hasSupply ? null : (
+          <div className="overflow-auto max-h-[60vh]">
+            <table className="min-w-full">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Product</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Qty</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Rate</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.lines.map((brand, brandIndex) => (
+                  <React.Fragment key={brand.brandName}>
+                    <tr className={getBrandColors(brand.brandName, brandIndex).header}>
+                      <td colSpan={4} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wide">{brand.brandName}</td>
+                    </tr>
+                    {brand.products.map((product) => (
+                      <tr key={product.productName} className="border-b border-slate-100">
+                        <td className="px-4 py-2.5 pl-6 text-xs font-medium text-slate-700">{product.productName}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillQty(product)}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillRate(product)}</td>
+                        <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                          {formatCurrency(product.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tbody>
+              <tfoot className="sticky bottom-0 z-10">
+                <tr className="bg-slate-800">
+                  <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wide">Total</td>
+                  <td className="px-4 py-2.5 text-right text-xs font-bold text-white tabular-nums">
+                    {formatCurrency(preview.totalAmount)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-800">
-                <td colSpan={4} className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wide">Total</td>
-                <td className="px-4 py-2.5 text-right text-xs font-bold text-white tabular-nums">
-                  {formatCurrency(preview.totalAmount)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         )}
 
         {preview && !previewLoading && !hasSupply && (
@@ -289,51 +297,53 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
         ) : bills.length === 0 ? (
           <p className="px-4 py-10 text-center text-slate-400 text-xs">No bills generated yet</p>
         ) : (
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Bill No.</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">M/s</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Period</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Total</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bills.map((bill) => (
-                <tr key={bill.id} className="border-b border-slate-100 hover:bg-slate-50/60">
-                  <td className="px-4 py-2.5 text-xs font-bold text-slate-700 tabular-nums">#{bill.billNumber}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-700">{bill.partyName}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500 tabular-nums whitespace-nowrap">
-                    {formatDateShort(bill.fromDate)} – {formatDateShort(bill.toDate)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
-                    {formatCurrency(bill.totalAmount)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center justify-end gap-3">
-                      <button
-                        onClick={() => window.open(`/print/bill?id=${bill.id}`, '_blank')}
-                        className="text-slate-400 hover:text-emerald-600 transition-colors"
-                        title={`Print bill #${bill.billNumber}`}
-                        aria-label={`Print bill #${bill.billNumber}`}
-                      >
-                        <Printer size={14} />
-                      </button>
-                      <button
-                        onClick={() => setConfirmBill(bill)}
-                        className="text-slate-400 hover:text-red-600 transition-colors"
-                        title={`Delete bill #${bill.billNumber}`}
-                        aria-label={`Delete bill #${bill.billNumber}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-auto max-h-[60vh]">
+            <table className="min-w-full">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Bill No.</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">M/s</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Period</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Total</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {bills.map((bill) => (
+                  <tr key={bill.id} className="border-b border-slate-100 hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 tabular-nums">#{bill.billNumber}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-700">{bill.partyName}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500 tabular-nums whitespace-nowrap">
+                      {formatDateShort(bill.fromDate)} – {formatDateShort(bill.toDate)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                      {formatCurrency(bill.totalAmount)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => window.open(`/print/bill?id=${bill.id}`, '_blank')}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors"
+                          title={`Print bill #${bill.billNumber}`}
+                          aria-label={`Print bill #${bill.billNumber}`}
+                        >
+                          <Printer size={14} />
+                        </button>
+                        <button
+                          onClick={() => setConfirmBill(bill)}
+                          className="text-slate-400 hover:text-red-600 transition-colors"
+                          title={`Delete bill #${bill.billNumber}`}
+                          aria-label={`Delete bill #${bill.billNumber}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

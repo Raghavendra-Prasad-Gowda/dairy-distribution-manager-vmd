@@ -1,132 +1,133 @@
 'use strict';
 
 /**
- * Bill line formatting — the six fixed rows of Vikas Milk Dairy's printed
- * cash/credit bill pad.
+ * Bill line-item aggregation — Brand → Product. Products are still ordered
+ * by the canonical dairy layout (CLAUDE.md §9) — brand.displayOrder →
+ * categoryDisplayOrder → product.displayOrder → name — so items still cluster
+ * sensibly (all the milk together, then curd, …) even though the bill no
+ * longer prints a category header row; category is purely a sort key here,
+ * not a grouping level.
  *
- * The pad the dairy hands to salespeople has a pre-printed six-row table
- * (MILK, CURD, GHEE, PANNEER / KOVA, BUTTER, OTHERS), so the generated PDF
- * prints all six every time — blank where there was no supply — instead of one
- * row per category. That is why this file does NOT apply the canonical
- * brand → category → product sort from CLAUDE.md §9: the row order here is the
- * stationery's, fixed, and not a product listing at all.
+ * The bill used to fold every dispatch into six pre-printed pad rows (MILK /
+ * CURD / GHEE / …), mirroring the physical stationery. That generalized real
+ * products away — a bill listing "MILK ₹1,72,900" doesn't say which of the
+ * salesperson's several milk SKUs that covers. This version lists each
+ * product actually dispatched under its brand, so the bill reads like an
+ * itemized invoice instead of a lump-sum slip.
  *
- * Every product category in the system is mapped onto one of those rows;
- * anything that doesn't match a known alias falls into OTHERS so no supply can
- * ever go unbilled.
+ * @typedef {{
+ *   brandName: string, brandDisplayOrder?: number,
+ *   categoryDisplayOrder?: number,
+ *   productName: string, displayOrder?: number,
+ *   quantity: number, totalAmount: number,
+ *   unitType?: string|null, unitSize?: number|null,
+ *   unitsPerContainer?: number|null, containerType?: string|null,
+ * }} BillItem
  */
 
-/** The six printed rows, in the order they appear on the pad. */
-const BILL_ROWS = ['MILK', 'CURD', 'GHEE', 'PANNEER / KOVA', 'BUTTER', 'OTHERS'];
+const DEFAULT_ORDER = 999;
 
-const OTHERS = 'OTHERS';
-
-/**
- * Category-name aliases → printed row. Matching is done on a normalized form
- * (uppercased, non-alphanumerics stripped) so "Panneer/Kova", "paneer & kova"
- * and "PANNEER  KOVA" all land on the same row.
- */
-const ROW_ALIASES = {
-  MILK: 'MILK',
-  MILKS: 'MILK',
-  TONEDMILK: 'MILK',
-  CURD: 'CURD',
-  CURDS: 'CURD',
-  DAHI: 'CURD',
-  GHEE: 'GHEE',
-  PANNEER: 'PANNEER / KOVA',
-  PANEER: 'PANNEER / KOVA',
-  KOVA: 'PANNEER / KOVA',
-  KHOVA: 'PANNEER / KOVA',
-  PANNEERKOVA: 'PANNEER / KOVA',
-  PANEERKOVA: 'PANNEER / KOVA',
-  BUTTER: 'BUTTER',
-};
-
-function normalize(name) {
-  return String(name ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-/** Rounds to 2dp, collapsing float noise from summing litres/kgs. */
+/** Rounds to 2dp, collapsing float noise from summing quantities/amounts. */
 function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
 /**
- * Maps a product category name onto one of the six printed rows.
- * Unknown / missing categories go to OTHERS.
+ * The billable unit label for a product: ml products bill per litre, gram
+ * products per kg, everything else per piece. Mirrors the crate/litre/kg
+ * conversion the Stock Summary and Dispatch Stock Summary reports use.
  */
-function resolveBillRow(categoryName) {
-  const key = normalize(categoryName);
-  if (!key) return OTHERS;
-  if (ROW_ALIASES[key]) return ROW_ALIASES[key];
-  // Substring fallback: "Milk 500ml Pouches" still bills as MILK.
-  for (const [alias, row] of Object.entries(ROW_ALIASES)) {
-    if (key.includes(alias)) return row;
-  }
-  return OTHERS;
+function unitLabel(unitType) {
+  if (unitType === 'ml')   return 'ltr';
+  if (unitType === 'gram') return 'kg';
+  return 'pcs';
 }
 
-/**
- * The billable measure of one dispatch line, in the unit the pad quotes rates
- * in: ml products bill per litre, gram products per kg, everything else per
- * piece. Mirrors the crate/litre/kg conversion the Stock Summary reports use.
- */
+/** A dispatch line's quantity converted into its billable unit. */
 function measureOf(item) {
   const qty      = Number(item.quantity ?? 0);
   const unitSize = item.unitSize != null ? Number(item.unitSize) : null;
-  if (item.unitType === 'ml'   && unitSize) return { unit: 'ltr', value: (qty * unitSize) / 1000 };
-  if (item.unitType === 'gram' && unitSize) return { unit: 'kg',  value: (qty * unitSize) / 1000 };
-  return { unit: 'pcs', value: qty };
+  if (item.unitType === 'ml'   && unitSize) return (qty * unitSize) / 1000;
+  if (item.unitType === 'gram' && unitSize) return (qty * unitSize) / 1000;
+  return qty;
 }
 
 /**
- * Aggregates dispatch line items into the six printed bill rows.
+ * Groups dispatch line items into Brand → Product, each product summed
+ * across the whole billed period with a derived rate.
  *
- * Rate is derived read-only as amount ÷ quantity — the bill quotes one rate per
- * row (e.g. "52/ltr"), so when a row's products were supplied at several rates
- * this reports the weighted average actually charged, never an invented figure.
+ * Rate is amount ÷ quantity — read-only and never invented, so a product
+ * supplied at more than one price over the period bills at the weighted
+ * average actually charged.
  *
- * When a single row mixes units (a category holding both litre- and kg-priced
- * products), quantity and rate are reported as null and only the amount is
- * printed: summing litres and kilograms into one number would make the rate
- * meaningless, and a bill must not show a figure that doesn't reconcile.
- *
- * @param {Array<{ category?: string|null, quantity: number, totalAmount: number,
- *   unitType?: string|null, unitSize?: number|null }>} items
+ * @param {BillItem[]} items
  * @returns {{
- *   lines: Array<{ label: string, unit: string|null, quantity: number|null,
- *                  rate: number|null, amount: number }>,
+ *   brands: Array<{
+ *     brandName: string,
+ *     products: Array<{
+ *       productName: string, unit: string,
+ *       quantity: number, rate: number|null, amount: number,
+ *     }>,
+ *     amount: number,
+ *   }>,
  *   totalAmount: number,
  * }}
  */
 function buildBillLines(items = []) {
-  // row label -> { amount, byUnit: { ltr: n, kg: n, pcs: n } }
-  const rows = new Map(BILL_ROWS.map((label) => [label, { amount: 0, byUnit: {} }]));
+  // brandName -> { displayOrder, products: Map(productName -> {...}) }
+  const brandMap = new Map();
+
+  const ensureProduct = (brandName, brandDisplayOrder, categoryDisplayOrder, productName, displayOrder, unit) => {
+    if (!brandMap.has(brandName)) {
+      brandMap.set(brandName, { displayOrder: brandDisplayOrder, products: new Map() });
+    }
+    const brand = brandMap.get(brandName);
+    if (!brand.products.has(productName)) {
+      brand.products.set(productName, { displayOrder, categoryOrder: categoryDisplayOrder, unit, quantity: 0, amount: 0 });
+    }
+    return brand.products.get(productName);
+  };
 
   for (const item of items) {
-    const row = rows.get(resolveBillRow(item.category));
-    const { unit, value } = measureOf(item);
-    row.amount += Number(item.totalAmount ?? 0);
-    row.byUnit[unit] = (row.byUnit[unit] ?? 0) + value;
+    const product = ensureProduct(
+      item.brandName, item.brandDisplayOrder ?? DEFAULT_ORDER,
+      item.categoryDisplayOrder ?? DEFAULT_ORDER,
+      item.productName, item.displayOrder ?? DEFAULT_ORDER,
+      unitLabel(item.unitType),
+    );
+    product.quantity += measureOf(item);
+    product.amount   += Number(item.totalAmount ?? 0);
   }
 
-  const lines = BILL_ROWS.map((label) => {
-    const row = rows.get(label);
-    const amount = round2(row.amount);
-    const used = Object.entries(row.byUnit).filter(([, v]) => round2(v) !== 0);
+  const brands = Array.from(brandMap.entries())
+    .map(([brandName, brand]) => {
+      const products = Array.from(brand.products.entries())
+        .map(([productName, p]) => {
+          const quantity = round2(p.quantity);
+          const amount   = round2(p.amount);
+          return {
+            productName, _categoryOrder: p.categoryOrder, _displayOrder: p.displayOrder,
+            unit: p.unit, quantity,
+            rate: quantity ? round2(amount / quantity) : null,
+            amount,
+          };
+        })
+        // Category order is still the primary tiebreak, even though it's
+        // never shown — otherwise curd could print ahead of milk just
+        // because its product name sorts earlier.
+        .sort((a, b) => a._categoryOrder - b._categoryOrder || a._displayOrder - b._displayOrder || a.productName.localeCompare(b.productName))
+        .map(({ _categoryOrder, _displayOrder, ...rest }) => rest);
 
-    if (used.length !== 1) {
-      // Nothing supplied (blank row), or several units in one row — see above.
-      return { label, unit: null, quantity: null, rate: null, amount };
-    }
+      return {
+        brandName, _displayOrder: brand.displayOrder, products,
+        amount: round2(products.reduce((s, p) => s + p.amount, 0)),
+      };
+    })
+    .sort((a, b) => a._displayOrder - b._displayOrder || a.brandName.localeCompare(b.brandName))
+    .map(({ _displayOrder, ...rest }) => rest);
 
-    const [unit, rawQty] = used[0];
-    const quantity = round2(rawQty);
-    return { label, unit, quantity, rate: quantity ? round2(amount / quantity) : null, amount };
-  });
-
-  return { lines, totalAmount: round2(lines.reduce((s, l) => s + l.amount, 0)) };
+  const totalAmount = round2(brands.reduce((s, b) => s + b.amount, 0));
+  return { brands, totalAmount };
 }
 
-module.exports = { BILL_ROWS, resolveBillRow, buildBillLines, measureOf };
+module.exports = { buildBillLines, unitLabel, measureOf };
