@@ -4,9 +4,10 @@
  * Covers reading the bill id from the query string, rendering the frozen
  * Brand → Product line items, the pad's masthead, the total and the amount
  * in words, loading/error states, manual print, and the WhatsApp share flow
- * (native file share when supported, download + wa.me fallback otherwise,
- * and the background pre-render that keeps the share call close enough to
- * the tap for browsers that revoke it after any real delay).
+ * (native file share of a single-page PDF when supported, download + wa.me
+ * fallback otherwise, and the background pre-render that keeps the share
+ * call close enough to the tap for browsers that revoke it after any real
+ * delay).
  */
 
 import React from 'react';
@@ -16,6 +17,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import BillPrint from './BillPrint';
 import api from '../../api/axios';
 import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 vi.mock('../../api/axios', () => ({
   default: { get: vi.fn() },
@@ -27,11 +29,21 @@ vi.mock('../../context/NotificationContext', () => ({
 }));
 
 function fakeCanvas() {
-  return { toBlob: (cb) => cb(new Blob(['fake-image'], { type: 'image/png' })) };
+  return { toBlob: (cb) => cb(new Blob(['fake-image'], { type: 'image/png' })), toDataURL: () => 'data:image/png;base64,fake' };
+}
+
+function fakePdfDoc() {
+  return { addImage: vi.fn(), output: () => new Blob(['fake-pdf'], { type: 'application/pdf' }) };
 }
 
 vi.mock('html2canvas', () => ({
   default: vi.fn(() => Promise.resolve(fakeCanvas())),
+}));
+
+vi.mock('jspdf', () => ({
+  // jsPDF is invoked with `new` in the component — an arrow-function
+  // implementation isn't constructible, so this needs a real `function`.
+  jsPDF: vi.fn(function FakeJsPDF() { return fakePdfDoc(); }),
 }));
 
 const LINES = [
@@ -79,6 +91,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockBill();
   vi.mocked(html2canvas).mockResolvedValue(fakeCanvas());
+  vi.mocked(jsPDF).mockImplementation(function () { return fakePdfDoc(); });
   vi.spyOn(window, 'print').mockImplementation(() => {});
   vi.spyOn(window, 'open').mockImplementation(() => {});
   window.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
@@ -222,13 +235,14 @@ describe('BillPrint — printing', () => {
 });
 
 describe('BillPrint — sharing on WhatsApp', () => {
-  it('pre-renders the share image in the background as soon as the bill loads, before any click', async () => {
+  it('pre-renders the share PDF in the background as soon as the bill loads, before any click', async () => {
     renderWithParams('id=7');
     await screen.findByText('VIKAS MILK DAIRY');
     await waitFor(() => expect(html2canvas).toHaveBeenCalledTimes(1));
+    expect(jsPDF).toHaveBeenCalledTimes(1);
   });
 
-  it('reuses the pre-rendered image instead of re-rendering on click — the render must not start at tap time, or a slow one can outlast the tap on browsers that tie navigator.share() to it', async () => {
+  it('reuses the pre-rendered PDF instead of re-rendering on click — the render must not start at tap time, or a slow one can outlast the tap on browsers that tie navigator.share() to it', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     setShareSupport({ canShare: vi.fn(() => true), share });
 
@@ -240,9 +254,10 @@ describe('BillPrint — sharing on WhatsApp', () => {
 
     await waitFor(() => expect(share).toHaveBeenCalled());
     expect(html2canvas).toHaveBeenCalledTimes(1);
+    expect(jsPDF).toHaveBeenCalledTimes(1);
   });
 
-  it('shares the bill as an image via the native share sheet when the platform supports file sharing', async () => {
+  it('shares the bill as a single-page PDF via the native share sheet when the platform supports file sharing', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     setShareSupport({ canShare: vi.fn(() => true), share });
 
@@ -255,11 +270,11 @@ describe('BillPrint — sharing on WhatsApp', () => {
     expect(call.title).toBe('Bill #799');
     expect(call.text).toContain('Bill #799');
     expect(call.text).toContain('2,99,854.00');
-    expect(call.files[0].name).toBe('bill-799.png');
-    expect(call.files[0].type).toBe('image/png');
+    expect(call.files[0].name).toBe('bill-799.pdf');
+    expect(call.files[0].type).toBe('application/pdf');
   });
 
-  it('shows "Preparing…" and disables the button while the image is being captured', async () => {
+  it('shows "Preparing…" and disables the button while the PDF is being captured', async () => {
     let resolveCanvas;
     vi.mocked(html2canvas).mockReturnValue(new Promise((r) => { resolveCanvas = r; }));
     setShareSupport({ canShare: vi.fn(() => true), share: vi.fn().mockResolvedValue(undefined) });
@@ -275,7 +290,7 @@ describe('BillPrint — sharing on WhatsApp', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /share on whatsapp/i })).not.toBeDisabled());
   });
 
-  it('falls back to downloading the image and opening wa.me when file sharing is unsupported', async () => {
+  it('falls back to downloading the PDF and opening wa.me when file sharing is unsupported', async () => {
     setShareSupport({ canShare: undefined, share: undefined });
 
     renderWithParams('id=7');

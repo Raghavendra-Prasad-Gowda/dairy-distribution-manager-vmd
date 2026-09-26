@@ -17,6 +17,11 @@ const DAIRY = {
   phones:     '9845073830, 9900168388, 9845585343',
 };
 
+// 1 CSS px == 1/96in == 25.4/96 mm — used to size the shared PDF's page to
+// exactly match the sheet's own on-screen dimensions, so the exported
+// document is a single page with no forced-fit scaling or pagination logic.
+const PX_TO_MM = 25.4 / 96;
+
 /** "52/ltr" — a product's rate, blank when there's nothing to derive it from. */
 function formatRate(product) {
   if (product.rate == null) return '';
@@ -64,29 +69,42 @@ export default function BillPrint() {
   // what to do next. Sharing and printing are both one explicit tap away
   // instead, with sharing as the obvious first move.
 
-  /** Renders the bill sheet to a PNG Blob. */
-  function renderBillImage() {
-    return import('html2canvas')
-      .then(({ default: html2canvas }) => html2canvas(sheetRef.current, {
-        scale: Math.min(window.devicePixelRatio || 1, 2) + 1,
-        backgroundColor: '#ffffff',
-      }))
-      .then((canvas) => new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not render the bill image'))), 'image/png');
-      }));
+  /** Renders the bill sheet to a single-page PDF Blob, sized to the sheet itself. */
+  function renderBillPdf() {
+    return Promise.all([import('html2canvas'), import('jspdf')])
+      .then(([{ default: html2canvas }, { jsPDF }]) => {
+        const widthMm  = sheetRef.current.offsetWidth  * PX_TO_MM;
+        const heightMm = sheetRef.current.offsetHeight * PX_TO_MM;
+        return html2canvas(sheetRef.current, {
+          scale: Math.min(window.devicePixelRatio || 1, 2) + 1,
+          backgroundColor: '#ffffff',
+        }).then((canvas) => {
+          // jsPDF's default ('portrait') orientation silently swaps a custom
+          // format's width/height when width > height, which would distort
+          // this: a short bill is wider than it is tall. Matching the
+          // orientation to the sheet's own aspect ratio keeps it as-is.
+          const doc = new jsPDF({
+            unit: 'mm',
+            format: [widthMm, heightMm],
+            orientation: widthMm > heightMm ? 'landscape' : 'portrait',
+          });
+          doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, widthMm, heightMm);
+          return doc.output('blob');
+        });
+      });
   }
 
-  // Pre-renders the share image in the background as soon as the bill is on
+  // Pre-renders the share PDF in the background as soon as the bill is on
   // screen, instead of waiting for the tap. iOS Safari ties navigator.share()
   // to the click that triggered it and silently refuses it (canShare comes
   // back false) once anything slower than a microtask runs first — an
-  // html2canvas capture plus the html2canvas chunk's own dynamic import
+  // html2canvas capture plus the html2canvas/jsPDF chunks' own dynamic import
   // easily blows past that window. Starting the render early means the
   // click handler usually just awaits an already-resolved promise, so the
   // share-sheet call stays inside the gesture.
   useEffect(() => {
     if (!bill) return;
-    const promise = renderBillImage();
+    const promise = renderBillPdf();
     renderPromiseRef.current = promise;
     promise.catch(() => {
       if (renderPromiseRef.current === promise) renderPromiseRef.current = null;
@@ -94,21 +112,22 @@ export default function BillPrint() {
   }, [bill]);
 
   /**
-   * Hands the (usually already-rendered) bill image to the OS share sheet —
+   * Hands the (usually already-rendered) bill PDF to the OS share sheet —
    * one tap, WhatsApp (or anything else) already in the list of
-   * destinations. Falls back to downloading the image and opening
+   * destinations, and it lands there as a proper document rather than a
+   * photo. Falls back to downloading the PDF and opening
    * web.whatsapp.com/wa.me with a caption pre-filled when the platform can't
    * share files directly (mainly desktop browsers) — WhatsApp's own
    * click-to-chat link has no way to attach a file, so the user pastes in
-   * the image that's already open.
+   * the PDF that's already open.
    */
   async function shareOnWhatsApp() {
     if (!bill) return;
     setSharing(true);
     try {
-      const blob = await (renderPromiseRef.current ?? renderBillImage());
-      const fileName = `bill-${bill.billNumber}.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
+      const blob = await (renderPromiseRef.current ?? renderBillPdf());
+      const fileName = `bill-${bill.billNumber}.pdf`;
+      const file = new File([blob], fileName, { type: 'application/pdf' });
       const caption = `Bill #${bill.billNumber} — ${DAIRY.name} — ${formatDateShort(bill.fromDate)} to ${formatDateShort(bill.toDate)} — Total ₹${formatAmount(bill.totalAmount)}`;
 
       if (navigator.canShare?.({ files: [file] })) {
@@ -123,13 +142,13 @@ export default function BillPrint() {
         a.remove();
         URL.revokeObjectURL(url);
         window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, '_blank');
-        notify('Bill image downloaded — attach it in the WhatsApp chat that just opened', 'success');
+        notify('Bill PDF downloaded — attach it in the WhatsApp chat that just opened', 'success');
       }
     } catch (e) {
       // AbortError just means the user closed the native share sheet without
       // picking anything — not a failure worth surfacing.
       if (e?.name !== 'AbortError') {
-        notify('Could not prepare the bill image — try again, or use Print / Save PDF instead', 'error');
+        notify('Could not prepare the bill PDF — try again, or use Print / Save PDF instead', 'error');
       }
     } finally {
       setSharing(false);
