@@ -1,13 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2, Share2, Eye } from 'lucide-react';
 import BrandedLoader, { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
+import BillSheet from '../../components/BillSheet';
 import { useNotification } from '../../context/NotificationContext';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
 import { getBrandColors } from '../../utils/constants';
 import { useApiResource } from '../../hooks/useApiResource';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
+import { renderBillPdf, shareBillPdf } from '../../utils/billPdf';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle, showTopUp }) {
@@ -128,10 +132,22 @@ function formatBillQty(product) {
  */
 function BillsTab({ salespersonId, salespersonName, from, to }) {
   const { notify } = useNotification();
-  const [partyName, setPartyName]     = useState('');
-  const [poNumber, setPoNumber]       = useState('');
   const [issuing, setIssuing]         = useState(false);
   const [confirmBill, setConfirmBill] = useState(null);
+  // The bill currently being rendered off-screen for a share tap (see
+  // shareBill below), and the row it belongs to (for the button's spinner).
+  const [shareTarget, setShareTarget] = useState(null);
+  const [sharingBillId, setSharingBillId] = useState(null);
+  const shareSheetRef = useRef(null);
+
+  // The bill currently shown in the on-screen preview dialog (see
+  // previewBillDialog below) — unlike shareTarget, this one is visible, so
+  // its own Share button can reuse the same sheet instead of rendering a
+  // second, hidden copy.
+  const [previewBill, setPreviewBill] = useState(null);
+  const [previewSharing, setPreviewSharing] = useState(false);
+  const previewSheetRef = useRef(null);
+  const previewPdfRef   = useRef(null);
 
   // Preview follows the salesperson/period selection — an admin should see
   // what the bill will say before it gets a number, because a number once
@@ -156,15 +172,12 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
         salespersonId: Number(salespersonId),
         from,
         to,
-        ...(partyName.trim() ? { partyName: partyName.trim() } : {}),
-        ...(poNumber.trim()  ? { poNumber:  poNumber.trim()  } : {}),
       });
       const bill = res.data.data;
       notify(`Bill #${bill.billNumber} generated`, 'success');
       // Prepend locally instead of re-fetching — the history is ordered by
       // bill number desc and this bill carries the highest one.
       setBills((prev) => [bill, ...prev]);
-      setPoNumber('');
       window.open(`/print/bill?id=${bill.id}`, '_blank');
     } catch (e) {
       notify(e.response?.data?.error ?? 'Failed to generate bill', 'error');
@@ -185,6 +198,54 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
     }
   }
 
+  // Shares a bill straight from its History row — no detour through the
+  // print page first. `bills` already carries each row's full `lines`
+  // (see GET /bills), so this only needs to mount the sheet off-screen,
+  // capture it, and hand it to the share sheet; the effect below does the
+  // capture once that hidden render has actually committed to the DOM.
+  function shareBill(bill) {
+    setSharingBillId(bill.id);
+    setShareTarget(bill);
+  }
+
+  useEffect(() => {
+    if (!shareTarget) return;
+    let cancelled = false;
+    (async () => {
+      await shareBillPdf({ bill: shareTarget, sheetEl: shareSheetRef.current, notify });
+      if (!cancelled) {
+        setSharingBillId(null);
+        setShareTarget(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [shareTarget, notify]);
+
+  // Opens the on-screen preview dialog for an issued bill (see the Modal
+  // near the bottom of this component). Its render is pre-warmed the same
+  // way BillPrint.jsx pre-warms its own share button — the dialog knows
+  // exactly which bill it's showing the instant it opens, so there's no
+  // reason to wait for the tap to start the html2canvas/jsPDF capture.
+  function previewBillDialog(bill) {
+    setPreviewBill(bill);
+  }
+
+  useEffect(() => {
+    if (!previewBill) { previewPdfRef.current = null; return; }
+    const promise = renderBillPdf(previewSheetRef.current);
+    previewPdfRef.current = promise;
+    promise.catch(() => {
+      if (previewPdfRef.current === promise) previewPdfRef.current = null;
+    });
+  }, [previewBill]);
+
+  async function sharePreviewBill() {
+    if (!previewBill) return;
+    setPreviewSharing(true);
+    await shareBillPdf({ bill: previewBill, sheetEl: previewSheetRef.current, pdfPromise: previewPdfRef.current, notify });
+    setPreviewSharing(false);
+  }
+
   const hasSupply = (preview?.totalAmount ?? 0) > 0;
   const periodLabel = from === to ? from : `${from} to ${to}`;
 
@@ -193,27 +254,9 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
 
       {/* ── Bill details ──────────────────────────────────────────── */}
       <div className="ddm-card p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-          <label className="block">
-            <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">M/s</span>
-            <input
-              type="text" value={partyName} onChange={(e) => setPartyName(e.target.value)}
-              placeholder={salespersonName ?? 'Party name'}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">PO No.</span>
-            <input
-              type="text" value={poNumber} onChange={(e) => setPoNumber(e.target.value)}
-              placeholder="Optional"
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-            />
-          </label>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Bills the period selected above (<strong>{periodLabel}</strong>). Bill No. is allocated
-          automatically when you generate — it continues the dairy&rsquo;s series.
+        <p className="text-xs text-slate-500">
+          Bills the period selected above (<strong>{periodLabel}</strong>) for <strong>{salespersonName}</strong>.
+          Bill No. is allocated automatically when you generate — it continues the dairy&rsquo;s series.
         </p>
       </div>
 
@@ -322,12 +365,29 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-3">
                         <button
+                          onClick={() => previewBillDialog(bill)}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors"
+                          title={`Preview bill #${bill.billNumber}`}
+                          aria-label={`Preview bill #${bill.billNumber}`}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
                           onClick={() => window.open(`/print/bill?id=${bill.id}`, '_blank')}
                           className="text-slate-400 hover:text-emerald-600 transition-colors"
                           title={`Print bill #${bill.billNumber}`}
                           aria-label={`Print bill #${bill.billNumber}`}
                         >
                           <Printer size={14} />
+                        </button>
+                        <button
+                          onClick={() => shareBill(bill)}
+                          disabled={sharingBillId === bill.id}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={`Share bill #${bill.billNumber} on WhatsApp`}
+                          aria-label={`Share bill #${bill.billNumber} on WhatsApp`}
+                        >
+                          {sharingBillId === bill.id ? <TumblerSpinner size={14} /> : <Share2 size={14} />}
                         </button>
                         <button
                           onClick={() => setConfirmBill(bill)}
@@ -358,6 +418,35 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
         isDanger
         confirmText="Delete"
       />
+
+      {/* Rendered off-screen only while a share tap is being prepared — the
+          same layout the print page shows, captured through the same
+          html2canvas + jsPDF pipeline (see shareBill above). Never visible. */}
+      {shareTarget && (
+        <div style={{ position: 'fixed', top: 0, left: '-9999px', width: '760px' }} aria-hidden="true">
+          <BillSheet ref={shareSheetRef} bill={shareTarget} />
+        </div>
+      )}
+
+      <Modal
+        open={!!previewBill}
+        onClose={() => setPreviewBill(null)}
+        title={previewBill ? `Bill #${previewBill.billNumber}` : ''}
+        subtitle={previewBill
+          ? `${previewBill.partyName} — ${formatDateShort(previewBill.fromDate)} to ${formatDateShort(previewBill.toDate)}`
+          : ''}
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPreviewBill(null)}>Close</Button>
+            <Button variant="success" icon={Share2} loading={previewSharing} onClick={sharePreviewBill}>
+              Share on WhatsApp
+            </Button>
+          </>
+        }
+      >
+        {previewBill && <BillSheet ref={previewSheetRef} bill={previewBill} />}
+      </Modal>
     </div>
   );
 }

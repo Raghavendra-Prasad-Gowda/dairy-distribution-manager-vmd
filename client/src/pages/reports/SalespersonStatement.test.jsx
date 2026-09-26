@@ -7,14 +7,25 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalespersonStatement from './SalespersonStatement';
 import api from '../../api/axios';
+import { renderBillPdf, shareBillPdf } from '../../utils/billPdf';
 
 const notify = vi.fn();
 vi.mock('../../context/NotificationContext', () => ({
   useNotification: () => ({ notify }),
+}));
+
+// The Bills tab's inline Share action and its preview dialog hand off to
+// billPdf.js (html2canvas + jsPDF + navigator.share, with its download+
+// wa.me fallback) — its own branches are covered by utils/billPdf.test.js;
+// here we only need to check this page calls it with the right bill and
+// un-disables the button after.
+vi.mock('../../utils/billPdf', () => ({
+  renderBillPdf: vi.fn(() => Promise.resolve(new Blob(['fake-pdf'], { type: 'application/pdf' }))),
+  shareBillPdf: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../../api/axios', () => ({
@@ -737,35 +748,22 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Failed to load bills', 'error'));
   });
 
-  it('posts the shared period and opens the printable bill', async () => {
+  it('posts the shared period and opens the printable bill — no M/s or PO No to fill in, the dairy sets those itself', async () => {
     vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
     await selectRameshAndOpenBills();
     await screen.findByText('Nandini');
 
-    fireEvent.change(screen.getByPlaceholderText('Ramesh Kumar'), { target: { value: 'A.T & S' } });
-    fireEvent.change(screen.getByPlaceholderText('Optional'), { target: { value: '798' } });
-    fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
-
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
-      salespersonId: 1, from: '2026-07-01', to: '2026-07-09', partyName: 'A.T & S', poNumber: '798',
-    }));
-    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
-    expect(notify).toHaveBeenCalledWith('Bill #799 generated', 'success');
-    openSpy.mockRestore();
-  });
-
-  it('omits M/s and PO No when left blank', async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { data: ISSUED_BILL } });
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
-    await selectRameshAndOpenBills();
-    await screen.findByText('Nandini');
+    expect(screen.queryByText('M/s')).not.toBeInTheDocument();
+    expect(screen.queryByText('PO No.')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09',
     }));
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('/print/bill?id=7', '_blank'));
+    expect(notify).toHaveBeenCalledWith('Bill #799 generated', 'success');
     openSpy.mockRestore();
   });
 
@@ -861,6 +859,97 @@ describe('SalespersonStatement — Bills tab', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Bill not found', 'error'));
+  });
+
+  it('shares a bill straight from its history row, without a detour through the print page', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /share bill #799 on whatsapp/i }));
+
+    await waitFor(() => expect(shareBillPdf).toHaveBeenCalled());
+    const call = shareBillPdf.mock.calls[0][0];
+    expect(call.bill.billNumber).toBe(799);
+    expect(call.sheetEl).not.toBeNull();
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  it('disables the share button while a share is in progress, then re-enables it', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    let resolveShare;
+    vi.mocked(shareBillPdf).mockReturnValue(new Promise((r) => { resolveShare = r; }));
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    const btn = screen.getByRole('button', { name: /share bill #799 on whatsapp/i });
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toBeDisabled());
+
+    resolveShare();
+    await waitFor(() => expect(btn).not.toBeDisabled());
+  });
+
+  it('opens an on-screen preview of a bill from its history row', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+
+    expect(await screen.findByText('Bill #799')).toBeInTheDocument();
+    // The dialog renders the same bill sheet the print page shows — scoped
+    // to the dialog since the Bill Preview section above the history table
+    // shows the same fixture product names for the not-yet-issued bill.
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('VIKAS MILK DAIRY')).toBeInTheDocument();
+    expect(within(dialog).getByText('799')).toBeInTheDocument();
+    expect(within(dialog).getByText('Toned Milk 500ml')).toBeInTheDocument();
+  });
+
+  it('pre-renders the preview PDF as soon as the dialog opens, before any share tap', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+    await screen.findByText('VIKAS MILK DAIRY');
+
+    await waitFor(() => expect(renderBillPdf).toHaveBeenCalled());
+  });
+
+  it('shares straight from the preview dialog, reusing the pre-rendered PDF', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+    await screen.findByText('VIKAS MILK DAIRY');
+    await waitFor(() => expect(renderBillPdf).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: /share on whatsapp/i }));
+
+    await waitFor(() => expect(shareBillPdf).toHaveBeenCalled());
+    const call = shareBillPdf.mock.calls.at(-1)[0];
+    expect(call.bill.billNumber).toBe(799);
+    expect(call.pdfPromise).toBeInstanceOf(Promise);
+    // The dialog's own render must be reused, not a second one at tap time.
+    expect(renderBillPdf).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the preview dialog', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+    await screen.findByText('VIKAS MILK DAIRY');
+
+    fireEvent.click(screen.getByRole('button', { name: /^close$/i }));
+
+    await waitFor(() => expect(screen.queryByText('VIKAS MILK DAIRY')).not.toBeInTheDocument());
   });
 
   it('hides the header Print button on the Bills tab (printing happens per-bill in the history table)', async () => {
