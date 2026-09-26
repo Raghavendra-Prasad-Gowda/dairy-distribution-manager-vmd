@@ -4,7 +4,9 @@
  * Covers reading the bill id from the query string, rendering the frozen
  * Brand → Product line items, the pad's masthead, the total and the amount
  * in words, loading/error states, manual print, and the WhatsApp share flow
- * (native file share when supported, download + wa.me fallback otherwise).
+ * (native file share when supported, download + wa.me fallback otherwise,
+ * and the background pre-render that keeps the share call close enough to
+ * the tap for browsers that revoke it after any real delay).
  */
 
 import React from 'react';
@@ -220,6 +222,26 @@ describe('BillPrint — printing', () => {
 });
 
 describe('BillPrint — sharing on WhatsApp', () => {
+  it('pre-renders the share image in the background as soon as the bill loads, before any click', async () => {
+    renderWithParams('id=7');
+    await screen.findByText('VIKAS MILK DAIRY');
+    await waitFor(() => expect(html2canvas).toHaveBeenCalledTimes(1));
+  });
+
+  it('reuses the pre-rendered image instead of re-rendering on click — the render must not start at tap time, or a slow one can outlast the tap on browsers that tie navigator.share() to it', async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    setShareSupport({ canShare: vi.fn(() => true), share });
+
+    renderWithParams('id=7');
+    await waitFor(() => expect(html2canvas).toHaveBeenCalledTimes(1));
+
+    const btn = await screen.findByRole('button', { name: /share on whatsapp/i });
+    btn.click();
+
+    await waitFor(() => expect(share).toHaveBeenCalled());
+    expect(html2canvas).toHaveBeenCalledTimes(1);
+  });
+
   it('shares the bill as an image via the native share sheet when the platform supports file sharing', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     setShareSupport({ canShare: vi.fn(() => true), share });

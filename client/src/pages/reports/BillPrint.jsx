@@ -44,6 +44,9 @@ export default function BillPrint() {
   const [fetchError, setFetchError] = useState('');
   const [sharing, setSharing] = useState(false);
   const sheetRef = useRef(null);
+  // Holds the in-flight/resolved render so a click can reuse it instead of
+  // starting a fresh one — see the pre-warming effect below.
+  const renderPromiseRef = useRef(null);
   // A missing id is derivable from the URL, so it's computed here rather than
   // pushed into state from the effect below.
   const error = id ? fetchError : 'No bill specified';
@@ -61,26 +64,49 @@ export default function BillPrint() {
   // what to do next. Sharing and printing are both one explicit tap away
   // instead, with sharing as the obvious first move.
 
-  /**
-   * Renders the bill to a PNG and hands it to the OS share sheet — one tap,
-   * WhatsApp (or anything else) already in the list of destinations. Falls
-   * back to downloading the image and opening web.whatsapp.com/wa.me with a
-   * caption pre-filled when the platform can't share files directly (mainly
-   * desktop browsers) — WhatsApp's own click-to-chat link has no way to
-   * attach a file, so the user pastes in the image that's already open.
-   */
-  async function shareOnWhatsApp() {
-    if (!sheetRef.current) return;
-    setSharing(true);
-    try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(sheetRef.current, {
+  /** Renders the bill sheet to a PNG Blob. */
+  function renderBillImage() {
+    return import('html2canvas')
+      .then(({ default: html2canvas }) => html2canvas(sheetRef.current, {
         scale: Math.min(window.devicePixelRatio || 1, 2) + 1,
         backgroundColor: '#ffffff',
-      });
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('Could not render the bill image');
+      }))
+      .then((canvas) => new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not render the bill image'))), 'image/png');
+      }));
+  }
 
+  // Pre-renders the share image in the background as soon as the bill is on
+  // screen, instead of waiting for the tap. iOS Safari ties navigator.share()
+  // to the click that triggered it and silently refuses it (canShare comes
+  // back false) once anything slower than a microtask runs first — an
+  // html2canvas capture plus the html2canvas chunk's own dynamic import
+  // easily blows past that window. Starting the render early means the
+  // click handler usually just awaits an already-resolved promise, so the
+  // share-sheet call stays inside the gesture.
+  useEffect(() => {
+    if (!bill) return;
+    const promise = renderBillImage();
+    renderPromiseRef.current = promise;
+    promise.catch(() => {
+      if (renderPromiseRef.current === promise) renderPromiseRef.current = null;
+    });
+  }, [bill]);
+
+  /**
+   * Hands the (usually already-rendered) bill image to the OS share sheet —
+   * one tap, WhatsApp (or anything else) already in the list of
+   * destinations. Falls back to downloading the image and opening
+   * web.whatsapp.com/wa.me with a caption pre-filled when the platform can't
+   * share files directly (mainly desktop browsers) — WhatsApp's own
+   * click-to-chat link has no way to attach a file, so the user pastes in
+   * the image that's already open.
+   */
+  async function shareOnWhatsApp() {
+    if (!bill) return;
+    setSharing(true);
+    try {
+      const blob = await (renderPromiseRef.current ?? renderBillImage());
       const fileName = `bill-${bill.billNumber}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
       const caption = `Bill #${bill.billNumber} — ${DAIRY.name} — ${formatDateShort(bill.fromDate)} to ${formatDateShort(bill.toDate)} — Total ₹${formatAmount(bill.totalAmount)}`;
