@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2, Share2 } from 'lucide-react';
 import BrandedLoader, { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
+import BillSheet from '../../components/BillSheet';
 import { useNotification } from '../../context/NotificationContext';
 import { getFirstDayOfMonth, getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
 import { getBrandColors } from '../../utils/constants';
 import { useApiResource } from '../../hooks/useApiResource';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
+import { shareBillPdf } from '../../utils/billPdf';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle, showTopUp }) {
@@ -132,6 +134,11 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
   const [poNumber, setPoNumber]       = useState('');
   const [issuing, setIssuing]         = useState(false);
   const [confirmBill, setConfirmBill] = useState(null);
+  // The bill currently being rendered off-screen for a share tap (see
+  // shareBill below), and the row it belongs to (for the button's spinner).
+  const [shareTarget, setShareTarget] = useState(null);
+  const [sharingBillId, setSharingBillId] = useState(null);
+  const shareSheetRef = useRef(null);
 
   // Preview follows the salesperson/period selection — an admin should see
   // what the bill will say before it gets a number, because a number once
@@ -184,6 +191,29 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
       setConfirmBill(null);
     }
   }
+
+  // Shares a bill straight from its History row — no detour through the
+  // print page first. `bills` already carries each row's full `lines`
+  // (see GET /bills), so this only needs to mount the sheet off-screen,
+  // capture it, and hand it to the share sheet; the effect below does the
+  // capture once that hidden render has actually committed to the DOM.
+  function shareBill(bill) {
+    setSharingBillId(bill.id);
+    setShareTarget(bill);
+  }
+
+  useEffect(() => {
+    if (!shareTarget) return;
+    let cancelled = false;
+    (async () => {
+      await shareBillPdf({ bill: shareTarget, sheetEl: shareSheetRef.current, notify });
+      if (!cancelled) {
+        setSharingBillId(null);
+        setShareTarget(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [shareTarget, notify]);
 
   const hasSupply = (preview?.totalAmount ?? 0) > 0;
   const periodLabel = from === to ? from : `${from} to ${to}`;
@@ -330,6 +360,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
                           <Printer size={14} />
                         </button>
                         <button
+                          onClick={() => shareBill(bill)}
+                          disabled={sharingBillId === bill.id}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={`Share bill #${bill.billNumber} on WhatsApp`}
+                          aria-label={`Share bill #${bill.billNumber} on WhatsApp`}
+                        >
+                          {sharingBillId === bill.id ? <TumblerSpinner size={14} /> : <Share2 size={14} />}
+                        </button>
+                        <button
                           onClick={() => setConfirmBill(bill)}
                           className="text-slate-400 hover:text-red-600 transition-colors"
                           title={`Delete bill #${bill.billNumber}`}
@@ -358,6 +397,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
         isDanger
         confirmText="Delete"
       />
+
+      {/* Rendered off-screen only while a share tap is being prepared — the
+          same layout the print page shows, captured through the same
+          html2canvas + jsPDF pipeline (see shareBill above). Never visible. */}
+      {shareTarget && (
+        <div style={{ position: 'fixed', top: 0, left: '-9999px', width: '760px' }} aria-hidden="true">
+          <BillSheet ref={shareSheetRef} bill={shareTarget} />
+        </div>
+      )}
     </div>
   );
 }

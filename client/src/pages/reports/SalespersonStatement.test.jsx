@@ -11,10 +11,19 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalespersonStatement from './SalespersonStatement';
 import api from '../../api/axios';
+import { shareBillPdf } from '../../utils/billPdf';
 
 const notify = vi.fn();
 vi.mock('../../context/NotificationContext', () => ({
   useNotification: () => ({ notify }),
+}));
+
+// The Bills tab's inline Share action hands off to shareBillPdf (html2canvas
+// + jsPDF + navigator.share, with its download+wa.me fallback) — its own
+// branches are covered by utils/billPdf.test.js; here we only need to check
+// this page calls it with the right bill and un-disables the button after.
+vi.mock('../../utils/billPdf', () => ({
+  shareBillPdf: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../../api/axios', () => ({
@@ -861,6 +870,37 @@ describe('SalespersonStatement — Bills tab', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^delete$/i }));
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('Bill not found', 'error'));
+  });
+
+  it('shares a bill straight from its history row, without a detour through the print page', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /share bill #799 on whatsapp/i }));
+
+    await waitFor(() => expect(shareBillPdf).toHaveBeenCalled());
+    const call = shareBillPdf.mock.calls[0][0];
+    expect(call.bill.billNumber).toBe(799);
+    expect(call.sheetEl).not.toBeNull();
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  it('disables the share button while a share is in progress, then re-enables it', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    let resolveShare;
+    vi.mocked(shareBillPdf).mockReturnValue(new Promise((r) => { resolveShare = r; }));
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    const btn = screen.getByRole('button', { name: /share bill #799 on whatsapp/i });
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toBeDisabled());
+
+    resolveShare();
+    await waitFor(() => expect(btn).not.toBeDisabled());
   });
 
   it('hides the header Print button on the Bills tab (printing happens per-bill in the history table)', async () => {
