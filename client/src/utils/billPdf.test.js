@@ -9,12 +9,23 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { renderBillPdf, shareBillPdf } from './billPdf';
 
-function fakeCanvas() {
-  return { toBlob: (cb) => cb(new Blob(['fake-image'], { type: 'image/png' })), toDataURL: () => 'data:image/png;base64,fake' };
+/** width/height are the captured canvas's own pixel dimensions (post-scale). */
+function fakeCanvas({ width = 1520, height = 800 } = {}) {
+  return {
+    width, height,
+    toBlob: (cb) => cb(new Blob(['fake-image'], { type: 'image/png' })),
+    toDataURL: () => 'data:image/png;base64,fake',
+  };
 }
 
 function fakePdfDoc() {
-  return { addImage: vi.fn(), output: () => new Blob(['fake-pdf'], { type: 'application/pdf' }) };
+  return {
+    addImage: vi.fn(),
+    addPage: vi.fn(),
+    output: () => new Blob(['fake-pdf'], { type: 'application/pdf' }),
+    // A4 in mm, matching jsPDF's own real `format: 'a4'` page size.
+    internal: { pageSize: { getWidth: () => 210, getHeight: () => 297 } },
+  };
 }
 
 vi.mock('html2canvas', () => ({
@@ -34,9 +45,9 @@ const BILL = {
   totalAmount: 299854,
 };
 
-/** A DOM-shaped stand-in for the sheet element — just needs offsetWidth/offsetHeight. */
-function fakeSheetEl({ width = 760, height = 400 } = {}) {
-  return { offsetWidth: width, offsetHeight: height };
+/** A DOM-shaped stand-in for the sheet element passed to html2canvas. */
+function fakeSheetEl() {
+  return {};
 }
 
 const notify = vi.fn();
@@ -58,23 +69,48 @@ beforeEach(() => {
 });
 
 describe('renderBillPdf', () => {
-  it('sizes the PDF page to the sheet element itself, in portrait when it is taller than wide', async () => {
-    await renderBillPdf(fakeSheetEl({ width: 400, height: 800 }));
+  it('captures at a fixed content width regardless of the sheet\'s actual on-screen width — a narrow phone viewport must not crop the Qty/Rate/Amount columns', async () => {
+    await renderBillPdf(fakeSheetEl());
+    const call = html2canvas.mock.calls[0][1];
+    expect(call.windowWidth).toBe(760);
+  });
+
+  it('creates a standard A4 page rather than a custom size', async () => {
+    await renderBillPdf(fakeSheetEl());
     const call = jsPDF.mock.calls[0][0];
+    expect(call.format).toBe('a4');
     expect(call.orientation).toBe('portrait');
-    expect(call.format[0]).toBeCloseTo(400 * 25.4 / 96, 5);
-    expect(call.format[1]).toBeCloseTo(800 * 25.4 / 96, 5);
+    expect(call.unit).toBe('mm');
   });
 
-  it('switches to landscape instead of letting jsPDF silently swap width/height for a wide, short sheet', async () => {
-    await renderBillPdf(fakeSheetEl({ width: 760, height: 400 }));
-    const call = jsPDF.mock.calls[0][0];
-    expect(call.orientation).toBe('landscape');
-    expect(call.format[0]).toBeCloseTo(760 * 25.4 / 96, 5);
-    expect(call.format[1]).toBeCloseTo(400 * 25.4 / 96, 5);
+  it('fits a normal-length bill on a single page', async () => {
+    vi.mocked(html2canvas).mockResolvedValue(fakeCanvas({ width: 1520, height: 800 }));
+    const doc = fakePdfDoc();
+    vi.mocked(jsPDF).mockImplementation(function () { return doc; });
+
+    await renderBillPdf(fakeSheetEl());
+
+    expect(doc.addImage).toHaveBeenCalledTimes(1);
+    expect(doc.addPage).not.toHaveBeenCalled();
   });
 
-  it('draws the captured canvas into the page at full size and returns the PDF blob', async () => {
+  it('spills onto further A4 pages for an unusually long bill instead of squeezing it onto one', async () => {
+    // A canvas much taller than it is wide, relative to A4's own aspect
+    // ratio — once scaled to the page width this is several page-heights tall.
+    vi.mocked(html2canvas).mockResolvedValue(fakeCanvas({ width: 1520, height: 6000 }));
+    const doc = fakePdfDoc();
+    vi.mocked(jsPDF).mockImplementation(function () { return doc; });
+
+    await renderBillPdf(fakeSheetEl());
+
+    expect(doc.addPage).toHaveBeenCalled();
+    expect(doc.addImage.mock.calls.length).toBeGreaterThan(1);
+    // Every page draws the identical full image, just at a different
+    // (page-sized) vertical offset — not a re-render per page.
+    expect(html2canvas).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws the captured canvas into the page and returns the PDF blob', async () => {
     const blob = await renderBillPdf(fakeSheetEl());
     expect(blob.type).toBe('application/pdf');
   });

@@ -1,34 +1,56 @@
 import { formatDateShort } from './dateUtils';
 import { DAIRY, formatAmount } from './billDisplay';
 
-// 1 CSS px == 1/96in == 25.4/96 mm — used to size the PDF's page to exactly
-// match the sheet's own on-screen dimensions, so the exported document is a
-// single page with no forced-fit scaling or pagination logic.
-const PX_TO_MM = 25.4 / 96;
+// The sheet's own design width (matches BillPrint.jsx's on-screen .sheet
+// max-width). Capturing at this fixed width — via html2canvas's windowWidth,
+// regardless of whatever the real device viewport happens to be — is the
+// point: the table's Qty/Rate/Amount columns need this much room, and on a
+// phone the sheet's on-screen width shrinks well below it (BillPrint has no
+// min-width, and the preview dialog is narrower still), which doesn't shrink
+// the table's own fixed-width columns to match — it just overflows them past
+// the sheet's bounding box, and html2canvas crops to that box, silently
+// cutting the overflow off. Rendering at a fixed width sidesteps the whole
+// problem regardless of screen size.
+const CONTENT_WIDTH_PX = 760;
 
-/** Renders a mounted BillSheet DOM node to a single-page PDF Blob, sized to the sheet itself. */
+/**
+ * Renders a mounted BillSheet DOM node to a PDF Blob on real A4 pages —
+ * one page for a normal bill, spilling onto further A4 pages the same way
+ * printing does if the bill is unusually long, rather than one arbitrarily
+ * tall custom-sized page.
+ */
 export function renderBillPdf(sheetEl) {
   return Promise.all([import('html2canvas'), import('jspdf')])
-    .then(([{ default: html2canvas }, { jsPDF }]) => {
-      const widthMm  = sheetEl.offsetWidth  * PX_TO_MM;
-      const heightMm = sheetEl.offsetHeight * PX_TO_MM;
-      return html2canvas(sheetEl, {
-        scale: Math.min(window.devicePixelRatio || 1, 2) + 1,
+    .then(([{ default: html2canvas }, { jsPDF }]) =>
+      html2canvas(sheetEl, {
+        scale: 2,
         backgroundColor: '#ffffff',
+        windowWidth: CONTENT_WIDTH_PX,
       }).then((canvas) => {
-        // jsPDF's default ('portrait') orientation silently swaps a custom
-        // format's width/height when width > height, which would distort
-        // this: a short bill is wider than it is tall. Matching the
-        // orientation to the sheet's own aspect ratio keeps it as-is.
-        const doc = new jsPDF({
-          unit: 'mm',
-          format: [widthMm, heightMm],
-          orientation: widthMm > heightMm ? 'landscape' : 'portrait',
-        });
-        doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, widthMm, heightMm);
+        const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pageWidthMm  = doc.internal.pageSize.getWidth();
+        const pageHeightMm = doc.internal.pageSize.getHeight();
+        const imgData   = canvas.toDataURL('image/png');
+        const imgHeightMm = (canvas.height * pageWidthMm) / canvas.width;
+
+        // The same full-height image is placed on each page at a
+        // progressively higher negative offset, so each page's fixed A4
+        // viewport shows the next slice — the standard html2canvas+jsPDF
+        // pagination trick (no per-row page-break awareness, but good
+        // enough here since a bill only rarely runs past one page).
+        let heightLeft = imgHeightMm;
+        let position = 0;
+        doc.addImage(imgData, 'PNG', 0, position, pageWidthMm, imgHeightMm);
+        heightLeft -= pageHeightMm;
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeightMm;
+          doc.addPage();
+          doc.addImage(imgData, 'PNG', 0, position, pageWidthMm, imgHeightMm);
+          heightLeft -= pageHeightMm;
+        }
         return doc.output('blob');
-      });
-    });
+      })
+    );
 }
 
 /**
