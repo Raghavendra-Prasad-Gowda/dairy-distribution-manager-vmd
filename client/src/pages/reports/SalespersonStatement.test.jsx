@@ -7,22 +7,24 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SalespersonStatement from './SalespersonStatement';
 import api from '../../api/axios';
-import { shareBillPdf } from '../../utils/billPdf';
+import { renderBillPdf, shareBillPdf } from '../../utils/billPdf';
 
 const notify = vi.fn();
 vi.mock('../../context/NotificationContext', () => ({
   useNotification: () => ({ notify }),
 }));
 
-// The Bills tab's inline Share action hands off to shareBillPdf (html2canvas
-// + jsPDF + navigator.share, with its download+wa.me fallback) — its own
-// branches are covered by utils/billPdf.test.js; here we only need to check
-// this page calls it with the right bill and un-disables the button after.
+// The Bills tab's inline Share action and its preview dialog hand off to
+// billPdf.js (html2canvas + jsPDF + navigator.share, with its download+
+// wa.me fallback) — its own branches are covered by utils/billPdf.test.js;
+// here we only need to check this page calls it with the right bill and
+// un-disables the button after.
 vi.mock('../../utils/billPdf', () => ({
+  renderBillPdf: vi.fn(() => Promise.resolve(new Blob(['fake-pdf'], { type: 'application/pdf' }))),
   shareBillPdf: vi.fn(() => Promise.resolve()),
 }));
 
@@ -901,6 +903,66 @@ describe('SalespersonStatement — Bills tab', () => {
 
     resolveShare();
     await waitFor(() => expect(btn).not.toBeDisabled());
+  });
+
+  it('opens an on-screen preview of a bill from its history row', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+
+    expect(await screen.findByText('Bill #799')).toBeInTheDocument();
+    // The dialog renders the same bill sheet the print page shows — scoped
+    // to the dialog since the Bill Preview section above the history table
+    // shows the same fixture product names for the not-yet-issued bill.
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('VIKAS MILK DAIRY')).toBeInTheDocument();
+    expect(within(dialog).getByText('799')).toBeInTheDocument();
+    expect(within(dialog).getByText('Toned Milk 500ml')).toBeInTheDocument();
+  });
+
+  it('pre-renders the preview PDF as soon as the dialog opens, before any share tap', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+    await screen.findByText('VIKAS MILK DAIRY');
+
+    await waitFor(() => expect(renderBillPdf).toHaveBeenCalled());
+  });
+
+  it('shares straight from the preview dialog, reusing the pre-rendered PDF', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+    await screen.findByText('VIKAS MILK DAIRY');
+    await waitFor(() => expect(renderBillPdf).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: /share on whatsapp/i }));
+
+    await waitFor(() => expect(shareBillPdf).toHaveBeenCalled());
+    const call = shareBillPdf.mock.calls.at(-1)[0];
+    expect(call.bill.billNumber).toBe(799);
+    expect(call.pdfPromise).toBeInstanceOf(Promise);
+    // The dialog's own render must be reused, not a second one at tap time.
+    expect(renderBillPdf).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the preview dialog', async () => {
+    mockBillsApi({ bills: [ISSUED_BILL] });
+    await selectRameshAndOpenBills();
+    await screen.findByText('#799');
+
+    fireEvent.click(screen.getByRole('button', { name: /preview bill #799/i }));
+    await screen.findByText('VIKAS MILK DAIRY');
+
+    fireEvent.click(screen.getByRole('button', { name: /^close$/i }));
+
+    await waitFor(() => expect(screen.queryByText('VIKAS MILK DAIRY')).not.toBeInTheDocument());
   });
 
   it('hides the header Print button on the Bills tab (printing happens per-bill in the history table)', async () => {

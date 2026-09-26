@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2, Share2 } from 'lucide-react';
+import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2, Share2, Eye } from 'lucide-react';
 import BrandedLoader, { TumblerSpinner } from '../../components/ui/BrandedLoader';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
 import BillSheet from '../../components/BillSheet';
 import { useNotification } from '../../context/NotificationContext';
@@ -9,7 +11,7 @@ import { getFirstDayOfMonth, getIndiaDate, formatCurrency, formatDateShort } fro
 import { getBrandColors } from '../../utils/constants';
 import { useApiResource } from '../../hooks/useApiResource';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
-import { shareBillPdf } from '../../utils/billPdf';
+import { renderBillPdf, shareBillPdf } from '../../utils/billPdf';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle, showTopUp }) {
@@ -140,6 +142,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
   const [sharingBillId, setSharingBillId] = useState(null);
   const shareSheetRef = useRef(null);
 
+  // The bill currently shown in the on-screen preview dialog (see
+  // previewBillDialog below) — unlike shareTarget, this one is visible, so
+  // its own Share button can reuse the same sheet instead of rendering a
+  // second, hidden copy.
+  const [previewBill, setPreviewBill] = useState(null);
+  const [previewSharing, setPreviewSharing] = useState(false);
+  const previewSheetRef = useRef(null);
+  const previewPdfRef   = useRef(null);
+
   // Preview follows the salesperson/period selection — an admin should see
   // what the bill will say before it gets a number, because a number once
   // issued is part of the dairy's series (see POST /bills).
@@ -214,6 +225,31 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
     })();
     return () => { cancelled = true; };
   }, [shareTarget, notify]);
+
+  // Opens the on-screen preview dialog for an issued bill (see the Modal
+  // near the bottom of this component). Its render is pre-warmed the same
+  // way BillPrint.jsx pre-warms its own share button — the dialog knows
+  // exactly which bill it's showing the instant it opens, so there's no
+  // reason to wait for the tap to start the html2canvas/jsPDF capture.
+  function previewBillDialog(bill) {
+    setPreviewBill(bill);
+  }
+
+  useEffect(() => {
+    if (!previewBill) { previewPdfRef.current = null; return; }
+    const promise = renderBillPdf(previewSheetRef.current);
+    previewPdfRef.current = promise;
+    promise.catch(() => {
+      if (previewPdfRef.current === promise) previewPdfRef.current = null;
+    });
+  }, [previewBill]);
+
+  async function sharePreviewBill() {
+    if (!previewBill) return;
+    setPreviewSharing(true);
+    await shareBillPdf({ bill: previewBill, sheetEl: previewSheetRef.current, pdfPromise: previewPdfRef.current, notify });
+    setPreviewSharing(false);
+  }
 
   const hasSupply = (preview?.totalAmount ?? 0) > 0;
   const periodLabel = from === to ? from : `${from} to ${to}`;
@@ -352,6 +388,14 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-3">
                         <button
+                          onClick={() => previewBillDialog(bill)}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors"
+                          title={`Preview bill #${bill.billNumber}`}
+                          aria-label={`Preview bill #${bill.billNumber}`}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
                           onClick={() => window.open(`/print/bill?id=${bill.id}`, '_blank')}
                           className="text-slate-400 hover:text-emerald-600 transition-colors"
                           title={`Print bill #${bill.billNumber}`}
@@ -406,6 +450,26 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
           <BillSheet ref={shareSheetRef} bill={shareTarget} />
         </div>
       )}
+
+      <Modal
+        open={!!previewBill}
+        onClose={() => setPreviewBill(null)}
+        title={previewBill ? `Bill #${previewBill.billNumber}` : ''}
+        subtitle={previewBill
+          ? `${previewBill.partyName} — ${formatDateShort(previewBill.fromDate)} to ${formatDateShort(previewBill.toDate)}`
+          : ''}
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPreviewBill(null)}>Close</Button>
+            <Button variant="success" icon={Share2} loading={previewSharing} onClick={sharePreviewBill}>
+              Share on WhatsApp
+            </Button>
+          </>
+        }
+      >
+        {previewBill && <BillSheet ref={previewSheetRef} bill={previewBill} />}
+      </Modal>
     </div>
   );
 }
