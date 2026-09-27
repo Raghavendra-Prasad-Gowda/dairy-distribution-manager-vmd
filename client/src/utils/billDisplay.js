@@ -17,3 +17,15 @@ export function formatAmount(n) {
   if (!n) return '';
   return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+/** "52/ltr" — a product's rate, blank when there's nothing to derive it from. */
+export function formatRate(product) {
+  if (product.rate == null) return '';
+  return `${product.rate}/${product.unit}`;
+}
+
+/** Quantities print whole where they are whole, 2dp otherwise, with their unit. */
+export function formatQty(product) {
+  const qty = Number.isInteger(product.quantity) ? String(product.quantity) : product.quantity.toFixed(2);
+  return `${qty} ${product.unit}`;
+}

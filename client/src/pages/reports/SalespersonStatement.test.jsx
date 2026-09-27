@@ -19,7 +19,7 @@ vi.mock('../../context/NotificationContext', () => ({
 }));
 
 // The Bills tab's inline Share action and its preview dialog hand off to
-// billPdf.js (html2canvas + jsPDF + navigator.share, with its download+
+// billPdf.js (native jsPDF drawing + navigator.share, with its download+
 // wa.me fallback) — its own branches are covered by utils/billPdf.test.js;
 // here we only need to check this page calls it with the right bill and
 // un-disables the button after.
@@ -893,7 +893,6 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(shareBillPdf).toHaveBeenCalled());
     const call = shareBillPdf.mock.calls[0][0];
     expect(call.bill.billNumber).toBe(799);
-    expect(call.sheetEl).not.toBeNull();
     expect(openSpy).not.toHaveBeenCalled();
     openSpy.mockRestore();
   });
