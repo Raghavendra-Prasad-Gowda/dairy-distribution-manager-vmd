@@ -1,7 +1,9 @@
 /**
- * BillSheet tests — the bill pad layout shared between the print page and
- * the Bills tab's inline share action. Covers the masthead, Bill No/PO/M-s
- * fields, Brand → Product line items, and the total/in-words footer.
+ * BillSheet tests — the on-screen/print bill pad layout, shared between the
+ * full print page and the Bills tab's preview dialog. Covers the masthead,
+ * Bill No/PO/M-s fields, Brand → Product line items, and the total/in-words
+ * footer. The shared PDF (utils/billPdf.js) is drawn independently as
+ * native vector text, not by capturing this component.
  */
 
 import React from 'react';
@@ -78,12 +80,5 @@ describe('BillSheet', () => {
     render(<BillSheet bill={{ ...BILL, poNumber: null }} />);
     expect(screen.getByText('A.T & S')).toBeInTheDocument();
     expect(screen.queryByText('798')).not.toBeInTheDocument();
-  });
-
-  it('forwards the ref to the sheet root element', () => {
-    const ref = React.createRef();
-    render(<BillSheet ref={ref} bill={BILL} />);
-    expect(ref.current).toBeInstanceOf(HTMLElement);
-    expect(ref.current.className).toBe('dm-bill-sheet');
   });
 });

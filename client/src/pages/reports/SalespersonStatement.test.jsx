@@ -19,7 +19,7 @@ vi.mock('../../context/NotificationContext', () => ({
 }));
 
 // The Bills tab's inline Share action and its preview dialog hand off to
-// billPdf.js (html2canvas + jsPDF + navigator.share, with its download+
+// billPdf.js (native jsPDF drawing + navigator.share, with its download+
 // wa.me fallback) — its own branches are covered by utils/billPdf.test.js;
 // here we only need to check this page calls it with the right bill and
 // un-disables the button after.
@@ -666,6 +666,12 @@ async function selectRameshAndOpenBills() {
   fireEvent.click(screen.getByRole('button', { name: 'Bills' }));
 }
 
+/** Clicks Generate Bill, then confirms in the dialog it opens. */
+function clickGenerateBill() {
+  fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^generate$/i }));
+}
+
 describe('SalespersonStatement — Bills tab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -757,7 +763,7 @@ describe('SalespersonStatement — Bills tab', () => {
     expect(screen.queryByText('M/s')).not.toBeInTheDocument();
     expect(screen.queryByText('PO No.')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
+    clickGenerateBill();
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/bills', {
       salespersonId: 1, from: '2026-07-01', to: '2026-07-09',
@@ -774,7 +780,7 @@ describe('SalespersonStatement — Bills tab', () => {
     await screen.findByText('Nandini');
 
     const getsBefore = vi.mocked(api.get).mock.calls.filter(([url]) => url === '/bills').length;
-    fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
+    clickGenerateBill();
 
     expect(await screen.findByText('#799')).toBeInTheDocument();
     expect(vi.mocked(api.get).mock.calls.filter(([url]) => url === '/bills').length).toBe(getsBefore);
@@ -786,9 +792,24 @@ describe('SalespersonStatement — Bills tab', () => {
     await selectRameshAndOpenBills();
     await screen.findByText('Nandini');
 
-    fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
+    clickGenerateBill();
 
     await waitFor(() => expect(notify).toHaveBeenCalledWith('No stock was dispatched in this period', 'error'));
+  });
+
+  it('asks for confirmation before generating, and does nothing on cancel', async () => {
+    await selectRameshAndOpenBills();
+    await screen.findByText('Nandini');
+
+    fireEvent.click(screen.getByRole('button', { name: /generate bill/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Generate Bill')).toBeInTheDocument();
+    expect(within(dialog).getByText(/covering 2026-07-01 to 2026-07-09/i)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /^cancel$/i }));
+
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('shows the per-salesperson history, scoped by the sidebar selection', async () => {
@@ -872,7 +893,6 @@ describe('SalespersonStatement — Bills tab', () => {
     await waitFor(() => expect(shareBillPdf).toHaveBeenCalled());
     const call = shareBillPdf.mock.calls[0][0];
     expect(call.bill.billNumber).toBe(799);
-    expect(call.sheetEl).not.toBeNull();
     expect(openSpy).not.toHaveBeenCalled();
     openSpy.mockRestore();
   });

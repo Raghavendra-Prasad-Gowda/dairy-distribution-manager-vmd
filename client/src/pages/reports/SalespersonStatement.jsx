@@ -133,21 +133,16 @@ function formatBillQty(product) {
 function BillsTab({ salespersonId, salespersonName, from, to }) {
   const { notify } = useNotification();
   const [issuing, setIssuing]         = useState(false);
+  const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [confirmBill, setConfirmBill] = useState(null);
-  // The bill currently being rendered off-screen for a share tap (see
-  // shareBill below), and the row it belongs to (for the button's spinner).
-  const [shareTarget, setShareTarget] = useState(null);
+  // Which row's share is in flight, for that row's own button spinner.
   const [sharingBillId, setSharingBillId] = useState(null);
-  const shareSheetRef = useRef(null);
 
   // The bill currently shown in the on-screen preview dialog (see
-  // previewBillDialog below) — unlike shareTarget, this one is visible, so
-  // its own Share button can reuse the same sheet instead of rendering a
-  // second, hidden copy.
+  // previewBillDialog below).
   const [previewBill, setPreviewBill] = useState(null);
   const [previewSharing, setPreviewSharing] = useState(false);
-  const previewSheetRef = useRef(null);
-  const previewPdfRef   = useRef(null);
+  const previewPdfRef = useRef(null);
 
   // Preview follows the salesperson/period selection — an admin should see
   // what the bill will say before it gets a number, because a number once
@@ -200,49 +195,33 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
 
   // Shares a bill straight from its History row — no detour through the
   // print page first. `bills` already carries each row's full `lines`
-  // (see GET /bills), so this only needs to mount the sheet off-screen,
-  // capture it, and hand it to the share sheet; the effect below does the
-  // capture once that hidden render has actually committed to the DOM.
-  function shareBill(bill) {
+  // (see GET /bills), so renderBillPdf can build the PDF from that data
+  // directly; it draws native vector text/tables rather than screenshotting
+  // a mounted sheet, so no DOM render is needed here at all.
+  async function shareBill(bill) {
     setSharingBillId(bill.id);
-    setShareTarget(bill);
+    await shareBillPdf({ bill, notify });
+    setSharingBillId(null);
   }
-
-  useEffect(() => {
-    if (!shareTarget) return;
-    let cancelled = false;
-    (async () => {
-      await shareBillPdf({ bill: shareTarget, sheetEl: shareSheetRef.current, notify });
-      if (!cancelled) {
-        setSharingBillId(null);
-        setShareTarget(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [shareTarget, notify]);
 
   // Opens the on-screen preview dialog for an issued bill (see the Modal
-  // near the bottom of this component). Its render is pre-warmed the same
-  // way BillPrint.jsx pre-warms its own share button — the dialog knows
-  // exactly which bill it's showing the instant it opens, so there's no
-  // reason to wait for the tap to start the html2canvas/jsPDF capture.
+  // near the bottom of this component), and pre-warms its PDF in the
+  // background — the dialog knows exactly which bill it's showing the
+  // instant it opens, so there's no reason to wait for the Share tap to
+  // start building it (see BillPrint.jsx for why that matters on iOS).
   function previewBillDialog(bill) {
     setPreviewBill(bill);
-  }
-
-  useEffect(() => {
-    if (!previewBill) { previewPdfRef.current = null; return; }
-    const promise = renderBillPdf(previewSheetRef.current);
+    const promise = renderBillPdf(bill);
     previewPdfRef.current = promise;
     promise.catch(() => {
       if (previewPdfRef.current === promise) previewPdfRef.current = null;
     });
-  }, [previewBill]);
+  }
 
   async function sharePreviewBill() {
     if (!previewBill) return;
     setPreviewSharing(true);
-    await shareBillPdf({ bill: previewBill, sheetEl: previewSheetRef.current, pdfPromise: previewPdfRef.current, notify });
+    await shareBillPdf({ bill: previewBill, pdfPromise: previewPdfRef.current, notify });
     setPreviewSharing(false);
   }
 
@@ -264,13 +243,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
       <div className="ddm-card overflow-hidden">
         <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-white">Bill Preview</h2>
-          <button
-            onClick={issueBill}
-            disabled={!hasSupply || issuing || previewLoading}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-500 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition"
+          <Button
+            variant="success"
+            icon={Receipt}
+            loading={issuing}
+            disabled={!hasSupply || previewLoading}
+            onClick={() => setConfirmGenerate(true)}
           >
-            {issuing ? <TumblerSpinner size={13} /> : <Receipt size={13} />} Generate Bill
-          </button>
+            Generate Bill
+          </Button>
         </div>
 
         {previewLoading ? (
@@ -408,6 +389,15 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
       </div>
 
       <ConfirmationModal
+        isOpen={confirmGenerate}
+        onClose={() => setConfirmGenerate(false)}
+        onConfirm={issueBill}
+        title="Generate Bill"
+        message={`Generate a bill for ${salespersonName} covering ${periodLabel}? Bill No. is allocated automatically and continues the dairy's series — it can't be reused once issued.`}
+        confirmText="Generate"
+      />
+
+      <ConfirmationModal
         isOpen={!!confirmBill}
         onClose={() => setConfirmBill(null)}
         onConfirm={() => deleteBill(confirmBill)}
@@ -418,15 +408,6 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
         isDanger
         confirmText="Delete"
       />
-
-      {/* Rendered off-screen only while a share tap is being prepared — the
-          same layout the print page shows, captured through the same
-          html2canvas + jsPDF pipeline (see shareBill above). Never visible. */}
-      {shareTarget && (
-        <div style={{ position: 'fixed', top: 0, left: '-9999px', width: '760px' }} aria-hidden="true">
-          <BillSheet ref={shareSheetRef} bill={shareTarget} />
-        </div>
-      )}
 
       <Modal
         open={!!previewBill}
@@ -445,7 +426,7 @@ function BillsTab({ salespersonId, salespersonName, from, to }) {
           </>
         }
       >
-        {previewBill && <BillSheet ref={previewSheetRef} bill={previewBill} />}
+        {previewBill && <BillSheet bill={previewBill} />}
       </Modal>
     </div>
   );

@@ -1,37 +1,26 @@
 import React from 'react';
 import { formatDateShort } from '../utils/dateUtils';
 import { numberToWords } from '../utils/numberToWords';
-import { DAIRY, formatAmount } from '../utils/billDisplay';
-
-/** "52/ltr" — a product's rate, blank when there's nothing to derive it from. */
-function formatRate(product) {
-  if (product.rate == null) return '';
-  return `${product.rate}/${product.unit}`;
-}
-
-/** Quantities print whole where they are whole, 2dp otherwise, with their unit. */
-function formatQty(product) {
-  const qty = Number.isInteger(product.quantity) ? String(product.quantity) : product.quantity.toFixed(2);
-  return `${qty} ${product.unit}`;
-}
+import { DAIRY, formatAmount, formatRate, formatQty } from '../utils/billDisplay';
 
 /**
  * The bill pad layout itself — masthead, Bill No/PO/M-s fields, the
  * Brand → Product line items and the in-words/signature footer.
  *
- * Shared between the full print page (pages/reports/BillPrint.jsx) and the
- * inline "share straight from the row" action in the Bills tab
- * (pages/reports/SalespersonStatement.jsx), which mounts this off-screen —
- * both feed the identical DOM through the same html2canvas + jsPDF pipeline
- * (utils/billPdf.js), so the shared file always matches what printing shows.
+ * Used for on-screen viewing: the full print page
+ * (pages/reports/BillPrint.jsx, printed via the browser's own print engine)
+ * and the Bills tab's preview dialog. The shared PDF (utils/billPdf.js) is
+ * drawn independently as native vector text/tables rather than a screenshot
+ * of this component — a screenshot-in-a-PDF doesn't zoom or print cleanly —
+ * but is kept visually in step with it by hand.
  *
  * Every rule is scoped under `.dm-bill-sheet` (never `body` or a bare `*`)
  * so this is safe to mount inside a page that already has its own global
- * styles, on-screen or off-screen, without leaking into them.
+ * styles without leaking into them.
  */
-const BillSheet = React.forwardRef(function BillSheet({ bill }, ref) {
+export default function BillSheet({ bill }) {
   return (
-    <div className="dm-bill-sheet" ref={ref}>
+    <div className="dm-bill-sheet">
       <style>{`
         .dm-bill-sheet, .dm-bill-sheet *, .dm-bill-sheet *::before, .dm-bill-sheet *::after {
           box-sizing: border-box; margin: 0; padding: 0;
@@ -155,6 +144,4 @@ const BillSheet = React.forwardRef(function BillSheet({ bill }, ref) {
       </div>
     </div>
   );
-});
-
-export default BillSheet;
+}

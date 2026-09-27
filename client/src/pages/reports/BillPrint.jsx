@@ -13,7 +13,6 @@ export default function BillPrint() {
   const [bill, setBill] = useState(null);
   const [fetchError, setFetchError] = useState('');
   const [sharing, setSharing] = useState(false);
-  const sheetRef = useRef(null);
   // Holds the in-flight/resolved render so a click can reuse it instead of
   // starting a fresh one — see the pre-warming effect below.
   const renderPromiseRef = useRef(null);
@@ -34,17 +33,17 @@ export default function BillPrint() {
   // what to do next. Sharing and printing are both one explicit tap away
   // instead, with sharing as the obvious first move.
 
-  // Pre-renders the share PDF in the background as soon as the bill is on
-  // screen, instead of waiting for the tap. iOS Safari ties navigator.share()
+  // Pre-renders the share PDF in the background as soon as the bill data
+  // loads, instead of waiting for the tap. iOS Safari ties navigator.share()
   // to the click that triggered it and silently refuses it (canShare comes
-  // back false) once anything slower than a microtask runs first — an
-  // html2canvas capture plus the html2canvas/jsPDF chunks' own dynamic import
-  // easily blows past that window. Starting the render early means the
-  // click handler usually just awaits an already-resolved promise, so the
-  // share-sheet call stays inside the gesture.
+  // back false) once anything slower than a microtask runs first — jsPDF's
+  // own dynamic import plus drawing a long bill can take a moment. Starting
+  // the render early means the click handler usually just awaits an
+  // already-resolved promise, so the share-sheet call stays inside the
+  // gesture.
   useEffect(() => {
     if (!bill) return;
-    const promise = renderBillPdf(sheetRef.current);
+    const promise = renderBillPdf(bill);
     renderPromiseRef.current = promise;
     promise.catch(() => {
       if (renderPromiseRef.current === promise) renderPromiseRef.current = null;
@@ -54,7 +53,7 @@ export default function BillPrint() {
   async function shareOnWhatsApp() {
     if (!bill) return;
     setSharing(true);
-    await shareBillPdf({ bill, sheetEl: sheetRef.current, pdfPromise: renderPromiseRef.current, notify });
+    await shareBillPdf({ bill, pdfPromise: renderPromiseRef.current, notify });
     setSharing(false);
   }
 
@@ -100,7 +99,7 @@ export default function BillPrint() {
       {error && <p className="msg" style={{ color: '#dc2626' }}>{error}</p>}
       {!bill && !error && <p className="msg">Loading…</p>}
 
-      {bill && <BillSheet ref={sheetRef} bill={bill} />}
+      {bill && <BillSheet bill={bill} />}
     </>
   );
 }
