@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet } from 'lucide-react';
-import BrandedLoader from '../../components/ui/BrandedLoader';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Printer, ChevronDown, ChevronRight, ChevronLeft, AlertCircle, User, Search, X, FileText, Package, Wallet, Receipt, Trash2, Share2, Eye } from 'lucide-react';
+import BrandedLoader, { TumblerSpinner } from '../../components/ui/BrandedLoader';
+import ConfirmationModal from '../../components/ConfirmationModal';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import DispatchStockSummaryView from '../../components/DispatchStockSummary';
-import { getFirstDayOfMonth, getIndiaDate, formatCurrency } from '../../utils/dateUtils';
+import BillSheet from '../../components/BillSheet';
+import { useNotification } from '../../context/NotificationContext';
+import { getFirstDayOfMonth, getIndiaDate, formatCurrency, formatDateShort } from '../../utils/dateUtils';
+import { getBrandColors } from '../../utils/constants';
 import { useApiResource } from '../../hooks/useApiResource';
 import { buildDispatchStockSummary } from '../../utils/salespersonProductStatement';
+import { renderBillPdf, shareBillPdf } from '../../utils/billPdf';
 import api from '../../api/axios';
 
 function ExpandableRow({ row, open, onToggle, showTopUp }) {
@@ -100,6 +107,331 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/** "52/ltr" — a product's rate, blank when there's nothing to derive it from. */
+function formatBillRate(product) {
+  if (product.rate == null) return '';
+  return `${product.rate}/${product.unit}`;
+}
+
+/** Quantities print whole where they are whole, 2dp otherwise, with their unit. */
+function formatBillQty(product) {
+  const qty = Number.isInteger(product.quantity) ? String(product.quantity) : product.quantity.toFixed(2);
+  return `${qty} ${product.unit}`;
+}
+
+/**
+ * The "Bills" tab of the Salesperson Statement page — generates the printed
+ * cash/credit bill for the salesperson currently selected in the page's own
+ * sidebar, over the date range already chosen in the page's Filters card, and
+ * keeps a per-salesperson history of every bill issued to them.
+ *
+ * Deliberately takes no salesperson picker or date inputs of its own — those
+ * already exist one level up (the sidebar search/list and the From/To
+ * filters), so switching salesperson or period here works exactly the way it
+ * does for the Account Statement and Dispatch Stock Summary tabs.
+ */
+function BillsTab({ salespersonId, salespersonName, from, to }) {
+  const { notify } = useNotification();
+  const [issuing, setIssuing]         = useState(false);
+  const [confirmGenerate, setConfirmGenerate] = useState(false);
+  const [confirmBill, setConfirmBill] = useState(null);
+  // Which row's share is in flight, for that row's own button spinner.
+  const [sharingBillId, setSharingBillId] = useState(null);
+
+  // The bill currently shown in the on-screen preview dialog (see
+  // previewBillDialog below).
+  const [previewBill, setPreviewBill] = useState(null);
+  const [previewSharing, setPreviewSharing] = useState(false);
+  const previewPdfRef = useRef(null);
+
+  // Preview follows the salesperson/period selection — an admin should see
+  // what the bill will say before it gets a number, because a number once
+  // issued is part of the dairy's series (see POST /bills).
+  const { data: preview, loading: previewLoading } = useApiResource(
+    salespersonId && from && to ? '/bills/preview' : null,
+    { params: { salespersonId, from, to }, initialData: null }
+  );
+
+  // History is scoped to this one salesperson — re-fetches automatically
+  // whenever the sidebar selection changes, the same way the statement report
+  // above does.
+  const { data: bills, setData: setBills, loading: historyLoading } = useApiResource(
+    salespersonId ? '/bills' : null,
+    { params: { salespersonId }, initialData: [] }
+  );
+
+  async function issueBill() {
+    setIssuing(true);
+    try {
+      const res = await api.post('/bills', {
+        salespersonId: Number(salespersonId),
+        from,
+        to,
+      });
+      const bill = res.data.data;
+      notify(`Bill #${bill.billNumber} generated`, 'success');
+      // Prepend locally instead of re-fetching — the history is ordered by
+      // bill number desc and this bill carries the highest one.
+      setBills((prev) => [bill, ...prev]);
+      window.open(`/print/bill?id=${bill.id}`, '_blank');
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to generate bill', 'error');
+    } finally {
+      setIssuing(false);
+    }
+  }
+
+  async function deleteBill(bill) {
+    try {
+      await api.delete(`/bills/${bill.id}`);
+      setBills((prev) => prev.filter((b) => b.id !== bill.id));
+      notify(`Bill #${bill.billNumber} deleted`, 'success');
+    } catch (e) {
+      notify(e.response?.data?.error ?? 'Failed to delete bill', 'error');
+    } finally {
+      setConfirmBill(null);
+    }
+  }
+
+  // Shares a bill straight from its History row — no detour through the
+  // print page first. `bills` already carries each row's full `lines`
+  // (see GET /bills), so renderBillPdf can build the PDF from that data
+  // directly; it draws native vector text/tables rather than screenshotting
+  // a mounted sheet, so no DOM render is needed here at all.
+  async function shareBill(bill) {
+    setSharingBillId(bill.id);
+    await shareBillPdf({ bill, notify });
+    setSharingBillId(null);
+  }
+
+  // Opens the on-screen preview dialog for an issued bill (see the Modal
+  // near the bottom of this component), and pre-warms its PDF in the
+  // background — the dialog knows exactly which bill it's showing the
+  // instant it opens, so there's no reason to wait for the Share tap to
+  // start building it (see BillPrint.jsx for why that matters on iOS).
+  function previewBillDialog(bill) {
+    setPreviewBill(bill);
+    const promise = renderBillPdf(bill);
+    previewPdfRef.current = promise;
+    promise.catch(() => {
+      if (previewPdfRef.current === promise) previewPdfRef.current = null;
+    });
+  }
+
+  async function sharePreviewBill() {
+    if (!previewBill) return;
+    setPreviewSharing(true);
+    await shareBillPdf({ bill: previewBill, pdfPromise: previewPdfRef.current, notify });
+    setPreviewSharing(false);
+  }
+
+  const hasSupply = (preview?.totalAmount ?? 0) > 0;
+  const periodLabel = from === to ? from : `${from} to ${to}`;
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Bill details ──────────────────────────────────────────── */}
+      <div className="ddm-card p-4">
+        <p className="text-xs text-slate-500">
+          Bills the period selected above (<strong>{periodLabel}</strong>) for <strong>{salespersonName}</strong>.
+          Bill No. is allocated automatically when you generate — it continues the dairy&rsquo;s series.
+        </p>
+      </div>
+
+      {/* ── Preview ───────────────────────────────────────────────── */}
+      <div className="ddm-card overflow-hidden">
+        <div className="px-4 py-3 bg-slate-700 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold text-white">Bill Preview</h2>
+          <Button
+            variant="success"
+            icon={Receipt}
+            loading={issuing}
+            disabled={!hasSupply || previewLoading}
+            onClick={() => setConfirmGenerate(true)}
+          >
+            Generate Bill
+          </Button>
+        </div>
+
+        {previewLoading ? (
+          <BrandedLoader size="sm" hideBrand inlinePadY="py-12" />
+        ) : !preview ? (
+          <p className="px-4 py-10 text-center text-slate-400 text-xs">Select a salesperson and period</p>
+        ) : !hasSupply ? null : (
+          <div className="overflow-auto max-h-[60vh]">
+            <table className="min-w-full">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Product</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Qty</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Rate</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.lines.map((brand, brandIndex) => (
+                  <React.Fragment key={brand.brandName}>
+                    <tr className={getBrandColors(brand.brandName, brandIndex).header}>
+                      <td colSpan={4} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wide">{brand.brandName}</td>
+                    </tr>
+                    {brand.products.map((product) => (
+                      <tr key={product.productName} className="border-b border-slate-100">
+                        <td className="px-4 py-2.5 pl-6 text-xs font-medium text-slate-700">{product.productName}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillQty(product)}</td>
+                        <td className="px-4 py-2.5 text-right text-xs text-slate-600 tabular-nums">{formatBillRate(product)}</td>
+                        <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                          {formatCurrency(product.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tbody>
+              <tfoot className="sticky bottom-0 z-10">
+                <tr className="bg-slate-800">
+                  <td colSpan={3} className="px-4 py-2.5 text-right text-xs font-bold text-white uppercase tracking-wide">Total</td>
+                  <td className="px-4 py-2.5 text-right text-xs font-bold text-white tabular-nums">
+                    {formatCurrency(preview.totalAmount)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {preview && !previewLoading && !hasSupply && (
+          <p className="px-4 py-3 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">
+            No stock was dispatched in this period — there is nothing to bill.
+          </p>
+        )}
+      </div>
+
+      {/* ── History ───────────────────────────────────────────────── */}
+      <div className="ddm-card overflow-hidden">
+        <div className="px-4 py-3 bg-slate-700">
+          <h2 className="text-sm font-bold text-white">Bill History</h2>
+          <p className="text-xs text-slate-400">
+            {bills.length} bill{bills.length !== 1 ? 's' : ''} issued to {salespersonName}
+          </p>
+        </div>
+
+        {historyLoading ? (
+          <BrandedLoader size="sm" hideBrand inlinePadY="py-12" />
+        ) : bills.length === 0 ? (
+          <p className="px-4 py-10 text-center text-slate-400 text-xs">No bills generated yet</p>
+        ) : (
+          <div className="overflow-auto max-h-[60vh]">
+            <table className="min-w-full">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Bill No.</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">M/s</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">Period</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Total</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bills.map((bill) => (
+                  <tr key={bill.id} className="border-b border-slate-100 hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700 tabular-nums">#{bill.billNumber}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-700">{bill.partyName}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500 tabular-nums whitespace-nowrap">
+                      {formatDateShort(bill.fromDate)} – {formatDateShort(bill.toDate)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-slate-700 tabular-nums">
+                      {formatCurrency(bill.totalAmount)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={() => previewBillDialog(bill)}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors"
+                          title={`Preview bill #${bill.billNumber}`}
+                          aria-label={`Preview bill #${bill.billNumber}`}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => window.open(`/print/bill?id=${bill.id}`, '_blank')}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors"
+                          title={`Print bill #${bill.billNumber}`}
+                          aria-label={`Print bill #${bill.billNumber}`}
+                        >
+                          <Printer size={14} />
+                        </button>
+                        <button
+                          onClick={() => shareBill(bill)}
+                          disabled={sharingBillId === bill.id}
+                          className="text-slate-400 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={`Share bill #${bill.billNumber} on WhatsApp`}
+                          aria-label={`Share bill #${bill.billNumber} on WhatsApp`}
+                        >
+                          {sharingBillId === bill.id ? <TumblerSpinner size={14} /> : <Share2 size={14} />}
+                        </button>
+                        <button
+                          onClick={() => setConfirmBill(bill)}
+                          className="text-slate-400 hover:text-red-600 transition-colors"
+                          title={`Delete bill #${bill.billNumber}`}
+                          aria-label={`Delete bill #${bill.billNumber}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <ConfirmationModal
+        isOpen={confirmGenerate}
+        onClose={() => setConfirmGenerate(false)}
+        onConfirm={issueBill}
+        title="Generate Bill"
+        message={`Generate a bill for ${salespersonName} covering ${periodLabel}? Bill No. is allocated automatically and continues the dairy's series — it can't be reused once issued.`}
+        confirmText="Generate"
+      />
+
+      <ConfirmationModal
+        isOpen={!!confirmBill}
+        onClose={() => setConfirmBill(null)}
+        onConfirm={() => deleteBill(confirmBill)}
+        title="Delete Bill"
+        message={confirmBill
+          ? `Delete bill #${confirmBill.billNumber} for ${confirmBill.partyName}? The bill number will not be reused.`
+          : ''}
+        isDanger
+        confirmText="Delete"
+      />
+
+      <Modal
+        open={!!previewBill}
+        onClose={() => setPreviewBill(null)}
+        title={previewBill ? `Bill #${previewBill.billNumber}` : ''}
+        subtitle={previewBill
+          ? `${previewBill.partyName} — ${formatDateShort(previewBill.fromDate)} to ${formatDateShort(previewBill.toDate)}`
+          : ''}
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPreviewBill(null)}>Close</Button>
+            <Button variant="success" icon={Share2} loading={previewSharing} onClick={sharePreviewBill}>
+              Share on WhatsApp
+            </Button>
+          </>
+        }
+      >
+        {previewBill && <BillSheet bill={previewBill} />}
+      </Modal>
+    </div>
+  );
+}
+
 export default function SalespersonStatement() {
   const [salespeople, setSalespeople] = useState([]);
   const [search, setSearch]          = useState('');
@@ -113,6 +445,8 @@ export default function SalespersonStatement() {
   // 'dispatch' — a Brand → Category → Product Dispatch Stock Summary for the
   //              whole date range (same shape as the Dairy Stock Summary
   //              report, minus Route and Unit Price)
+  // 'bills'    — generate the printed cash/credit bill for the selected
+  //              salesperson/period, plus their bill history (see BillsTab)
   const [view, setView] = useState('balance');
 
   const { data: rows, loading, error: reportError } = useApiResource(
@@ -185,7 +519,9 @@ export default function SalespersonStatement() {
             <p className="text-emerald-300 text-xs">Account statement per salesperson</p>
           </div>
         </div>
-        {hasContent && (
+        {/* The Bills tab prints per-bill from its own History table instead
+            of one aggregate report, so this header action doesn't apply there. */}
+        {view !== 'bills' && hasContent && (
           <button
             onClick={() => window.open(`/print/salesperson-statement?salespersonId=${selectedSp}&from=${from}&to=${to}&type=${view}`, '_blank')}
             className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200 hover:text-white border border-emerald-600 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition"
@@ -317,7 +653,7 @@ export default function SalespersonStatement() {
             </div>
 
             {/* ── View switcher ───────────────────────────────────────── */}
-            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm p-1 gap-1 max-w-md">
+            <div className="flex flex-wrap bg-white border border-slate-200 rounded-xl shadow-sm p-1 gap-1 max-w-xl">
               <button
                 onClick={() => setView('balance')}
                 className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg transition ${
@@ -334,6 +670,14 @@ export default function SalespersonStatement() {
               >
                 <Package size={13} /> Dispatch Stock Summary
               </button>
+              <button
+                onClick={() => setView('bills')}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg transition ${
+                  view === 'bills' ? 'bg-emerald-700 text-white' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <Receipt size={13} /> Bills
+              </button>
             </div>
 
             {error && (
@@ -344,6 +688,13 @@ export default function SalespersonStatement() {
 
             {view === 'dispatch' ? (
               <DispatchStockSummaryView summary={dispatchSummary} loading={loading} />
+            ) : view === 'bills' ? (
+              <BillsTab
+                salespersonId={selectedSp}
+                salespersonName={selectedSpObj?.name}
+                from={from}
+                to={to}
+              />
             ) : (
             <>
             {/* ── Statement table ────────────────────────────────────── */}
