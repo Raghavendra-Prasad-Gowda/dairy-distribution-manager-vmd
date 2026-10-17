@@ -27,6 +27,16 @@ const { assertAdmin, round2, round3, marginPct } = require('./_shared');
  * not, so the per-salesman rows always add up to the totals — an inactive
  * salesman's dispatches used to sit in the totals with no row to explain them.
  *
+ * Shortage — stock the dairy billed us for that never went out on a dispatch —
+ * is booked as a loss. It is the same figure the Stock Balance screen shows:
+ * per product, per day, received − dispatched, valued at that day's cost price.
+ * Only genuine leftovers count (received > dispatched); an over-dispatched
+ * product never offsets another product's shortage, matching that screen.
+ * Dispatch stock is checked per day (stockGuard), so a leftover cannot be sold
+ * the next day and is a real write-off. Shortage can't be pinned on a salesman,
+ * so the per-salesman rows stay gross margin and only the totals/daily series
+ * carry the net figure.
+ *
  * A negative result is a real loss (salesman billed below the dairy's cost) and
  * is reported as-is, never clamped. Outstanding dues are intentionally NOT part
  * of this — it's trading margin, not collection performance.
@@ -48,7 +58,7 @@ const profitLoss = asyncHandler(async (req, res) => {
   const fromDate = new Date(from);
   const toDate   = new Date(to);
 
-  const [salespeople, dispatches, allCategories, dairyBalanceAgg] = await Promise.all([
+  const [salespeople, dispatches, allCategories, dairyBalanceAgg, receipts] = await Promise.all([
     prisma.salesperson.findMany({
       select:  { id: true, name: true, route: true, displayOrder: true, isActive: true },
       orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
@@ -77,13 +87,27 @@ const profitLoss = asyncHandler(async (req, res) => {
       where: { balanceDate: { gte: fromDate, lte: toDate }, brand: { isActive: true } },
       _sum:  { stockValue: true, depositValue: true },
     }),
+    // Same product scope as the Stock Balance screen (active products of
+    // active brands) so the shortage here matches what the client sees there.
+    prisma.stockReceipt.findMany({
+      where: {
+        receiptDate: { gte: fromDate, lte: toDate },
+        product:     { isActive: true, brand: { isActive: true } },
+      },
+      select: {
+        productId: true, receiptDate: true, quantity: true,
+        product: { select: { id: true, name: true, costPrice: true, brand: { select: { name: true } } } },
+      },
+    }),
   ]);
   const catOrderMap = buildCategoryOrderMap(allCategories);
 
-  // Cost-price history for just the products actually dispatched in range.
-  const productIds = [...new Set(
-    dispatches.flatMap(d => d.items.map(i => i.productId))
-  )];
+  // Cost-price history for the products dispatched or received in range —
+  // received-only products need a cost too, since their leftover is costed.
+  const productIds = [...new Set([
+    ...dispatches.flatMap(d => d.items.map(i => i.productId)),
+    ...receipts.map(r => r.productId),
+  ])];
   // No effectiveFrom filter: a product whose only row is future-dated would
   // otherwise return nothing here and fall through to a denorm that is 0 by
   // design while that schedule is pending.
@@ -128,6 +152,11 @@ const profitLoss = asyncHandler(async (req, res) => {
   // per-date series for the range view.
   const bySalesperson = new Map();
   const byDate        = new Map();
+  const dayBucket = (date) => {
+    const key = date.toISOString();
+    if (!byDate.has(key)) byDate.set(key, { date, revenue: 0, cost: 0, shortage: 0 });
+    return byDate.get(key);
+  };
 
   for (const dispatch of dispatches) {
     for (const item of dispatch.items) {
@@ -161,13 +190,51 @@ const profitLoss = asyncHandler(async (req, res) => {
       prod.revenue  += revenue;
       prod.cost     += cost;
 
-      const key = dispatch.dispatchDate.toISOString();
-      if (!byDate.has(key)) byDate.set(key, { date: dispatch.dispatchDate, revenue: 0, cost: 0 });
-      const day = byDate.get(key);
+      const day = dayBucket(dispatch.dispatchDate);
       day.revenue += revenue;
       day.cost    += cost;
     }
   }
+
+  // Shortage: per product per day, received − dispatched, leftovers only.
+  const received   = new Map(); // `${productId}|${iso date}` → { product, date, qty }
+  const dispatched = new Map(); // same key → qty
+  for (const r of receipts) {
+    const key = `${r.productId}|${r.receiptDate.toISOString()}`;
+    if (!received.has(key)) received.set(key, { product: r.product, date: r.receiptDate, qty: 0 });
+    received.get(key).qty += Number(r.quantity);
+  }
+  for (const d of dispatches) {
+    for (const i of d.items) {
+      const key = `${i.productId}|${d.dispatchDate.toISOString()}`;
+      dispatched.set(key, (dispatched.get(key) ?? 0) + Number(i.quantity));
+    }
+  }
+
+  const shortageByProduct = new Map();
+  let totalShortage = 0;
+  for (const [key, rec] of received) {
+    const qty = rec.qty - (dispatched.get(key) ?? 0);
+    if (!(qty > 0)) continue;
+    const loss = qty * costOn(rec.product, rec.date);
+    totalShortage += loss;
+    dayBucket(rec.date).shortage += loss;
+
+    if (!shortageByProduct.has(rec.product.id)) {
+      shortageByProduct.set(rec.product.id, {
+        productId:   rec.product.id,
+        productName: rec.product.name,
+        brandName:   rec.product.brand?.name ?? null,
+        quantity: 0, loss: 0,
+      });
+    }
+    const sp = shortageByProduct.get(rec.product.id);
+    sp.quantity += qty;
+    sp.loss     += loss;
+  }
+  const shortageItems = [...shortageByProduct.values()]
+    .map(p => ({ ...p, quantity: round2(p.quantity), loss: round2(p.loss) }))
+    .sort((a, b) => b.loss - a.loss);
 
   // Every active salesperson is listed, dispatches or not, so the sidebar shows
   // the full roster the way Collections does — plus any INACTIVE salesperson
@@ -216,35 +283,41 @@ const profitLoss = asyncHandler(async (req, res) => {
 
   const totalRevenue = [...bySalesperson.values()].reduce((s, a) => s + a.revenue, 0);
   const totalCost    = [...bySalesperson.values()].reduce((s, a) => s + a.cost, 0);
-  const totalProfit  = totalRevenue - totalCost;
+  const grossProfit  = totalRevenue - totalCost;
+
+  const totalProfit = grossProfit - totalShortage;
 
   // The bridge to the Dairy Statement's Bill for the same range:
   //   dairyStockValue  = what the dairy billed for goods RECEIVED
   //   depositValue     = crate deposits charged — refundable, not a cost
-  //   otherDifference  = whatever is left once deposits are set aside; mainly
-  //                      stock received but not yet dispatched (billed by the
-  //                      dairy, not yet costed here), plus any receipt-price
-  //                      vs cost-price-history timing mismatch. Not split
-  //                      further — Stock Balance Summary has the per-product
-  //                      received-vs-dispatched detail when this is nonzero.
+  //   shortageLoss     = received-but-not-dispatched stock, now booked as a
+  //                      loss above, so it is no longer part of the remainder
+  //   otherDifference  = whatever is left once deposits and shortage are set
+  //                      aside: mainly the gap between the receipt price the
+  //                      dairy billed and the cost-price history used here.
   const dairyStockValue = Number(dairyBalanceAgg._sum.stockValue ?? 0);
   const dairyDepositValue = Number(dairyBalanceAgg._sum.depositValue ?? 0);
   const reconciliation = {
     dairyBill:             round2(dairyStockValue + dairyDepositValue),
     depositValue:          round2(dairyDepositValue),
     costOfGoodsDispatched: round2(totalCost),
-    otherDifference:       round2(dairyStockValue - totalCost),
+    shortageLoss:          round2(totalShortage),
+    otherDifference:       round2(dairyStockValue - totalCost - totalShortage),
   };
 
   const daily = [...byDate.values()]
     .sort((a, b) => a.date - b.date)
-    .map(d => ({
-      date:      d.date,
-      revenue:   round2(d.revenue),
-      cost:      round2(d.cost),
-      profit:    round2(d.revenue - d.cost),
-      marginPct: marginPct(d.revenue - d.cost, d.revenue),
-    }));
+    .map(d => {
+      const profit = d.revenue - d.cost - d.shortage;
+      return {
+        date:         d.date,
+        revenue:      round2(d.revenue),
+        cost:         round2(d.cost),
+        shortageLoss: round2(d.shortage),
+        profit:       round2(profit),
+        marginPct:    marginPct(profit, d.revenue),
+      };
+    });
 
   res.json({
     success: true,
@@ -254,9 +327,13 @@ const profitLoss = asyncHandler(async (req, res) => {
       totals: {
         revenue:   round2(totalRevenue),
         cost:      round2(totalCost),
+        // Margin on dispatched stock, before shortage; profit is net of it.
+        grossProfit:  round2(grossProfit),
+        shortageLoss: round2(totalShortage),
         profit:    round2(totalProfit),
         marginPct: marginPct(totalProfit, totalRevenue),
       },
+      shortage: shortageItems,
       daily,
       // Non-empty means some dispatched lines were costed at 0 because no cost
       // price could be resolved — their revenue is sitting in profit untaxed by

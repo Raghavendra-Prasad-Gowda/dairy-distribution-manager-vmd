@@ -114,7 +114,7 @@ export default function SalesmanProfitLoss() {
   }, [salespeople, search]);
 
   const selectedSp = selected === ALL ? null : salespeople.find(s => s.salespersonId === selected);
-  const totals     = data?.totals ?? { revenue: 0, cost: 0, profit: 0, marginPct: 0 };
+  const totals     = data?.totals ?? { revenue: 0, cost: 0, shortageLoss: 0, profit: 0, marginPct: 0 };
   const totalTone  = toneFor(totals.profit);
 
   // Wait for the settings fetch before deciding whether to show the gate.
@@ -170,7 +170,7 @@ export default function SalesmanProfitLoss() {
 
       {/* Summary cards — the overall figure for the selected period */}
       {!loading && data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 md:px-6 py-3 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-4 md:px-6 py-3 bg-slate-50 border-b border-slate-200 flex-shrink-0">
           {[
             // Not "Dairy Paid"/"Dairy Earned": cost here is the dairy's cost
             // price for the units DISPATCHED, while the money actually paid to
@@ -179,6 +179,9 @@ export default function SalesmanProfitLoss() {
             // these as paid/earned invited a reconciliation that can't hold.
             { label: 'Cost of Goods Dispatched',    value: formatCurrency(totals.cost),    cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
             { label: 'Revenue (Billed to Salesmen)', value: formatCurrency(totals.revenue), cls: 'text-slate-700', bg: 'bg-white border-slate-200' },
+            // Stock the dairy billed that never went out on a dispatch — same
+            // figure as Shortage on the Stock Balance screen, valued at cost.
+            { label: 'Shortage Loss', value: formatCurrency(totals.shortageLoss ?? 0), cls: totals.shortageLoss > 0 ? 'text-red-600' : 'text-slate-700', bg: totals.shortageLoss > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200' },
             { label: 'Profit/Loss', value: formatCurrency(totals.profit), cls: totalTone.text, bg: totalTone.bg },
             { label: 'Margin', value: `${totals.marginPct}%`, cls: totalTone.text, bg: totalTone.bg },
           ].map(({ label, value, cls, bg }) => (
@@ -209,7 +212,11 @@ export default function SalesmanProfitLoss() {
                 <span className="tabular-nums font-medium">{formatCurrency(data.reconciliation.costOfGoodsDispatched)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>+ Received but not yet dispatched</span>
+                <span>+ Shortage <span className="text-[10px]">(received, not dispatched)</span></span>
+                <span className="tabular-nums font-medium">{formatCurrency(data.reconciliation.shortageLoss ?? 0)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>+ Other difference</span>
                 <span className="tabular-nums font-medium">{formatCurrency(data.reconciliation.otherDifference)}</span>
               </div>
               <div className="flex items-center justify-between text-slate-500">
@@ -221,8 +228,9 @@ export default function SalesmanProfitLoss() {
                 <span className="tabular-nums">{formatCurrency(data.reconciliation.dairyBill)}</span>
               </div>
               <p className="text-[10px] text-slate-400 pt-1">
-                A leftover "received but not dispatched" figure is normal when stock
-                carries over — see Stock Balance Summary for the per-product detail.
+                Shortage is booked as a loss in Profit/Loss. Other difference is
+                mainly receipt price vs cost price — see Stock Balance Summary for
+                the per-product received vs dispatched detail.
               </p>
             </div>
           )}
@@ -342,7 +350,7 @@ export default function SalesmanProfitLoss() {
           {/* ── Right detail panel ─────────────────────────────────────── */}
           <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-6">
             {selected === ALL
-              ? <OverallPanel daily={data?.daily ?? []} totals={totals} />
+              ? <OverallPanel daily={data?.daily ?? []} totals={totals} shortage={data?.shortage ?? []} />
               : <SalespersonPanel sp={selectedSp} />}
           </div>
         </div>
@@ -352,26 +360,27 @@ export default function SalesmanProfitLoss() {
 }
 
 /** Day-by-day movement across every salesman. */
-function OverallPanel({ daily, totals }) {
+function OverallPanel({ daily, totals, shortage }) {
   if (daily.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 px-5 py-10 text-center text-slate-400 text-sm">
-        No stock was dispatched in this period.
+        No stock was dispatched or received in this period.
       </div>
     );
   }
 
   return (
+    <div className="space-y-4">
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 bg-slate-700">
         <h2 className="text-sm font-bold text-white">Daily Profit &amp; Loss</h2>
-        <p className="text-xs text-slate-400">{daily.length} day{daily.length !== 1 ? 's' : ''} with dispatches</p>
+        <p className="text-xs text-slate-400">{daily.length} day{daily.length !== 1 ? 's' : ''} with dispatches or receipts</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: 560 }}>
+        <table className="w-full text-sm" style={{ minWidth: 640 }}>
           <thead>
             <tr>
-              {['Date', 'Cost of Goods Dispatched', 'Revenue (Billed to Salesmen)', 'Profit/Loss', 'Margin'].map(h => (
+              {['Date', 'Cost of Goods Dispatched', 'Revenue (Billed to Salesmen)', 'Shortage Loss', 'Profit/Loss', 'Margin'].map(h => (
                 <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap">
                   {h}
                 </th>
@@ -388,6 +397,7 @@ function OverallPanel({ daily, totals }) {
                   </td>
                   <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(d.cost)}</td>
                   <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{formatCurrency(d.revenue)}</td>
+                  <td className={`px-3 py-2.5 text-center text-xs tabular-nums ${d.shortageLoss > 0 ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>{formatCurrency(d.shortageLoss ?? 0)}</td>
                   <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${tone.text}`}>{formatCurrency(d.profit)}</td>
                   <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-bold ${tone.text}`}>{d.marginPct}%</td>
                 </tr>
@@ -399,12 +409,45 @@ function OverallPanel({ daily, totals }) {
               <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white">TOTAL</td>
               <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(totals.cost)}</td>
               <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(totals.revenue)}</td>
+              <td className="bg-emerald-800 px-3 py-2.5 text-center text-xs font-bold text-white tabular-nums">{formatCurrency(totals.shortageLoss ?? 0)}</td>
               <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{formatCurrency(totals.profit)}</td>
               <td className="bg-emerald-800 px-3 py-2.5 text-center text-sm font-bold text-amber-300 tabular-nums">{totals.marginPct}%</td>
             </tr>
           </tfoot>
         </table>
       </div>
+    </div>
+
+    {shortage.length > 0 && (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 bg-slate-700">
+          <h2 className="text-sm font-bold text-white">Shortage Loss by Product</h2>
+          <p className="text-xs text-slate-400">Received but not dispatched, valued at cost</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" style={{ minWidth: 420 }}>
+            <thead>
+              <tr>
+                {['Product', 'Short Qty', 'Loss'].map(h => (
+                  <th key={h} className="bg-emerald-700 px-3 py-2.5 text-center text-xs font-bold text-white uppercase tracking-wider">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shortage.map(p => (
+                <tr key={p.productId} className="border-b border-slate-100">
+                  <td className="px-3 py-2.5 text-center text-xs font-semibold text-slate-800">
+                    {[p.brandName, p.productName].filter(Boolean).join(' · ')}
+                  </td>
+                  <td className="px-3 py-2.5 text-center text-xs tabular-nums text-slate-600">{p.quantity}</td>
+                  <td className="px-3 py-2.5 text-center text-xs tabular-nums font-bold text-red-600">{formatCurrency(p.loss)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

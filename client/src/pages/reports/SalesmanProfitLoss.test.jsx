@@ -245,7 +245,7 @@ describe('SalesmanProfitLoss — sidebar', () => {
     const headerRow = screen.getByText('Date').closest('tr');
     const headers = within(headerRow).getAllByRole('columnheader');
     expect(headers.map(h => h.textContent)).toEqual([
-      'Date', 'Cost of Goods Dispatched', 'Revenue (Billed to Salesmen)', 'Profit/Loss', 'Margin',
+      'Date', 'Cost of Goods Dispatched', 'Revenue (Billed to Salesmen)', 'Shortage Loss', 'Profit/Loss', 'Margin',
     ]);
     for (const th of headers) expect(th.className).toContain('text-center');
 
@@ -259,7 +259,7 @@ describe('SalesmanProfitLoss — sidebar', () => {
 
     const footerRow = screen.getByText('TOTAL').closest('tr');
     const cells = within(footerRow).getAllByRole('cell').map(c => c.textContent);
-    expect(cells).toEqual(['TOTAL', '₹4,700.00', '₹6,000.00', '₹1,300.00', '21.67%']);
+    expect(cells).toEqual(['TOTAL', '₹4,700.00', '₹6,000.00', '₹0.00', '₹1,300.00', '21.67%']);
   });
 
   it('omits the footer when there are no daily rows', async () => {
@@ -564,5 +564,47 @@ describe('SalesmanProfitLoss — reconciliation with Dairy Statement', () => {
     fireEvent.click(screen.getByText('Reconcile with Dairy Statement'));
     await screen.findByText('= Dairy Statement Bill (all brands)');
     expect(screen.getAllByText('₹0.00').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─── Shortage ────────────────────────────────────────────────────────────────
+
+describe('SalesmanProfitLoss — shortage loss', () => {
+  const WITH_SHORTAGE = {
+    ...REPORT,
+    totals: { ...REPORT.totals, grossProfit: 1300, shortageLoss: 300, profit: 1000 },
+    daily: [{ ...REPORT.daily[0], shortageLoss: 300, profit: 1000 }],
+    shortage: [
+      { productId: 1, productName: 'Toned Milk', brandName: 'Nandini', quantity: 15, loss: 300 },
+    ],
+  };
+
+  function mockShortage(report) {
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/pin/settings')) return Promise.resolve({ data: { data: { plPinEnabled: false } } });
+      if (url.includes('/reports/profit-loss')) return Promise.resolve({ data: { data: report } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+  }
+
+  it('shows a Shortage Loss summary card with the total', async () => {
+    mockShortage(WITH_SHORTAGE);
+    await renderPage();
+    const card = screen.getByText('Shortage Loss', { selector: 'p' }).closest('div');
+    expect(within(card).getByText('₹300.00')).toBeInTheDocument();
+  });
+
+  it('lists the products that were short with their loss', async () => {
+    mockShortage(WITH_SHORTAGE);
+    await renderPage();
+    expect(screen.getByText('Shortage Loss by Product')).toBeInTheDocument();
+    expect(screen.getByText('Nandini · Toned Milk')).toBeInTheDocument();
+    expect(screen.getByText('15')).toBeInTheDocument();
+  });
+
+  it('hides the product list when there was no shortage', async () => {
+    mockShortage({ ...WITH_SHORTAGE, shortage: [], totals: { ...WITH_SHORTAGE.totals, shortageLoss: 0 } });
+    await renderPage();
+    expect(screen.queryByText('Shortage Loss by Product')).not.toBeInTheDocument();
   });
 });

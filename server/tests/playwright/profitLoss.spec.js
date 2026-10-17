@@ -42,13 +42,22 @@ function dispatch(salespersonId, dateStr, items) {
 /** Wires the queries profitLoss makes. */
 function mockDeps({
   dispatches = [], costRows = [], salespeople = SALESPEOPLE, categories = [],
-  dairyBalanceSums = { stockValue: 0, depositValue: 0 },
+  dairyBalanceSums = { stockValue: 0, depositValue: 0 }, receipts = [],
 } = {}) {
+  ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue(receipts);
   ctx.mockPrisma.salesperson.findMany.mockResolvedValue(salespeople);
   ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue(dispatches);
   ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue(costRows);
   ctx.mockPrisma.category.findMany.mockResolvedValue(categories);
   ctx.mockPrisma.dairyBalance.aggregate.mockResolvedValue({ _sum: dairyBalanceSums });
+}
+
+/** A received line; `costPrice` is the product's denormalised cost. */
+function receipt(productId, dateStr, quantity, costPrice, name = `Product ${productId}`) {
+  return {
+    productId, receiptDate: new Date(dateStr), quantity,
+    product: { id: productId, name, costPrice, brand: { name: 'Nandini' } },
+  };
 }
 
 async function get(request, qs = 'from=2026-04-01&to=2026-04-30', token = makeAuthToken()) {
@@ -516,5 +525,86 @@ test.describe('GET /api/v1/reports/profit-loss — reconciliation', () => {
     const body = await (await get(request)).json();
     expect(ctx.mockPrisma.dairyBalance.aggregate).toBeTruthy();
     expect(body.data.reconciliation.dairyBill).toBe(520);
+  });
+});
+
+// ─── Shortage (received − dispatched) booked as a loss ───────────────────────
+
+test.describe('GET /api/v1/reports/profit-loss — shortage', () => {
+  test('leftover stock is costed and subtracted from profit', async ({ request }) => {
+    // Received 100 @ cost 20, dispatched 90 → 10 short = ₹200 loss.
+    // Gross margin 90 × (25 − 20) = 450 → net 250.
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(1, 90, 25, 20)])],
+      receipts:   [receipt(1, '2026-04-10', 100, 20)],
+    });
+
+    const { data } = await (await get(request)).json();
+    expect(data.totals.grossProfit).toBeCloseTo(450, 2);
+    expect(data.totals.shortageLoss).toBeCloseTo(200, 2);
+    expect(data.totals.profit).toBeCloseTo(250, 2);
+    expect(data.shortage).toEqual([
+      expect.objectContaining({ productId: 1, quantity: 10, loss: 200 }),
+    ]);
+    // Per-salesman rows stay gross — shortage can't be pinned on one person.
+    expect(data.salespeople.find(s => s.salespersonId === 1).profit).toBeCloseTo(450, 2);
+    expect(data.daily[0]).toMatchObject({ shortageLoss: 200, profit: 250 });
+  });
+
+  test('a received product that was never dispatched is a full loss', async ({ request }) => {
+    mockDeps({ receipts: [receipt(7, '2026-04-10', 12, 30)] });
+
+    const { data } = await (await get(request)).json();
+    expect(data.totals.shortageLoss).toBeCloseTo(360, 2);
+    expect(data.totals.profit).toBeCloseTo(-360, 2);
+    expect(data.daily).toHaveLength(1);
+  });
+
+  test('over-dispatch on one product does not offset another product\'s shortage', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(1, 110, 25, 20), item(2, 50, 30, 22)])],
+      receipts:   [receipt(1, '2026-04-10', 100, 20), receipt(2, '2026-04-10', 60, 22)],
+    });
+
+    const { data } = await (await get(request)).json();
+    // Product 1 over by 10 → ignored; product 2 short 10 × 22 = 220.
+    expect(data.totals.shortageLoss).toBeCloseTo(220, 2);
+  });
+
+  test('shortage is netted per day, not across the range', async ({ request }) => {
+    mockDeps({
+      dispatches: [
+        dispatch(1, '2026-04-10', [item(1, 100, 25, 20)]),
+        dispatch(1, '2026-04-11', [item(1, 120, 25, 20)]),
+      ],
+      // Day 2 over-dispatches what day 1 left over; the leftover is still lost.
+      receipts: [receipt(1, '2026-04-10', 110, 20), receipt(1, '2026-04-11', 100, 20)],
+    });
+
+    const { data } = await (await get(request)).json();
+    expect(data.totals.shortageLoss).toBeCloseTo(200, 2); // 10 × 20 on day 1 only
+  });
+
+  test('no receipts means no shortage', async ({ request }) => {
+    mockDeps({ dispatches: [dispatch(1, '2026-04-10', [item(1, 100, 25, 20)])] });
+
+    const { data } = await (await get(request)).json();
+    expect(data.totals.shortageLoss).toBe(0);
+    expect(data.totals.profit).toBeCloseTo(data.totals.grossProfit, 2);
+    expect(data.shortage).toEqual([]);
+  });
+
+  test('reconciliation bridge still adds up with shortage split out', async ({ request }) => {
+    mockDeps({
+      dispatches: [dispatch(1, '2026-04-10', [item(1, 90, 25, 20)])],
+      receipts:   [receipt(1, '2026-04-10', 100, 20)],
+      dairyBalanceSums: { stockValue: 2000, depositValue: 50 },
+    });
+
+    const { data } = await (await get(request)).json();
+    const r = data.reconciliation;
+    expect(r.shortageLoss).toBeCloseTo(200, 2);
+    expect(r.costOfGoodsDispatched + r.shortageLoss + r.otherDifference + r.depositValue)
+      .toBeCloseTo(r.dairyBill, 2);
   });
 });
