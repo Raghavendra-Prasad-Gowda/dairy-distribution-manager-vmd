@@ -23,32 +23,32 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
-    "express": "^5.1.0",
-    "express-rate-limit": "^8.7.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "otplib": "^13.5.0",
-    "pg": "^8.23.0",
-    "prisma": "^7.10.0",
+    "pg": "^8.23.1",
+    "prisma": "^7.10.1",
     "qrcode": "^1.5.4",
     "winston": "^3.17.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "c8": "^12.0.0",
-    "eslint": "^10.10.0",
+    "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.12.0",
-    "prettier": "^3.9.6"
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
