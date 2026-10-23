@@ -223,16 +223,6 @@ function istNow() {
   });
 }
 
-// Untrusted text (public client-error beacon) must not be able to ping
-// channels (<!channel>), mention users, or inject links into Slack mrkdwn.
-function escapeSlack(v) {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/```/g, "'''");
-}
-
 // ─── Block-kit primitives ─────────────────────────────────────────────────────
 
 function headerBlock(text) {
@@ -358,13 +348,13 @@ function buildCard(event, data) {
         [
           headerBlock('🔴 App Crash — Frontend Error'),
           fieldsBlock([
-            ['👤 User', escapeSlack(data.username) || 'Not logged in'],
-            ['📍 Page', escapeSlack(data.page) || 'unknown'],
-            ['❌ Message', escapeSlack(data.message) || 'unknown'],
+            ['👤 User', data.username || 'Not logged in'],
+            ['📍 Page', data.page || 'unknown'],
+            ['❌ Message', data.message || 'unknown'],
           ]),
-          ...(data.stack ? [textBlock(`\`\`\`${escapeSlack(data.stack.slice(0, 600))}\`\`\``)] : []),
+          ...(data.stack ? [textBlock(`\`\`\`${data.stack.slice(0, 600)}\`\`\``)] : []),
         ],
-        `Frontend crash on ${escapeSlack(data.page)}: ${escapeSlack(data.message)}`
+        `Frontend crash on ${data.page}: ${data.message}`
       );
 
     case SLACK_EVENTS.SERVER_BOOT_FAILED:

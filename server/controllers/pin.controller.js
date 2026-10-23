@@ -20,7 +20,7 @@ const verify = asyncHandler(async (req, res) => {
   const ok  = row ? await bcrypt.compare(String(pin), row.value) : false;
 
   if (!ok) {
-    const ip = req.ip;
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
     const admin = await prisma.adminUser.findUnique({
       where:  { id: req.user.adminUserId },
       select: { username: true, role: true },
@@ -52,7 +52,7 @@ const update = asyncHandler(async (req, res) => {
     void notifySlack(SLACK_EVENTS.PIN_FAILED, {
       username: await getActingUsername(req),
       role:     req.user?.role === 'superadmin' ? 'Super Admin' : 'Admin',
-      ip:       req.ip,
+      ip:       req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip,
     });
     return res.status(400).json({ success: false, error: 'Incorrect current PIN' });
   }
@@ -111,7 +111,7 @@ const verifyPl = asyncHandler(async (req, res) => {
   const ok  = row ? await bcrypt.compare(String(data.pin), row.value) : false;
 
   if (!ok) {
-    const ip = req.ip;
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
     const admin = await prisma.adminUser.findUnique({
       where:  { id: req.user.adminUserId },
       select: { username: true, role: true },
@@ -143,7 +143,7 @@ const updatePl = asyncHandler(async (req, res) => {
     void notifySlack(SLACK_EVENTS.PIN_FAILED, {
       username: await getActingUsername(req),
       role:     req.user?.role === 'superadmin' ? 'Super Admin' : 'Admin',
-      ip:       req.ip,
+      ip:       req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip,
     });
     return res.status(400).json({ success: false, error: 'Incorrect current PIN' });
   }

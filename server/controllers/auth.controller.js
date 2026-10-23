@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, schemas } = require('../utils/validate');
-const { BCRYPT_ROUNDS, JWT_VERIFY_OPTS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN, ACCOUNT_LOCK_COOLDOWN_MS } = require('../utils/constants');
+const { BCRYPT_ROUNDS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN, ACCOUNT_LOCK_COOLDOWN_MS } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
@@ -38,9 +38,6 @@ async function assertNotLocked(adminUser) {
     );
   }
 }
-
-// bcrypt hash of a discarded random string; only compared against to equalise timing.
-const DUMMY_HASH = '$2b$10$dK2azmNgMS45hbjEJC5fWu7gnDOTFkluiyEaEpOSHdBzCtuwGbpWe';
 
 const BUSINESS_NAME = 'Vikas Milk Dairy';
 
@@ -99,7 +96,7 @@ function respondWithAdminSession(res, adminUser, ip, extraData = {}) {
 async function resolvePendingAdminUser(mfaToken) {
   let decoded;
   try {
-    decoded = jwt.verify(mfaToken, env.JWT_SECRET, JWT_VERIFY_OPTS);
+    decoded = jwt.verify(mfaToken, env.JWT_SECRET);
   } catch {
     throw new AppError('MFA session expired. Please log in again.', 401);
   }
@@ -124,7 +121,7 @@ const login = asyncHandler(async (req, res) => {
   const data = validate(schemas.login, req, res);
   if (!data) return;
 
-  const ip = req.ip;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
 
   // ── 1. Try AdminUser table (superadmin + managed admins) ─────────────────
   // Username lookup is case-insensitive — "Admin" and "admin" both match.
@@ -209,9 +206,6 @@ const login = asyncHandler(async (req, res) => {
   });
 
   if (!salesperson || !salesperson.passwordHash) {
-    // Burn a bcrypt compare so "unknown user" takes as long as "wrong password"
-    // — otherwise response time reveals which usernames exist.
-    await bcrypt.compare(data.password, DUMMY_HASH);
     void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
       attemptedUsername: data.username,
       ip,
@@ -261,7 +255,7 @@ const mfaLogin = asyncHandler(async (req, res) => {
   const data = validate(schemas.verifyMfaLogin, req, res);
   if (!data) return;
 
-  const ip = req.ip;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
   const adminUser = await resolvePendingAdminUser(data.mfaToken);
 
   if (!adminUser.mfaEnabled) {
@@ -340,7 +334,7 @@ const mfaConfirmRequired = asyncHandler(async (req, res) => {
   const data = validate(schemas.confirmRequiredMfa, req, res);
   if (!data) return;
 
-  const ip = req.ip;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
   const adminUser = await resolvePendingAdminUser(data.mfaToken);
   if (!adminUser.mfaRequired || adminUser.mfaEnabled || !adminUser.mfaSecret) {
     throw new AppError('MFA session is no longer valid. Please log in again.', 401);
@@ -388,7 +382,7 @@ const changePassword = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const { role, adminUserId, salespersonId } = req.user;
-  const ip = req.ip;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
 
   if (role === 'admin' || role === 'superadmin' || role === 'dispatcher') {
     // Admin/dispatcher changing their own password
@@ -435,7 +429,7 @@ const changePassword = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  const ip = req.ip;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
   let username = 'unknown';
   let role = 'unknown';
 

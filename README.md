@@ -319,7 +319,7 @@ cd client && npm run lint
 
 ### CI Pipeline (`.github/workflows/pr-checks.yml`)
 
-Runs on every PR to `main` and push to `develop`. Eight parallel jobs:
+Runs on every PR to `main` and push to `environment/test`. Eight parallel jobs:
 
 | Job | What it checks |
 |-----|---------------|
@@ -452,7 +452,7 @@ Render's free tier puts the server to sleep after 15 minutes of inactivity. The 
    cd server && npm test
    cd client && npm test
    ```
-5. The default development branch is `develop`
+5. The default development branch is `environment/test`
 
 📖 Detailed patterns, anti-patterns, and examples are in the sub-guides:
 - **[Backend Developer Guide](./server/README.md)**
