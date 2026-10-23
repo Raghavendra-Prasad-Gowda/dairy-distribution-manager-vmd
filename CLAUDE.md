@@ -739,25 +739,25 @@ const isEnabled = enabledMap[item.productId] ?? product.salespersonEnabled;
 ## 16. Git Standards
 
 ### Primary development branch
-**`environment/test`** is the default branch for all development. Always develop on `environment/test` unless told otherwise.
+**`develop`** is the default branch for all development. Always develop on `develop` unless told otherwise.
 
 ### Branch workflow
 ```bash
-# Start any new work from environment/test
-git fetch origin environment/test
-git checkout environment/test
-git pull origin environment/test
+# Start any new work from develop
+git fetch origin develop
+git checkout develop
+git pull origin develop
 
 # Develop, commit, push
 git add .
 git commit -m "feat: add product category sort to dispatch sheet"
-git push -u origin environment/test
+git push -u origin develop
 ```
 
 ### Branch naming (only when explicitly requested to use a feature branch)
 - Feature branches: `feat/<description>`
 - Bug fixes: `fix/<description>`
-- Do NOT create these unless the user asks — default to `environment/test`
+- Do NOT create these unless the user asks — default to `develop`
 
 ### Commit message rules
 - Imperative mood, present tense: "add", "fix", "update" — not "added", "fixed"
