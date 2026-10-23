@@ -5,6 +5,7 @@ const prisma  = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { validate, schemas } = require('../utils/validate');
 const env = require('../config/env');
+const { JWT_VERIFY_OPTS } = require('../utils/constants');
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.post('/', clientErrorLimiter, async (req, res) => {
   try {
     const token = req.cookies?.token;
     if (token) {
-      const decoded = jwt.verify(token, env.JWT_SECRET);
+      const decoded = jwt.verify(token, env.JWT_SECRET, JWT_VERIFY_OPTS);
       if (decoded.adminUserId) {
         const au = await prisma.adminUser.findUnique({ where: { id: decoded.adminUserId }, select: { username: true } });
         username = au?.username ?? null;
