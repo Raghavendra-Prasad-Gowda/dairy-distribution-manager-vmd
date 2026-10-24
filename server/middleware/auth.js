@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
 const env = require('../config/env');
-const { JWT_VERIFY_OPTS } = require('../utils/constants');
 
 const authenticate = (req, res, next) => {
   // Deliberately NOT reading req.cookies?.token here. The frontend never
@@ -26,7 +25,7 @@ const authenticate = (req, res, next) => {
     return next(new AppError('No token provided. Please log in.', 403));
   }
 
-  jwt.verify(token, env.JWT_SECRET, JWT_VERIFY_OPTS, (err, decoded) => {
+  jwt.verify(token, env.JWT_SECRET, (err, decoded) => {
     if (err) {
       return next(new AppError('Unauthorized. Token is invalid or expired.', 401));
     }

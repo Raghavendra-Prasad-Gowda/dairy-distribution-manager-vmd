@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/asyncHandler');
 const { validate, schemas } = require('../utils/validate');
-const { BCRYPT_ROUNDS, JWT_VERIFY_OPTS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN, ACCOUNT_LOCK_COOLDOWN_MS } = require('../utils/constants');
+const { BCRYPT_ROUNDS, JWT_EXPIRES_IN, MFA_PENDING_EXPIRES_IN, ACCOUNT_LOCK_COOLDOWN_MS } = require('../utils/constants');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
@@ -38,9 +38,6 @@ async function assertNotLocked(adminUser) {
     );
   }
 }
-
-// bcrypt hash of a discarded random string; only compared against to equalise timing.
-const DUMMY_HASH = '$2b$10$dK2azmNgMS45hbjEJC5fWu7gnDOTFkluiyEaEpOSHdBzCtuwGbpWe';
 
 const BUSINESS_NAME = 'Vikas Milk Dairy';
 
@@ -99,7 +96,7 @@ function respondWithAdminSession(res, adminUser, ip, extraData = {}) {
 async function resolvePendingAdminUser(mfaToken) {
   let decoded;
   try {
-    decoded = jwt.verify(mfaToken, env.JWT_SECRET, JWT_VERIFY_OPTS);
+    decoded = jwt.verify(mfaToken, env.JWT_SECRET);
   } catch {
     throw new AppError('MFA session expired. Please log in again.', 401);
   }
@@ -209,9 +206,6 @@ const login = asyncHandler(async (req, res) => {
   });
 
   if (!salesperson || !salesperson.passwordHash) {
-    // Burn a bcrypt compare so "unknown user" takes as long as "wrong password"
-    // — otherwise response time reveals which usernames exist.
-    await bcrypt.compare(data.password, DUMMY_HASH);
     void notifySlack(SLACK_EVENTS.FAILED_LOGIN, {
       attemptedUsername: data.username,
       ip,

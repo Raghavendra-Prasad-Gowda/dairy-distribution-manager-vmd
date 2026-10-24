@@ -4,10 +4,6 @@ on:
   pull_request:
     branches: [main, develop]
 
-# Least privilege: CI only needs to read the repo.
-permissions:
-  contents: read
-
 jobs:
   lint-timezone:
     name: Lint — timezone safety
