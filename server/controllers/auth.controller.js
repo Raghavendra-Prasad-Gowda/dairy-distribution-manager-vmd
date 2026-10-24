@@ -121,7 +121,7 @@ const login = asyncHandler(async (req, res) => {
   const data = validate(schemas.login, req, res);
   if (!data) return;
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const ip = req.ip;
 
   // ── 1. Try AdminUser table (superadmin + managed admins) ─────────────────
   // Username lookup is case-insensitive — "Admin" and "admin" both match.
@@ -255,7 +255,7 @@ const mfaLogin = asyncHandler(async (req, res) => {
   const data = validate(schemas.verifyMfaLogin, req, res);
   if (!data) return;
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const ip = req.ip;
   const adminUser = await resolvePendingAdminUser(data.mfaToken);
 
   if (!adminUser.mfaEnabled) {
@@ -334,7 +334,7 @@ const mfaConfirmRequired = asyncHandler(async (req, res) => {
   const data = validate(schemas.confirmRequiredMfa, req, res);
   if (!data) return;
 
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const ip = req.ip;
   const adminUser = await resolvePendingAdminUser(data.mfaToken);
   if (!adminUser.mfaRequired || adminUser.mfaEnabled || !adminUser.mfaSecret) {
     throw new AppError('MFA session is no longer valid. Please log in again.', 401);
@@ -382,7 +382,7 @@ const changePassword = asyncHandler(async (req, res) => {
   if (!data) return;
 
   const { role, adminUserId, salespersonId } = req.user;
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const ip = req.ip;
 
   if (role === 'admin' || role === 'superadmin' || role === 'dispatcher') {
     // Admin/dispatcher changing their own password
@@ -429,7 +429,7 @@ const changePassword = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+  const ip = req.ip;
   let username = 'unknown';
   let role = 'unknown';
 

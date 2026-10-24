@@ -61,7 +61,9 @@ server/
 - `seedFoundationData` must be idempotent (upsert, never insert-only).
 
 ### Security
-- PIN endpoint: rate-limited to 5 attempts per 15 min (express-rate-limit).
+- PIN endpoints: rate-limited to 20 attempts per 15 min (express-rate-limit).
+- Client IP for logs/Slack is `req.ip` (trust proxy = 1). Never read `X-Forwarded-For` directly; it is client-spoofable.
+- Untrusted text going into Slack cards (public client-error beacon) must pass through `escapeSlack`.
 - Payload limit: `express.json({ limit: '10kb' })`.
 - JWT expiry: 2 hours (`JWT_EXPIRES_IN: 7200`). Client session timeout must match (`SESSION_MS = 2 * 60 * 60 * 1000`).
 - No secrets in code, and **no insecure fallback defaults for secrets**. All config is read
