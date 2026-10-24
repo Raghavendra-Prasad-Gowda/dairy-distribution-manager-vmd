@@ -9,6 +9,7 @@ const env = require('./config/env'); // validates & freezes config at boot (fail
 const prisma = require('./lib/prisma');
 const logger = require('./config/logger');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
+const { appVersion } = require('./utils/version');
 
 // ─── Route imports ────────────────────────────────────────────────────────────
 const authRoutes                = require('./routes/auth');
@@ -94,7 +95,7 @@ app.get('/', (req, res) => res.json({ name: 'Dairy Distribution Manager API', st
 
 // Liveness: is the process up? Fast, no dependencies — a failing liveness probe
 // tells the platform to RESTART the container.
-app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime(), ...appVersion }));
 
 // Readiness: can we actually serve traffic (DB reachable)? A failing readiness
 // probe tells the load balancer to STOP routing here without killing the pod.

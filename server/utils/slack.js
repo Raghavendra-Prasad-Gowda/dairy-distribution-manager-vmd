@@ -321,6 +321,7 @@ function buildCard(event, data) {
           fieldsBlock([
             ['🔧 Environment', data.env || 'unknown'],
             ['📡 App', 'Vikas Milk Dairy — Distribution Manager is running'],
+            ['🏷️ Build', data.build],
           ]),
         ],
         `Server Online — ${data.env}`
@@ -361,6 +362,7 @@ function buildCard(event, data) {
             ['👤 User', escapeSlack(data.username) || 'Not logged in'],
             ['📍 Page', escapeSlack(data.page) || 'unknown'],
             ['❌ Message', escapeSlack(data.message) || 'unknown'],
+            ['🏷️ Build', escapeSlack(data.version)],
           ]),
           ...(data.stack ? [textBlock(`\`\`\`${escapeSlack(data.stack.slice(0, 600))}\`\`\``)] : []),
         ],

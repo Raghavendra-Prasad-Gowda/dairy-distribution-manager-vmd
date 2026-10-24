@@ -467,6 +467,7 @@ const schemas = {
     message: z.string().max(2000, 'message is too long').optional(),
     stack: z.string().max(5000, 'stack is too long').optional(),
     page: z.string().max(300, 'page is too long').optional(),
+    version: z.string().max(60, 'version is too long').optional(),
   }),
 };
 

@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import api from '../api/axios';
+import { APP_VERSION_LABEL } from '../utils/appVersion';
 
 // How long the app must run without crashing before a tab's one-shot
 // auto-reload guard (below) is considered "spent and safe to re-arm".
@@ -54,6 +55,7 @@ class ErrorBoundary extends Component {
       message: error?.message ?? String(error),
       stack:   (error?.stack ?? '') + '\n\nComponent stack:' + (info?.componentStack ?? ''),
       page:    window.location.pathname,
+      version: APP_VERSION_LABEL,
     }).catch(() => {});
   }
 
