@@ -1,14 +1,11 @@
-import { APP_VERSION_LABEL, APP_BUILT_AT } from '../utils/appVersion';
+import { APP_VERSION_LABEL, APP_BUILT_AT_LABEL } from '../utils/appVersion';
 
-/** Small monospace build label, e.g. "v1.4.0 · a3f9c21"; hover shows the build time. */
+/** Build label: "v1.0.0 · a3f9c21" with the build date and time (IST) underneath. */
 export default function VersionTag({ className = '' }) {
   return (
-    <p
-      className={`font-mono text-[11px] leading-none ${className}`}
-      title={APP_BUILT_AT ? `Built ${APP_BUILT_AT}` : undefined}
-      data-testid="app-version"
-    >
-      {APP_VERSION_LABEL}
-    </p>
+    <div className={`font-mono text-[11px] leading-snug ${className}`} data-testid="app-version">
+      <p>{APP_VERSION_LABEL}</p>
+      {APP_BUILT_AT_LABEL && <p className="opacity-80" data-testid="app-built-at">Built {APP_BUILT_AT_LABEL}</p>}
+    </div>
   );
 }

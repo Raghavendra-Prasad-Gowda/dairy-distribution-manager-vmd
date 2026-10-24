@@ -825,7 +825,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 ## 18a. Build Version
 
 The running build (git tag + short commit) is shown in the sidebar footer (`components/VersionTag.jsx`), on the login page, in `GET /health` (`version`, `commit`, `builtAt`), in the "Server Online" Slack card and on frontend crash cards.
-- **Server:** `utils/version.js` reads `server/version.json` (written by `npm run build` via `scripts/write-version.js`, gitignored), else detects live from `RENDER_GIT_COMMIT` / git. `APP_VERSION` env overrides the tag.
+- **Server:** `utils/version.js` (tag → `package.json` version if untagged) reads `server/version.json` (written by `npm run build` via `scripts/write-version.js`, gitignored), else detects live from `RENDER_GIT_COMMIT` / git. `APP_VERSION` env overrides the tag.
 - **Client:** `vite.config.js` injects `__APP_VERSION__`, `__APP_COMMIT__`, `__APP_BUILT_AT__`; read them only through `utils/appVersion.js`. `VITE_APP_VERSION` overrides the tag.
 - To release: create a git tag (`git tag v1.4.0 && git push origin v1.4.0`) on `main` before deploying. If a host's clone has no tags, only the commit is shown.
 
