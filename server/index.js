@@ -5,6 +5,7 @@ const app = require('./app');
 const env = require('./config/env');
 const logger = require('./config/logger');
 const { notifySlack, SLACK_EVENTS } = require('./utils/slack');
+const { versionLabel } = require('./utils/version');
 const { stripSslParams, buildProdSsl } = require('./utils/dbUrl');
 
 /**
@@ -98,8 +99,8 @@ async function boot() {
     process.exit(1);
   }
 
-  logger.info('Startup complete — server ready.');
-  void notifySlack(SLACK_EVENTS.SERVER_STARTED, { env: process.env.NODE_ENV });
+  logger.info(`Startup complete — server ready (${versionLabel()}).`);
+  void notifySlack(SLACK_EVENTS.SERVER_STARTED, { env: process.env.NODE_ENV, build: versionLabel() });
 
   const shutdown = async (signal) => {
     logger.info(`Received ${signal}. Gracefully shutting down...`);

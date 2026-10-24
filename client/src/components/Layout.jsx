@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { getBrandColors } from '../utils/constants';
 import api from '../api/axios';
+import VersionTag from './VersionTag';
 
 // ─── Admin nav tree ────────────────────────────────────────────────────────────
 
@@ -322,6 +323,7 @@ function Sidebar({ compact = false, setMobileOpen, onLogoutRequest, user }) {
           <LogOut size={16} />
           {!compact && <span className="text-sm font-medium">Sign Out</span>}
         </button>
+        {!compact && <VersionTag className="px-3 pt-1 text-emerald-400/70" />}
       </div>
     </div>
   );
