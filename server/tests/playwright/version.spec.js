@@ -38,3 +38,15 @@ test.describe('POST /errors/client', () => {
     expect(bad.status()).toBe(400);
   });
 });
+
+test.describe('detectVersion', () => {
+  test('falls back to the package.json version when there is no tag', () => {
+    const { detectVersion } = require('../../utils/version');
+    const prev = process.env.APP_VERSION;
+    delete process.env.APP_VERSION;
+    const v = detectVersion();
+    if (prev !== undefined) process.env.APP_VERSION = prev;
+    expect(v.version).toBeTruthy();
+    expect(typeof v.builtAt).toBe('string');
+  });
+});

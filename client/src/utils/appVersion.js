@@ -11,3 +11,16 @@ export function formatVersion(version = APP_VERSION, commit = APP_COMMIT) {
 }
 
 export const APP_VERSION_LABEL = formatVersion();
+
+/** "24 Oct 2026, 3:02 PM IST" from an ISO timestamp; '' when missing or invalid. */
+export function formatBuiltAt(iso = APP_BUILT_AT) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const text = new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+  }).format(d);
+  return `${text.replace(/\b(am|pm)\b/, (m) => m.toUpperCase())} IST`;
+}
+
+export const APP_BUILT_AT_LABEL = formatBuiltAt();

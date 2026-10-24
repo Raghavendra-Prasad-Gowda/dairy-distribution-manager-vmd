@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+const pkgVersion = require('../package.json').version;
 const VERSION_FILE = path.join(__dirname, '..', 'version.json');
 
 function git(...args) {
@@ -32,7 +33,8 @@ function detectVersion() {
     process.env.RENDER_GIT_COMMIT ||
     process.env.SOURCE_VERSION ||
     git('rev-parse', 'HEAD');
-  const tag = process.env.APP_VERSION || git('describe', '--tags', '--abbrev=0');
+  // Tag wins; with no tag (or none in the host's clone) fall back to package.json.
+  const tag = process.env.APP_VERSION || git('describe', '--tags', '--abbrev=0') || pkgVersion;
   return {
     version: tag ? tag.replace(/^v/, '') : null,
     commit: commit ? commit.slice(0, 7) : null,
