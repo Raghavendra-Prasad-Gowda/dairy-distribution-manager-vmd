@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run lint:tz && npm test",
-    "build": "npx prisma generate",
+    "build": "npx prisma generate && node scripts/write-version.js",
     "deploy": "npx prisma migrate deploy",
     "start:prod": "node index.js",
     "postinstall": "npx prisma generate",

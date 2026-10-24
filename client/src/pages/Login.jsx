@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Milk, Lock, User, AlertCircle, AlertTriangle, Info, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { armForLogin } from '../api/coldStart';
 import { consumeSessionNotice } from '../utils/session';
+import VersionTag from '../components/VersionTag';
 import BrandedLoader, { TumblerSpinner } from '../components/ui/BrandedLoader';
 
 export default function Login() {
@@ -422,6 +423,7 @@ export default function Login() {
         <p className="text-center text-emerald-300 text-xs mt-5">
           Dairy Distribution Manager · Vikas Milk Dairy
         </p>
+        <VersionTag className="text-center text-emerald-400/80 mt-2" />
       </div>
     </div>
   );

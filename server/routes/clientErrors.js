@@ -31,7 +31,7 @@ const clientErrorLimiter = rateLimit({
 router.post('/', clientErrorLimiter, async (req, res) => {
   const data = validate(schemas.reportClientError, req, res);
   if (!data) return;
-  const { message, stack, page } = data;
+  const { message, stack, page, version } = data;
 
   let username = null;
   try {
@@ -48,7 +48,7 @@ router.post('/', clientErrorLimiter, async (req, res) => {
     }
   } catch (_) { /* no valid session — report anonymously */ }
 
-  void notifySlack(SLACK_EVENTS.CLIENT_ERROR, { message, stack, page, username });
+  void notifySlack(SLACK_EVENTS.CLIENT_ERROR, { message, stack, page, version, username });
   res.json({ success: true });
 });
 

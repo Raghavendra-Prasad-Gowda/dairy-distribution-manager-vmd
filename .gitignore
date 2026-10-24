@@ -35,3 +35,6 @@ coverage/
 server/coverage/
 client/coverage/
 .nyc_output/
+
+# build identity written by scripts/write-version.js
+server/version.json
