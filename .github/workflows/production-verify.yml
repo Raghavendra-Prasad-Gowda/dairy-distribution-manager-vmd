@@ -1,0 +1,108 @@
+name: Production Verify & Release
+
+# Runs after the release PR is merged into main. Render and Vercel auto-deploy production on
+# their own; this waits for that deploy, runs read-only smoke checks against it, then tags a
+# GitHub Release. Smoke scenarios must NEVER write data to production.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump for the release tag
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency:
+  group: production-verify
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  API_URL: ${{ vars.PROD_API_URL || 'https://dairy-distribution-manager-vmd.onrender.com' }}
+  WEB_URL: ${{ vars.PROD_WEB_URL || 'https://dairy-distribution-manager-vmd.vercel.app' }}
+  VERCEL_PROJECT: ${{ vars.PROD_VERCEL_PROJECT || 'dairy-distribution-manager' }}
+
+jobs:
+  verify:
+    name: Wait for deploy + smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Wait for Render (backend)
+        run: .github/scripts/wait-for-backend.sh "$API_URL" "${{ github.sha }}"
+
+      - name: Wait for Vercel (frontend)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/wait-for-vercel.sh "${{ github.repository }}" "${{ github.sha }}" "$VERCEL_PROJECT" "$WEB_URL"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+          cache-dependency-path: automation/pom.xml
+
+      # API only: UI smoke would need a dedicated read-only production account.
+      - name: Run @api @smoke scenarios
+        working-directory: automation
+        env:
+          API_BASE_URL: ${{ env.API_URL }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: mvn -B -ntp test -Dcucumber.filter.tags="@api and @smoke"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prod-smoke-report
+          path: automation/target/cucumber-reports
+          if-no-files-found: ignore
+
+  release:
+    name: Tag release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.bump || 'patch' }}
+        run: |
+          git fetch --tags --force
+
+          existing=$(git tag --points-at "$GITHUB_SHA" --list 'v[0-9]*.[0-9]*.[0-9]*' | head -n1)
+          if [ -n "$existing" ]; then
+            echo "$GITHUB_SHA is already released as $existing"
+            exit 0
+          fi
+
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            next="v$(node -p "require('./server/package.json').version")"
+          else
+            IFS=. read -r maj min pat <<< "${latest#v}"
+            case "$BUMP" in
+              major) next="v$((maj + 1)).0.0" ;;
+              minor) next="v${maj}.$((min + 1)).0" ;;
+              *)     next="v${maj}.${min}.$((pat + 1))" ;;
+            esac
+          fi
+
+          echo "Releasing $next (previous: ${latest:-none})"
+          gh release create "$next" --target "$GITHUB_SHA" --title "$next" --generate-notes
