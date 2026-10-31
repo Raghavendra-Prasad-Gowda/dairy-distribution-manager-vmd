@@ -1,8 +1,11 @@
 package com.vmd.automation;
 
+import com.vmd.automation.core.Cleanup;
 import io.restassured.response.Response;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Per-scenario state shared between step classes (PicoContainer creates one
@@ -10,10 +13,16 @@ import java.util.List;
  */
 public class TestContext {
 
-    // API
+    /** The most recent API response. */
     public Response response;
 
-    // Routes (@routes scenarios)
+    /** Entities and values remembered under an alias, addressable as {@code ${alias.field}}. */
+    public final Map<String, Object> variables = new HashMap<>();
+
+    /** Undo-actions for everything this scenario created; run after the scenario, newest first. */
+    public final Cleanup cleanup = new Cleanup();
+
+    // Routes (@routes scenarios, RouteSteps)
     public Integer brandId;
     public Integer routeId;
     public String routeNumber;

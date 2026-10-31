@@ -29,6 +29,33 @@ public final class TestConfig {
         return required("E2E_ADMIN_PASSWORD", null);
     }
 
+    /**
+     * Optional second account with role superadmin and no MFA. Needed by scenarios that create brands,
+     * admin users or dispatchers (tag {@code @superadmin}). Unset = the E2E admin is used if it already
+     * is a superadmin; otherwise those scenarios are skipped (or fail when {@link #strict()}).
+     */
+    public static String superAdminUsername() {
+        return optional("E2E_SUPERADMIN_USERNAME", "");
+    }
+
+    public static String superAdminPassword() {
+        return optional("E2E_SUPERADMIN_PASSWORD", "");
+    }
+
+    /** E2E_STRICT=true turns "prerequisite missing, scenario skipped" into a failure (use it in the release gate). */
+    public static boolean strict() {
+        return "true".equalsIgnoreCase(optional("E2E_STRICT", "false"));
+    }
+
+    public static int connectTimeoutMs() {
+        return Integer.parseInt(optional("HTTP_CONNECT_TIMEOUT_MS", "30000"));
+    }
+
+    /** Render's free plan can take ~1 min to wake, so the read timeout is generous. */
+    public static int readTimeoutMs() {
+        return Integer.parseInt(optional("HTTP_READ_TIMEOUT_MS", "90000"));
+    }
+
 
 
 
