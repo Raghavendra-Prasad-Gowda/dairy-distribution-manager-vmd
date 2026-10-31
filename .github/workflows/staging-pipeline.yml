@@ -60,6 +60,8 @@ jobs:
     needs: wait-for-deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # E2E_ADMIN_* live in the "staging" environment's secrets; without this the job sees them empty.
+    environment: staging
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
