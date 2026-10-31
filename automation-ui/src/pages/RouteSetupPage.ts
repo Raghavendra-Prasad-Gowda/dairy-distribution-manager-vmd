@@ -6,6 +6,7 @@ export class RouteSetupPage {
   readonly addRouteButton: Locator;
   private readonly form: Locator;
   private readonly numberInput: Locator;
+  private brandName = 'Nandini';
 
   constructor(private readonly page: Page) {
     this.heading = page.getByRole('heading', { name: 'Route Setup' });
@@ -22,11 +23,26 @@ export class RouteSetupPage {
    * the explicit wait. Nandini is used because routes are a Nandini concept and it matches the API suite.
    */
   async open(brandName = 'Nandini'): Promise<void> {
+    this.brandName = brandName;
     await this.page.goto('/dairy/setup/routes');
+    await this.selectBrand();
+  }
+
+  /**
+   * Reloads the page and selects the same brand again. The page keeps the active brand only in
+   * React state and falls back to the first brand (by displayOrder) on every load. On staging that
+   * is not Nandini, so a bare `page.reload()` shows another brand's routes.
+   */
+  async reload(): Promise<void> {
+    await this.page.reload();
+    await this.selectBrand();
+  }
+
+  private async selectBrand(): Promise<void> {
     await this.heading.waitFor();
-    await this.page.getByRole('button', { name: brandName, exact: true }).click();
+    await this.page.getByRole('button', { name: this.brandName, exact: true }).click();
     await expect(this.page.getByText('Routes defined here appear as columns in the')).toContainText(
-      `in the ${brandName} Stock Receipt`,
+      `in the ${this.brandName} Stock Receipt`,
     );
   }
 
