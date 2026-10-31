@@ -29,7 +29,8 @@ dairy-distribution-manager-vmd/
 │   ├── pr-checks.yml                  # CI on every PR to develop/main
 │   ├── staging-pipeline.yml           # After merge to develop: wait deploy → API → UI → release PR
 │   └── production-verify.yml          # After merge to main: wait deploy → smoke → tag + release
-├── automation/                        # Java: Cucumber + REST Assured (API) + Playwright (UI) vs deployed env
+├── automation/                        # Java: Cucumber + REST Assured (API) vs deployed env
+├── automation-ui/                     # TypeScript: Playwright Test (UI) vs deployed env
 ├── docs/release-pipeline.md           # Release flow + one-time setup checklist
 │
 ├── server/                            # Express 5 backend
@@ -769,8 +770,8 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Never force-push `develop` or `main`
 
 ### CI / pipeline
-- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile).
-- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `@ui`, sets the `Staging Verified` commit status and opens/updates the release PR.
+- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
+- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `automation-ui/` (Playwright + TypeScript), sets the `Staging Verified` commit status and opens/updates the release PR.
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
 - A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
 - After a hotfix to `main`, open a PR `main → develop`.
@@ -786,7 +787,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 - **Frontend change** → add/update Vitest spec next to the page file
 - Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
 - Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`
-- A user-facing flow that spans backend + frontend → also add a Cucumber scenario in `automation/` (`@api` and/or `@ui`; `@smoke` only if read-only). See `automation/README.md`
+- A user-facing flow that spans backend + frontend → also add an API scenario in `automation/` (Cucumber `@api`; `@smoke` only if read-only) and/or a UI spec in `automation-ui/tests/` (Playwright + TypeScript). See `automation/README.md` and `automation-ui/README.md`
 
 ### 17.2 Slack notification
 - Every write action needs a Slack card

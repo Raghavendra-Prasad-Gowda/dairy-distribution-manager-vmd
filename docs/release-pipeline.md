@@ -7,7 +7,7 @@ feat/xyz ──PR──▶ develop ──merge──▶ Render + Vercel auto-dep
    (lint, unit tests, build, audit,   staging-pipeline.yml
     automation compile)               1. wait until testing is serving this commit
                                       2. API automation  (REST Assured + Cucumber)
-                                      3. UI automation   (Playwright + Cucumber)
+                                      3. UI automation   (Playwright + TypeScript)
                                       4. "Staging Verified" status on the commit
                                       5. open/update the develop → main release PR
                                                   │
@@ -26,12 +26,13 @@ deploy; they wait for the deploy, then test it.
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` |
+| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` and type-checks `automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
 | `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
-| `automation/` | Java suite (Cucumber + REST Assured + Playwright) — see `automation/README.md` |
+| `automation/` | Java API suite (Cucumber + REST Assured) — see `automation/README.md` |
+| `automation-ui/` | TypeScript UI suite (Playwright Test) — see `automation-ui/README.md` |
 | `.github/CODEOWNERS` | Owner is requested on every PR |
 
 ## One-time setup (cannot be done from code)
@@ -44,6 +45,9 @@ deploy; they wait for the deploy, then test it.
   - `develop`: require a PR; required checks = every `PR Checks` job; no force-push.
   - `main`: require a PR; **1 approval**; require review from Code Owners; dismiss stale
     approvals; required checks = every `PR Checks` job **plus `Staging Verified`**; no force-push.
+    The release PR (`develop → main`) skips the `PR Checks` jobs (each job has an `if:` guard),
+    since `develop` already passed them and `Staging Verified`; GitHub counts skipped jobs as
+    passing. Hotfix PRs into `main` still run every job.
   - To select `Staging Verified` as a required check it must have been reported once — merge
     something to `develop` first.
 
