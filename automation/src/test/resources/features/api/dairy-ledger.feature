@@ -78,6 +78,8 @@ Feature: Dairy ledger
     Then the dairy ledger of "brand" shows:
       | date       | stock | closing |
       | ${today-2} | 300   | 300     |
+    When admin calls "GET /api/v1/stock-receipts/availability?date=${today-2}"
+    Then the JSON amount "data.find { it.productId == ${milk.id} }.received" equals "15"
     When admin calls "GET /api/v1/dairy-balance/route-breakdown?brandId=${brand.id}&from=${today-3}&to=${today}"
     Then the call succeeds
     And the JSON amount "data.find { it.routeId == ${north.id} }.totalAmount" equals "200"

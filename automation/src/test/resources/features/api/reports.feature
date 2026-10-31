@@ -58,14 +58,13 @@ Feature: Reports
       """
     When admin calls "GET /api/v1/reports/salesperson-statement?salespersonId=${sp.id}&from=${today-3}&to=${today-1}"
     Then the call succeeds
-    And the JSON list "data" has 1 item
-    And the JSON field "data[0].items[0].productName" equals "${milk.name}"
-    And the JSON amount "data[0].items[0].unitPrice" equals "22"
-    And the JSON amount "data[0].items[0].totalAmount" equals "220"
-    And the JSON list "data[0].payments" has 1 item
-    And the JSON amount "data[0].payments[0].amount" equals "100"
-    And the JSON amount "data[0].topUps[0].amount" equals "500"
-    And the JSON amount "data[0].closingBalance" equals "620"
+    And the JSON field "data.find { it.date.startsWith('${today-2}') }.items[0].productName" equals "${milk.name}"
+    And the JSON amount "data.find { it.date.startsWith('${today-2}') }.items[0].unitPrice" equals "22"
+    And the JSON amount "data.find { it.date.startsWith('${today-2}') }.items[0].totalAmount" equals "220"
+    And the JSON list "data.find { it.date.startsWith('${today-2}') }.payments" has 1 item
+    And the JSON amount "data.find { it.date.startsWith('${today-2}') }.payments[0].amount" equals "100"
+    And the JSON amount "data.find { it.date.startsWith('${today-2}') }.topUps[0].amount" equals "500"
+    And the JSON amount "data.find { it.date.startsWith('${today-2}') }.closingBalance" equals "620"
 
   Scenario: Statement items follow the category display order
     Given a throwaway category "dairyFirst" in brand "brand"

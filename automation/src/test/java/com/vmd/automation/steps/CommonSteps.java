@@ -133,6 +133,11 @@ public class CommonSteps {
         assertThat(ctx.response.jsonPath().getString("code")).isEqualTo(code);
     }
 
+    @Then("the response does not mention {string}")
+    public void responseDoesNotMention(String word) {
+        assertThat(ctx.response.asString()).doesNotContainIgnoringCase(word);
+    }
+
     @Then("the response does not leak internals")
     public void noInternalsLeaked() {
         assertThat(ctx.response.asString()).doesNotContainIgnoringCase("prisma").doesNotContain("node_modules")
@@ -142,6 +147,37 @@ public class CommonSteps {
     /** Resolves ${...} tokens, so field paths can reference remembered ids: data.find { it.id == ${product.id} }. */
     private String p(String text) {
         return Placeholders.resolve(text, ctx.variables);
+    }
+
+    // ─── headers ─────────────────────────────────────────────────────────────
+
+    @Then("the response header {string} is present")
+    public void headerPresent(String name) {
+        assertThat(ctx.response.getHeader(name)).as("header %s", name).isNotNull();
+    }
+
+    @Then("the response header {string} is absent")
+    public void headerAbsent(String name) {
+        assertThat(ctx.response.getHeader(name)).as("header %s", name).isNull();
+    }
+
+    /** Set-Cookie can appear several times; any value containing the fragment satisfies the check. */
+    @Then("the response header {string} contains {string}")
+    public void headerContains(String name, String fragment) {
+        assertThat(ctx.response.getHeaders().getValues(name))
+                .as("header %s", name)
+                .anySatisfy(v -> assertThat(v).containsIgnoringCase(fragment));
+    }
+
+    /** The session cookie alone must not authenticate a request (cross-site request forgery hardening). */
+    @When("a caller holding {string} only as a cookie calls {string}")
+    public void cookieOnlyCalls(String sessionAlias, String methodAndPath) {
+        send(ApiClient.anonymous().header("Cookie", "token=" + ctx.variables.get(sessionAlias)), methodAndPath, null);
+    }
+
+    @Then("the response header {string} equals {string}")
+    public void headerEquals(String name, String value) {
+        assertThat(ctx.response.getHeader(name)).as("header %s", name).isEqualToIgnoringCase(value);
     }
 
     // ─── JSON fields ─────────────────────────────────────────────────────────

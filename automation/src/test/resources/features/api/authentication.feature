@@ -12,7 +12,12 @@ Feature: Authentication
     Then the response status is 200
     And the JSON field "data.role" equals "admin"
     And the JSON field "data.accessToken" is present
+    And the response header "Set-Cookie" contains "HttpOnly"
+    And the response header "Set-Cookie" contains "Secure"
+    And the response header "Set-Cookie" contains "SameSite=None"
     And I remember the JSON field "data.accessToken" as "session"
+    When a caller holding "session" only as a cookie calls "GET /api/v1/brands"
+    Then the response status is 403
     When the holder of "session" calls "POST /api/v1/auth/change-password" with:
       """
       { "currentPassword": "wrong-current", "newPassword": "brand-new-pass" }
@@ -76,3 +81,29 @@ Feature: Authentication
     Then the response status is 200
     When anonymous calls "POST /api/v1/auth/logout"
     Then the response status is 403
+
+  Scenario Outline: Two-step sign-in endpoints refuse a made-up session
+    When anonymous calls "POST /api/v1/auth/mfa/<step>" with:
+      """
+      { "mfaToken": "not.a.real.token"<extra> }
+      """
+    Then the response status is 401
+
+    Examples:
+      | step             | extra                  |
+      | verify           | , "code": "123456"     |
+      | setup-required   |                        |
+      | confirm-required | , "code": "123456"     |
+
+  Scenario Outline: Two-step codes must be well formed
+    When anonymous calls "POST /api/v1/auth/mfa/<step>" with:
+      """
+      <body>
+      """
+    Then the response status is 400
+
+    Examples:
+      | step             | body                                          |
+      | verify           | { "code": "123456" }                          |
+      | confirm-required | { "mfaToken": "x", "code": "12" }             |
+      | confirm-required | { "mfaToken": "x", "code": "abcdef" }         |

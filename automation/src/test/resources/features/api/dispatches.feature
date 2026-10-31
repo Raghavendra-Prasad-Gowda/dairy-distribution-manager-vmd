@@ -190,3 +190,23 @@ Feature: Stock entries (dispatches)
     And the error message contains "today"
     When dispatcher calls "PATCH /api/v1/dispatches/${dispatch.id}/unlock"
     Then the response status is 403
+
+  Scenario: Locking or unlocking an entry that is already in that state changes nothing
+    Given a salesperson with a clean ledger "other"
+    And admin dispatches 2 of "milk" at 22 to "other" on "${today-2}" remembered as "dispatch"
+    When admin calls "PATCH /api/v1/dispatches/${dispatch.id}/unlock"
+    Then the response status is 200
+    When admin calls "PATCH /api/v1/dispatches/${dispatch.id}/unlock"
+    Then the response status is 200
+    When admin calls "PATCH /api/v1/dispatches/${dispatch.id}/lock"
+    Then the response status is 200
+    When admin calls "PATCH /api/v1/dispatches/${dispatch.id}/lock"
+    Then the response status is 200
+
+  Scenario: A free sample can be given at a price of zero
+    Given a salesperson with a clean ledger "other"
+    When admin dispatches 3 of "milk" at 0 to "other" on "${today-2}"
+    Then the JSON amount "data.totalAmount" equals "0"
+    And the ledger of salesperson "other" shows:
+      | date       | given | closing |
+      | ${today-2} | 0     | 0       |

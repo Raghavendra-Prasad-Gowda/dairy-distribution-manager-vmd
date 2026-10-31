@@ -69,12 +69,8 @@ public final class Fixtures {
         return remember(alias, route);
     }
 
-    /**
-     * A salesperson with an empty ledger, borrowed from the run's pool and wiped when the scenario ends.
-     * Falls back to a fresh record when no superadmin is available to wipe it.
-     */
+    /** A salesperson with an empty ledger, borrowed from the run's pool and emptied again when the scenario ends. */
     public Map<String, Object> cleanSalesperson(String alias) {
-        if (!AuthManager.available(Role.SUPERADMIN)) return salesperson(alias, false);
         Map<String, Object> person = SalespersonPool.acquire();
         Object id = person.get("id");
         ctx.cleanup.register("return pooled salesperson " + id, () -> SalespersonPool.release(id));
