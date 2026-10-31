@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.vmd.automation.TestContext;
 import com.vmd.automation.core.ApiClient;
 import com.vmd.automation.core.AuthManager;
+import com.vmd.automation.core.JwtForge;
 import com.vmd.automation.core.Placeholders;
 import com.vmd.automation.core.Role;
 import io.cucumber.java.ParameterType;
@@ -54,6 +55,18 @@ public class CommonSteps {
     @When("a caller with a malformed token calls {string} with:")
     public void malformedTokenCallsWith(String methodAndPath, String body) {
         send(ApiClient.withToken("not.a.jwt"), methodAndPath, body);
+    }
+
+    /** Tokens the server must reject: unsigned, signed with the wrong key, or not valid yet. */
+    @When("a caller with {word} token for role {word} calls {string}")
+    public void forgedTokenCalls(String kind, String role, String methodAndPath) {
+        String token = switch (kind) {
+            case "an-unsigned" -> JwtForge.unsigned(role);
+            case "a-wrongly-signed" -> JwtForge.signedWithWrongSecret(role);
+            case "a-not-yet-valid" -> JwtForge.notYetValid(role);
+            default -> throw new IllegalArgumentException("unknown token kind " + kind);
+        };
+        send(ApiClient.withToken(token), methodAndPath, null);
     }
 
     private RequestSpecification specFor(Role role) {

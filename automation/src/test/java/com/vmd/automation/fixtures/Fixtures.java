@@ -7,6 +7,8 @@ import com.vmd.automation.core.ApiClient;
 import com.vmd.automation.core.AuthManager;
 import com.vmd.automation.core.Placeholders;
 import com.vmd.automation.core.Role;
+import com.vmd.automation.core.SalespersonCleanup;
+import com.vmd.automation.core.SalespersonPool;
 import io.restassured.response.Response;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -67,6 +69,18 @@ public final class Fixtures {
         return remember(alias, route);
     }
 
+    /**
+     * A salesperson with an empty ledger, borrowed from the run's pool and wiped when the scenario ends.
+     * Falls back to a fresh record when no superadmin is available to wipe it.
+     */
+    public Map<String, Object> cleanSalesperson(String alias) {
+        if (!AuthManager.available(Role.SUPERADMIN)) return salesperson(alias, false);
+        Map<String, Object> person = SalespersonPool.acquire();
+        Object id = person.get("id");
+        ctx.cleanup.register("return pooled salesperson " + id, () -> SalespersonPool.release(id));
+        return remember(alias, person);
+    }
+
     public Map<String, Object> salesperson(String alias, boolean canLogIn) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", "E2E " + Placeholders.unique());
@@ -79,31 +93,11 @@ public final class Fixtures {
         Map<String, Object> salesperson = new LinkedHashMap<>(create(Role.ADMIN, "/api/v1/salespeople", body, "salesperson"));
         if (password != null) salesperson.put("password", password);
         Object id = salesperson.get("id");
-        ctx.cleanup.register("remove salesperson " + id, () -> removeSalesperson(id));
+        ctx.cleanup.register("remove salesperson " + id, () -> SalespersonCleanup.remove(id));
         return remember(alias, salesperson);
     }
 
     // ─── internals ───────────────────────────────────────────────────────────
-
-    /**
-     * Delete first (one call when the salesperson has no history). Only if that is refused is the
-     * ledger wiped (superadmin) and the delete retried; a salesperson that still cannot be deleted
-     * is deactivated, which hides them from every list.
-     */
-    private void removeSalesperson(Object id) {
-        String admin = AuthManager.token(Role.ADMIN);
-        Response del = ApiClient.withToken(admin).delete("/api/v1/salespeople/" + id);
-        if (del.statusCode() == 400 && AuthManager.available(Role.SUPERADMIN)) {
-            ApiClient.withToken(AuthManager.token(Role.SUPERADMIN))
-                    .body(Map.of("salespersonIds", java.util.List.of(id))).post("/api/v1/salespeople/reset-ledger");
-            del = ApiClient.withToken(admin).delete("/api/v1/salespeople/" + id);
-        }
-        if (del.statusCode() == 400) {
-            ApiClient.withToken(admin).body(Map.of("isActive", false)).put("/api/v1/salespeople/" + id);
-        } else {
-            assertThat(del.statusCode()).as("delete salesperson (%s)", del.asString()).isIn(200, 404);
-        }
-    }
 
     private Map<String, Object> create(Role role, String path, Map<String, Object> body, String what) {
         Response res = ApiClient.withToken(AuthManager.token(role)).body(body).post(path);

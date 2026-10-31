@@ -117,14 +117,9 @@ public final class AuthManager {
 
     /** Removes the run-scoped users. Called once after the whole run. */
     public static synchronized void shutdown() {
-        if (salesmanId != null) {
-            String admin = SESSIONS.containsKey(Role.ADMIN) ? SESSIONS.get(Role.ADMIN).token() : null;
-            if (admin != null) {
-                Response del = ApiClient.withToken(admin).delete("/api/v1/salespeople/" + salesmanId);
-                if (del.statusCode() == 400) { // has history (e.g. a payment): deactivate instead
-                    ApiClient.withToken(admin).body(Map.of("isActive", false)).put("/api/v1/salespeople/" + salesmanId);
-                }
-            }
+        if (SESSIONS.containsKey(Role.ADMIN)) SalespersonPool.shutdown();
+        if (salesmanId != null && SESSIONS.containsKey(Role.ADMIN)) {
+            SalespersonCleanup.remove(salesmanId);
         }
         if (dispatcherAdminUserId != null && SESSIONS.containsKey(Role.SUPERADMIN)) {
             ApiClient.withToken(SESSIONS.get(Role.SUPERADMIN).token()).delete("/api/v1/admin-users/" + dispatcherAdminUserId);

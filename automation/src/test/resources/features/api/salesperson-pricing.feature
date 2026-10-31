@@ -79,7 +79,7 @@ Feature: Salesperson prices and product access
 
   Scenario: Prices can be copied from another salesperson
     Given admin enables "milk" for everyone at price 22
-    And a throwaway salesperson "other"
+    And a salesperson with a clean ledger "other"
     And admin sets the price of "milk" for "other" to 41
     When admin calls "POST /api/v1/salespeople/${sp.id}/prices/copy-from/${other.id}?brandId=${brand.id}"
     Then the response status is 200
@@ -95,7 +95,7 @@ Feature: Salesperson prices and product access
 
   Scenario: The same price can be set for several salespeople at once
     Given admin enables "milk" for everyone at price 22
-    And a throwaway salesperson "other"
+    And a salesperson with a clean ledger "other"
     When admin calls "POST /api/v1/salespeople/bulk-update" with:
       """
       { "salespersonIds": [ ${sp.id}, ${other.id} ], "effectiveFrom": "${today}",
@@ -138,7 +138,7 @@ Feature: Salesperson prices and product access
     Then the JSON field "data.find { it.productId == ${milk.id} }.isEnabled" equals "true"
 
   Scenario: Exceptions can be set for several salespeople at once
-    Given a throwaway salesperson "other"
+    Given a salesperson with a clean ledger "other"
     When admin calls "POST /api/v1/salespeople/products/bulk-update" with:
       """
       { "salespersonIds": [ ${sp.id}, ${other.id} ], "products": [ { "productId": ${milk.id}, "isEnabled": true } ] }
@@ -174,7 +174,7 @@ Feature: Salesperson prices and product access
     Then the JSON field "data.find { it.productId == ${inCat.id} }.categoryDisplayOrder" equals "4"
 
   Scenario: A salesman sees only the products enabled for them, and only their own prices
-    Given a throwaway salesperson "other"
+    Given a salesperson with a clean ledger "other"
     And admin enables "milk" for everyone at price 22
     When salesman calls "GET /api/v1/salespeople/${sp.id}/prices"
     Then the call succeeds

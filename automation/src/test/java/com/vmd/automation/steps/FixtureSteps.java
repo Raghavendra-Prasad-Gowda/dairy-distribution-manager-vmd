@@ -43,6 +43,13 @@ public class FixtureSteps {
         ctx.variables.put(alias, Map.of("id", com.vmd.automation.core.AuthManager.salesmanId()));
     }
 
+    /** The caller's own admin-user id, read from the token the suite obtained (needed for "cannot change yourself" rules). */
+    @Given("the superadmin's own account as {string}")
+    public void theSuperadminsOwnAccount(String alias) {
+        String token = com.vmd.automation.core.AuthManager.token(com.vmd.automation.core.Role.SUPERADMIN);
+        ctx.variables.put(alias, Map.of("id", com.vmd.automation.core.JwtForge.claim(token, "adminUserId")));
+    }
+
     @Given("a throwaway brand {string}")
     public void aThrowawayBrand(String alias) {
         fixtures.brand(alias);
@@ -68,6 +75,12 @@ public class FixtureSteps {
     @Given("a throwaway route {string} in brand {string}")
     public void aThrowawayRoute(String alias, String brandAlias) {
         fixtures.route(alias, entity(brandAlias));
+    }
+
+    /** For scenarios about ledgers, stock entries and prices; scenarios that edit or delete salespeople use "throwaway". */
+    @Given("a salesperson with a clean ledger {string}")
+    public void aSalespersonWithACleanLedger(String alias) {
+        fixtures.cleanSalesperson(alias);
     }
 
     @Given("a throwaway salesperson {string}")
