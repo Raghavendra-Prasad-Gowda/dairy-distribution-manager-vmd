@@ -17,7 +17,7 @@
     <junit.platform.version>1.11.3</junit.platform.version>
     <junit.jupiter.version>5.11.3</junit.jupiter.version>
     <rest-assured.version>5.5.0</rest-assured.version>
-    <playwright.version>1.49.0</playwright.version>
+    <jackson.version>2.18.2</jackson.version>
     <assertj.version>3.26.3</assertj.version>
   </properties>
 
@@ -59,10 +59,11 @@
       <version>${rest-assured.version}</version>
       <scope>test</scope>
     </dependency>
+    <!-- REST Assured serialises Map bodies with this; it used to arrive transitively via Playwright. -->
     <dependency>
-      <groupId>com.microsoft.playwright</groupId>
-      <artifactId>playwright</artifactId>
-      <version>${playwright.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>

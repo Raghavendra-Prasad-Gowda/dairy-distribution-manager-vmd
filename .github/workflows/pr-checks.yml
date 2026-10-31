@@ -184,3 +184,13 @@ jobs:
       # Catches a broken step definition or page object before it reaches the staging pipeline.
       # The suite itself needs a deployed environment, so it only runs in staging-pipeline.yml.
       - run: mvn -B -ntp test-compile
+      # UI suite (Playwright + TypeScript): typecheck only; it runs against a deployed env in staging.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: automation-ui/package-lock.json
+      - run: npm ci
+        working-directory: automation-ui
+      - run: npm run typecheck
+        working-directory: automation-ui
