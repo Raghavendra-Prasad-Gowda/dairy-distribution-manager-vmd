@@ -769,7 +769,7 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Never force-push `develop` or `main`
 
 ### CI / pipeline
-- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile).
+- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
 - A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `@ui`, sets the `Staging Verified` commit status and opens/updates the release PR.
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
 - A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.

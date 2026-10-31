@@ -44,6 +44,9 @@ deploy; they wait for the deploy, then test it.
   - `develop`: require a PR; required checks = every `PR Checks` job; no force-push.
   - `main`: require a PR; **1 approval**; require review from Code Owners; dismiss stale
     approvals; required checks = every `PR Checks` job **plus `Staging Verified`**; no force-push.
+    The release PR (`develop → main`) skips the `PR Checks` jobs (each job has an `if:` guard),
+    since `develop` already passed them and `Staging Verified`; GitHub counts skipped jobs as
+    passing. Hotfix PRs into `main` still run every job.
   - To select `Staging Verified` as a required check it must have been reported once — merge
     something to `develop` first.
 
