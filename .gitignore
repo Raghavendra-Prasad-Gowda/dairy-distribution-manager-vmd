@@ -38,3 +38,6 @@ client/coverage/
 
 # build identity written by scripts/write-version.js
 server/version.json
+
+# Java automation suite
+automation/target/
