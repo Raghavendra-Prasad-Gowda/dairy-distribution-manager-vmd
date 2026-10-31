@@ -1,0 +1,3 @@
+# Requested automatically as reviewer on every PR. With branch protection on main
+# ("Require review from Code Owners") this makes the owner's approval mandatory.
+* @Raghavendra-Prasad-Gowda

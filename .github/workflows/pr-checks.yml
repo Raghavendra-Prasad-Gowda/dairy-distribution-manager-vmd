@@ -139,3 +139,21 @@ jobs:
       # not a backlog. Dependabot (.github/dependabot.yml) keeps deps current
       # so this stays green.
       - run: npm audit --audit-level=moderate
+
+  automation-compile:
+    name: Compile automation suite (API + UI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: automation
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+          cache-dependency-path: automation/pom.xml
+      # Catches a broken step definition or page object before it reaches the staging pipeline.
+      # The suite itself needs a deployed environment, so it only runs in staging-pipeline.yml.
+      - run: mvn -B -ntp test-compile

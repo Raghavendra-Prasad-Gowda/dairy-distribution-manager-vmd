@@ -25,7 +25,12 @@
 dairy-distribution-manager-vmd/
 ├── CLAUDE.md                          # This file — root engineering contract
 ├── docker-compose.yml                 # Local dev Postgres
-├── .github/workflows/pr-checks.yml   # CI on every PR to main
+├── .github/workflows/
+│   ├── pr-checks.yml                  # CI on every PR to develop/main
+│   ├── staging-pipeline.yml           # After merge to develop: wait deploy → API → UI → release PR
+│   └── production-verify.yml          # After merge to main: wait deploy → smoke → tag + release
+├── automation/                        # Java: Cucumber + REST Assured (API) + Playwright (UI) vs deployed env
+├── docs/release-pipeline.md           # Release flow + one-time setup checklist
 │
 ├── server/                            # Express 5 backend
 │   ├── CLAUDE.md                      # Backend engineering sub-contract
@@ -738,35 +743,37 @@ const isEnabled = enabledMap[item.productId] ?? product.salespersonEnabled;
 
 ## 16. Git Standards
 
-### Primary development branch
-**`develop`** is the default branch for all development. Always develop on `develop` unless told otherwise.
+Full flow and one-time setup: `docs/release-pipeline.md`.
 
-### Branch workflow
-```bash
-# Start any new work from develop
-git fetch origin develop
-git checkout develop
-git pull origin develop
-
-# Develop, commit, push
-git add .
-git commit -m "feat: add product category sort to dispatch sheet"
-git push -u origin develop
+```
+feat/* → PR → develop → (auto-deploy testing) → API automation → UI automation
+       → "Staging Verified" + auto release PR develop → main → human approval → main → (auto-deploy prod)
 ```
 
-### Branch naming (only when explicitly requested to use a feature branch)
-- Feature branches: `feat/<description>`
-- Bug fixes: `fix/<description>`
-- Do NOT create these unless the user asks — default to `develop`
+### Branches
+- **`develop`** is the integration branch and the GitHub default. Never push to it directly — open a PR.
+- **`main`** is production. Only the release PR (`develop → main`) or a `hotfix/*` PR lands here.
+- Work on a feature branch cut from `develop`:
+  - `feat/<description>`, `fix/<description>`, `hotfix/<description>` (hotfix is cut from `main`)
+
+```bash
+git fetch origin develop
+git checkout -b feat/short-description origin/develop
+# ...commit...
+git push -u origin feat/short-description   # then open a PR into develop
+```
 
 ### Commit message rules
 - Imperative mood, present tense: "add", "fix", "update" — not "added", "fixed"
 - Max 72 chars in the subject line
-- Never force-push `main`
+- Never force-push `develop` or `main`
 
-### CI
-- PRs to `main` run CI automatically (`.github/workflows/pr-checks.yml`)
-- CI runs both Playwright (backend) and Vitest (frontend) tests
+### CI / pipeline
+- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile).
+- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `@ui`, sets the `Staging Verified` commit status and opens/updates the release PR.
+- `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
+- A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
+- After a hotfix to `main`, open a PR `main → develop`.
 
 ---
 
@@ -779,6 +786,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 - **Frontend change** → add/update Vitest spec next to the page file
 - Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
 - Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`
+- A user-facing flow that spans backend + frontend → also add a Cucumber scenario in `automation/` (`@api` and/or `@ui`; `@smoke` only if read-only). See `automation/README.md`
 
 ### 17.2 Slack notification
 - Every write action needs a Slack card
