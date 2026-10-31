@@ -11,6 +11,10 @@
 # running commit whose server/ code is identical to the SHA under test (checked with the GitHub
 # compare API; needs GH_TOKEN + GITHUB_REPOSITORY, otherwise only an exact match passes).
 #
+# On success the commit the backend is actually running is written to $GITHUB_OUTPUT as
+# `commit=<sha7>`, so later steps/jobs can assert against what is deployed (it differs from the
+# pushed SHA when Render skipped the deploy).
+#
 # Usage: wait-for-backend.sh <api-base-url> <full-sha> [timeout-seconds]
 # Env:   BACKEND_PATH  repo directory Render deploys from (default: server)
 #        POLL_SECONDS  seconds between polls (default: 15)
@@ -27,6 +31,11 @@ got=""
 backend_path="${BACKEND_PATH:-server}"
 poll="${POLL_SECONDS:-15}"
 checked=""
+
+report_commit() {
+  [ -n "${GITHUB_OUTPUT:-}" ] && echo "commit=$1" >> "$GITHUB_OUTPUT"
+  return 0
+}
 
 # Succeeds when nothing under $backend_path differs between commit $1 (what is running) and $sha.
 # Fails (=> keep waiting) on any doubt: unknown commit, API error, or a truncated file list.
@@ -50,6 +59,7 @@ while :; do
 
   if [ "$got" = "$want" ]; then
     echo "Backend is live on ${want}"
+    report_commit "$got"
     exit 0
   fi
 
@@ -59,6 +69,7 @@ while :; do
     checked="$got"
     if backend_code_unchanged_since "$got"; then
       echo "Backend runs ${got}; nothing under ${backend_path}/ changed between ${got} and ${want}, so Render has no new build to deploy. Treating it as live."
+      report_commit "$got"
       exit 0
     fi
   fi

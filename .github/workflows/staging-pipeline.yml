@@ -29,6 +29,9 @@ jobs:
     name: Wait for testing deploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      # Commit the backend is really running (== pushed SHA unless Render skipped the deploy).
+      backend_commit: ${{ steps.render.outputs.commit }}
     permissions:
       contents: read
       deployments: read
@@ -47,6 +50,7 @@ jobs:
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Wait for Render (backend)
+        id: render
         env:
           GH_TOKEN: ${{ github.token }}
         run: .github/scripts/wait-for-backend.sh "$API_URL" "${{ github.sha }}"
@@ -76,7 +80,9 @@ jobs:
         working-directory: automation
         env:
           API_BASE_URL: ${{ env.API_URL }}
-          EXPECTED_COMMIT: ${{ github.sha }}
+          # The build /health must report: the commit Render runs, which is not the pushed SHA
+          # when the push changed nothing under server/ and Render skipped the deploy.
+          EXPECTED_COMMIT: ${{ needs.wait-for-deploy.outputs.backend_commit || github.sha }}
           # Authenticated @api scenarios (e.g. routes.feature) log in once per run as this account.
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}

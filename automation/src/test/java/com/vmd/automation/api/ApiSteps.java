@@ -44,9 +44,10 @@ public class ApiSteps {
     }
 
     /**
-     * /health reports the first 7 chars of the deployed commit. In CI the pipeline passes the
-     * pushed SHA as EXPECTED_COMMIT, proving the tests ran against THIS build and not the
-     * previous deploy. Locally (no EXPECTED_COMMIT) the check is skipped.
+     * /health reports the first 7 chars of the deployed commit. In CI, EXPECTED_COMMIT is the
+     * commit wait-for-backend.sh saw running - the pushed SHA, or an older commit with identical
+     * server/ code when Render skipped the deploy. It proves the tests ran against the build the
+     * pipeline waited for, not some other deploy. Locally (no EXPECTED_COMMIT) the check is skipped.
      */
     @Then("the deployed build matches the commit under test")
     public void theDeployedBuildMatchesTheCommitUnderTest() {

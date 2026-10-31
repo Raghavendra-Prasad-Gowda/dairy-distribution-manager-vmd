@@ -27,7 +27,7 @@ API_BASE_URL=http://localhost:3001 mvn test -Dcucumber.filter.tags="@api"
 | Variable | Used by | Notes |
 |---|---|---|
 | `API_BASE_URL` | api | backend origin, no `/api/v1` (default `http://localhost:3001`) |
-| `EXPECTED_COMMIT` | api | full SHA; asserts `/health` is serving that build. Unset = skipped |
+| `EXPECTED_COMMIT` | api | commit `/health` must report (CI passes the one `wait-for-backend.sh` saw running). Full or 7-char SHA. Unset = skipped |
 | `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` | api | account **without MFA**; authenticated `@api` scenarios (e.g. `routes.feature`) need it |
 
 Reports: `target/cucumber-reports/report.html`.
