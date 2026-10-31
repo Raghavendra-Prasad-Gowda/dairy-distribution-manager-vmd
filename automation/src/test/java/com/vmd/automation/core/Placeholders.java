@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
  *   ${brand.id}            field of an entity remembered earlier (dotted path into the stored JSON)
  *   ${unique}              a fresh E2E-... token        ${unique:a}  the same token every time within a scenario
  *   ${today} ${today+7}    India-time dates (yyyy-MM-dd) ${today-30}
+ *   ${repeat:501}          501 characters, for length-limit checks
  * </pre>
  */
 public final class Placeholders {
@@ -42,6 +43,7 @@ public final class Placeholders {
         if (key.startsWith("unique:")) {
             return String.valueOf(variables.computeIfAbsent("unique:" + key.substring(7), k -> unique()));
         }
+        if (key.startsWith("repeat:")) return "x".repeat(Integer.parseInt(key.substring(7)));
         Matcher date = DATE.matcher(key);
         if (date.matches()) {
             long days = date.group(2) == null ? 0 : Long.parseLong(date.group(2));
