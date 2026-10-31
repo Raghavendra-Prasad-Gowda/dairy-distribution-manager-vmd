@@ -97,6 +97,16 @@ public final class Fixtures {
         return remember(alias, salesperson);
     }
 
+    /** A throwaway admin-tier user (needs a superadmin); deleted afterwards. The generated password is kept on the entity. */
+    public Map<String, Object> adminUser(String alias, String role) {
+        String password = "E2e!" + Long.toString(System.nanoTime(), 36) + "aA1";
+        Map<String, Object> user = new LinkedHashMap<>(create(Role.SUPERADMIN, "/api/v1/admin-users",
+                Map.of("username", "e2e-" + Placeholders.unique().toLowerCase(), "password", password, "role", role), "admin user"));
+        user.put("password", password);
+        registerDelete(Role.SUPERADMIN, "/api/v1/admin-users/" + user.get("id"));
+        return remember(alias, user);
+    }
+
     // ─── internals ───────────────────────────────────────────────────────────
 
     private Map<String, Object> create(Role role, String path, Map<String, Object> body, String what) {

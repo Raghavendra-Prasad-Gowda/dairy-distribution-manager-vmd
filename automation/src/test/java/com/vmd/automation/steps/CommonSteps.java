@@ -57,6 +57,17 @@ public class CommonSteps {
         send(ApiClient.withToken("not.a.jwt"), methodAndPath, body);
     }
 
+    /** Calls with a session token remembered earlier (e.g. from a sign-in the scenario performed itself). */
+    @When("the holder of {string} calls {string}")
+    public void holderCalls(String sessionAlias, String methodAndPath) {
+        send(ApiClient.withToken(String.valueOf(ctx.variables.get(sessionAlias))), methodAndPath, null);
+    }
+
+    @When("the holder of {string} calls {string} with:")
+    public void holderCallsWith(String sessionAlias, String methodAndPath, String body) {
+        send(ApiClient.withToken(String.valueOf(ctx.variables.get(sessionAlias))), methodAndPath, body);
+    }
+
     /** Tokens the server must reject: unsigned, signed with the wrong key, or not valid yet. */
     @When("a caller with {word} token for role {word} calls {string}")
     public void forgedTokenCalls(String kind, String role, String methodAndPath) {
@@ -171,16 +182,25 @@ public class CommonSteps {
                 .isEqualByComparingTo(new BigDecimal(Placeholders.resolve(expected, ctx.variables)));
     }
 
+    @Then("the JSON amount {string} is {string} plus {int}")
+    public void theJsonAmountIsPlus(String field, String base, int increment) {
+        Object actual = ctx.response.jsonPath().get(p(field));
+        assertThat(actual).as("%s (body: %s)", field, ctx.response.asString()).isNotNull();
+        assertThat(new BigDecimal(String.valueOf(actual)))
+                .as("%s", field)
+                .isEqualByComparingTo(new BigDecimal(p(base)).add(BigDecimal.valueOf(increment)));
+    }
+
     // ─── JSON lists ──────────────────────────────────────────────────────────
 
     @Then("the JSON list {string} has {int} item(s)")
     public void theJsonListHasItems(String path, int count) {
-        assertThat(ctx.response.jsonPath().getList(path)).as("%s (body: %s)", path, ctx.response.asString()).hasSize(count);
+        assertThat(ctx.response.jsonPath().getList(p(path))).as("%s (body: %s)", path, ctx.response.asString()).hasSize(count);
     }
 
     @Then("the JSON list {string} is not empty")
     public void theJsonListIsNotEmpty(String path) {
-        assertThat(ctx.response.jsonPath().getList(path)).as("%s", path).isNotEmpty();
+        assertThat(ctx.response.jsonPath().getList(p(path))).as("%s", path).isNotEmpty();
     }
 
     @Then("the JSON list {string} contains an item whose {string} is {string}")
@@ -199,7 +219,7 @@ public class CommonSteps {
 
     @Then("the JSON list {string} is ordered by {string} as {string}")
     public void listIsOrdered(String path, String field, String expectedCsv) {
-        List<Map<String, Object>> items = ctx.response.jsonPath().getList(path);
+        List<Map<String, Object>> items = ctx.response.jsonPath().getList(p(path));
         List<String> actual = items.stream().map(i -> String.valueOf(i.get(field))).toList();
         List<String> want = List.of(Placeholders.resolve(expectedCsv, ctx.variables).split("\\s*,\\s*"));
         assertThat(actual.stream().filter(want::contains).toList()).as("order of %s.%s", path, field).isEqualTo(want);
@@ -207,7 +227,7 @@ public class CommonSteps {
 
     private List<Map<String, Object>> matching(String path, String field, String expected) {
         String want = Placeholders.resolve(expected, ctx.variables);
-        List<Map<String, Object>> items = ctx.response.jsonPath().getList(path);
+        List<Map<String, Object>> items = ctx.response.jsonPath().getList(p(path));
         assertThat(items).as("list at %s (body: %s)", path, ctx.response.asString()).isNotNull();
         return items.stream().filter(i -> want.equals(String.valueOf(i.get(field)))).toList();
     }

@@ -50,6 +50,16 @@ public class FixtureSteps {
         ctx.variables.put(alias, Map.of("id", com.vmd.automation.core.JwtForge.claim(token, "adminUserId")));
     }
 
+    @Given("a throwaway admin user {string}")
+    public void aThrowawayAdminUser(String alias) {
+        fixtures.adminUser(alias, "admin");
+    }
+
+    @Given("a throwaway admin user {string} with role {string}")
+    public void aThrowawayAdminUserWithRole(String alias, String role) {
+        fixtures.adminUser(alias, role);
+    }
+
     @Given("a throwaway brand {string}")
     public void aThrowawayBrand(String alias) {
         fixtures.brand(alias);
