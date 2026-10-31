@@ -15,7 +15,7 @@ public final class TestConfig {
     }
 
 
-    /** Full git SHA of the commit under test. Empty = skip the "deployed build" check. */
+    /** Commit the backend is expected to be running (full or 7-char SHA). Empty = skip the "deployed build" check. */
     public static String expectedCommit() {
         return optional("EXPECTED_COMMIT", "");
     }
