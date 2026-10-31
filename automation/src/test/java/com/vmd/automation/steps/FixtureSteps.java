@@ -37,6 +37,12 @@ public class FixtureSteps {
         ctx.variables.put(alias, found);
     }
 
+    /** The salesman account the run logs in as, for "my own data" scoping checks. */
+    @Given("the run's salesman as {string}")
+    public void theRunsSalesman(String alias) {
+        ctx.variables.put(alias, Map.of("id", com.vmd.automation.core.AuthManager.salesmanId()));
+    }
+
     @Given("a throwaway brand {string}")
     public void aThrowawayBrand(String alias) {
         fixtures.brand(alias);

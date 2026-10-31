@@ -85,14 +85,20 @@ public final class Fixtures {
 
     // ─── internals ───────────────────────────────────────────────────────────
 
+    /**
+     * Delete first (one call when the salesperson has no history). Only if that is refused is the
+     * ledger wiped (superadmin) and the delete retried; a salesperson that still cannot be deleted
+     * is deactivated, which hides them from every list.
+     */
     private void removeSalesperson(Object id) {
         String admin = AuthManager.token(Role.ADMIN);
-        if (AuthManager.available(Role.SUPERADMIN)) { // wipes payments/dispatches so the delete is allowed
+        Response del = ApiClient.withToken(admin).delete("/api/v1/salespeople/" + id);
+        if (del.statusCode() == 400 && AuthManager.available(Role.SUPERADMIN)) {
             ApiClient.withToken(AuthManager.token(Role.SUPERADMIN))
                     .body(Map.of("salespersonIds", java.util.List.of(id))).post("/api/v1/salespeople/reset-ledger");
+            del = ApiClient.withToken(admin).delete("/api/v1/salespeople/" + id);
         }
-        Response del = ApiClient.withToken(admin).delete("/api/v1/salespeople/" + id);
-        if (del.statusCode() == 400) { // still has history: deactivating hides it from every list
+        if (del.statusCode() == 400) {
             ApiClient.withToken(admin).body(Map.of("isActive", false)).put("/api/v1/salespeople/" + id);
         } else {
             assertThat(del.statusCode()).as("delete salesperson (%s)", del.asString()).isIn(200, 404);

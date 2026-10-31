@@ -22,6 +22,15 @@ public class TestContext {
     /** Undo-actions for everything this scenario created; run after the scenario, newest first. */
     public final Cleanup cleanup = new Cleanup();
 
+    /** The numeric id of a remembered entity, e.g. {@code idOf("milk")} for a product set up earlier. */
+    public long idOf(String alias) {
+        Object entity = variables.get(alias);
+        if (!(entity instanceof Map<?, ?> map) || map.get("id") == null) {
+            throw new IllegalStateException("No entity \"" + alias + "\" with an id was set up earlier in this scenario");
+        }
+        return ((Number) map.get("id")).longValue();
+    }
+
     // Routes (@routes scenarios, RouteSteps)
     public Integer brandId;
     public Integer routeId;
