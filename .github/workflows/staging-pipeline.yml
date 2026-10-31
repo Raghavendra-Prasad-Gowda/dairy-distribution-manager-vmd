@@ -73,6 +73,9 @@ jobs:
         env:
           API_BASE_URL: ${{ env.API_URL }}
           EXPECTED_COMMIT: ${{ github.sha }}
+          # Authenticated @api scenarios (e.g. routes.feature) log in once per run as this account.
+          E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: mvn -B -ntp test -Dcucumber.filter.tags="@api"
       - uses: actions/upload-artifact@v4
         if: always()
