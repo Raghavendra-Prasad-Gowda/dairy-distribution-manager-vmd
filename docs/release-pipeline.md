@@ -29,7 +29,7 @@ deploy; they wait for the deploy, then test it.
 | `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` and type-checks `automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
-| `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA |
+| `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
 | `automation/` | Java API suite (Cucumber + REST Assured) — see `automation/README.md` |
 | `automation-ui/` | TypeScript UI suite (Playwright Test) — see `automation-ui/README.md` |
