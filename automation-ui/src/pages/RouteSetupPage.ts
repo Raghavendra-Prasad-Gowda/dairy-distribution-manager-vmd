@@ -15,9 +15,19 @@ export class RouteSetupPage {
     this.form = page.locator('form').filter({ has: this.numberInput });
   }
 
-  async open(): Promise<void> {
+  /**
+   * Opens the page with a brand selected. The brand list loads asynchronously, and the page posts
+   * `brandId: activeBrandId` - so adding a route before it arrives sends null and the API answers
+   * 400. Slow networks (a CI runner talking to a free-tier Render service) hit that easily, hence
+   * the explicit wait. Nandini is used because routes are a Nandini concept and it matches the API suite.
+   */
+  async open(brandName = 'Nandini'): Promise<void> {
     await this.page.goto('/dairy/setup/routes');
     await this.heading.waitFor();
+    await this.page.getByRole('button', { name: brandName, exact: true }).click();
+    await expect(this.page.getByText('Routes defined here appear as columns in the')).toContainText(
+      `in the ${brandName} Stock Receipt`,
+    );
   }
 
   /** The table row for a route number. Exact match: "Route E2E-1" must not match "Route E2E-1-R". */
