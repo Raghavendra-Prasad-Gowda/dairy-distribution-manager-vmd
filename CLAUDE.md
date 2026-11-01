@@ -636,7 +636,8 @@ test('returns 200 with data', async ({ request }) => {
 });
 ```
 
-**Minimum coverage per new endpoint:**
+**Minimum coverage per new endpoint** (as an API scenario in `automation/`; use a mocked spec only for logic the
+API cannot reach):
 - 403 (no token)
 - 401 (bad/expired token)
 - 400 (invalid input / bad ID)
@@ -646,7 +647,9 @@ test('returns 200 with data', async ({ request }) => {
 
 ### Backend — API automation against the deployed environment
 
-`server/tests/playwright` (above) proves the code with a **mocked** Prisma. `automation/` proves the
+`server/tests/playwright` (above) proves the code with a **mocked** Prisma, and now holds only what the API suite
+cannot test (unit-level logic, MFA/lock-out, rate limits, Slack cards, forged-token cases, finalisation) plus a few
+mixed files; endpoint behaviour is tested in `automation/`. `automation/` proves the
 **deployed backend with its real database**, and runs after every merge to `develop`
 (`staging-pipeline.yml`: `@api and not @known-defect and not @shared-state`) and, read-only, after a merge to `main`
 (`@api and @smoke`).
