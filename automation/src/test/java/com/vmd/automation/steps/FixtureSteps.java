@@ -40,7 +40,13 @@ public class FixtureSteps {
     /** The salesman account the run logs in as, for "my own data" scoping checks. */
     @Given("the run's salesman as {string}")
     public void theRunsSalesman(String alias) {
-        ctx.variables.put(alias, Map.of("id", com.vmd.automation.core.AuthManager.salesmanId()));
+        ctx.variables.put(alias, com.vmd.automation.core.AuthManager.credentials(com.vmd.automation.core.Role.SALESMAN));
+    }
+
+    /** The dispatcher the run signs in as (needs a superadmin), including its generated credentials. */
+    @Given("the run's dispatcher as {string}")
+    public void theRunsDispatcher(String alias) {
+        ctx.variables.put(alias, com.vmd.automation.core.AuthManager.credentials(com.vmd.automation.core.Role.DISPATCHER));
     }
 
     /** The caller's own admin-user id, read from the token the suite obtained (needed for "cannot change yourself" rules). */

@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
  *   ${unique}              a fresh E2E-... token        ${unique:a}  the same token every time within a scenario
  *   ${today} ${today+7}    India-time dates (yyyy-MM-dd) ${today-30}
  *   ${repeat:501}          501 characters, for length-limit checks
+ *   ${upper:user.username} the same value in capitals (case-insensitivity checks)
  * </pre>
  */
 public final class Placeholders {
@@ -43,6 +44,7 @@ public final class Placeholders {
         if (key.startsWith("unique:")) {
             return String.valueOf(variables.computeIfAbsent("unique:" + key.substring(7), k -> unique()));
         }
+        if (key.startsWith("upper:")) return valueOf(key.substring(6), variables).toUpperCase();
         if (key.startsWith("repeat:")) return "x".repeat(Integer.parseInt(key.substring(7)));
         Matcher date = DATE.matcher(key);
         if (date.matches()) {

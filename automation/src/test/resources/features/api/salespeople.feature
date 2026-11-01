@@ -19,11 +19,11 @@ Feature: Salesperson setup
     Then the JSON field "data.passwordHash" is absent
     And the JSON field "data.password" is absent
 
-  Scenario: A salesperson with a login can sign in as a salesman
+  Scenario: A salesperson with a login can sign in as a salesman, whatever the letter case of the user name
     Given a throwaway salesperson "sp" who can log in
     When anonymous calls "POST /api/v1/auth/login" with:
       """
-      { "username": "${sp.username}", "password": "${sp.password}" }
+      { "username": "${upper:sp.username}", "password": "${sp.password}" }
       """
     Then the response status is 200
     And the JSON field "data.role" equals "salesman"
@@ -48,10 +48,43 @@ Feature: Salesperson setup
     Given a throwaway salesperson "sp" who can log in
     When admin calls "POST /api/v1/salespeople" with:
       """
-      { "name": "E2E duplicate", "username": "${sp.username}", "password": "secret1" }
+      { "name": "E2E duplicate", "username": "${upper:sp.username}", "password": "secret1" }
       """
     Then the response status is 409
     And the error message contains "already taken"
+    When admin calls "POST /api/v1/salespeople" with:
+      """
+      { "name": "E2E different", "username": "${sp.username}-other", "password": "secret1" }
+      """
+    Then the response status is 201
+    And I remember the response data as "extra"
+    And afterwards admin cleans up with "DELETE /api/v1/salespeople/${extra.id}"
+
+  Scenario: A username change is checked against other salespeople, never against the person themselves
+    Given a throwaway salesperson "first" who can log in
+    And a throwaway salesperson "second" who can log in
+    When admin calls "PUT /api/v1/salespeople/${second.id}" with:
+      """
+      { "username": "${upper:first.username}" }
+      """
+    Then the response status is 409
+    When admin calls "PUT /api/v1/salespeople/${second.id}" with:
+      """
+      { "username": "${upper:second.username}" }
+      """
+    Then the response status is 200
+    When admin calls "PUT /api/v1/salespeople/${second.id}" with:
+      """
+      { "username": "ab" }
+      """
+    Then the response status is 400
+
+  Scenario: Display order cannot be negative
+    When admin calls "PUT /api/v1/salespeople/reorder" with:
+      """
+      [ { "id": 1, "displayOrder": -1 } ]
+      """
+    Then the response status is 400
 
   Scenario: A salesperson's details can be updated and deactivating hides them from the default list
     Given a throwaway salesperson "sp"

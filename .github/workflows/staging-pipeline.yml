@@ -93,8 +93,9 @@ jobs:
           # Set the repository variable E2E_STRICT=true once the superadmin secrets exist: a missing
           # prerequisite then fails the run instead of silently skipping those scenarios.
           E2E_STRICT: ${{ vars.E2E_STRICT }}
-        # @known-defect scenarios document API bugs that are not fixed yet; they must not block a release.
-        run: mvn -B -ntp test -Dcucumber.filter.tags="@api and not @known-defect"
+        # @known-defect scenarios document API bugs that are not fixed yet; @shared-state scenarios change state
+        # real users share (finalising the day). Neither belongs in the release gate.
+        run: mvn -B -ntp test -Dcucumber.filter.tags="@api and not @known-defect and not @shared-state"
       - name: Summarise scenarios
         if: always()
         working-directory: automation

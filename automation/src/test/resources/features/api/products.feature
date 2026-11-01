@@ -226,3 +226,100 @@ Feature: Product setup
   Scenario: Salesmen cannot read or change global salesperson settings
     When salesman calls "GET /api/v1/products/salesperson-global"
     Then the response status is 403
+
+  Scenario: Asking for products as of a date shows the cost price that applies on that date
+    Given the scenario works with an identifier "name"
+    When admin calls "POST /api/v1/products" with:
+      """
+      { "brandId": ${brand.id}, "name": "${name}", "costPrice": 30, "effectiveFrom": "${today+3}" }
+      """
+    Then I remember the response data as "product"
+    And afterwards admin cleans up with "DELETE /api/v1/products/${product.id}"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today+3}"
+    Then the JSON amount "data.find { it.id == ${product.id} }.costPrice" equals "30"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today}"
+    Then the JSON amount "data.find { it.id == ${product.id} }.costPrice" equals "0"
+
+  Scenario: Clearing a product's custom prices puts every salesperson back on the global price
+    Given a salesperson with a clean ledger "sp"
+    And a throwaway product "milk" in brand "brand"
+    And admin enables "milk" for everyone at price 22
+    And admin sets the price of "milk" for "sp" to 31
+    When admin calls "DELETE /api/v1/products/${milk.id}/salesperson-prices"
+    Then the response status is 200
+    And the JSON field "data.clearedCount" equals "1"
+    And the JSON field "data.message" contains "22"
+    And the JSON field "data.clearedSalespersonIds[0]" equals "${sp.id}"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices"
+    Then the JSON amount "data.find { it.productId == ${milk.id} }.sellingPrice" equals "22"
+
+  Scenario: The global settings list carries everything the screen needs
+    Given a throwaway product "milk" in brand "brand"
+    When admin calls "GET /api/v1/products/salesperson-global"
+    Then the call succeeds
+    And the JSON field "data.find { it.productId == ${milk.id} }.productName" equals "${milk.name}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.brandId" equals "${brand.id}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.brandName" equals "${brand.name}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.salespersonEnabled" equals "false"
+    And the JSON amount "data.find { it.productId == ${milk.id} }.dairyCostPrice" equals "10"
+    And the JSON amount "data.find { it.productId == ${milk.id} }.dairySellingPrice" equals "12"
+    And the JSON field "data.find { it.productId == ${milk.id} }.displayOrder" is present
+    And the JSON field "data.find { it.productId == ${milk.id} }.categoryDisplayOrder" equals "999"
+
+  Scenario: Category order is looked up per brand, so the same category name can rank differently
+    Given a throwaway brand "other"
+    And a throwaway category "mine" in brand "brand"
+    And a throwaway category "theirs" in brand "other"
+    And admin calls "PATCH /api/v1/categories/reorder" with:
+      """
+      [ { "id": ${mine.id}, "displayOrder": 3 }, { "id": ${theirs.id}, "displayOrder": 8 } ]
+      """
+    And a throwaway product "inMine" in brand "brand" with:
+      """
+      { "category": "${mine.name}" }
+      """
+    And a throwaway product "inTheirs" in brand "other" with:
+      """
+      { "category": "${mine.name}" }
+      """
+    When admin calls "GET /api/v1/products/salesperson-global"
+    Then the JSON field "data.find { it.productId == ${inMine.id} }.categoryDisplayOrder" equals "3"
+    And the JSON field "data.find { it.productId == ${inTheirs.id} }.categoryDisplayOrder" equals "999"
+
+  Scenario: Global settings can change the price alone, both settings together, or several products at once
+    Given a throwaway product "first" in brand "brand"
+    And a throwaway product "second" in brand "brand"
+    When admin calls "PATCH /api/v1/products/salesperson-global" with:
+      """
+      { "products": [ { "productId": ${first.id}, "defaultPrice": 19 } ] }
+      """
+    Then the response status is 200
+    When admin calls "GET /api/v1/products/salesperson-global"
+    Then the JSON amount "data.find { it.productId == ${first.id} }.salespersonDefaultPrice" equals "19"
+    And the JSON field "data.find { it.productId == ${first.id} }.salespersonEnabled" equals "false"
+    When admin calls "PATCH /api/v1/products/salesperson-global" with:
+      """
+      { "products": [ { "productId": ${first.id}, "isEnabled": true, "defaultPrice": 21 },
+                      { "productId": ${second.id}, "isEnabled": true, "defaultPrice": 23 } ] }
+      """
+    Then the response status is 200
+    And the JSON field "data.message" contains "2 products updated"
+    When admin calls "GET /api/v1/products/salesperson-global"
+    Then the JSON amount "data.find { it.productId == ${first.id} }.salespersonDefaultPrice" equals "21"
+    And the JSON field "data.find { it.productId == ${second.id} }.salespersonEnabled" equals "true"
+
+  Scenario: Switching a product off does not need a price, and a negative price is refused
+    Given a throwaway product "milk" in brand "brand"
+    And admin enables "milk" for everyone at price 22
+    When admin calls "PATCH /api/v1/products/salesperson-global" with:
+      """
+      { "products": [ { "productId": ${milk.id}, "isEnabled": false } ] }
+      """
+    Then the response status is 200
+    When admin calls "GET /api/v1/products/salesperson-global"
+    Then the JSON field "data.find { it.productId == ${milk.id} }.salespersonEnabled" equals "false"
+    When admin calls "PATCH /api/v1/products/salesperson-global" with:
+      """
+      { "products": [ { "productId": ${milk.id}, "isEnabled": true, "defaultPrice": -5 } ] }
+      """
+    Then the response status is 400

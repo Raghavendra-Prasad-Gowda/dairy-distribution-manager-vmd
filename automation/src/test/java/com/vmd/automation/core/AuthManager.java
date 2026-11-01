@@ -29,6 +29,8 @@ public final class AuthManager {
     private static String salesmanUsername;
     private static String salesmanPassword;
     private static Long salesmanId;
+    private static String dispatcherUsername;
+    private static String dispatcherPassword;
     private static Long dispatcherAdminUserId;
 
     private AuthManager() {}
@@ -62,11 +64,21 @@ public final class AuthManager {
         return salesmanId;
     }
 
+    /** Credentials of a run-scoped user, for scenarios that change their own password. */
+    public static synchronized java.util.Map<String, Object> credentials(Role role) {
+        token(role);
+        return switch (role) {
+            case SALESMAN -> java.util.Map.of("id", salesmanId, "username", salesmanUsername, "password", salesmanPassword);
+            case DISPATCHER -> java.util.Map.of("id", dispatcherAdminUserId, "username", dispatcherUsername, "password", dispatcherPassword);
+            default -> throw new IllegalArgumentException(role + " has no run-scoped credentials");
+        };
+    }
+
     // ─── sessions ────────────────────────────────────────────────────────────
 
     private static Optional<Session> superAdminSession() {
         if (!TestConfig.superAdminUsername().isEmpty()) {
-            return Optional.of(login(TestConfig.superAdminUsername(), TestConfig.superAdminPassword(), true));
+            return Optional.of(login(TestConfig.superAdminUsername(), TestConfig.superAdminPassword(), true, "superadmin"));
         }
         // No dedicated account: fine if the E2E admin account already is a superadmin.
         tryToken(Role.ADMIN);
@@ -84,7 +96,9 @@ public final class AuthManager {
                 .post("/api/v1/admin-users");
         assertThat(created.statusCode()).as("create run-scoped dispatcher (%s)", created.asString()).isEqualTo(201);
         dispatcherAdminUserId = created.jsonPath().getLong("data.id");
-        return Optional.of(login(username, password, false));
+        dispatcherUsername = username;
+        dispatcherPassword = password;
+        return Optional.of(login(username, password, false, "dispatcher"));
     }
 
     private static Optional<Session> salesmanSession() {
@@ -95,11 +109,16 @@ public final class AuthManager {
                 .post("/api/v1/salespeople");
         assertThat(created.statusCode()).as("create run-scoped salesman (%s)", created.asString()).isEqualTo(201);
         salesmanId = created.jsonPath().getLong("data.id");
-        Session session = login(salesmanUsername, salesmanPassword, false);
+        Session session = login(salesmanUsername, salesmanPassword, false, "salesman");
         return Optional.of(new Session(session.token(), session.role(), salesmanId));
     }
 
     private static Session login(String username, String password, boolean configuredAccount) {
+        return login(username, password, configuredAccount, null);
+    }
+
+    /** Signs in and, when a role is expected, proves the account really signs in as that role. */
+    private static Session login(String username, String password, boolean configuredAccount, String expectedRole) {
         Response res = ApiClient.anonymous()
                 .body(Map.of("username", username, "password", password))
                 .post("/api/v1/auth/login");
@@ -110,7 +129,9 @@ public final class AuthManager {
                 .as("%s must not be marked MFA-required", username).isNotEqualTo(true);
         String token = res.jsonPath().getString("data.accessToken");
         assertThat(token).as("accessToken for %s", username).isNotBlank();
-        return new Session(token, res.jsonPath().getString("data.role"), 0);
+        String role = res.jsonPath().getString("data.role");
+        if (expectedRole != null) assertThat(role).as("role %s signs in as", username).isEqualTo(expectedRole);
+        return new Session(token, role, 0);
     }
 
     // ─── lifecycle ───────────────────────────────────────────────────────────

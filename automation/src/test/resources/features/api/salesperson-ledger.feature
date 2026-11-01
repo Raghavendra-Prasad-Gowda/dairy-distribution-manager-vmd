@@ -245,3 +245,154 @@ Feature: Salesperson ledger
       { "salespersonId": ${sp.id}, "paymentDate": "${today}", "amount": 5 }
       """
     Then the response status is 403
+
+  Scenario: A collection larger than what is owed leaves the salesperson in credit
+    When admin collects 100 from "sp" on "${today-2}"
+    Then the ledger of salesperson "sp" shows:
+      | date       | paid | closing |
+      | ${today-2} | 100  | -100    |
+
+  Scenario: A collection can be raised past what is owed, or lowered, and the balance follows
+    Given admin dispatches 10 of "milk" at 22 to "sp" on "${today-2}"
+    And admin collects 100 from "sp" on "${today-2}" remembered as "payment"
+    When admin calls "PUT /api/v1/salesperson-payments/${payment.id}" with:
+      """
+      { "amount": 300, "paymentDate": "${today-2}" }
+      """
+    Then the ledger of salesperson "sp" shows:
+      | date       | paid | closing |
+      | ${today-2} | 300  | -80     |
+    When admin calls "PUT /api/v1/salesperson-payments/${payment.id}" with:
+      """
+      { "amount": 20, "paymentDate": "${today-2}" }
+      """
+    Then the ledger of salesperson "sp" shows:
+      | date       | paid | closing |
+      | ${today-2} | 20   | 200     |
+
+  Scenario: Loaded dues are recorded as top-ups by the acting admin
+    When admin calls "POST /api/v1/salesperson-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "notes": "opening dues", "entries": [ { "salespersonId": ${sp.id}, "amount": 500 } ] }
+      """
+    Then the response status is 201
+    And the JSON field "data.payments[0].isTopUp" equals "true"
+    And the JSON field "data.payments[0].paymentMode" equals "Top-up"
+    And the JSON field "data.payments[0].createdBy" is present
+    And the JSON amount "data.payments[0].amount" equals "500"
+
+  Scenario: One top-up call re-balances every salesperson it touches
+    Given a salesperson with a clean ledger "other"
+    When admin calls "POST /api/v1/salesperson-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "entries": [ { "salespersonId": ${sp.id}, "amount": 400 }, { "salespersonId": ${other.id}, "amount": 700 } ] }
+      """
+    Then the response status is 201
+    And the ledger of salesperson "sp" shows:
+      | date       | topUp | closing |
+      | ${today-2} | 400   | 400     |
+    And the ledger of salesperson "other" shows:
+      | date       | topUp | closing |
+      | ${today-2} | 700   | 700     |
+
+  Scenario: Stock, a collection and loaded dues on the same day are kept apart in the balance
+    Given admin dispatches 10 of "milk" at 22 to "sp" on "${today-2}"
+    And admin collects 100 from "sp" on "${today-2}"
+    When admin calls "POST /api/v1/salesperson-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "entries": [ { "salespersonId": ${sp.id}, "amount": 500 } ] }
+      """
+    Then the ledger of salesperson "sp" shows:
+      | date       | opening | given | topUp | paid | closing |
+      | ${today-2} | 0       | 220   | 500   | 100  | 620     |
+
+  Scenario: Back-dated loaded dues ripple through every later day
+    Given admin dispatches 10 of "milk" at 22 to "sp" on "${today-3}"
+    And admin dispatches 5 of "milk" at 22 to "sp" on "${today-1}"
+    When admin calls "POST /api/v1/salesperson-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-3}", "entries": [ { "salespersonId": ${sp.id}, "amount": 500 } ] }
+      """
+    Then the ledger of salesperson "sp" shows:
+      | date       | opening | closing |
+      | ${today-3} | 0       | 720     |
+      | ${today-1} | 720     | 830     |
+
+  Scenario: Deleting a stock entry changes every later day
+    Given admin dispatches 10 of "milk" at 22 to "sp" on "${today-3}" remembered as "early"
+    And admin dispatches 5 of "milk" at 22 to "sp" on "${today-1}"
+    When admin calls "DELETE /api/v1/dispatches/${early.id}"
+    Then the ledger of salesperson "sp" shows:
+      | date       | opening | closing |
+      | ${today-3} | 0       | 0       |
+      | ${today-1} | 0       | 110     |
+
+  Scenario: A stock entry without notes stores none
+    When admin calls "POST /api/v1/dispatches" with:
+      """
+      { "salespersonId": ${sp.id}, "dispatchDate": "${today-2}", "items": [ { "productId": ${milk.id}, "quantity": 1, "unitPrice": 5 } ] }
+      """
+    Then the response status is 201
+    And the JSON field "data.notes" equals "null"
+
+  Scenario: The balance history is paged, newest first, and states whether more is available
+    Given a throwaway salesperson "own"
+    And admin dispatches 1 of "milk" at 10 to "own" on "${today-3}"
+    And admin dispatches 1 of "milk" at 10 to "own" on "${today-2}"
+    And admin dispatches 1 of "milk" at 10 to "own" on "${today-1}"
+    When admin calls "GET /api/v1/salesperson-balance/${own.id}/history?limit=2"
+    Then the call succeeds
+    And the JSON list "data.items" has 2 items
+    And the JSON field "data.pagination.total" equals "3"
+    And the JSON field "data.pagination.hasMore" equals "true"
+    And the JSON amount "data.items[0].closingBalance" equals "30"
+    When admin calls "GET /api/v1/salesperson-balance/${own.id}/history?limit=2&page=2"
+    Then the JSON list "data.items" has 1 item
+    And the JSON field "data.pagination.hasMore" equals "false"
+    When admin calls "GET /api/v1/salesperson-balance/${own.id}/history?from=${today-2}&to=${today-2}"
+    Then the JSON list "data.items" has 1 item
+    And the JSON amount "data.items[0].stockGiven" equals "10"
+
+  Scenario: A salesperson with no activity has an empty history
+    Given a throwaway salesperson "own"
+    When admin calls "GET /api/v1/salesperson-balance/${own.id}/history"
+    Then the call succeeds
+    And the JSON list "data.items" has 0 items
+
+  Scenario: A salesman sees who loaded dues on their own history
+    Given the run's salesman as "me"
+    When admin calls "POST /api/v1/salesperson-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "notes": "opening dues", "entries": [ { "salespersonId": ${me.id}, "amount": 500 } ] }
+      """
+    Then I remember the item of "data.payments" whose "amount" is "500" as "topUp"
+    And afterwards admin cleans up with "DELETE /api/v1/salesperson-payments/${topUp.id}"
+    When salesman calls "GET /api/v1/salesperson-balance/${me.id}/history?from=${today-2}&to=${today-2}"
+    Then the call succeeds
+    And the JSON field "data.items[0].topUps[0].createdBy" is present
+    And the JSON field "data.items[0].topUps[0].notes" equals "opening dues"
+
+  Scenario: Resetting several ledgers at once touches only the chosen salespeople and keeps prices and access
+    Given a throwaway salesperson "first"
+    And a throwaway salesperson "second"
+    And a throwaway salesperson "bystander"
+    And admin enables "milk" for everyone at price 22
+    And admin sets the price of "milk" for "first" to 31
+    And admin dispatches 5 of "milk" at 22 to "first" on "${today-2}"
+    And admin dispatches 5 of "milk" at 22 to "second" on "${today-2}"
+    And admin dispatches 5 of "milk" at 22 to "bystander" on "${today-2}"
+    When superadmin calls "POST /api/v1/salespeople/reset-ledger" with:
+      """
+      { "salespersonIds": [ ${first.id}, ${second.id} ] }
+      """
+    Then the response status is 200
+    And the JSON field "data.dispatches" equals "2"
+    And the ledger of salesperson "first" shows:
+      | date       | given | closing |
+      | ${today-2} | 0     | 0       |
+    And the ledger of salesperson "bystander" shows:
+      | date       | given | closing |
+      | ${today-2} | 110   | 110     |
+    When admin calls "GET /api/v1/salespeople/${first.id}/prices"
+    Then the JSON amount "data.find { it.productId == ${milk.id} }.sellingPrice" equals "31"
+    And the JSON field "data.find { it.productId == ${milk.id} }.isEnabled" equals "true"

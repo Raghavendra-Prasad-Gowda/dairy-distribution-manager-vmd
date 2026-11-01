@@ -192,3 +192,38 @@ Feature: Brand setup
       { "sourceBrandId": 1 }
       """
     Then the response status is 403
+
+  Scenario: Copying from a brand that has no products copies nothing
+    Given a throwaway brand "empty"
+    When admin calls "POST /api/v1/brands/${brand.id}/copy-products" with:
+      """
+      { "sourceBrandId": ${empty.id} }
+      """
+    Then the response status is 200
+    And the JSON field "data.copiedProducts" equals "0"
+    And the JSON field "data.copiedCategories" equals "0"
+
+  Scenario: Copying products also carries over each salesperson's access and price for them
+    Given a throwaway brand "target"
+    And a throwaway product "milk" in brand "brand"
+    And the run's salesman as "me"
+    And admin calls "POST /api/v1/salespeople/${me.id}/products/bulk" with:
+      """
+      { "products": [ { "productId": ${milk.id}, "isEnabled": true } ] }
+      """
+    And admin sets the price of "milk" for "me" to 37
+    When admin calls "POST /api/v1/brands/${target.id}/copy-products" with:
+      """
+      { "sourceBrandId": ${brand.id} }
+      """
+    Then the response status is 200
+    And the JSON field "data.copiedProducts" equals "1"
+    And the JSON field "data.copiedSalespersonAssignments" equals "1"
+    And the JSON field "data.copiedSalespersonPrices" equals "1"
+    And the JSON field "data.fromBrand" equals "${brand.name}"
+    And the JSON field "data.toBrand" equals "${target.name}"
+    When admin calls "GET /api/v1/products?brandId=${target.id}"
+    Then I remember the item of "data" whose "name" is "${milk.name}" as "copy"
+    When admin calls "GET /api/v1/salespeople/${me.id}/prices"
+    Then the JSON field "data.find { it.productId == ${copy.id} }.isEnabled" equals "true"
+    And the JSON amount "data.find { it.productId == ${copy.id} }.sellingPrice" equals "37"

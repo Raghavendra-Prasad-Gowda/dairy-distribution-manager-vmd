@@ -43,3 +43,17 @@ Feature: Behaviour the API should have but does not yet
       | 2026-02-30 |
       | 2026-13-45 |
       | 2026-00-10 |
+
+  Scenario Outline: An id with trailing characters is refused instead of being read as its leading digits
+    Admin edit and delete routes read the id with parseInt, so "12abc" and "1.5" are treated as 12 and 1 -
+    a mistyped id could change or delete a different record. A huge id is used here so the check is harmless.
+
+    When admin calls "<method> /api/v1/<resource>/2147483647<suffix>"
+    Then the response status is 400
+
+    Examples:
+      | method | resource  | suffix |
+      | DELETE | routes    | abc    |
+      | DELETE | routes    | .5     |
+      | DELETE | dispatches| abc    |
+      | DELETE | dairy-payments | abc |

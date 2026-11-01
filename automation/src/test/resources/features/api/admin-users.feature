@@ -148,3 +148,71 @@ Feature: Admin user management
     Given a throwaway admin user "user"
     When admin calls "GET /api/v1/admin-users/mfa/status"
     Then the response status is 403
+
+  Scenario: Usernames are unique regardless of letter case, and a user keeps their own name when edited
+    Given a throwaway admin user "user"
+    When superadmin calls "POST /api/v1/admin-users" with:
+      """
+      { "username": "${upper:user.username}", "password": "secret123" }
+      """
+    Then the response status is 409
+    When superadmin calls "PUT /api/v1/admin-users/${user.id}" with:
+      """
+      { "username": "${upper:user.username}" }
+      """
+    Then the response status is 200
+
+  Scenario: A username can be changed, but not to a short one
+    Given a throwaway admin user "user"
+    And the scenario works with an identifier "newName"
+    When superadmin calls "PUT /api/v1/admin-users/${user.id}" with:
+      """
+      { "username": "e2e-${newName}" }
+      """
+    Then the response status is 200
+    And the JSON field "data.username" equals "e2e-${newName}"
+    When superadmin calls "PUT /api/v1/admin-users/${user.id}" with:
+      """
+      { "username": "ab" }
+      """
+    Then the response status is 400
+
+  Scenario: A new password set by a superadmin is the one the user must sign in with
+    Given a throwaway admin user "user"
+    When superadmin calls "PUT /api/v1/admin-users/${user.id}" with:
+      """
+      { "password": "reset-by-boss" }
+      """
+    Then the response status is 200
+    When anonymous calls "POST /api/v1/auth/login" with:
+      """
+      { "username": "${user.username}", "password": "reset-by-boss" }
+      """
+    Then the response status is 200
+
+  Scenario: An account can be promoted to superadmin and demoted to dispatcher
+    Given a throwaway admin user "user"
+    When superadmin calls "PUT /api/v1/admin-users/${user.id}" with:
+      """
+      { "role": "superadmin" }
+      """
+    Then the response status is 200
+    And the JSON field "data.role" equals "superadmin"
+    When superadmin calls "PUT /api/v1/admin-users/${user.id}" with:
+      """
+      { "role": "dispatcher" }
+      """
+    Then the JSON field "data.role" equals "dispatcher"
+
+  Scenario: A superadmin who is not the last one can be deleted
+    Given a throwaway admin user "boss" with role "superadmin"
+    When superadmin calls "DELETE /api/v1/admin-users/${boss.id}"
+    Then the response status is 200
+
+  Scenario: Superadmins cannot make themselves a dispatcher either
+    Given the superadmin's own account as "self"
+    When superadmin calls "PUT /api/v1/admin-users/${self.id}" with:
+      """
+      { "role": "dispatcher" }
+      """
+    Then the response status is 400

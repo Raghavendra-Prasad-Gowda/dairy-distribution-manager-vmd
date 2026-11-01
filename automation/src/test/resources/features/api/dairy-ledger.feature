@@ -306,3 +306,167 @@ Feature: Dairy ledger
       | { "topUpDate": "2026-04-30", "entries": [] }                                          | 400    |
       | { "entries": [ { "brandId": 1, "amount": 5 } ] }                                      | 400    |
       | { "topUpDate": "2026-04-30", "entries": [ { "brandId": 2147483647, "amount": 5 } ] }  | 404    |
+
+  Scenario: Paying a brand more than is owed leaves it in credit
+    When admin pays 500 to "brand" on "${today-2}"
+    Then the dairy ledger of "brand" shows:
+      | date       | paid | closing |
+      | ${today-2} | 500  | -500    |
+
+  Scenario: A payment can be raised past what is owed, or lowered, and the balance follows
+    Given admin receives 10 of "milk" at 20 into "brand" on "${today-2}"
+    And admin pays 50 to "brand" on "${today-2}" remembered as "payment"
+    When admin calls "PUT /api/v1/dairy-payments/${payment.id}" with:
+      """
+      { "amount": 300, "paymentDate": "${today-2}" }
+      """
+    Then the response status is 200
+    And the dairy ledger of "brand" shows:
+      | date       | paid | closing |
+      | ${today-2} | 300  | -100    |
+    When admin calls "PUT /api/v1/dairy-payments/${payment.id}" with:
+      """
+      { "amount": 10, "paymentDate": "${today-2}" }
+      """
+    Then the dairy ledger of "brand" shows:
+      | date       | paid | closing |
+      | ${today-2} | 10   | 190     |
+
+  Scenario: A payment without a reference or notes stores none
+    When admin calls "POST /api/v1/dairy-payments" with:
+      """
+      { "brandId": ${brand.id}, "paymentDate": "${today-2}", "amount": 5 }
+      """
+    Then the response status is 201
+    And the JSON field "data.reference" equals "null"
+    And the JSON field "data.notes" equals "null"
+
+  Scenario Outline: Dates must be written as year-month-day
+    When admin calls "POST /api/v1/dairy-payments" with:
+      """
+      { "brandId": ${brand.id}, "paymentDate": "<date>", "amount": 100 }
+      """
+    Then the response status is 400
+
+    Examples:
+      | date                |
+      | 30-04-2026          |
+      | 2026/04/30          |
+      | 2026-4-30           |
+      | 2026-04-30T00:00:00 |
+      | 04-30-2026          |
+      | tomorrow            |
+
+  Scenario: Loaded dues are recorded as top-ups by the acting superadmin
+    When superadmin calls "POST /api/v1/dairy-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "notes": "opening dues", "entries": [ { "brandId": ${brand.id}, "amount": 1000 } ] }
+      """
+    Then the response status is 201
+    And the JSON field "data.payments[0].isTopUp" equals "true"
+    And the JSON field "data.payments[0].paymentMode" equals "Top-up"
+    And the JSON field "data.payments[0].createdBy" is present
+    And the JSON amount "data.total" equals "1000"
+
+  Scenario: One top-up call re-balances every brand it touches
+    Given a throwaway brand "second"
+    When superadmin calls "POST /api/v1/dairy-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "entries": [ { "brandId": ${brand.id}, "amount": 400 }, { "brandId": ${second.id}, "amount": 700 } ] }
+      """
+    Then the response status is 201
+    And the dairy ledger of "brand" shows:
+      | date       | topUp | closing |
+      | ${today-2} | 400   | 400     |
+    And the dairy ledger of "second" shows:
+      | date       | topUp | closing |
+      | ${today-2} | 700   | 700     |
+
+  Scenario: Stock, a payment and a top-up on the same day are kept apart in the balance
+    Given admin receives 10 of "milk" at 20 into "brand" on "${today-2}"
+    And admin pays 50 to "brand" on "${today-2}"
+    When superadmin calls "POST /api/v1/dairy-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "entries": [ { "brandId": ${brand.id}, "amount": 1000 } ] }
+      """
+    Then the dairy ledger of "brand" shows:
+      | date       | opening | stock | topUp | paid | closing |
+      | ${today-2} | 0       | 200   | 1000  | 50   | 1150    |
+
+  Scenario: A back-dated top-up ripples through every later day
+    Given admin receives 10 of "milk" at 20 into "brand" on "${today-3}"
+    And admin receives 5 of "milk" at 20 into "brand" on "${today-1}"
+    When superadmin calls "POST /api/v1/dairy-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-3}", "entries": [ { "brandId": ${brand.id}, "amount": 500 } ] }
+      """
+    Then the dairy ledger of "brand" shows:
+      | date       | opening | closing |
+      | ${today-3} | 0       | 700     |
+      | ${today-1} | 700     | 800     |
+
+  Scenario: A category that is not deposit-bearing adds no deposit
+    Given admin sets deposit of 2 per litre on "brand"
+    And a throwaway category "plain" in brand "brand"
+    And a throwaway product "crateMilk" in brand "brand" with:
+      """
+      { "category": "${plain.name}", "unitType": "ml", "unitSize": 500, "containerType": "crate", "unitsPerContainer": 12 }
+      """
+    And admin enables deposit on product "crateMilk"
+    When admin receives 24 of "crateMilk" at 20 into "brand" on "${today-2}"
+    Then the dairy ledger of "brand" shows:
+      | date       | stock | deposit |
+      | ${today-2} | 480   | 0       |
+
+  Scenario Outline: The route breakdown needs a brand and a valid period
+    When admin calls "GET /api/v1/dairy-balance/route-breakdown<query>"
+    Then the response status is 400
+
+    Examples:
+      | query                                           |
+      |                                                 |
+      | ?from=2026-04-01&to=2026-04-30                  |
+      | ?brandId=1&to=2026-04-30                        |
+      | ?brandId=1&from=2026-04-01                      |
+      | ?brandId=1&from=2026-04-30&to=2026-04-01        |
+
+  Scenario: Stock received without a route is labelled General in the route breakdown
+    Given admin receives 10 of "milk" at 20 into "brand" on "${today-2}"
+    When admin calls "GET /api/v1/dairy-balance/route-breakdown?brandId=${brand.id}&from=${today-3}&to=${today-1}"
+    Then the call succeeds
+    And the JSON field "data[0].routeNumber" equals "General"
+    And the JSON amount "data[0].totalAmount" equals "200"
+    When admin calls "GET /api/v1/dairy-balance/route-breakdown?brandId=${brand.id}&from=${today-1}&to=${today}"
+    Then the JSON list "data" has 0 items
+
+  Scenario: Stock for a product that does not exist is refused
+    When admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${brand.id}, "date": "${today-2}", "items": [ { "productId": 2147483647, "quantity": 1, "unitPrice": 5 } ] }
+      """
+    Then the response status is 400
+    And the error code is "FK_CONSTRAINT"
+
+  Scenario: Leaving out the item list clears the day, like an empty list
+    Given admin receives 10 of "milk" at 20 into "brand" on "${today-2}"
+    When admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${brand.id}, "date": "${today-2}" }
+      """
+    Then the response status is 200
+    And the dairy ledger of "brand" shows:
+      | date       | stock | closing |
+      | ${today-2} | 0     | 0       |
+
+  Scenario: A deposit top-up records who loaded it and never touches the dues ledger
+    Given admin sets deposit of 2 per litre on "brand"
+    When superadmin calls "POST /api/v1/dairy-deposit-topups/bulk" with:
+      """
+      { "topUpDate": "${today-2}", "entries": [ { "brandId": ${brand.id}, "amount": 300 } ] }
+      """
+    Then the response status is 201
+    And the JSON field "data.topUps[0].createdBy" is present
+    And the JSON field "data.topUps[0].isTopUp" is absent
+    And the dairy ledger of "brand" shows:
+      | date       | topUp | closing |
+      | ${today-2} | 0     | 0       |

@@ -198,6 +198,11 @@ public class CommonSteps {
         assertThat((Object) ctx.response.jsonPath().get(p(field))).as("%s (body: %s)", field, ctx.response.asString()).isNotNull();
     }
 
+    @Then("the JSON field {string} is a number")
+    public void theJsonFieldIsANumber(String field) {
+        assertThat((Object) ctx.response.jsonPath().get(p(field))).as("%s (body: %s)", field, ctx.response.asString()).isInstanceOf(Number.class);
+    }
+
     @Then("the JSON field {string} is absent")
     public void theJsonFieldIsAbsent(String field) {
         assertThat((Object) ctx.response.jsonPath().get(p(field))).as("%s (body: %s)", field, ctx.response.asString()).isNull();
