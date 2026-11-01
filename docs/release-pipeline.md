@@ -67,9 +67,15 @@ Create environment **`staging`** (Settings → Environments) with these secrets:
 |---|---|
 | `E2E_ADMIN_USERNAME` | username from step 2 |
 | `E2E_ADMIN_PASSWORD` | its password |
+| `E2E_SUPERADMIN_USERNAME` | a **superadmin without MFA** on the testing backend (dedicated to automation) |
+| `E2E_SUPERADMIN_PASSWORD` | its password |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | secret from step 3 |
 
 Optional repository secrets: `SLACK_WEBHOOK_URL` (pipeline result card).
+
+The superadmin pair unlocks the scenarios that create brands, admin users and dispatchers and reset ledgers
+(roughly 60% of the API suite: 271 of 442 scenarios). Without it those scenarios are skipped; once it is in place, set the
+repository **variable** `E2E_STRICT` to `true` so a missing prerequisite fails the run instead of skipping.
 Optional repository variables if URLs change: `STAGING_API_URL`, `STAGING_WEB_URL`,
 `STAGING_VERCEL_PROJECT`, `PROD_API_URL`, `PROD_WEB_URL`, `PROD_VERCEL_PROJECT`.
 

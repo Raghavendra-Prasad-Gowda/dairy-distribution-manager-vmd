@@ -83,10 +83,46 @@ jobs:
           # The build /health must report: the commit Render runs, which is not the pushed SHA
           # when the push changed nothing under server/ and Render skipped the deploy.
           EXPECTED_COMMIT: ${{ needs.wait-for-deploy.outputs.backend_commit || github.sha }}
-          # Authenticated @api scenarios (e.g. routes.feature) log in once per run as this account.
+          # Authenticated @api scenarios log in once per role per run (login is limited to 20/hour/IP).
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
-        run: mvn -B -ntp test -Dcucumber.filter.tags="@api"
+          # Optional second account (superadmin, no MFA). Scenarios that need one - creating brands, admin
+          # users, dispatchers, resetting ledgers - are skipped without it. See automation/README.md.
+          E2E_SUPERADMIN_USERNAME: ${{ secrets.E2E_SUPERADMIN_USERNAME }}
+          E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
+          # Set the repository variable E2E_STRICT=true once the superadmin secrets exist: a missing
+          # prerequisite then fails the run instead of silently skipping those scenarios.
+          E2E_STRICT: ${{ vars.E2E_STRICT }}
+        # @known-defect scenarios document API bugs that are not fixed yet; they must not block a release.
+        run: mvn -B -ntp test -Dcucumber.filter.tags="@api and not @known-defect"
+      - name: Summarise scenarios
+        if: always()
+        working-directory: automation
+        run: |
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          path = "target/cucumber-reports/report.json"
+          if not os.path.exists(path):
+              print("### API automation\nNo report was produced."); raise SystemExit
+          total = failed = skipped = 0
+          for feature in json.load(open(path)):
+              background_bad = False
+              for el in feature["elements"]:
+                  steps = el["steps"]
+                  statuses = [s["result"]["status"] for s in steps]
+                  if el["type"] == "background":
+                      background_bad = any(x not in ("passed",) for x in statuses)
+                      continue
+                  total += 1
+                  if any(x in ("failed", "undefined", "pending", "ambiguous") for x in statuses) or background_bad:
+                      failed += 1
+                  elif statuses and all(x == "skipped" for x in statuses):
+                      skipped += 1
+          print("### API automation")
+          print(f"{total} scenarios: **{total - failed - skipped} passed**, {failed} failed, {skipped} skipped")
+          if skipped:
+              print("\nSkipped scenarios are missing a prerequisite (usually the E2E superadmin secrets) - see automation/README.md.")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

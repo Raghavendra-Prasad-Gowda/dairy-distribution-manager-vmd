@@ -29,7 +29,7 @@ dairy-distribution-manager-vmd/
 │   ├── pr-checks.yml                  # CI on every PR to develop/main
 │   ├── staging-pipeline.yml           # After merge to develop: wait deploy → API → UI → release PR
 │   └── production-verify.yml          # After merge to main: wait deploy → smoke → tag + release
-├── automation/                        # Java: Cucumber + REST Assured (API) vs deployed env
+├── automation/                        # Java: Cucumber + REST Assured (API) vs deployed env — see automation/README.md
 ├── automation-ui/                     # TypeScript: Playwright Test (UI) vs deployed env
 ├── docs/release-pipeline.md           # Release flow + one-time setup checklist
 │
@@ -643,6 +643,23 @@ test('returns 200 with data', async ({ request }) => {
 - 403 (wrong role, e.g. salesman hitting admin-only)
 - 200/201 (happy path)
 - The specific business logic path (e.g. missing field defaults, cascades)
+
+### Backend — API automation against the deployed environment
+
+`server/tests/playwright` (above) proves the code with a **mocked** Prisma. `automation/` proves the
+**deployed backend with its real database**, and runs after every merge to `develop`
+(`staging-pipeline.yml`: `@api and not @known-defect`) and, read-only, after a merge to `main`
+(`@api and @smoke`).
+
+- Features live in `automation/src/test/resources/features/api/`, grouped by area (access control, auth,
+  dairy setup, salespeople/pricing, dairy ledger, dispatches, salesperson ledger, reports, bills, PIN).
+- Scenarios use business language, no ids/dates/tokens; entities come from fixtures (`E2E-...` names,
+  removed afterwards). Ledger scenarios use a **throwaway brand**, never a real one.
+- Scenarios that create brands, admin users or dispatchers need a superadmin session
+  (`E2E_SUPERADMIN_*`); without it they are skipped, or fail when `E2E_STRICT=true`.
+- Unit-level specs, rate-limit exhaustion, account lock-out/full MFA and day finalisation intentionally stay
+  in `server/tests` only — see the "Deliberately not here" table in `automation/README.md`.
+- Behaviour the API gets wrong today lives in `known-defects.feature` (`@known-defect`, excluded from the gate).
 
 ### Frontend — Vitest + React Testing Library
 
