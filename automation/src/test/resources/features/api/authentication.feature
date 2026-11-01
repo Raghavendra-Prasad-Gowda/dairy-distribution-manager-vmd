@@ -3,11 +3,11 @@ Feature: Authentication
   Sign-in is rate-limited to 20 attempts an hour per address, and every attempt counts, so this
   feature signs in only as often as it must. Accounts are throwaway users, never the E2E accounts.
 
-  Scenario: An admin signs in, changes their password and must use the new one
+  Scenario: An admin signs in (user names ignore letter case), changes their password and must use the new one
     Given a throwaway admin user "user"
     When anonymous calls "POST /api/v1/auth/login" with:
       """
-      { "username": "${user.username}", "password": "${user.password}" }
+      { "username": "${upper:user.username}", "password": "${user.password}" }
       """
     Then the response status is 200
     And the JSON field "data.role" equals "admin"
@@ -27,6 +27,11 @@ Feature: Authentication
     When the holder of "session" calls "POST /api/v1/auth/change-password" with:
       """
       { "currentPassword": "${user.password}", "newPassword": "123" }
+      """
+    Then the response status is 400
+    When the holder of "session" calls "POST /api/v1/auth/change-password" with:
+      """
+      { "newPassword": "brand-new-pass" }
       """
     Then the response status is 400
     When the holder of "session" calls "POST /api/v1/auth/change-password" with:
@@ -107,3 +112,53 @@ Feature: Authentication
       | verify           | { "code": "123456" }                          |
       | confirm-required | { "mfaToken": "x", "code": "12" }             |
       | confirm-required | { "mfaToken": "x", "code": "abcdef" }         |
+
+  Scenario: A superadmin signs in as a superadmin, changes their own password and signs out
+    Given a throwaway admin user "boss" with role "superadmin"
+    When anonymous calls "POST /api/v1/auth/login" with:
+      """
+      { "username": "${boss.username}", "password": "${boss.password}" }
+      """
+    Then the response status is 200
+    And the JSON field "data.role" equals "superadmin"
+    And I remember the JSON field "data.accessToken" as "session"
+    When the holder of "session" calls "POST /api/v1/auth/change-password" with:
+      """
+      { "currentPassword": "${boss.password}", "newPassword": "brand-new-pass" }
+      """
+    Then the response status is 200
+    When the holder of "session" calls "POST /api/v1/auth/logout"
+    Then the response status is 200
+
+  @superadmin
+  Scenario: A dispatcher can change their own password
+    Given the run's dispatcher as "dsp"
+    When dispatcher calls "POST /api/v1/auth/change-password" with:
+      """
+      { "currentPassword": "${dsp.password}", "newPassword": "brand-new-pass" }
+      """
+    Then the response status is 200
+
+  Scenario: A salesman can change their own password, and needs the current one to do so
+    Given the run's salesman as "me"
+    When salesman calls "POST /api/v1/auth/change-password" with:
+      """
+      { "currentPassword": "not-my-password", "newPassword": "brand-new-pass" }
+      """
+    Then the response status is 401
+    When salesman calls "POST /api/v1/auth/change-password" with:
+      """
+      { "currentPassword": "${me.password}", "newPassword": "brand-new-pass" }
+      """
+    Then the response status is 200
+
+  Scenario Outline: Every kind of user can sign out
+    When <role> calls "POST /api/v1/auth/logout"
+    Then the response status is 200
+
+    Examples:
+      | role       |
+      | admin      |
+      | superadmin |
+      | dispatcher |
+      | salesman   |

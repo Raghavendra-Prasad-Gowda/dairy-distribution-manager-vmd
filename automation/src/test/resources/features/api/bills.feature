@@ -114,3 +114,57 @@ Feature: Bills
     Then the response status is 404
     When admin calls "DELETE /api/v1/bills/${bill.id}"
     Then the response status is 404
+
+  Scenario: Each product is listed under its brand with the quantity, a derived rate and the amount
+    When admin calls "GET /api/v1/bills/preview?salespersonId=${sp.id}&from=${today-3}&to=${today-1}"
+    Then the JSON field "data.lines[0].products[0].productName" equals "${milk.name}"
+    And the JSON field "data.lines[0].products[0].unit" equals "pcs"
+    And the JSON amount "data.lines[0].products[0].quantity" equals "10"
+    And the JSON amount "data.lines[0].products[0].rate" equals "22"
+    And the JSON amount "data.lines[0].products[0].amount" equals "220"
+
+  Scenario: A litre-priced and a kilogram-priced product in one brand are separate rows with their own rate
+    Given a throwaway product "oil" in brand "brand" with:
+      """
+      { "unitType": "ml", "unitSize": 500 }
+      """
+    And a throwaway product "ghee" in brand "brand" with:
+      """
+      { "unitType": "gram", "unitSize": 500 }
+      """
+    And admin calls "POST /api/v1/dispatches" with:
+      """
+      { "salespersonId": ${sp.id}, "dispatchDate": "${today-2}",
+        "items": [ { "productId": ${milk.id}, "quantity": 10, "unitPrice": 22 },
+                   { "productId": ${oil.id}, "quantity": 4, "unitPrice": 30 },
+                   { "productId": ${ghee.id}, "quantity": 2, "unitPrice": 100 } ] }
+      """
+    When admin calls "GET /api/v1/bills/preview?salespersonId=${sp.id}&from=${today-3}&to=${today-1}"
+    Then the JSON list "data.lines[0].products" has 3 items
+    And the JSON field "data.lines[0].products.find { it.productName == '${oil.name}' }.unit" equals "ltr"
+    And the JSON amount "data.lines[0].products.find { it.productName == '${oil.name}' }.quantity" equals "2"
+    And the JSON amount "data.lines[0].products.find { it.productName == '${oil.name}' }.rate" equals "60"
+    And the JSON field "data.lines[0].products.find { it.productName == '${ghee.name}' }.unit" equals "kg"
+    And the JSON amount "data.lines[0].products.find { it.productName == '${ghee.name}' }.rate" equals "200"
+
+  Scenario: A period without stock previews as empty
+    When admin calls "GET /api/v1/bills/preview?salespersonId=${sp.id}&from=${today-20}&to=${today-19}"
+    Then the call succeeds
+    And the JSON list "data.lines" has 0 items
+    And the JSON amount "data.totalAmount" equals "0"
+
+  Scenario: The bill register lists the newest bill first
+    When admin calls "POST /api/v1/bills" with:
+      """
+      { "salespersonId": ${sp.id}, "from": "${today-3}", "to": "${today-1}" }
+      """
+    Then I remember the response data as "older"
+    And afterwards admin cleans up with "DELETE /api/v1/bills/${older.id}"
+    When admin calls "POST /api/v1/bills" with:
+      """
+      { "salespersonId": ${sp.id}, "from": "${today-3}", "to": "${today-1}" }
+      """
+    Then I remember the response data as "newer"
+    And afterwards admin cleans up with "DELETE /api/v1/bills/${newer.id}"
+    When admin calls "GET /api/v1/bills?salespersonId=${sp.id}"
+    Then the JSON list "data" is ordered by "id" as "${newer.id}, ${older.id}"

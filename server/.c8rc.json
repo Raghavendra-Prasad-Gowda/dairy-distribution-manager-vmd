@@ -1,11 +1,25 @@
 {
-  "include": ["controllers/**", "services/**", "utils/**", "middleware/**", "config/**"],
-  "exclude": ["**/*.test.js", "**/node_modules/**"],
-  "reporter": ["text", "text-summary", "html", "json-summary"],
+  "include": [
+    "controllers/**",
+    "services/**",
+    "utils/**",
+    "middleware/**",
+    "config/**"
+  ],
+  "exclude": [
+    "**/*.test.js",
+    "**/node_modules/**"
+  ],
+  "reporter": [
+    "text",
+    "text-summary",
+    "html",
+    "json-summary"
+  ],
   "reports-dir": "coverage",
   "check-coverage": true,
-  "statements": 90,
-  "branches": 75,
+  "statements": 70,
+  "branches": 80,
   "functions": 85,
-  "lines": 90
+  "lines": 70
 }

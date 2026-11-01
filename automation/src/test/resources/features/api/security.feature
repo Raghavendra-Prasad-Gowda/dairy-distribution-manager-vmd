@@ -45,3 +45,29 @@ Feature: Transport and token hardening
     And the JSON field "stack" is absent
     When anonymous calls "GET /api/v1/routes"
     Then the response does not leak internals
+
+  Scenario: A record that disappeared or never existed is reported as not found, with a code
+    When superadmin calls "PUT /api/v1/brands/2147483647" with:
+      """
+      { "depositEnabled": true }
+      """
+    Then the response status is 404
+    And the error code is "NOT_FOUND"
+    And the response does not leak internals
+
+  Scenario: A value that already exists is reported as a duplicate, with a code and no database wording
+    Given a throwaway admin user "user"
+    When superadmin calls "POST /api/v1/admin-users" with:
+      """
+      { "username": "${user.username}", "password": "secret123" }
+      """
+    Then the response status is 409
+    Given the existing brand "Nandini" as "brand"
+    And a throwaway route "route" in brand "brand"
+    When admin calls "POST /api/v1/routes" with:
+      """
+      { "brandId": ${brand.id}, "routeNumber": "${route.routeNumber}" }
+      """
+    Then the response status is 400
+    And the error code is "DUPLICATE"
+    And the response does not leak internals

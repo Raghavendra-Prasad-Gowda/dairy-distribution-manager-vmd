@@ -636,7 +636,8 @@ test('returns 200 with data', async ({ request }) => {
 });
 ```
 
-**Minimum coverage per new endpoint:**
+**Minimum coverage per new endpoint** (as an API scenario in `automation/`; use a mocked spec only for logic the
+API cannot reach):
 - 403 (no token)
 - 401 (bad/expired token)
 - 400 (invalid input / bad ID)
@@ -646,9 +647,11 @@ test('returns 200 with data', async ({ request }) => {
 
 ### Backend — API automation against the deployed environment
 
-`server/tests/playwright` (above) proves the code with a **mocked** Prisma. `automation/` proves the
+`server/tests/playwright` (above) proves the code with a **mocked** Prisma, and now holds only what the API suite
+cannot test (unit-level logic, MFA/lock-out, rate limits, Slack cards, forged-token cases, finalisation) plus a few
+mixed files; endpoint behaviour is tested in `automation/`. `automation/` proves the
 **deployed backend with its real database**, and runs after every merge to `develop`
-(`staging-pipeline.yml`: `@api and not @known-defect`) and, read-only, after a merge to `main`
+(`staging-pipeline.yml`: `@api and not @known-defect and not @shared-state`) and, read-only, after a merge to `main`
 (`@api and @smoke`).
 
 - Features live in `automation/src/test/resources/features/api/`, grouped by area (access control, auth,
@@ -657,8 +660,8 @@ test('returns 200 with data', async ({ request }) => {
   removed afterwards). Ledger scenarios use a **throwaway brand**, never a real one.
 - Scenarios that create brands, admin users or dispatchers need a superadmin session
   (`E2E_SUPERADMIN_*`); without it they are skipped, or fail when `E2E_STRICT=true`.
-- Unit-level specs, rate-limit exhaustion, account lock-out/full MFA and day finalisation intentionally stay
-  in `server/tests` only — see the "Deliberately not here" table in `automation/README.md`.
+- Unit-level specs, rate-limit exhaustion and account lock-out/full MFA intentionally stay in `server/tests`
+  only; `automation/COVERAGE.md` maps every mocked spec file to its real-API coverage and exceptions.
 - Behaviour the API gets wrong today lives in `known-defects.feature` (`@known-defect`, excluded from the gate).
 
 ### Frontend — Vitest + React Testing Library

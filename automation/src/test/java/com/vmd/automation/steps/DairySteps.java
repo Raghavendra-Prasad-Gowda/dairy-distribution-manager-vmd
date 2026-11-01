@@ -80,4 +80,23 @@ public class DairySteps {
                 .put("/api/v1/products/" + ctx.idOf(product));
         assertThat(res.statusCode()).as("enable product deposit (%s)", res.asString()).isEqualTo(200);
     }
+
+    /**
+     * Sets a brand up as a deposit brand in one step: deposit per litre, a deposit-bearing category, and a
+     * 500 ml crate product in it with deposit switched on. The category and product are remembered under
+     * the given aliases.
+     */
+    @Given("a brand charging deposit of {int} per litre on crates of {string} in category {string} of {string}")
+    public void aDepositBrand(int perLitre, String productAlias, String categoryAlias, String brandAlias) {
+        setsDeposit(perLitre, brandAlias);
+        var fixtures = new com.vmd.automation.fixtures.Fixtures(ctx);
+        @SuppressWarnings("unchecked")
+        var brand = (Map<String, Object>) ctx.variables.get(brandAlias);
+        var category = fixtures.category(categoryAlias, brand);
+        marksCategory(categoryAlias);
+        fixtures.product(productAlias, brand, Map.of(
+                "category", category.get("name"), "unitType", "ml", "unitSize", 500,
+                "containerType", "crate", "unitsPerContainer", 12));
+        enablesProductDeposit(productAlias);
+    }
 }

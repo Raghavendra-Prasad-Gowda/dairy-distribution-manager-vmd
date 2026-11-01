@@ -8,11 +8,15 @@ those prove the code in isolation, this one proves the **deployed backend with i
 It runs in `staging-pipeline.yml` after every merge to `develop` (all of it) and in
 `production-verify.yml` after a merge to `main` (only the read-only `@smoke` scenarios).
 
+Coverage of the mocked specs is mapped file by file in [`COVERAGE.md`](COVERAGE.md): 886 scenarios
+across 26 features, with every exception and its reason.
+
 ## What it covers
 
 | Feature file | Area |
 |---|---|
-| `access-control.feature` | who may call what: no token, malformed token, salesman, dispatcher, admin, superadmin |
+| `access-control-matrix.feature` | the full endpoint × caller refusal matrix (361 rows): no token, malformed token, salesman, dispatcher, admin |
+| `access-control.feature` | the other half: who *is* allowed through |
 | `security.feature` | forged / unsigned / not-yet-valid tokens, browser security headers, no internals in errors |
 | `authentication.feature` | sign-in, wrong password, deactivated account, change password, cookie flags, two-step endpoints |
 | `admin-users.feature` | create / edit / delete admin, dispatcher and superadmin accounts, self-protection rules |
@@ -22,7 +26,8 @@ It runs in `staging-pipeline.yml` after every merge to `develop` (all of it) and
 | `dispatches.feature` | stock entries, server-side pricing, locking, past days, scoping |
 | `salesperson-ledger.feature` | collections, dues, ledger reset and the cascading salesperson balance |
 | `salesman-self-service.feature` | a salesman's own statement |
-| `reports.feature`, `bills.feature` | statements, summaries, dispatch sheet, profit and loss, bills |
+| `reports.feature`, `reports-detail.feature`, `deposit-summary.feature`, `profit-loss.feature`, `bills.feature` | statements, summaries, dispatch sheet, deposit, profit and loss, bills |
+| `dispatch-day-finalization.feature` | finalising / reversing a day (**@shared-state**, run on demand) |
 | `pin.feature`, `client-errors.feature`, `health.feature` | PIN gates, crash-report beacon, liveness / readiness |
 | `known-defects.feature` | correct behaviour the API does **not** have yet (see below) |
 
@@ -33,7 +38,6 @@ It runs in `staging-pipeline.yml` after every merge to `develop` (all of it) and
 | Unit-level specs (`env`, `dbUrl`, `logger`, `validate`, `depositRules`, `billFormat`, `paymentLedger`, `mfaService`, `slack`, `version`, `authz`, `pagination`) | They call functions directly; there is no HTTP surface on a deployed system to test them through. |
 | Rate-limit exhaustion (login, PIN, client-error beacon, bulk routes) | Tripping a limit locks the shared IP / PIN for up to an hour and would take the pipeline's own sign-in down with it. Only the limit *headers* are checked. |
 | Account lock-out and full MFA enrolment (`accountLock`, `mfa`) | Every attempt counts toward the 20-sign-ins-an-hour limit and lock-outs affect real accounts. Only the token-level 401/400 behaviour is checked. |
-| Dispatch-day finalisation | Finalising "today" locks **every** salesperson's entry system-wide and is a global flag. |
 | CORS allow-list | The allowed origins are environment configuration, not product behaviour. |
 
 ## Layout
@@ -70,9 +74,10 @@ export API_BASE_URL=http://localhost:3001            # backend origin, no /api/v
 export E2E_ADMIN_USERNAME=... E2E_ADMIN_PASSWORD=... # an admin WITHOUT MFA
 export E2E_SUPERADMIN_USERNAME=... E2E_SUPERADMIN_PASSWORD=...   # a superadmin WITHOUT MFA (optional, see below)
 
-mvn test -Dcucumber.filter.tags="@api and not @known-defect"   # what the staging gate runs
+mvn test -Dcucumber.filter.tags="@api and not @known-defect and not @shared-state"   # what the staging gate runs
 mvn test -Dcucumber.filter.tags="@api and @smoke"              # read-only; what production runs
 mvn test -Dcucumber.filter.tags="@known-defect"                # the documented API bugs
+mvn test -Dcucumber.filter.tags="@shared-state"                # changes state real users share - only on an environment nobody else uses
 mvn test -Dcucumber.filter.tags="@dispatch"                    # one area
 ```
 
@@ -95,6 +100,7 @@ Report: `target/cucumber-reports/report.html` (a failed scenario carries the exa
 | `@smoke` | **read-only**; safe against production. Never put it on a scenario that writes. |
 | `@superadmin` | needs a superadmin session (informational: skipping is automatic) |
 | `@known-defect` | expected to fail today; excluded from the gate |
+| `@shared-state` | changes state shared by every user (finalising the day locks everyone's entries); excluded from the gate, run on demand. Each skips itself if the state is not as it needs, and undoes its change afterwards. |
 | area tags | `@brands @products @dispatch @ledger @reports @bills @auth ...` for running one area |
 
 ## Conventions
@@ -110,7 +116,14 @@ Report: `target/cucumber-reports/report.html` (a failed scenario carries the exa
 * **A new scenario needs:** the right area tag, `Scenario` names written as a business rule, no
   ids / dates / tokens, and a fixture rather than a hard-coded record. Add `@smoke` only if it is read-only.
 * **Never sign in per scenario.** Use a role (`admin calls ...`); the session is cached. Sign-in is
-  limited to 20 attempts an hour per address and every attempt counts - a full run uses about 13.
+  limited to 20 attempts an hour per address and every attempt counts - a full run uses about 15.
+
+## Run time
+
+A full gate run takes about six minutes against a local server, almost all of it waiting out the backend's
+30-requests-a-minute limits on `/salespeople` and `/stock-receipts` (six waits of about a minute; the real
+work is about one minute). The staging job allows 20 minutes. If the suite keeps growing, the first thing to
+check is the "stall" scenarios in the HTML report (any scenario over 20 s), not the test code.
 
 ## Rate limits and why `SalespersonPool` exists
 
@@ -132,6 +145,8 @@ visible to the mocked specs:
    Slack card) instead of 400 / 413.
 2. A date that does not exist on the calendar is accepted or crashes: `2026-02-30` is **stored as
    2026-03-02**, and `2026-13-45` returns 500 - the Zod schemas only check the `YYYY-MM-DD` pattern.
+3. An id with trailing characters is read as its leading digits (`/routes/12abc` is route 12, `/routes/1.5`
+   is route 1), because ids are parsed with `parseInt`. A mistyped id can change or delete another record.
 
 Fix the server, delete the `@known-defect` tag from the scenario, and it joins the gate.
 

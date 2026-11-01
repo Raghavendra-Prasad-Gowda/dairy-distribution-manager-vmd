@@ -68,3 +68,45 @@ Feature: Update a delivery route (PUT /api/v1/routes/:id) against the real datab
       """
     Then the response status is 403
     And the route is listed for its brand unchanged
+
+  Scenario: A display order of zero is valid
+    When I update the route with:
+      """
+      { "displayOrder": 0 }
+      """
+    Then the response status is 200
+    And the route is listed for its brand with display order 0
+
+  Scenario: Several editable fields can be changed at once
+    When I update the route with:
+      """
+      { "routeNumber": "<newRouteNumber>", "displayOrder": 3, "isActive": true }
+      """
+    Then the response status is 200
+    And the response route number is the new route number
+    And the route is listed for its brand with display order 3
+
+  Scenario: An empty update changes nothing and still succeeds
+    When I update the route with:
+      """
+      { }
+      """
+    Then the response status is 200
+    And the route is listed for its brand unchanged
+
+  Scenario Outline: Route ids and fields are validated before anything is saved
+    When I update route "<id>" with:
+      """
+      <body>
+      """
+    Then the response status is 400
+
+    Examples:
+      | id         | body                          |
+      | abc        | { "displayOrder": 1 }         |
+      | 0          | { "displayOrder": 1 }         |
+      | -3         | { "displayOrder": 1 }         |
+      | 1          | { "routeNumber": "" }         |
+      | 1          | { "displayOrder": -1 }        |
+      | 1          | { "displayOrder": 1.5 }       |
+      | 1          | { "isActive": "yes" }         |

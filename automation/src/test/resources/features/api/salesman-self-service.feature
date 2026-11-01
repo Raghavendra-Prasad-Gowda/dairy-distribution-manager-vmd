@@ -35,3 +35,42 @@ Feature: Salesman self-service statement
       | salesman  | ?from=2026-04-01                | 400    |
       | admin     | ?from=2026-04-01&to=2026-04-30  | 403    |
       | anonymous | ?from=2026-04-01&to=2026-04-30  | 403    |
+
+  Scenario: Several collections on one day appear together in that day's statement row
+    Given admin dispatches 5 of "milk" at 22 to "me" on "${today-2}" remembered as "dispatch"
+    And afterwards admin cleans up with "DELETE /api/v1/dispatches/${dispatch.id}"
+    And admin collects 30 from "me" on "${today-2}" remembered as "first"
+    And afterwards admin cleans up with "DELETE /api/v1/salesperson-payments/${first.id}"
+    And admin collects 20 from "me" on "${today-2}" remembered as "second"
+    And afterwards admin cleans up with "DELETE /api/v1/salesperson-payments/${second.id}"
+    When salesman calls "GET /api/v1/salesperson-statement/me?from=${today-2}&to=${today-2}"
+    Then the JSON list "data" has 1 item
+    And the JSON list "data[0].payments" has 2 items
+    And the JSON amount "data[0].amountPaid" equals "50"
+
+  Scenario: Loaded dues are kept out of the collections and show who loaded them
+    Given admin calls "POST /api/v1/salesperson-payments/bulk-topup" with:
+      """
+      { "paymentDate": "${today-2}", "notes": "opening dues", "entries": [ { "salespersonId": ${me.id}, "amount": 500 } ] }
+      """
+    And I remember the item of "data.payments" whose "amount" is "500" as "topUp"
+    And afterwards admin cleans up with "DELETE /api/v1/salesperson-payments/${topUp.id}"
+    When salesman calls "GET /api/v1/salesperson-statement/me?from=${today-2}&to=${today-2}"
+    Then the JSON list "data[0].payments" has 0 items
+    And the JSON amount "data[0].topUps[0].amount" equals "500"
+    And the JSON field "data[0].topUps[0].createdBy" is present
+
+  Scenario: Statement items carry the measures and the layout order
+    Given a throwaway product "crate" in brand "brand" with:
+      """
+      { "unitType": "ml", "unitSize": 500, "containerType": "crate", "unitsPerContainer": 12 }
+      """
+    And admin dispatches 12 of "crate" at 30 to "me" on "${today-2}" remembered as "dispatch"
+    And afterwards admin cleans up with "DELETE /api/v1/dispatches/${dispatch.id}"
+    When salesman calls "GET /api/v1/salesperson-statement/me?from=${today-2}&to=${today-2}"
+    Then the JSON field "data[0].items[0].unitSize" is a number
+    And the JSON amount "data[0].items[0].unitSize" equals "500"
+    And the JSON field "data[0].items[0].unitsPerContainer" equals "12"
+    And the JSON field "data[0].items[0].containerType" equals "crate"
+    And the JSON field "data[0].items[0].categoryDisplayOrder" equals "999"
+    And the JSON field "data[0].items[0].brandDisplayOrder" is present
