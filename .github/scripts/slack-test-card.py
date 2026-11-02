@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the Slack card for a Staging Pipeline run and prints it as JSON on stdout.
+"""Builds the Slack card for a staging-pipeline run and prints it as JSON on stdout.
 
 Reads the Cucumber JSON report (API) and the Playwright JSON report (UI) if they exist and
 works out passed / failed / skipped for each, plus the names of what failed. Either report can

@@ -1,4 +1,4 @@
-name: Production Verify & Release
+name: production-verify-and-release
 
 # Runs after the release PR is merged into main. Render and Vercel auto-deploy production on
 # their own; this waits for that deploy, runs read-only smoke checks against it, then tags a

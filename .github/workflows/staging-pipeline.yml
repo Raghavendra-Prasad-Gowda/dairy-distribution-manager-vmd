@@ -1,4 +1,4 @@
-name: Staging Pipeline
+name: staging-pipeline
 
 # Runs after every merge to develop. Render and Vercel auto-deploy the testing apps on their own;
 # this pipeline waits for that deploy to finish, runs API then UI automation against it and,
@@ -253,7 +253,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A PR opened with the default GITHUB_TOKEN does not trigger other workflows, so PR Checks
+      # A PR opened with the default GITHUB_TOKEN does not trigger other workflows, so pr-checks
       # would never run on it. A GitHub App token does. Falls back to GITHUB_TOKEN if no app is set up.
       - name: Create GitHub App token
         id: app-token
