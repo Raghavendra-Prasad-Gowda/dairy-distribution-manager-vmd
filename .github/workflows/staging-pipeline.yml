@@ -65,7 +65,9 @@ jobs:
     name: API automation (REST Assured + Cucumber)
     needs: wait-for-deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # With the superadmin secrets set, every scenario runs instead of ~125 skipping. Against the
+    # free-tier testing backend (each dispatch/receipt write takes ~3 s) that is well over 20 min.
+    timeout-minutes: 75
     # E2E_ADMIN_* live in the "staging" environment's secrets; without this the job sees them empty.
     environment: staging
     steps:
@@ -103,8 +105,10 @@ jobs:
           python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, os
           path = "target/cucumber-reports/report.json"
-          if not os.path.exists(path):
-              print("### API automation\nNo report was produced."); raise SystemExit
+          # Cucumber writes the JSON report only when the run ends, so a cancelled or timed-out run
+          # leaves it missing or empty.
+          if not os.path.exists(path) or os.path.getsize(path) == 0:
+              print("### API automation\nNo report was produced - the run was cancelled or timed out before it finished."); raise SystemExit
           total = failed = skipped = 0
           for feature in json.load(open(path)):
               background_bad = False
