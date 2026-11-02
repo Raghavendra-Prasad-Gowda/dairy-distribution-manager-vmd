@@ -71,7 +71,7 @@ app.use('/api', rateLimit({
 // ─── 5. Strict auth rate limiter ─────────────────────────────────────────────
 app.use('/api/v1/auth/login', rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 20,
+  max: env.LOGIN_RATE_LIMIT_MAX, // 20 unless a test environment raises it
   message: 'Too many login attempts, please try again after an hour',
 }));
 
