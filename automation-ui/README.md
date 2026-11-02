@@ -5,8 +5,8 @@ TypeScript. Real browser → real frontend → real API → real database; nothi
 suite lives in [`../automation`](../automation/README.md) (Java).
 
 ```
-playwright.config.ts   projects: setup → signed-in, plus signed-out (login page itself),
-                       each on desktop 1366×768, iPad portrait 810×1080 and iPad landscape 1080×810
+playwright.config.ts   projects: setup → signed-in, plus signed-out (login page itself) on iPad
+                       portrait 810×1080 and landscape 1080×810; tests/salesman/ on a phone 412×839
 src/env.ts             all settings, from environment variables
 src/fixtures.ts        trackRoute: deletes every route a test created, pass or fail
 src/pages/             page objects (selectors live here, not in specs)
@@ -41,10 +41,17 @@ CI uploads `playwright-report/` and `test-results/` as the `ui-e2e-report` artif
 
 ## Screens
 
-Every spec runs on three screens (`screens` in `playwright.config.ts`): desktop 1366×768, and
-iPad (gen 7) portrait 810×1080 and landscape 1080×810 with touch, 2× pixel density and the iPad
-user agent. Portrait is below the app's `lg` breakpoint (1024px), so it uses the hamburger menu;
-landscape and desktop show the sidebar. The iPads run in Chromium, the only browser CI installs.
+Specs run on the device their users have (`playwright.config.ts`); there is no desktop run.
+
+| Specs | Who | Screen |
+|---|---|---|
+| `tests/salesman/**` | salesman | phone — Pixel 7, 412×839 (`salesman-phone`) |
+| everything else | superadmin, admin, dispatcher | iPad (gen 7) portrait 810×1080 and landscape 1080×810 (`*-ipad-portrait`, `*-ipad-landscape`) |
+
+All screens get touch, the device's pixel density and user agent, in Chromium (the only browser CI
+installs). iPad portrait is below the app's `lg` breakpoint (1024px), so it uses the hamburger menu;
+landscape shows the sidebar. Put a new salesman spec in `tests/salesman/` and it runs on the phone;
+salesman specs start signed out and sign in as their own salesman.
 Run one screen with `npx playwright test --project=setup --project='*-ipad-portrait'`.
 
 ## Writing tests
