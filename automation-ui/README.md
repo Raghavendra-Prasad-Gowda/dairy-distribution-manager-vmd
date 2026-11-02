@@ -5,7 +5,8 @@ TypeScript. Real browser → real frontend → real API → real database; nothi
 suite lives in [`../automation`](../automation/README.md) (Java).
 
 ```
-playwright.config.ts   projects: setup → signed-in, plus signed-out (login page itself)
+playwright.config.ts   projects: setup → signed-in, plus signed-out (login page itself),
+                       each on desktop 1366×768, iPad portrait 810×1080 and iPad landscape 1080×810
 src/env.ts             all settings, from environment variables
 src/fixtures.ts        trackRoute: deletes every route a test created, pass or fail
 src/pages/             page objects (selectors live here, not in specs)
@@ -37,6 +38,14 @@ E2E_ADMIN_USERNAME=... E2E_ADMIN_PASSWORD=... \
 
 Failed tests keep a screenshot and a trace in `test-results/` (`npx playwright show-trace <zip>`).
 CI uploads `playwright-report/` and `test-results/` as the `ui-e2e-report` artifact.
+
+## Screens
+
+Every spec runs on three screens (`screens` in `playwright.config.ts`): desktop 1366×768, and
+iPad (gen 7) portrait 810×1080 and landscape 1080×810 with touch, 2× pixel density and the iPad
+user agent. Portrait is below the app's `lg` breakpoint (1024px), so it uses the hamburger menu;
+landscape and desktop show the sidebar. The iPads run in Chromium, the only browser CI installs.
+Run one screen with `npx playwright test --project=setup --project='*-ipad-portrait'`.
 
 ## Writing tests
 - Put selectors in `src/pages/`, behaviour in `tests/`. Prefer roles/labels over CSS.
