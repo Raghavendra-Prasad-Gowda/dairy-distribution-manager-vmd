@@ -173,11 +173,14 @@ jobs:
     # Runs on failure too (so the status turns red), but not when this run was superseded.
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
+    # Same environment as the test jobs, so SLACK_WEBHOOK_URL works whether it is stored as a
+    # repository secret or as a secret of the "staging" environment.
+    environment: staging
     permissions:
       contents: read
       statuses: write
     env:
-      # Job-level so the Slack step's `if` can see it (a step's own env is not visible to its `if`).
+      # Job-level so the Slack steps' `if` can see it (a step's own env is not visible to its `if`).
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - name: Post Staging Verified status
@@ -194,15 +197,42 @@ jobs:
           gh api -X POST "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
             -f state="$state" -f context="Staging Verified" \
             -f description="$desc" -f target_url="$RUN_URL"
-      - name: Notify Slack
+      - uses: actions/checkout@v7
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+      # Missing when a job was cancelled or never ran; the card then says so.
+      - uses: actions/download-artifact@v4
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        continue-on-error: true
+        with:
+          name: api-e2e-report
+          path: reports/api
+      - uses: actions/download-artifact@v4
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        continue-on-error: true
+        with:
+          name: ui-e2e-report
+          path: reports/ui
+      - name: Post test results to Slack
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
         env:
+          API_REPORT: reports/api/report.json
+          UI_REPORT: reports/ui/test-results/results.json
+          DEPLOY_RESULT: ${{ needs.wait-for-deploy.result }}
+          API_RESULT: ${{ needs.api-e2e.result }}
           UI_RESULT: ${{ needs.ui-e2e.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
         run: |
-          if [ "$UI_RESULT" = "success" ]; then icon=":white_check_mark:"; word="passed"; else icon=":x:"; word="FAILED"; fi
-          jq -n --arg t "$icon Staging pipeline $word for \`${GITHUB_SHA:0:7}\` - <$RUN_URL|view run>" '{text: $t}' \
-            | curl -sS -X POST -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL"
+          python3 .github/scripts/slack-test-card.py > "$RUNNER_TEMP/slack-card.json"
+          # A failed post must not turn a verified build red; just say what happened.
+          code=$(curl -sS -o "$RUNNER_TEMP/slack-response.txt" -w '%{http_code}' -X POST \
+            -H 'Content-type: application/json' --data @"$RUNNER_TEMP/slack-card.json" "$SLACK_WEBHOOK_URL" || true)
+          if [ "$code" != "200" ]; then
+            echo "::warning::Slack post returned HTTP $code: $(cat "$RUNNER_TEMP/slack-response.txt")"
+          fi
 
   release-pr:
     name: Open develop -> main release PR
