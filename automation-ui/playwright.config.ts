@@ -27,7 +27,12 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  reporter: [
+    ['list'],
+    ['html', { open: 'never' }],
+    // Read by the Slack results card in staging-pipeline.yml; lives in test-results/, which CI uploads.
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
   use: {
     baseURL: env.webBaseUrl,
     actionTimeout: env.uiTimeoutMs,
