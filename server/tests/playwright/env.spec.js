@@ -100,4 +100,19 @@ test.describe('config/env.js', () => {
     expect(env.SUPERADMIN_USERNAME).toBe('root');
     expect(env.SUPERADMIN_PASSWORD).toBe('hunter2');
   });
+
+  test('LOGIN_RATE_LIMIT_MAX defaults to 20 when unset or empty', () => {
+    expect(loadEnv({ NODE_ENV: 'development', LOGIN_RATE_LIMIT_MAX: undefined }).LOGIN_RATE_LIMIT_MAX).toBe(20);
+    expect(loadEnv({ NODE_ENV: 'development', LOGIN_RATE_LIMIT_MAX: '' }).LOGIN_RATE_LIMIT_MAX).toBe(20);
+  });
+
+  test('LOGIN_RATE_LIMIT_MAX can be raised for a test environment', () => {
+    expect(loadEnv({ NODE_ENV: 'development', LOGIN_RATE_LIMIT_MAX: '1000' }).LOGIN_RATE_LIMIT_MAX).toBe(1000);
+  });
+
+  test('LOGIN_RATE_LIMIT_MAX rejects zero, negative and non-numeric values', () => {
+    for (const bad of ['0', '-5', 'abc', '2.5']) {
+      expect(() => loadEnv({ NODE_ENV: 'development', LOGIN_RATE_LIMIT_MAX: bad })).toThrow(/Invalid environment configuration/);
+    }
+  });
 });

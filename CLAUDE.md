@@ -841,6 +841,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 | `EDIT_PIN` | Yes | 6-digit PIN for protected edits |
 | `CLIENT_ORIGIN` | Yes | Comma-separated CORS origins |
 | `NODE_ENV` | Yes | `development` or `production` |
+| `LOGIN_RATE_LIMIT_MAX` | No | Login attempts per IP per hour (default `20`). Raise only on a test environment — never in production |
 | `SLACK_WEBHOOK_URL` | No | Slack incoming webhook — unset = silent |
 | `APP_URL` | No | Added as "Open App" link in Slack card footers |
 
