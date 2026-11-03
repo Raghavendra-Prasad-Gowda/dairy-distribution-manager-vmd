@@ -72,10 +72,11 @@ Create environment **`staging`** (Settings → Environments) with these secrets:
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | secret from step 3 |
 
 Optional secret `SLACK_WEBHOOK_URL` (repository secret, or a secret of the `staging` environment): when set, every
-staging-pipeline run posts a result card to the webhook's channel - overall pass/fail, API and UI pass/fail/skip
-counts, the names of what failed, and a link to the run. To create it: Slack → Apps → *Incoming Webhooks* (or your
+staging-pipeline run posts two separate cards to the webhook's channel, one for API automation and one for UI
+automation. Each shows pass/fail, totals, pass rate, duration, a per-feature (API) or per-spec-file (UI) breakdown,
+the failed scenarios/tests with the first line of the error, and a link to the run. To create it: Slack → Apps → *Incoming Webhooks* (or your
 workspace's *Workflow Builder*) → add a webhook to the channel that should receive the results, and store its URL as
-the secret. Unset = no card. The card is built by `.github/scripts/slack-test-card.py`.
+the secret. Unset = no card. The cards are built by `.github/scripts/slack-test-card.py api|ui` and posted by `.github/scripts/post-slack-card.sh`.
 
 The superadmin pair unlocks the scenarios that create brands, admin users and dispatchers and reset ledgers
 (more than half of the API suite: 478 of 872 gate scenarios). Without it those scenarios are skipped; once it is in place, set the

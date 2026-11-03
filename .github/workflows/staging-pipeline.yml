@@ -216,27 +216,33 @@ jobs:
         with:
           name: ui-e2e-report
           path: reports/ui
-      - name: Post test results to Slack
+      # One card per suite, so the API and UI results (and their failures) each get their own message.
+      - name: Post API results to Slack
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
         env:
-          API_REPORT: reports/api/report.json
-          UI_REPORT: reports/ui/test-results/results.json
-          DEPLOY_RESULT: ${{ needs.wait-for-deploy.result }}
-          API_RESULT: ${{ needs.api-e2e.result }}
-          UI_RESULT: ${{ needs.ui-e2e.result }}
+          SUITE: api
+          REPORT: reports/api/report.json
+          RESULT: ${{ needs.api-e2e.result }}
+          TARGET_URL: ${{ env.API_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
           ACTOR: ${{ github.actor }}
           COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
-        run: |
-          python3 .github/scripts/slack-test-card.py > "$RUNNER_TEMP/slack-card.json"
-          # A failed post must not turn a verified build red; just say what happened.
-          code=$(curl -sS -o "$RUNNER_TEMP/slack-response.txt" -w '%{http_code}' -X POST \
-            -H 'Content-type: application/json' --data @"$RUNNER_TEMP/slack-card.json" "$SLACK_WEBHOOK_URL" || true)
-          if [ "$code" != "200" ]; then
-            echo "::warning::Slack post returned HTTP $code: $(cat "$RUNNER_TEMP/slack-response.txt")"
-          fi
+        run: .github/scripts/post-slack-card.sh
+      - name: Post UI results to Slack
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        env:
+          SUITE: ui
+          REPORT: reports/ui/test-results/results.json
+          RESULT: ${{ needs.ui-e2e.result }}
+          TARGET_URL: ${{ env.WEB_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
+        run: .github/scripts/post-slack-card.sh
 
   release-pr:
     name: open-release-pr
