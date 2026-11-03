@@ -26,7 +26,7 @@ env:
 
 jobs:
   wait-for-deploy:
-    name: Wait for testing deploy
+    name: wait-for-testing-deploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -62,7 +62,7 @@ jobs:
         run: .github/scripts/wait-for-vercel.sh "${{ github.repository }}" "${{ github.sha }}" "$VERCEL_PROJECT" "$WEB_URL"
 
   api-e2e:
-    name: API automation (REST Assured + Cucumber)
+    name: api-automation
     needs: wait-for-deploy
     runs-on: ubuntu-latest
     # With the superadmin secrets set, every scenario runs instead of ~125 skipping. Against the
@@ -136,7 +136,7 @@ jobs:
           if-no-files-found: ignore
 
   ui-e2e:
-    name: UI automation (Playwright + TypeScript)
+    name: ui-automation
     needs: api-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -172,7 +172,7 @@ jobs:
           if-no-files-found: ignore
 
   finalize:
-    name: Report Staging Verified
+    name: report-staging-verified
     needs: [wait-for-deploy, api-e2e, ui-e2e]
     # Runs on failure too (so the status turns red), but not when this run was superseded.
     if: ${{ always() && !cancelled() }}
@@ -239,7 +239,7 @@ jobs:
           fi
 
   release-pr:
-    name: Open develop -> main release PR
+    name: open-release-pr
     needs: [ui-e2e, finalize]
     runs-on: ubuntu-latest
     permissions:

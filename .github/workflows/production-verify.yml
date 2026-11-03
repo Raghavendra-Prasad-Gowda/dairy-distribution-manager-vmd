@@ -29,7 +29,7 @@ env:
 
 jobs:
   verify:
-    name: Wait for deploy + smoke test
+    name: wait-for-deploy-and-smoke-test
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -72,7 +72,7 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    name: Tag release
+    name: tag-release
     needs: verify
     runs-on: ubuntu-latest
     permissions:
