@@ -162,6 +162,11 @@ jobs:
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: npm test
+      - name: Summarise tests
+        if: always()
+        env:
+          REPORT: test-results/results.json
+        run: python3 ../.github/scripts/ui-job-summary.py >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
