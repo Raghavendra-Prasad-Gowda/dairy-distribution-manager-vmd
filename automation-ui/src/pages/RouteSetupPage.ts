@@ -24,10 +24,27 @@ export class RouteSetupPage {
   async open(brandName = 'Nandini'): Promise<void> {
     await this.page.goto('/dairy/setup/routes');
     await this.heading.waitFor();
+    await this.selectBrand(brandName);
+  }
+
+  /** Clicks the brand tab and waits until the page confirms that brand is the active one. */
+  private async selectBrand(brandName: string): Promise<void> {
     await this.page.getByRole('button', { name: brandName, exact: true }).click();
     await expect(this.page.getByText('Routes defined here appear as columns in the')).toContainText(
       `in the ${brandName} Stock Receipt`,
     );
+  }
+
+  /**
+   * Reloads the page and selects the brand again. The page does not remember the selected brand
+   * across a reload - it falls back to the first brand in the API's order - so a test that checks a
+   * Nandini route after a reload must pick Nandini again instead of relying on the environment's
+   * brand order (which differs between local, testing and production data).
+   */
+  async reload(brandName = 'Nandini'): Promise<void> {
+    await this.page.reload();
+    await this.heading.waitFor();
+    await this.selectBrand(brandName);
   }
 
   /** The table row for a route number. Exact match: "Route E2E-1" must not match "Route E2E-1-R". */
