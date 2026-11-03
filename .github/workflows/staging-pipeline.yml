@@ -1,4 +1,4 @@
-name: Staging Pipeline
+name: staging-pipeline
 
 # Runs after every merge to develop. Render and Vercel auto-deploy the testing apps on their own;
 # this pipeline waits for that deploy to finish, runs API then UI automation against it and,
@@ -26,7 +26,7 @@ env:
 
 jobs:
   wait-for-deploy:
-    name: Wait for testing deploy
+    name: wait-for-testing-deploy
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -62,7 +62,7 @@ jobs:
         run: .github/scripts/wait-for-vercel.sh "${{ github.repository }}" "${{ github.sha }}" "$VERCEL_PROJECT" "$WEB_URL"
 
   api-e2e:
-    name: API automation (REST Assured + Cucumber)
+    name: api-automation
     needs: wait-for-deploy
     runs-on: ubuntu-latest
     # With the superadmin secrets set, every scenario runs instead of ~125 skipping. Against the
@@ -136,7 +136,7 @@ jobs:
           if-no-files-found: ignore
 
   ui-e2e:
-    name: UI automation (Playwright + TypeScript)
+    name: ui-automation
     needs: api-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -162,6 +162,11 @@ jobs:
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: npm test
+      - name: Summarise tests
+        if: always()
+        env:
+          REPORT: test-results/results.json
+        run: python3 ../.github/scripts/ui-job-summary.py >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -172,7 +177,7 @@ jobs:
           if-no-files-found: ignore
 
   finalize:
-    name: Report Staging Verified
+    name: report-staging-verified
     needs: [wait-for-deploy, api-e2e, ui-e2e]
     # Runs on failure too (so the status turns red), but not when this run was superseded.
     if: ${{ always() && !cancelled() }}
@@ -216,30 +221,36 @@ jobs:
         with:
           name: ui-e2e-report
           path: reports/ui
-      - name: Post test results to Slack
+      # One card per suite, so the API and UI results (and their failures) each get their own message.
+      - name: Post API results to Slack
         if: ${{ env.SLACK_WEBHOOK_URL != '' }}
         env:
-          API_REPORT: reports/api/report.json
-          UI_REPORT: reports/ui/test-results/results.json
-          DEPLOY_RESULT: ${{ needs.wait-for-deploy.result }}
-          API_RESULT: ${{ needs.api-e2e.result }}
-          UI_RESULT: ${{ needs.ui-e2e.result }}
+          SUITE: api
+          REPORT: reports/api/report.json
+          RESULT: ${{ needs.api-e2e.result }}
+          TARGET_URL: ${{ env.API_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
           ACTOR: ${{ github.actor }}
           COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
-        run: |
-          python3 .github/scripts/slack-test-card.py > "$RUNNER_TEMP/slack-card.json"
-          # A failed post must not turn a verified build red; just say what happened.
-          code=$(curl -sS -o "$RUNNER_TEMP/slack-response.txt" -w '%{http_code}' -X POST \
-            -H 'Content-type: application/json' --data @"$RUNNER_TEMP/slack-card.json" "$SLACK_WEBHOOK_URL" || true)
-          if [ "$code" != "200" ]; then
-            echo "::warning::Slack post returned HTTP $code: $(cat "$RUNNER_TEMP/slack-response.txt")"
-          fi
+        run: .github/scripts/post-slack-card.sh
+      - name: Post UI results to Slack
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }}
+        env:
+          SUITE: ui
+          REPORT: reports/ui/test-results/results.json
+          RESULT: ${{ needs.ui-e2e.result }}
+          TARGET_URL: ${{ env.WEB_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
+        run: .github/scripts/post-slack-card.sh
 
   release-pr:
-    name: Open develop -> main release PR
+    name: open-release-pr
     needs: [ui-e2e, finalize]
     runs-on: ubuntu-latest
     permissions:
@@ -253,7 +264,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A PR opened with the default GITHUB_TOKEN does not trigger other workflows, so PR Checks
+      # A PR opened with the default GITHUB_TOKEN does not trigger other workflows, so pr-checks
       # would never run on it. A GitHub App token does. Falls back to GITHUB_TOKEN if no app is set up.
       - name: Create GitHub App token
         id: app-token

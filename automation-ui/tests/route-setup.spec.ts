@@ -22,7 +22,7 @@ test.describe('Route Setup', () => {
     await expect(routes.row(original)).toBeVisible();
 
     // Persisted in the database, not just in React state
-    await page.reload();
+    await routes.reload();
     await expect(routes.row(original)).toBeVisible();
 
     // Edit
@@ -32,7 +32,7 @@ test.describe('Route Setup', () => {
     await expect(routes.row(renamed)).toBeVisible();
     await expect(routes.row(original)).toHaveCount(0);
 
-    await page.reload();
+    await routes.reload();
     await expect(routes.row(renamed)).toBeVisible();
     await expect(routes.row(original)).toHaveCount(0);
 
@@ -41,7 +41,7 @@ test.describe('Route Setup', () => {
     await routes.acknowledgeNotice('Route deleted');
     await expect(routes.row(renamed)).toHaveCount(0);
 
-    await page.reload();
+    await routes.reload();
     await expect(routes.row(renamed)).toHaveCount(0);
   });
 
@@ -61,7 +61,7 @@ test.describe('Route Setup', () => {
     expect((await second.json()).code).toBe('DUPLICATE');
     await routes.acknowledgeNotice(/already exists/i);
 
-    await page.reload();
+    await routes.reload();
     await expect(routes.row(number)).toHaveCount(1);
   });
 

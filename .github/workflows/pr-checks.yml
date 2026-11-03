@@ -1,4 +1,4 @@
-name: PR Checks
+name: pr-checks
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   lint-timezone:
-    name: Lint — timezone safety
+    name: lint-timezone-safety
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -22,7 +22,7 @@ jobs:
       - run: node scripts/check-timezone-safety.js
 
   lint-server:
-    name: Lint (server)
+    name: lint-server
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -41,7 +41,7 @@ jobs:
       - run: npm run lint
 
   lint-client:
-    name: Lint (client)
+    name: lint-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -60,7 +60,7 @@ jobs:
       - run: npm run lint
 
   api-tests:
-    name: API Tests + coverage gate (server)
+    name: api-tests-coverage-server
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -85,7 +85,7 @@ jobs:
           EDIT_PIN: '123456'
 
   ui-tests:
-    name: UI Tests + coverage gate (client)
+    name: ui-tests-coverage-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -107,7 +107,7 @@ jobs:
       - run: npm run test:coverage
 
   ui-build:
-    name: Build (client)
+    name: build-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -126,7 +126,7 @@ jobs:
       - run: npm run build
 
   lint-api-spec:
-    name: Lint OpenAPI spec
+    name: lint-openapi-spec
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -139,7 +139,7 @@ jobs:
       - run: npx --yes @redocly/cli lint docs/openapi.yaml
 
   security-audit:
-    name: Dependency vulnerability scan
+    name: dependency-vulnerability-scan-${{ matrix.package }}
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -165,7 +165,7 @@ jobs:
       - run: npm audit --audit-level=moderate
 
   automation-compile:
-    name: Compile automation suite (API + UI)
+    name: compile-automation-suite
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
