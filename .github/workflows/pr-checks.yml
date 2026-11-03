@@ -60,7 +60,7 @@ jobs:
       - run: npm run lint
 
   api-tests:
-    name: server-api-tests-coverage
+    name: api-tests-coverage-server
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -85,7 +85,7 @@ jobs:
           EDIT_PIN: '123456'
 
   ui-tests:
-    name: client-ui-tests-coverage
+    name: ui-tests-coverage-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
@@ -139,7 +139,7 @@ jobs:
       - run: npx --yes @redocly/cli lint docs/openapi.yaml
 
   security-audit:
-    name: dependency-vulnerability-scan
+    name: dependency-vulnerability-scan-${{ matrix.package }}
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
     if: github.base_ref != 'main' || github.head_ref != 'develop'
