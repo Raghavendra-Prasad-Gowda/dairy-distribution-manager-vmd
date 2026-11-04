@@ -90,6 +90,17 @@ would not run on the release PR. Create a GitHub App (Settings → Developer set
 Apps) with repository permissions **Pull requests: read & write** and **Contents: read**, install
 it on this repo, then add repository secrets `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY`.
 
+### 5b. Auto-merge into develop
+GitHub's built-in auto-merge needs branch protection, which this private repo's plan does not offer, so
+`.github/workflows/auto-merge-develop.yml` does it instead: when `pr-checks` finishes and every job passed,
+it merges the PR into `develop` with a merge commit. It skips PRs that are drafts, from forks, that target
+anything other than `develop` (the `develop → main` release PR stays manual), that have the
+`no-auto-merge` label, or that got new commits after the checks ran (`--match-head-commit`).
+It runs from the default branch, so it takes effect once it is merged into `develop`.
+With the GitHub App from section 5 (give it **Contents: read & write** as well) the merge triggers
+`staging-pipeline` normally; without it the workflow starts `staging-pipeline` itself via `workflow_dispatch`.
+This is not an enforced gate: anyone with write access can still merge manually.
+
 ### 6. Render / Vercel branch wiring (verified 2026-10-30)
 - Render `dairy-distribution-manager-vmd-testing` → branch `develop`, auto-deploy on.
 - Render `dairy-distribution-manager-vmd` → branch `main`, auto-deploy on.
