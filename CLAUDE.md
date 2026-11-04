@@ -795,6 +795,7 @@ git push -u origin feat/short-description   # then open a PR into develop
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
 - A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
 - After a hotfix to `main`, open a PR `main → develop`.
+- `auto-merge-develop.yml` merges a PR into `develop` once every `pr-checks` job is green (merge commit). It never touches `main`; add the `no-auto-merge` label to a PR to opt out. See `docs/release-pipeline.md` §5b.
 
 ---
 
