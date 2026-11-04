@@ -111,7 +111,7 @@ anything other than `develop` (the `develop → main` release PR stays manual), 
 `no-auto-merge` label, or that got new commits after the checks ran (`--match-head-commit`).
 It runs from the default branch, so it takes effect once it is merged into `develop`.
 With the GitHub App from section 5 (give it **Contents: read & write** as well) the merge triggers
-`staging-pipeline` normally; without it the workflow starts `staging-pipeline` itself via `workflow_dispatch`.
+`staging-pipeline` normally; without it, or if the app is refused (for example it only has Contents: read), the workflow merges with the default token and starts `staging-pipeline` itself via `workflow_dispatch`.
 This is not an enforced gate: anyone with write access can still merge manually.
 
 ### 6. Render / Vercel branch wiring (verified 2026-10-30)
