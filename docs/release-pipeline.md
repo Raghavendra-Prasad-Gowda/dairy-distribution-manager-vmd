@@ -138,3 +138,5 @@ it ships, open a PR `main → develop` so `develop` gets the fix too.
   Contents: read & write, or the new permissions were not accepted on the installation (see step 5).
 - **Auto-merge fails with `GraphQL: Something went wrong` on a PR that edits `.github/workflows/`** —
   the App lacks Workflows: read & write. The default `GITHUB_TOKEN` can never merge such PRs.
+- **Auto-merge failed before a permission fix** — re-run that `auto-merge-develop` run (Actions → the run →
+  Re-run jobs). Each run mints a fresh App token, so the re-run picks up the new permissions.
