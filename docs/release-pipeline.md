@@ -132,7 +132,7 @@ This is not an enforced gate: anyone with write access can still merge manually.
 
 ## Daily flow
 1. `git checkout -b feat/my-change develop` → commit → push → PR into `develop`.
-2. `pr-checks` pass → merge.
+2. `pr-checks` pass → the PR merges itself (`auto-merge-develop`). Add the `no-auto-merge` label to keep a PR for a manual merge.
 3. Testing deploys; `staging-pipeline` runs. Red = look at the run's reports (Actions artifacts).
 4. Green = a `Release: develop -> main` PR appears. Review, approve, **merge with a merge commit**.
 5. Production deploys; `production-verify-and-release` smoke-tests it and publishes `vX.Y.Z`.
