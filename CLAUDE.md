@@ -29,7 +29,8 @@ dairy-distribution-manager-vmd/
 │   ├── pr-checks.yml                  # CI on every PR to develop/main
 │   ├── staging-pipeline.yml           # After merge to develop: wait deploy → API → UI → release PR
 │   └── production-verify.yml          # After merge to main: wait deploy → smoke → tag + release
-├── automation/                        # Java: Cucumber + REST Assured (API) + Playwright (UI) vs deployed env
+├── automation/                        # Java: Cucumber + REST Assured (API) vs deployed env — see automation/README.md
+├── automation-ui/                     # TypeScript: Playwright Test (UI) vs deployed env
 ├── docs/release-pipeline.md           # Release flow + one-time setup checklist
 │
 ├── server/                            # Express 5 backend
@@ -635,13 +636,33 @@ test('returns 200 with data', async ({ request }) => {
 });
 ```
 
-**Minimum coverage per new endpoint:**
+**Minimum coverage per new endpoint** (as an API scenario in `automation/`; use a mocked spec only for logic the
+API cannot reach):
 - 403 (no token)
 - 401 (bad/expired token)
 - 400 (invalid input / bad ID)
 - 403 (wrong role, e.g. salesman hitting admin-only)
 - 200/201 (happy path)
 - The specific business logic path (e.g. missing field defaults, cascades)
+
+### Backend — API automation against the deployed environment
+
+`server/tests/playwright` (above) proves the code with a **mocked** Prisma, and now holds only what the API suite
+cannot test (unit-level logic, MFA/lock-out, rate limits, Slack cards, forged-token cases, finalisation) plus a few
+mixed files; endpoint behaviour is tested in `automation/`. `automation/` proves the
+**deployed backend with its real database**, and runs after every merge to `develop`
+(`staging-pipeline.yml`: `@api and not @known-defect and not @shared-state`) and, read-only, after a merge to `main`
+(`@api and @smoke`).
+
+- Features live in `automation/src/test/resources/features/api/`, grouped by area (access control, auth,
+  dairy setup, salespeople/pricing, dairy ledger, dispatches, salesperson ledger, reports, bills, PIN).
+- Scenarios use business language, no ids/dates/tokens; entities come from fixtures (`E2E-...` names,
+  removed afterwards). Ledger scenarios use a **throwaway brand**, never a real one.
+- Scenarios that create brands, admin users or dispatchers need a superadmin session
+  (`E2E_SUPERADMIN_*`); without it they are skipped, or fail when `E2E_STRICT=true`.
+- Unit-level specs, rate-limit exhaustion and account lock-out/full MFA intentionally stay in `server/tests`
+  only; `automation/COVERAGE.md` maps every mocked spec file to its real-API coverage and exceptions.
+- Behaviour the API gets wrong today lives in `known-defects.feature` (`@known-defect`, excluded from the gate).
 
 ### Frontend — Vitest + React Testing Library
 
@@ -769,8 +790,8 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Never force-push `develop` or `main`
 
 ### CI / pipeline
-- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile).
-- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `@ui`, sets the `Staging Verified` commit status and opens/updates the release PR.
+- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
+- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `automation-ui/` (Playwright + TypeScript), sets the `Staging Verified` commit status and opens/updates the release PR.
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
 - A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
 - After a hotfix to `main`, open a PR `main → develop`.
@@ -786,7 +807,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 - **Frontend change** → add/update Vitest spec next to the page file
 - Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
 - Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`
-- A user-facing flow that spans backend + frontend → also add a Cucumber scenario in `automation/` (`@api` and/or `@ui`; `@smoke` only if read-only). See `automation/README.md`
+- A user-facing flow that spans backend + frontend → also add an API scenario in `automation/` (Cucumber `@api`; `@smoke` only if read-only) and/or a UI spec in `automation-ui/tests/` (Playwright + TypeScript). See `automation/README.md` and `automation-ui/README.md`
 
 ### 17.2 Slack notification
 - Every write action needs a Slack card
@@ -820,6 +841,7 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 | `EDIT_PIN` | Yes | 6-digit PIN for protected edits |
 | `CLIENT_ORIGIN` | Yes | Comma-separated CORS origins |
 | `NODE_ENV` | Yes | `development` or `production` |
+| `LOGIN_RATE_LIMIT_MAX` | No | Login attempts per IP per hour (default `20`). Raise only on a test environment — never in production |
 | `SLACK_WEBHOOK_URL` | No | Slack incoming webhook — unset = silent |
 | `APP_URL` | No | Added as "Open App" link in Slack card footers |
 

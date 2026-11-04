@@ -69,6 +69,14 @@ const schema = z.object({
   SUPERADMIN_USERNAME: z.string().optional(),
   SUPERADMIN_PASSWORD: z.string().optional(),
 
+  // Login attempts allowed per IP per hour (brute-force guard on /auth/login). Defaults to 20 and
+  // must stay there in production; raise it only on a test environment, where one CI runner makes
+  // many logins from one address.
+  LOGIN_RATE_LIMIT_MAX: z.preprocess(
+    (val) => (val === undefined || val === '' ? 20 : val),
+    z.coerce.number().int().min(1),
+  ),
+
   // CORS / links
   CLIENT_ORIGIN: z.preprocess(
     (val) => val || 'http://localhost:5173',

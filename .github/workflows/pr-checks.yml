@@ -1,4 +1,4 @@
-name: PR Checks
+name: pr-checks
 
 on:
   pull_request:
@@ -6,7 +6,10 @@ on:
 
 jobs:
   lint-timezone:
-    name: Lint — timezone safety
+    name: lint-timezone-safety
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -19,7 +22,10 @@ jobs:
       - run: node scripts/check-timezone-safety.js
 
   lint-server:
-    name: Lint (server)
+    name: lint-server
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,7 +41,10 @@ jobs:
       - run: npm run lint
 
   lint-client:
-    name: Lint (client)
+    name: lint-client
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,7 +60,10 @@ jobs:
       - run: npm run lint
 
   api-tests:
-    name: API Tests + coverage gate (server)
+    name: api-tests-coverage-server
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -73,7 +85,10 @@ jobs:
           EDIT_PIN: '123456'
 
   ui-tests:
-    name: UI Tests + coverage gate (client)
+    name: ui-tests-coverage-client
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,7 +107,10 @@ jobs:
       - run: npm run test:coverage
 
   ui-build:
-    name: Build (client)
+    name: build-client
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -108,7 +126,10 @@ jobs:
       - run: npm run build
 
   lint-api-spec:
-    name: Lint OpenAPI spec
+    name: lint-openapi-spec
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -118,7 +139,10 @@ jobs:
       - run: npx --yes @redocly/cli lint docs/openapi.yaml
 
   security-audit:
-    name: Dependency vulnerability scan
+    name: dependency-vulnerability-scan-${{ matrix.package }}
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -141,7 +165,10 @@ jobs:
       - run: npm audit --audit-level=moderate
 
   automation-compile:
-    name: Compile automation suite (API + UI)
+    name: compile-automation-suite
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'develop'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -157,3 +184,13 @@ jobs:
       # Catches a broken step definition or page object before it reaches the staging pipeline.
       # The suite itself needs a deployed environment, so it only runs in staging-pipeline.yml.
       - run: mvn -B -ntp test-compile
+      # UI suite (Playwright + TypeScript): typecheck only; it runs against a deployed env in staging.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: automation-ui/package-lock.json
+      - run: npm ci
+        working-directory: automation-ui
+      - run: npm run typecheck
+        working-directory: automation-ui

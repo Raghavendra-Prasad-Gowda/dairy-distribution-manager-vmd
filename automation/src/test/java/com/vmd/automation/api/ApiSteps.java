@@ -31,22 +31,11 @@ public class ApiSteps {
                 .get(parts[1]);
     }
 
-    @Then("the response status is {int}")
-    public void theResponseStatusIs(int status) {
-        assertThat(ctx.response.statusCode())
-                .as("status of %s (body: %s)", ctx.response.getHeader("Content-Type"), ctx.response.asString())
-                .isEqualTo(status);
-    }
-
-    @Then("the JSON field {string} equals {string}")
-    public void theJsonFieldEquals(String field, String expected) {
-        assertThat(ctx.response.jsonPath().getString(field)).isEqualTo(expected);
-    }
-
     /**
-     * /health reports the first 7 chars of the deployed commit. In CI the pipeline passes the
-     * pushed SHA as EXPECTED_COMMIT, proving the tests ran against THIS build and not the
-     * previous deploy. Locally (no EXPECTED_COMMIT) the check is skipped.
+     * /health reports the first 7 chars of the deployed commit. In CI, EXPECTED_COMMIT is the
+     * commit wait-for-backend.sh saw running - the pushed SHA, or an older commit with identical
+     * server/ code when Render skipped the deploy. It proves the tests ran against the build the
+     * pipeline waited for, not some other deploy. Locally (no EXPECTED_COMMIT) the check is skipped.
      */
     @Then("the deployed build matches the commit under test")
     public void theDeployedBuildMatchesTheCommitUnderTest() {

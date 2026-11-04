@@ -3,11 +3,11 @@
 ```
 feat/xyz ──PR──▶ develop ──merge──▶ Render + Vercel auto-deploy TESTING
                   ▲                          │
-        PR Checks must pass                  ▼
+        pr-checks must pass                  ▼
    (lint, unit tests, build, audit,   staging-pipeline.yml
     automation compile)               1. wait until testing is serving this commit
                                       2. API automation  (REST Assured + Cucumber)
-                                      3. UI automation   (Playwright + Cucumber)
+                                      3. UI automation   (Playwright + TypeScript)
                                       4. "Staging Verified" status on the commit
                                       5. open/update the develop → main release PR
                                                   │
@@ -26,12 +26,13 @@ deploy; they wait for the deploy, then test it.
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` |
+| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` and type-checks `automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
-| `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA |
+| `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
-| `automation/` | Java suite (Cucumber + REST Assured + Playwright) — see `automation/README.md` |
+| `automation/` | Java API suite (Cucumber + REST Assured) — see `automation/README.md` |
+| `automation-ui/` | TypeScript UI suite (Playwright Test) — see `automation-ui/README.md` |
 | `.github/CODEOWNERS` | Owner is requested on every PR |
 
 ## One-time setup (cannot be done from code)
@@ -41,9 +42,12 @@ deploy; they wait for the deploy, then test it.
 - **Settings → Actions → General → Workflow permissions** → "Allow GitHub Actions to create and
   approve pull requests" (only needed if you skip the GitHub App below).
 - **Settings → Rules → Rulesets** (or Branch protection):
-  - `develop`: require a PR; required checks = every `PR Checks` job; no force-push.
+  - `develop`: require a PR; required checks = every `pr-checks` job; no force-push.
   - `main`: require a PR; **1 approval**; require review from Code Owners; dismiss stale
-    approvals; required checks = every `PR Checks` job **plus `Staging Verified`**; no force-push.
+    approvals; required checks = every `pr-checks` job **plus `Staging Verified`**; no force-push.
+    The release PR (`develop → main`) skips the `pr-checks` jobs (each job has an `if:` guard),
+    since `develop` already passed them and `Staging Verified`; GitHub counts skipped jobs as
+    passing. Hotfix PRs into `main` still run every job.
   - To select `Staging Verified` as a required check it must have been reported once — merge
     something to `develop` first.
 
@@ -63,14 +67,25 @@ Create environment **`staging`** (Settings → Environments) with these secrets:
 |---|---|
 | `E2E_ADMIN_USERNAME` | username from step 2 |
 | `E2E_ADMIN_PASSWORD` | its password |
+| `E2E_SUPERADMIN_USERNAME` | a **superadmin without MFA** on the testing backend (dedicated to automation) |
+| `E2E_SUPERADMIN_PASSWORD` | its password |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | secret from step 3 |
 
-Optional repository secrets: `SLACK_WEBHOOK_URL` (pipeline result card).
+Optional secret `SLACK_WEBHOOK_URL` (repository secret, or a secret of the `staging` environment): when set, every
+staging-pipeline run posts two separate cards to the webhook's channel, one for API automation and one for UI
+automation. Each shows pass/fail, totals, pass rate, duration, a per-feature (API) or per-spec-file (UI) breakdown,
+the failed scenarios/tests with the first line of the error, and a link to the run. To create it: Slack → Apps → *Incoming Webhooks* (or your
+workspace's *Workflow Builder*) → add a webhook to the channel that should receive the results, and store its URL as
+the secret. Unset = no card. The cards are built by `.github/scripts/slack-test-card.py api|ui` and posted by `.github/scripts/post-slack-card.sh`.
+
+The superadmin pair unlocks the scenarios that create brands, admin users and dispatchers and reset ledgers
+(more than half of the API suite: 478 of 872 gate scenarios). Without it those scenarios are skipped; once it is in place, set the
+repository **variable** `E2E_STRICT` to `true` so a missing prerequisite fails the run instead of skipping.
 Optional repository variables if URLs change: `STAGING_API_URL`, `STAGING_WEB_URL`,
 `STAGING_VERCEL_PROJECT`, `PROD_API_URL`, `PROD_WEB_URL`, `PROD_VERCEL_PROJECT`.
 
 ### 5. GitHub App for the release PR (recommended)
-A PR opened by the default `GITHUB_TOKEN` does **not** trigger other workflows, so `PR Checks`
+A PR opened by the default `GITHUB_TOKEN` does **not** trigger other workflows, so `pr-checks`
 would not run on the release PR. Create a GitHub App (Settings → Developer settings → GitHub
 Apps) with repository permissions **Pull requests: read & write** and **Contents: read**, install
 it on this repo, then add repository secrets `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY`.
@@ -84,17 +99,17 @@ it on this repo, then add repository secrets `RELEASE_BOT_APP_ID` and `RELEASE_B
 
 ## Daily flow
 1. `git checkout -b feat/my-change develop` → commit → push → PR into `develop`.
-2. `PR Checks` pass → merge.
-3. Testing deploys; `Staging Pipeline` runs. Red = look at the run's reports (Actions artifacts).
+2. `pr-checks` pass → merge.
+3. Testing deploys; `staging-pipeline` runs. Red = look at the run's reports (Actions artifacts).
 4. Green = a `Release: develop -> main` PR appears. Review, approve, **merge with a merge commit**.
-5. Production deploys; `Production Verify & Release` smoke-tests it and publishes `vX.Y.Z`.
+5. Production deploys; `production-verify-and-release` smoke-tests it and publishes `vX.Y.Z`.
 
 Merges to `develop` while a run is in progress cancel that run and restart on the newest
 commit; `Staging Verified` is per-commit, so the release PR is blocked until the newest commit
 passes.
 
 ## Hotfix
-Branch from `main` (`hotfix/…`), PR into `main` (approval + PR Checks still required). After
+Branch from `main` (`hotfix/…`), PR into `main` (approval + pr-checks still required). After
 it ships, open a PR `main → develop` so `develop` gets the fix too.
 
 ## Troubleshooting
