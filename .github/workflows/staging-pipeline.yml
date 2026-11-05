@@ -128,7 +128,7 @@ jobs:
           if skipped:
               print("\nSkipped scenarios are missing a prerequisite (usually the E2E superadmin secrets) - see server/automation/README.md.")
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: api-e2e-report
@@ -167,7 +167,7 @@ jobs:
         env:
           REPORT: test-results/results.json
         run: python3 ../../.github/scripts/ui-job-summary.py >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ui-e2e-report
