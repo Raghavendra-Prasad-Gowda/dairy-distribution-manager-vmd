@@ -77,7 +77,7 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       # test:coverage runs the full suite under c8 and fails the job if coverage
-      # drops below the thresholds in .c8rc.json (90/75/85/90 stmts/branches/funcs/lines).
+      # drops below the thresholds in .c8rc.json (70/80/85/70 stmts/branches/funcs/lines).
       - run: npm run test:coverage
         env:
           NODE_ENV: test
@@ -172,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: automation
+        working-directory: server/automation
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -180,7 +180,7 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
-          cache-dependency-path: automation/pom.xml
+          cache-dependency-path: server/automation/pom.xml
       # Catches a broken step definition or page object before it reaches the staging pipeline.
       # The suite itself needs a deployed environment, so it only runs in staging-pipeline.yml.
       - run: mvn -B -ntp test-compile
@@ -189,8 +189,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: automation-ui/package-lock.json
+          cache-dependency-path: client/automation-ui/package-lock.json
       - run: npm ci
-        working-directory: automation-ui
+        working-directory: client/automation-ui
       - run: npm run typecheck
-        working-directory: automation-ui
+        working-directory: client/automation-ui

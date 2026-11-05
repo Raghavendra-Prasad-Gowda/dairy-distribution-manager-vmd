@@ -1,459 +1,236 @@
-# Vikas Milk Dairy — Distribution Manager (VMD)
+# 🥛 Vikas Milk Dairy — Distribution Manager (VMD)
 
-A production business-management system for **Vikas Milk Dairy**. It tracks
-multi-brand stock receipt, cascading daily balance ledgers per brand and per
-salesperson, dispatch and collection, and financial reporting.
+> A production business-management platform for **Vikas Milk Dairy**: multi-brand stock receipt, cascading
+> dairy and salesperson ledgers, daily dispatch and collections, printed bills, and financial reporting.
 
-| Layer | Stack | Deployed to |
-|-------|-------|-------------|
-| **Frontend** | React 19 · Vite 8 · Tailwind CSS 3 | Vercel |
-| **Backend** | Express 5 · Node.js 20+ | Render |
-| **Database** | PostgreSQL (Prisma ORM) | Aiven |
-
-> **New here?** Start with this page, then read the detailed guides:
-> - 📖 **[Backend Developer Guide](./server/README.md)** — Express app, controllers, Prisma, balance cascade, testing
-> - 📖 **[Frontend Developer Guide](./client/README.md)** — React app, hooks, components, routing, testing
+| | |
+|---|---|
+| **Status** | 🟢 In production |
+| **Frontend** | React 19 · Vite 8 · Tailwind CSS 3 → **Vercel** |
+| **Backend** | Node.js 22 · Express 5 · Prisma 7 → **Render** |
+| **Database** | PostgreSQL → **Aiven** |
+| **Quality gates** | ESLint · Vitest · Playwright (mocked API) · Cucumber + REST Assured (live API) · Playwright (live UI) |
+| **Branching** | `feat/*` → `develop` (testing) → release PR → `main` (production) |
 
 ---
 
-## Table of Contents
+## 📑 Table of contents
 
-1. [Architecture](#architecture)
-2. [Getting Started](#getting-started)
-3. [Roles & Access](#roles--access)
-4. [Business Domain](#business-domain)
-5. [Repository Structure](#repository-structure)
-6. [Engineering Contracts](#engineering-contracts)
-7. [Testing & CI](#testing--ci)
-8. [Environment Variables](#environment-variables)
-9. [Deployment](#deployment)
-10. [API Reference](#api-reference)
-11. [Key Design Decisions](#key-design-decisions)
-12. [Contributing](#contributing)
+1. [What the system does](#-what-the-system-does)
+2. [Architecture at a glance](#-architecture-at-a-glance)
+3. [Repository map](#-repository-map)
+4. [Documentation library](#-documentation-library)
+5. [Quick start](#-quick-start)
+6. [Delivery pipeline](#-delivery-pipeline)
+7. [Engineering contracts](#-engineering-contracts)
+8. [Support & ownership](#-support--ownership)
 
 ---
 
-## Architecture
+## 🎯 What the system does
 
-```
-┌─────────────────────┐        HTTPS         ┌──────────────────────────────┐
-│   Browser (SPA)     │ ──────────────────> │     Vercel CDN               │
-│   React 19 + Vite   │                      │     Static assets            │
-└─────────┬───────────┘                      └──────────────────────────────┘
-          │
-          │  /api/v1/*
-          ▼
-┌──────────────────────────────┐         ┌──────────────────────────────┐
-│   Express 5 REST API         │ ──────> │   PostgreSQL (Aiven)         │
-│   Node.js 20+ (Render)       │  Prisma │   33 migrations              │
-│                              │         │   17 models                  │
-│   JWT auth (2h sessions)     │         │   Serializable transactions  │
-│   Zod validation at boundary │         └──────────────────────────────┘
-│   Winston logging            │
-│   Slack webhook integration  │
-└──────────────────────────────┘
+```mermaid
+flowchart LR
+    D[(🏭 Dairy brands<br/>Nandini · Jersey · Gowardhan)] -- stock + invoices --> VMD
+    VMD -- payments + deposits --> D
+    VMD{{🥛 Vikas Milk Dairy<br/>distribution business}} -- daily dispatch --> S[🛵 Salespeople]
+    S -- cash collections --> VMD
+    S -- deliveries --> R[🏪 Retailers / customers]
 ```
 
-### Data Flow
+| Capability | Summary |
+|---|---|
+| 📦 **Stock receipt** | Record what each dairy brand delivered each day (per route for Nandini) |
+| 📒 **Dairy ledger** | Per-brand cascading balance: opening + stock + deposit + top-up − payments = closing |
+| 🚚 **Dispatch** | Stock handed to each salesperson per day, priced per salesperson, with a submit/lock lifecycle |
+| 💰 **Collections** | Cash collected from salespeople feeds a second cascading ledger |
+| 🧾 **Bills** | Numbered, frozen cash/credit bills generated for a salesperson and period, printed as PDF |
+| 📊 **Reports** | Statements, stock summaries, dispatch sheet, deposit, outstanding, profit & loss |
+| 🔐 **Governance** | Four roles, TOTP MFA, account lock-out, edit PIN, Slack audit trail for every write |
 
-1. **Frontend** — Single-page React app, lazy-loaded routes, all API calls through a shared Axios instance with JWT injection
-2. **Backend** — RESTful Express 5 API under `/api/v1`. Every request is validated with Zod at the route boundary. Controllers use `asyncHandler` for error propagation.
-3. **Database** — PostgreSQL accessed via Prisma ORM. All multi-table operations use `$transaction()`. Balance mutations use serializable isolation.
-4. **Notifications** — Every write action fires a Slack webhook card (fire-and-forget, never awaited)
-
-### Auth Flow
-
-```
-Login → POST /auth/login → JWT (2h) → stored in localStorage
-                                     → sent as Bearer token on every request
-                                     → 401 response → auto-redirect to /login
-                                     → 2h timer expires → auto-logout + redirect
-```
+➡️ Full business description: [docs/01-product-overview.md](docs/01-product-overview.md)
 
 ---
 
-## Getting Started
+## 🏗️ Architecture at a glance
 
-### Prerequisites
+```mermaid
+flowchart TB
+    subgraph Users["👥 Users"]
+        A[🧑‍💼 Admin / Superadmin<br/>iPad]
+        DSP[📋 Dispatcher<br/>iPad]
+        SM[🛵 Salesman<br/>phone]
+    end
 
-- **Node.js 20+**
-- **PostgreSQL** (or use Docker — see below)
+    subgraph Vercel["☁️ Vercel"]
+        SPA[⚛️ React 19 SPA<br/>client/]
+    end
 
-### 1. Database (Local Postgres)
+    subgraph Render["☁️ Render"]
+        API[🟩 Express 5 REST API<br/>server/ · /api/v1]
+    end
 
-```bash
-docker compose up -d        # starts PostgreSQL 16 on localhost:5434
-                            # db: dairy_flow, user: postgres, pass: postgres
+    subgraph Aiven["☁️ Aiven"]
+        DB[(🐘 PostgreSQL)]
+    end
+
+    SLACK[💬 Slack webhook]
+
+    A & DSP & SM -->|HTTPS| SPA
+    SPA -->|JSON + Bearer JWT| API
+    API -->|Prisma · serializable tx| DB
+    API -. fire-and-forget audit cards .-> SLACK
+    SPA -. crash beacon .-> API
 ```
 
-### 2. Backend
-
-```bash
-cd server
-npm install
-cp .env.example .env        # fill in required values (see below)
-npx prisma migrate deploy   # apply all migrations
-npm run seed                # seed brands + initial admin user
-npm start                   # http://localhost:3001
-```
-
-**Required `.env` values:** `DATABASE_URL`, `JWT_SECRET` (32+ chars), `ADMIN_PASSWORD`, `EDIT_PIN`
-
-Health probes: `GET /health` (liveness), `GET /health/ready` (readiness — checks DB)
-
-### 3. Frontend
-
-```bash
-cd client
-npm install
-# Create .env with: VITE_API_BASE_URL=http://localhost:3001/api/v1
-npm run dev                 # http://localhost:5173
-```
-
-### 4. Run Tests
-
-```bash
-# Backend — Playwright API tests (mock Prisma)
-cd server && npm test
-
-# Frontend — Vitest + React Testing Library
-cd client && npm test
-```
-
-📖 See the **[Backend Guide](./server/README.md)** and **[Frontend Guide](./client/README.md)** for detailed setup, architecture deep-dives, and testing patterns.
+➡️ Deep dive: [docs/02-system-architecture.md](docs/02-system-architecture.md)
 
 ---
 
-## Roles & Access
-
-| Role | Access Level | Index Route |
-|------|-------------|-------------|
-| `superadmin` | Everything — including Admin Users setup | Dashboard |
-| `admin` | Full access except Admin Users setup | Dashboard |
-| `dispatcher` | Dispatch sheet + Stock Balance + change password | Dispatch Sheet |
-| `salesman` | Own stock entry, own balance/statement, change password | Stock Entry |
-
-### Route guards
-
-**Frontend** (`App.jsx`):
-- `ProtectedRoute` — any authenticated user
-- `ProtectedRoute adminOnly` — admin + superadmin
-- `ProtectedRoute superAdminOnly` — superadmin only
-- Role-conditional route rendering (salesman/dispatcher get their own route trees)
-
-**Backend** (`app.js`):
-- `authenticate` middleware on all `/api/v1/*` routes
-- `requireAdmin` on most admin routes
-- `requireSuperAdmin` on admin-user management
-- Rate limiters: login (20/hour), PIN (5/15min), bulk writes (30/min)
-
----
-
-## Business Domain
-
-### What the system tracks
-
-| Domain | Description |
-|--------|-------------|
-| **Stock Receipt** | Daily stock received from dairy, per brand, with optional per-route entry (Nandini) |
-| **Dairy Balance** | Cascading daily ledger per brand: opening + stock + deposits + topUps − payments = closing |
-| **Dairy Payments** | Payments made to the dairy. `isTopUp=true` = pre-existing debt loaded into the system |
-| **Dispatch** | Daily stock dispatched to each salesperson, with line items |
-| **Salesperson Balance** | Cascading daily ledger per salesperson: opening + stockGiven + topUps − amountPaid = closing |
-| **Salesperson Collections** | Payments collected from salespeople |
-| **Deposits** | Crate/container deposit tracking (separate from stock value) |
-| **Reports** | Statements, summaries, stock balance, P&L, outstanding |
-
-### The Balance Cascade — Critical Concept
-
-This is the most important invariant in the system. Every balance record is a **computed sum** of all transactions up to that date.
-
-```
-Dairy:       closing = opening + stockValue + depositValue + topUpAmount − amountPaid
-Salesperson: closing = opening + stockGiven + topUpAmount − amountPaid
-```
-
-**Rules:**
-- **Top-ups ADD** (they are pre-existing dues loaded into the app, not real payments)
-- **Payments SUBTRACT**
-- Any write that affects a balance → calls `recalculateDairyBalance()` or `recalculateSalespersonBalance()` from `server/services/balanceService.js`
-- These cascade forward through ALL subsequent dates in a **serializable transaction**
-- **Never write balance records directly** — always go through `balanceService.js`
-
-📖 See the **[Backend Guide § Balance Cascade](./server/README.md#balance-cascade)** for implementation details and code examples.
-
-### Product Display Order
-
-Products follow a strict sort order everywhere they appear:
-
-```
-brand.displayOrder → category.displayOrder → product.displayOrder → product.name
-```
-
-Because `product.category` is a plain string (not a FK relation), Prisma can't sort by `category.displayOrder` in a single query. Both backend and frontend have helper functions for this — see the **[Backend Guide § Product Display Order](./server/README.md#product-display-order)** and **[Frontend Guide § Product Display Order](./client/README.md#product-display-order)**.
-
----
-
-## Repository Structure
+## 🗂️ Repository map
 
 ```
 dairy-distribution-manager-vmd/
-├── README.md                          # ← You are here (onboarding guide)
-├── CLAUDE.md                          # Root engineering contract
-├── docker-compose.yml                 # Local dev Postgres (port 5434)
-├── .github/workflows/pr-checks.yml   # CI pipeline (8 parallel jobs)
-│
-├── server/                            # Express 5 backend
-│   ├── README.md                      # Backend developer guide
-│   ├── CLAUDE.md                      # Backend engineering contract
-│   ├── app.js                         # Middleware stack, route registration, error handler
-│   ├── index.js                       # Boot: listen → migrate → seed → ready
-│   ├── config/
-│   │   ├── env.js                     # Zod-validated config (fail-closed in production)
-│   │   └── logger.js                  # Winston logger
-│   ├── controllers/                   # Business logic (one file per resource, 20 controllers)
-│   ├── routes/                        # Thin route definitions (path + method + controller ref)
-│   ├── services/                      # Shared domain logic
-│   │   ├── balanceService.js          # Cascading balance recalculation
-│   │   ├── depositRules.js            # Deposit qualification and calculation
-│   │   ├── stockGuard.js              # Dispatch stock availability check
-│   │   └── dispatchDayFinalization.js  # Day finalization logic
-│   ├── middleware/
-│   │   ├── auth.js                    # JWT: authenticate, requireAdmin, requireSuperAdmin
-│   │   └── asyncHandler.js            # Async error propagation
-│   ├── utils/
-│   │   ├── validate.js                # All Zod schemas + validate() + parseId()
-│   │   ├── AppError.js                # Operational error class
-│   │   ├── slack.js                   # 44 Slack event types + card builder
-│   │   ├── dateUtils.js               # IST date helpers (server-side)
-│   │   ├── productLayout.js           # Category order map sort
-│   │   └── constants.js               # JWT_EXPIRES_IN, BCRYPT_ROUNDS
-│   ├── lib/prisma.js                  # Singleton Prisma client
-│   └── prisma/
-│       ├── schema.prisma              # 17 models — single source of truth
-│       ├── migrations/                # 33 migrations (never edit manually)
-│       └── seed.js                    # Seeds brands + admin user
-│
-└── client/                            # React 19 frontend
-    ├── README.md                      # Frontend developer guide
-    ├── CLAUDE.md                      # Frontend engineering contract
-    ├── vite.config.js                 # Vite + Vitest config (inline)
-    ├── tailwind.config.js             # Brand color extensions
-    └── src/
-        ├── App.jsx                    # Route tree, lazy loading, ProtectedRoute, ErrorBoundary
-        ├── api/
-        │   ├── axios.js               # Shared Axios instance (JWT, session, cold-start)
-        │   └── coldStart.js           # Render cold-start detection
-        ├── context/
-        │   ├── AuthContext.jsx        # Auth state, 2h session timer
-        │   └── NotificationContext.jsx # Toast notifications
-        ├── hooks/                      # 6 reusable custom hooks
-        │   ├── useApiResource.js       # Declarative single-endpoint GET
-        │   ├── useApiResources.js      # Declarative parallel GET
-        │   ├── useMutation.js          # Async write wrapper
-        │   ├── useDisclosure.js        # Modal open/close state
-        │   ├── usePaymentFilters.js    # Payment list filter/search/pagination
-        │   └── useDebouncedValue.js    # Debounced input
-        ├── components/                 # 18 shared components + 6 UI primitives
-        ├── pages/                      # 30+ feature pages (lazy-loaded)
-        │   ├── daily/                  # Stock receipt
-        │   ├── payments/               # Dairy payments, salesperson collections
-        │   ├── reports/                # 10 report pages + print variants
-        │   ├── setup/                  # 9 setup/config pages
-        │   └── salesman/              # Salesman-role pages
-        └── utils/
-            ├── dateUtils.js            # IST-safe date helpers
-            ├── constants.js            # Brands, payment modes, brand colors
-            ├── productLayout.js        # Category/product sort helpers
-            ├── session.js              # Session timeout helpers
-            └── numberToWords.js        # Number-to-words (receipts)
+├── 📄 README.md              ← you are here
+├── 📚 docs/                  ← system-wide documentation (architecture, domain, security, delivery …)
+├── 🟩 server/                ← Express API  ·  README + server/docs/
+│   └── 🧪 automation/        ← Java API automation suite  ·  README + docs/
+├── ⚛️ client/                ← React SPA  ·  README + client/docs/
+│   └── 🎭 automation-ui/     ← Playwright UI automation suite  ·  README + docs/
+├── ⚙️ .github/               ← CI/CD workflows, helper scripts, Dependabot, CODEOWNERS
+├── 🐳 docker-compose.yml     ← local PostgreSQL
+└── 🤖 CLAUDE.md              ← engineering contract (one per component)
 ```
 
 ---
 
-## Engineering Contracts
+## 📚 Documentation library
 
-The codebase is governed by three `CLAUDE.md` contract files:
+Documentation is layered: **system → component → module**. Start at the level you need.
 
-| File | Scope | Key rules |
-|------|-------|-----------|
-| [`CLAUDE.md`](./CLAUDE.md) | Root | Balance cascade invariant, product display order, Slack notifications, change checklist |
-| [`server/CLAUDE.md`](./server/CLAUDE.md) | Backend | Controller/route split, error handling, balance invariant, migrations, security |
-| [`client/CLAUDE.md`](./client/CLAUDE.md) | Frontend | Axios usage, lazy loading, ErrorBoundary, session timeout, state management |
+```mermaid
+flowchart TD
+    R[📄 README.md] --> DOCS[📚 docs/]
+    R --> SV[🟩 server/README.md]
+    R --> CL[⚛️ client/README.md]
+    SV --> SVD[server/docs/]
+    SV --> API[🧪 server/automation/README.md]
+    API --> APID[server/automation/docs/]
+    CL --> CLD[client/docs/]
+    CL --> UI[🎭 client/automation-ui/README.md]
+    UI --> UID[client/automation-ui/docs/]
+```
 
-**Read these before contributing.** They define the patterns, anti-patterns, and invariants that every change must satisfy.
+### 🌐 System level — [`docs/`](docs/README.md)
 
-### The Change Checklist (from root CLAUDE.md)
+| # | Document | What you will learn |
+|---|---|---|
+| 01 | [🎯 Product overview](docs/01-product-overview.md) | Business context, users, capabilities, daily operating rhythm |
+| 02 | [🏗️ System architecture](docs/02-system-architecture.md) | Context & container views, request lifecycle, technology choices |
+| 03 | [🗃️ Domain model](docs/03-domain-model.md) | Entity-relationship diagram and the meaning of every entity |
+| 04 | [🔄 Business workflows](docs/04-business-workflows.md) | Stock receipt, dispatch, collections, ledgers, bills, day finalization |
+| 05 | [🔐 Security model](docs/05-security.md) | Roles, JWT, MFA, lock-out, PINs, rate limits, data protection |
+| 06 | [☁️ Environments & deployment](docs/06-environments-and-deployment.md) | Hosting topology, configuration, boot, cold starts, versioning |
+| 07 | [🧪 Quality & testing strategy](docs/07-quality-and-testing.md) | Test pyramid, what runs where, coverage gates |
+| 08 | [🚀 CI/CD & release management](docs/08-ci-cd-and-release.md) | Pipelines, quality gates, release and hotfix flow |
+| 09 | [📡 Observability & operations](docs/09-observability-and-operations.md) | Logging, Slack audit, health probes, incident runbook |
+| 10 | [🤝 Contributing guide](docs/10-contributing.md) | Branching, commits, PR checklist, definition of done |
+| 11 | [🧭 Architecture decisions](docs/11-architecture-decisions.md) | ADR log — why the system is built the way it is |
+| 12 | [📖 Glossary](docs/12-glossary.md) | Business and technical vocabulary |
+| — | [🛠️ Release pipeline setup](docs/release-pipeline.md) | One-time GitHub / Vercel / Render setup and troubleshooting |
+| — | [📘 OpenAPI spec](docs/openapi.yaml) | Machine-readable API contract (linted in CI) |
 
-Every code change must satisfy all four:
+### 🧩 Component level
 
-1. **Tests** — Backend: Playwright spec. Frontend: Vitest + RTL spec.
-2. **Slack notification** — Every write action needs a `void notifySlack(SLACK_EVENTS.XXX, {...})` call.
-3. **Product display order** — Any endpoint/component showing products must sort correctly.
-4. **BrandedLoader** — Use `BrandedLoader` for loading states (not generic spinners).
+| Component | Guide | Docs |
+|---|---|---|
+| 🟩 Backend API | [server/README.md](server/README.md) | [server/docs/](server/docs/) |
+| ⚛️ Frontend SPA | [client/README.md](client/README.md) | [client/docs/](client/docs/) |
+| 🧪 API automation | [server/automation/README.md](server/automation/README.md) | [server/automation/docs/](server/automation/docs/) |
+| 🎭 UI automation | [client/automation-ui/README.md](client/automation-ui/README.md) | [client/automation-ui/docs/](client/automation-ui/docs/) |
 
 ---
 
-## Testing & CI
+## ⚡ Quick start
 
-### Test suites
-
-| Suite | Runner | Location | Count |
-|-------|--------|----------|-------|
-| Backend API tests | Playwright | `server/tests/playwright/*.spec.js` | ~1164 tests |
-| Frontend UI tests | Vitest + RTL | `client/src/**/*.test.jsx` | ~1134 tests |
+**Prerequisites:** Node.js 22, npm, Docker (or any PostgreSQL 16). Java 21 + Maven only for the API automation suite.
 
 ```bash
-# Run everything
-cd server && npm test           # Backend
-cd client && npm test           # Frontend
+# 1️⃣  Database  →  postgresql://postgres:postgres@localhost:5434/dairy_flow
+docker compose up -d
 
-# With coverage
-cd server && npm run test:coverage
-cd client && npm run test:coverage
+# 2️⃣  Backend  →  http://localhost:3001
+cd server
+npm install
+cp .env.example .env          # set DATABASE_URL, JWT_SECRET, EDIT_PIN, SUPERADMIN_USERNAME/PASSWORD
+npx prisma migrate deploy
+npm start
 
-# Lint
-cd server && npm run lint
-cd client && npm run lint
+# 3️⃣  Frontend →  http://localhost:5173
+cd ../client
+npm install
+echo "VITE_API_BASE_URL=http://localhost:3001/api/v1" > .env
+npm run dev
+
+# 4️⃣  Tests
+cd ../server && npm run check   # lint + timezone lint + mocked API specs
+cd ../client && npm test        # Vitest + React Testing Library
 ```
 
-### CI Pipeline (`.github/workflows/pr-checks.yml`)
+Sign in with the superadmin credentials you set in `server/.env`, then create brands, categories, products,
+routes and salespeople from the **Setup** menus.
 
-Runs on every PR to `main` and push to `develop`. Eight parallel jobs:
-
-| Job | What it checks |
-|-----|---------------|
-| `tz-lint` | No unsafe `new Date()` in server code |
-| `server-lint` | ESLint (flat config) |
-| `client-lint` | ESLint (flat config) |
-| `server-tests` | Playwright API tests + coverage gate |
-| `client-tests` | Vitest UI tests + coverage gate |
-| `client-build` | Production build succeeds |
-| `openapi-lint` | OpenAPI spec is valid |
-| `audit` | Dependency vulnerability scan |
-
-### Coverage thresholds
-
-**Backend** (server):
-
-| Metric | Threshold |
-|--------|-----------|
-| Lines | 80% |
-| Branches | 75% |
-| Functions | 80% |
-
-**Frontend** (client):
-
-| Metric | Threshold |
-|--------|-----------|
-| Statements | 78% |
-| Branches | 68% |
-| Functions | 70% |
-| Lines | 80% |
-
-📖 See the **[Backend Guide § Testing](./server/README.md#testing)** and **[Frontend Guide § Testing](./client/README.md#testing)** for setup patterns, mock strategies, and examples.
+➡️ Full setup per component: [server/README.md](server/README.md) · [client/README.md](client/README.md)
 
 ---
 
-## Environment Variables
+## 🚀 Delivery pipeline
 
-### Server (`server/.env`)
-
-| Variable | Required | Purpose |
-|----------|:---:|---------|
-| `DATABASE_URL` | prod | Prisma connection string |
-| `DIRECT_URL` | — | Direct connection for migrations |
-| `DATABASE_CA_CERT` | — | Managed Postgres provider's CA cert (PEM). Pins TLS verification in production; unset falls back to unverified TLS with a boot warning — see `server/utils/dbUrl.js` |
-| `JWT_SECRET` | prod | Min 32 chars (enforced at boot in production) |
-| `ADMIN_PASSWORD` | prod | Initial admin password |
-| `EDIT_PIN` | prod | 4–12 char PIN for protected edits |
-| `CLIENT_ORIGIN` | — | Comma-separated CORS origins |
-| `NODE_ENV` | — | `development` / `test` / `production` |
-| `SLACK_WEBHOOK_URL` | — | Slack incoming webhook (unset = silent) |
-| `APP_URL` | — | "Open App" link in Slack card footers |
-
-In development/test, safe defaults are applied. In **production**, required secrets must be present and valid or the server refuses to boot (fail-closed via `config/env.js`).
-
-### Client (`client/.env`)
-
-| Variable | Required | Purpose |
-|----------|:---:|---------|
-| `VITE_API_BASE_URL` | Yes | Backend base URL (e.g. `http://localhost:3001/api/v1`) |
-
----
-
-## Deployment
-
-### Backend (Render)
-
-```bash
-npm run build           # prisma generate
-npm run start:prod      # node index.js
+```mermaid
+flowchart LR
+    F[🌿 feat/* branch] -->|PR| PC{✅ pr-checks}
+    PC -->|green → auto-merge| DEV[(develop)]
+    DEV -->|auto-deploy| TEST[🧪 Testing env]
+    TEST --> SP[staging-pipeline<br/>API → UI automation]
+    SP -->|Staging Verified| REL[📝 Release PR<br/>develop → main]
+    REL -->|👤 approval + merge commit| MAIN[(main)]
+    MAIN -->|auto-deploy| PROD[🏭 Production]
+    PROD --> PV[production-verify<br/>read-only smoke]
+    PV --> TAG[🏷️ vX.Y.Z release]
 ```
 
-Boot sequence: `app.listen()` → `prisma migrate deploy` → `seedFoundationData()` → ready.
-
-Migrations run automatically on every boot. The health endpoint `/health/ready` returns 200 only after migrations and seeding complete.
-
-### Frontend (Vercel)
-
-```bash
-npm run build           # produces dist/ with static assets
-```
-
-Vercel serves the static output with a rewrite rule routing all paths to `index.html` for client-side routing.
-
-**Resilience features:**
-- 60-second Axios timeout (vs 30s default) for Render cold starts
-- `ColdStartScreen` overlay when requests take >2s after login
-- `ErrorBoundary` auto-reloads on stale chunk errors (one attempt per tab)
+➡️ [docs/08-ci-cd-and-release.md](docs/08-ci-cd-and-release.md) · one-time setup: [docs/release-pipeline.md](docs/release-pipeline.md)
 
 ---
 
-## API Reference
+## 📐 Engineering contracts
 
-The full `/api/v1` surface — every route, auth requirement, request/response shape — is documented as an OpenAPI 3.0 spec at [`docs/openapi.yaml`](./docs/openapi.yaml). Paste it into [editor.swagger.io](https://editor.swagger.io) for an interactive browse.
+Every component has a `CLAUDE.md` file with **binding** rules for humans and AI assistants alike. Documentation
+explains; the contracts decide.
 
-For a quick route overview, see the **[Backend Guide § Route Map](./server/README.md#route-map)**.
+| Contract | Scope |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Whole system — route map, ledger rules, Slack catalogue, change checklist |
+| [server/CLAUDE.md](server/CLAUDE.md) | Backend structure, errors, authorization, migrations, security |
+| [client/CLAUDE.md](client/CLAUDE.md) | Frontend structure, data access, routing, loaders |
+| [server/automation/CLAUDE.md](server/automation/CLAUDE.md) | API automation rules and tags |
+| [client/automation-ui/CLAUDE.md](client/automation-ui/CLAUDE.md) | UI automation rules and devices |
 
----
+**The five rules that matter most**
 
-## Key Design Decisions
-
-### Why no global state library?
-
-React Context handles the only two cross-cutting concerns (auth, notifications). Page state is local. The app has ~30 pages that each manage their own data via `useApiResource`/`useApiResources` hooks — adding Redux would add complexity without solving a real problem.
-
-### Why `product.category` is a string, not a FK?
-
-Historical design decision. Categories are brand-scoped (`unique (brandId, name)`), but `product.category` stores the name directly rather than a `categoryId`. This means Prisma can't sort by `category.displayOrder` in a single query — both backend and frontend use a "catOrderMap" pattern to join and sort in JS.
-
-### Why serializable transactions for balance?
-
-The balance cascade recomputes every subsequent date's balance whenever any transaction changes. Without serializable isolation, concurrent writes to the same brand/salesperson could produce inconsistent cascades (write-skew). The serializable transaction guarantees correctness at the cost of serializing concurrent balance mutations.
-
-### Why fire-and-forget Slack notifications?
-
-Slack delivery should never block a user's API response. `void notifySlack(...)` fires the webhook and doesn't await it. If Slack is down, the operation still succeeds — the notification is best-effort.
-
-### Why a 60-second Axios timeout?
-
-Render's free tier puts the server to sleep after 15 minutes of inactivity. The first request after a cold period can take 30–50 seconds. The `ColdStartScreen` overlay provides user feedback during the wait.
+1. 🔁 Ledger balances are never written directly — always through `server/services/balanceService.js`.
+2. 🕰️ Business dates are **IST** — use the `dateUtils` helpers on both tiers, never a bare `new Date()`.
+3. 🧱 Routes are thin, controllers use `asyncHandler` + `AppError`, inputs are validated with Zod.
+4. 💬 Every write emits a fire-and-forget Slack card.
+5. 🧪 Every change ships with tests at the right layer (see [docs/07](docs/07-quality-and-testing.md)).
 
 ---
 
-## Contributing
+## 🛟 Support & ownership
 
-1. Read the **[engineering contracts](#engineering-contracts)** (all three `CLAUDE.md` files)
-2. Follow the **[change checklist](#the-change-checklist-from-root-claudemd)** for every PR
-3. Write tests — no PRs without test coverage for new code
-4. Run the full test suite before pushing:
-   ```bash
-   cd server && npm test
-   cd client && npm test
-   ```
-5. The default development branch is `develop`
-
-📖 Detailed patterns, anti-patterns, and examples are in the sub-guides:
-- **[Backend Developer Guide](./server/README.md)**
-- **[Frontend Developer Guide](./client/README.md)**
+| Topic | Where |
+|---|---|
+| Code owner | `.github/CODEOWNERS` (requested on every PR) |
+| Production incidents | [docs/09-observability-and-operations.md](docs/09-observability-and-operations.md) |
+| Pipeline problems | [docs/release-pipeline.md § Troubleshooting](docs/release-pipeline.md#troubleshooting) |
+| Dependency updates | Dependabot (weekly, grouped minor/patch) → `develop` |

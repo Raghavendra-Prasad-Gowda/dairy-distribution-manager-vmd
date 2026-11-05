@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -29,6 +30,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.js'],
+    // automation-ui/ is the Playwright suite run against the deployed app, not a Vitest suite.
+    exclude: [...configDefaults.exclude, 'automation-ui/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'text-summary', 'html', 'json-summary'],
