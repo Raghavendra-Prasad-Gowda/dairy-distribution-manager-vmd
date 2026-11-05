@@ -9,6 +9,9 @@ Node app never imports it, and it is excluded from server ESLint, Prettier and c
 feature list: `README.md`. Mocked-spec ↔ scenario map: `COVERAGE.md`. Repo-wide rules: root `CLAUDE.md`.
 The companion UI suite is `client/automation-ui/` (`client/automation-ui/CLAUDE.md`).
 
+
+Detailed documentation: `docs/` (architecture, writing scenarios, tags, configuration & CI, troubleshooting).
+
 ## Relationship to `server/tests`
 
 | | `server/tests/playwright` | `server/automation` (this) |

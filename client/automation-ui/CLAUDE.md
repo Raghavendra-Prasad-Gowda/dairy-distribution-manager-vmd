@@ -9,6 +9,9 @@ React app (`client/vite.config.js` Vitest `exclude`, `client/eslint.config.js` i
 keep it out — keep those exclusions). How to run it: `README.md`. Repo-wide rules: root `CLAUDE.md`.
 The companion API suite is `server/automation/` (`server/automation/CLAUDE.md`).
 
+
+Detailed documentation: `docs/` (architecture, writing tests, configuration & CI, troubleshooting, roadmap).
+
 ## Layout
 
 ```

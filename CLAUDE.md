@@ -25,12 +25,18 @@
 Each tier owns its own tests: the API automation suite lives inside `server/`, the UI automation suite inside
 `client/`. Every folder with its own rules has its own `CLAUDE.md` — read the one closest to the file you change.
 
+**Documentation layout:** every component (`/`, `server/`, `client/`, `server/automation/`, `client/automation-ui/`)
+has a `README.md` entry page that links to its own `docs/` folder. Diagrams are Mermaid, links are relative. A change
+that alters behaviour updates the affected README/doc in the same PR (see `docs/README.md` → Documentation standards).
+
 ```
 dairy-distribution-manager-vmd/
 ├── CLAUDE.md                          # This file — root engineering contract
 ├── README.md
 ├── docker-compose.yml                 # Local dev Postgres
-├── docs/
+├── docs/                              # System documentation (index: docs/README.md)
+│   ├── 01…12-*.md                     # overview, architecture, domain, workflows, security, environments,
+│   │                                  # testing, CI/CD, operations, contributing, ADRs, glossary
 │   ├── release-pipeline.md            # Release flow + one-time setup checklist
 │   └── openapi.yaml                   # API spec — linted by pr-checks (redocly)
 ├── .github/
@@ -214,7 +220,7 @@ There is no client-error table: crash reports from `POST /errors/client` go to S
 
 ### Key field notes
 
-- `Product.salespersonEnabled` — global on/off for all salespeople (default `true`)
+- `Product.salespersonEnabled` — global on/off for all salespeople (default `false` — a new product is hidden from salespeople until enabled globally or per salesperson)
 - `Product.showInStockReceipt` — show in stock receipt entry screen
 - `Product.depositEnabled` — per-product deposit flag
 - `Category.depositEnabled` — per-category deposit flag

@@ -1,66 +1,89 @@
-# VMD UI automation
+# 🎭 VMD UI Automation Suite
 
-Black-box browser tests against a **deployed** environment: [Playwright Test](https://playwright.dev) +
-TypeScript. Real browser → real frontend → real API → real database; nothing is mocked. The API
-suite lives in [`server/automation`](../../server/automation/README.md) (Java).
+> Black-box browser tests against a **deployed** VMD environment — Playwright Test + TypeScript. Real browser →
+> real frontend → real API → real database. Nothing is mocked.
 
+[⬅️ Client README](../README.md) · [Engineering contract](CLAUDE.md) · API companion: [server/automation](../../server/automation/README.md)
+
+| | |
+|---|---|
+| **Runs** | after the API suite in `staging-pipeline.yml` (merge to `develop`) |
+| **Devices** | iPad (gen 7) portrait 810×1080 + landscape 1080×810 · Pixel 7 phone 412×839 — all Chromium |
+| **Session** | one real sign-in per run, reused via `.auth/admin.json` |
+| **Data** | throwaway `E2E-…` records removed by fixtures |
+| **Reports** | `playwright-report/` (HTML), `test-results/` (traces, screenshots, `results.json`) |
+
+---
+
+## 🧭 Where it fits
+
+```mermaid
+flowchart LR
+    PR[📝 PR] -->|typecheck only| TC[npm run typecheck]
+    DEV[(develop)] --> DEP[☁️ testing deploy] --> API[🧪 API suite] --> UI[🎭 UI suite]
+    UI --> SV[✅ Staging Verified]
+    UI --> SL[💬 Slack UI card]
 ```
-playwright.config.ts   projects: setup → signed-in, plus signed-out (login page itself) on iPad
-                       portrait 810×1080 and landscape 1080×810; tests/salesman/ on a phone 412×839
-src/env.ts             all settings, from environment variables
-src/fixtures.ts        trackRoute: deletes every route a test created, pass or fail
-src/pages/             page objects (selectors live here, not in specs)
-tests/auth.setup.ts    logs in once through the real form, saves .auth/admin.json
-tests/login.spec.ts    sign in, wrong credentials, signed-out redirect
-tests/route-setup.spec.ts   add / edit / delete a route, duplicate rejection, empty form
-```
 
-## Run
+## ⚡ Quick start
 
 ```bash
-cd client/automation-ui     # from the repository root
+cd client/automation-ui
 npm ci
 npx playwright install --with-deps chromium     # first time only
 
 WEB_BASE_URL=http://localhost:5173 \
 E2E_ADMIN_USERNAME=... E2E_ADMIN_PASSWORD=... \
-  npm test            # npm run test:headed to watch; npm run report for the HTML report
+  npm test                                     # npm run test:headed to watch · npm run report for HTML
+
+npx playwright test --project=setup --project='*-ipad-portrait'   # one screen
+npx playwright show-trace test-results/<test>/trace.zip           # debug a failure
 ```
 
-| Variable | Notes |
+| Script | Purpose |
 |---|---|
-| `WEB_BASE_URL` | frontend origin (default `http://localhost:5173`) |
-| `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` | account **without MFA** |
-| `VERCEL_BYPASS_SECRET` | only if the frontend has Vercel Deployment Protection |
-| `HEADLESS` | `false` to watch the browser |
-| `UI_TIMEOUT_MS` | default 60000 (Render's free plan wakes slowly) |
-| `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | use an installed Chromium instead of the downloaded one |
+| `npm test` | Run all projects |
+| `npm run test:headed` | Watch the browser |
+| `npm run typecheck` | `tsc --noEmit` (what PR CI runs) |
+| `npm run report` | Open the last HTML report |
 
-Failed tests keep a screenshot and a trace in `test-results/` (`npx playwright show-trace <zip>`).
-CI uploads `playwright-report/` and `test-results/` as the `ui-e2e-report` artifact.
+## 🗂️ Layout
 
-## Screens
+```
+client/automation-ui/
+├── playwright.config.ts     # projects: setup → signed-in / signed-out on 2 iPad screens · salesman-phone
+├── src/
+│   ├── env.ts               # settings from environment variables
+│   ├── fixtures.ts          # extended test: trackRoute cleanup
+│   └── pages/               # LoginPage · DashboardPage · RouteSetupPage
+└── tests/
+    ├── auth.setup.ts        # sign in once, save .auth/admin.json
+    ├── login.spec.ts        # sign in, wrong credentials, signed-out redirect
+    ├── route-setup.spec.ts  # add / edit / delete a route, duplicate rejection, empty form
+    └── salesman/            # phone-only specs (create when needed)
+```
 
-Specs run on the device their users have (`playwright.config.ts`); there is no desktop run.
+## 📋 Current coverage
 
-| Specs | Who | Screen |
-|---|---|---|
-| `tests/salesman/**` | salesman | phone — Pixel 7, 412×839 (`salesman-phone`) |
-| everything else | superadmin, admin, dispatcher | iPad (gen 7) portrait 810×1080 and landscape 1080×810 (`*-ipad-portrait`, `*-ipad-landscape`) |
+| Spec | Journeys |
+|---|---|
+| `login.spec.ts` | Successful sign-in lands on the dashboard · wrong credentials show an error (unknown username) · signed-out user is redirected to login |
+| `route-setup.spec.ts` | Add, edit, delete a route and confirm after reload · duplicate route rejected · empty form validation |
 
-All screens get touch, the device's pixel density and user agent, in Chromium (the only browser CI
-installs). iPad portrait is below the app's `lg` breakpoint (1024px), so it uses the hamburger menu;
-landscape shows the sidebar. Put a new salesman spec in `tests/salesman/` and it runs on the phone;
-salesman specs start signed out and sign in as their own salesman.
-Run one screen with `npx playwright test --project=setup --project='*-ipad-portrait'`.
+## 📚 Documentation
 
-## Writing tests
-- Put selectors in `src/pages/`, behaviour in `tests/`. Prefer roles/labels over CSS.
-- Tests run against the **shared testing environment** and write to it. Use throwaway `E2E-...`
-  data and register it with `trackRoute` (or an equivalent fixture) so it is removed afterwards.
-- Never run write tests against production.
-- Login is limited to 20 attempts/hour: the `setup` project logs in once and the other specs reuse
-  that session. A wrong-password test must use an **unknown username** — failed attempts against the
-  real admin account count toward its lockout.
-- Saves and errors appear in a blocking "Success"/"Error" modal; dismiss it with
-  `acknowledgeNotice(...)` before the next interaction.
+| Document | Contents |
+|---|---|
+| [🏗️ Architecture](docs/architecture.md) | Projects, devices, session reuse, fixtures, page objects |
+| [✍️ Writing tests](docs/writing-tests.md) | Page-object pattern, selectors, cleanup, salesman specs |
+| [⚙️ Configuration & CI](docs/configuration-and-ci.md) | Variables, Vercel bypass, workflow, reports |
+| [🛟 Troubleshooting](docs/troubleshooting.md) | Common failures and fixes |
+| [🗺️ Roadmap](docs/roadmap.md) | Journeys to automate next |
+
+## ⚠️ Rules in one glance
+
+1. Selectors only in `src/pages/`; specs describe behaviour.
+2. `import { test, expect } from '../src/fixtures'`.
+3. Everything created is `E2E-…` and registered for cleanup.
+4. Never sign in per test (20 logins/hour/IP shared with the API suite).
+5. Never run against production.

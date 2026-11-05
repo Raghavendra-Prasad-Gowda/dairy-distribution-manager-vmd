@@ -4,6 +4,10 @@ Frontend sub-contract. The root `CLAUDE.md` still applies in full (frontend rout
 display order, Vitest patterns, change checklist); this file adds the client-only rules. The UI automation suite in
 `automation-ui/` has its own contract: `automation-ui/CLAUDE.md`.
 
+
+Detailed documentation: `README.md` and `docs/` (architecture, routing, data layer, components, pages catalogue,
+printing, testing, build, coding standards). Keep them in sync with behaviour changes.
+
 ## Structure
 
 ```

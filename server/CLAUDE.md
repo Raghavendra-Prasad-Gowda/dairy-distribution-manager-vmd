@@ -4,6 +4,10 @@ Backend sub-contract. The root `CLAUDE.md` still applies in full (route map, Sla
 product display order, change checklist); this file adds the server-only rules. The API automation suite in
 `automation/` has its own contract: `automation/CLAUDE.md`.
 
+
+Detailed documentation: `README.md` and `docs/` (architecture, API reference, data model, ledger and dispatch engines,
+security, notifications, testing, coding standards, runbook). Keep them in sync with behaviour changes.
+
 ## Structure
 
 ```

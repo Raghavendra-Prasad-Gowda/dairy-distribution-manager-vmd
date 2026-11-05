@@ -1,22 +1,24 @@
-# Release pipeline
+# 🛠️ Release Pipeline — Setup & Troubleshooting
 
-```
-feat/xyz ──PR──▶ develop ──merge──▶ Render + Vercel auto-deploy TESTING
-                  ▲                          │
-        pr-checks must pass                  ▼
-   (lint, unit tests, build, audit,   staging-pipeline.yml
-    automation compile)               1. wait until testing is serving this commit
-                                      2. API automation  (REST Assured + Cucumber)
-                                      3. UI automation   (Playwright + TypeScript)
-                                      4. "Staging Verified" status on the commit
-                                      5. open/update the develop → main release PR
-                                                  │
-                                    human approves + merges (merge commit)
-                                                  ▼
-                              Render + Vercel auto-deploy PRODUCTION
-                                                  │
-                                    production-verify.yml
-                                    wait → read-only smoke → tag + GitHub Release
+[⬅️ Docs index](README.md) · [How the pipeline behaves: 08-ci-cd-and-release.md](08-ci-cd-and-release.md)
+
+> This is the **operator runbook**: one-time setup that cannot be done from code, the daily flow, and
+> troubleshooting. For gates, branching and rollback see [08-ci-cd-and-release.md](08-ci-cd-and-release.md).
+
+```mermaid
+flowchart TD
+    F[🌿 feat/xyz] -->|PR| PC{✅ pr-checks<br/>lint · unit tests · build · audit · automation compile}
+    PC --> DEV[(develop)]
+    DEV -->|auto-deploy| T[☁️ Render + Vercel TESTING]
+    T --> SP[⚙️ staging-pipeline.yml]
+    SP --> S1[1 ⏳ wait until testing serves this commit]
+    S1 --> S2[2 🧪 API automation · REST Assured + Cucumber]
+    S2 --> S3[3 🎭 UI automation · Playwright + TypeScript]
+    S3 --> S4[4 ✅ Staging Verified status]
+    S4 --> S5[5 📝 open/update develop → main release PR]
+    S5 -->|👤 approve + merge commit| MAIN[(main)]
+    MAIN -->|auto-deploy| P[☁️ Render + Vercel PRODUCTION]
+    P --> PV[⚙️ production-verify.yml<br/>wait → read-only smoke → tag + GitHub Release]
 ```
 
 Deploys are done by Render and Vercel themselves (auto-deploy on push). The workflows never
