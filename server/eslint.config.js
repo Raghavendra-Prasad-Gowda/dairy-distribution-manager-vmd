@@ -10,7 +10,7 @@ const prettier = require('eslint-config-prettier');
  * caught in CI, not by review discipline alone (e.g. "never console.log").
  */
 module.exports = [
-  { ignores: ['node_modules/**', 'prisma/migrations/**', 'test-results/**', 'coverage/**'] },
+  { ignores: ['node_modules/**', 'prisma/migrations/**', 'test-results/**', 'coverage/**', 'automation/**'] },
   js.configs.recommended,
   {
     files: ['**/*.js'],

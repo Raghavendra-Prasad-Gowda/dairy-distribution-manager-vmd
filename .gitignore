@@ -40,4 +40,4 @@ client/coverage/
 server/version.json
 
 # Java automation suite
-automation/target/
+server/automation/target/

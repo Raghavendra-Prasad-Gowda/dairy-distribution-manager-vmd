@@ -54,21 +54,21 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
-          cache-dependency-path: automation/pom.xml
+          cache-dependency-path: server/automation/pom.xml
 
       # API only: UI smoke would need a dedicated read-only production account.
       - name: Run @api @smoke scenarios
-        working-directory: automation
+        working-directory: server/automation
         env:
           API_BASE_URL: ${{ env.API_URL }}
           EXPECTED_COMMIT: ${{ steps.render.outputs.commit || github.sha }}
         run: mvn -B -ntp test -Dcucumber.filter.tags="@api and @smoke"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: prod-smoke-report
-          path: automation/target/cucumber-reports
+          path: server/automation/target/cucumber-reports
           if-no-files-found: ignore
 
   release:

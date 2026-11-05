@@ -77,9 +77,9 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
-          cache-dependency-path: automation/pom.xml
+          cache-dependency-path: server/automation/pom.xml
       - name: Run @api scenarios
-        working-directory: automation
+        working-directory: server/automation
         env:
           API_BASE_URL: ${{ env.API_URL }}
           # The build /health must report: the commit Render runs, which is not the pushed SHA
@@ -89,7 +89,7 @@ jobs:
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
           # Optional second account (superadmin, no MFA). Scenarios that need one - creating brands, admin
-          # users, dispatchers, resetting ledgers - are skipped without it. See automation/README.md.
+          # users, dispatchers, resetting ledgers - are skipped without it. See server/automation/README.md.
           E2E_SUPERADMIN_USERNAME: ${{ secrets.E2E_SUPERADMIN_USERNAME }}
           E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
           # Set the repository variable E2E_STRICT=true once the superadmin secrets exist: a missing
@@ -100,7 +100,7 @@ jobs:
         run: mvn -B -ntp test -Dcucumber.filter.tags="@api and not @known-defect and not @shared-state"
       - name: Summarise scenarios
         if: always()
-        working-directory: automation
+        working-directory: server/automation
         run: |
           python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json, os
@@ -126,13 +126,13 @@ jobs:
           print("### API automation")
           print(f"{total} scenarios: **{total - failed - skipped} passed**, {failed} failed, {skipped} skipped")
           if skipped:
-              print("\nSkipped scenarios are missing a prerequisite (usually the E2E superadmin secrets) - see automation/README.md.")
+              print("\nSkipped scenarios are missing a prerequisite (usually the E2E superadmin secrets) - see server/automation/README.md.")
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: api-e2e-report
-          path: automation/target/cucumber-reports
+          path: server/automation/target/cucumber-reports
           if-no-files-found: ignore
 
   ui-e2e:
@@ -143,14 +143,14 @@ jobs:
     environment: staging
     defaults:
       run:
-        working-directory: automation-ui
+        working-directory: client/automation-ui
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: automation-ui/package-lock.json
+          cache-dependency-path: client/automation-ui/package-lock.json
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -166,14 +166,14 @@ jobs:
         if: always()
         env:
           REPORT: test-results/results.json
-        run: python3 ../.github/scripts/ui-job-summary.py >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+        run: python3 ../../.github/scripts/ui-job-summary.py >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ui-e2e-report
           path: |
-            automation-ui/playwright-report
-            automation-ui/test-results
+            client/automation-ui/playwright-report
+            client/automation-ui/test-results
           if-no-files-found: ignore
 
   finalize:

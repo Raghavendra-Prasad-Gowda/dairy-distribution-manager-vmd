@@ -1,22 +1,24 @@
-# Release pipeline
+# 🛠️ Release Pipeline — Setup & Troubleshooting
 
-```
-feat/xyz ──PR──▶ develop ──merge──▶ Render + Vercel auto-deploy TESTING
-                  ▲                          │
-        pr-checks must pass                  ▼
-   (lint, unit tests, build, audit,   staging-pipeline.yml
-    automation compile)               1. wait until testing is serving this commit
-                                      2. API automation  (REST Assured + Cucumber)
-                                      3. UI automation   (Playwright + TypeScript)
-                                      4. "Staging Verified" status on the commit
-                                      5. open/update the develop → main release PR
-                                                  │
-                                    human approves + merges (merge commit)
-                                                  ▼
-                              Render + Vercel auto-deploy PRODUCTION
-                                                  │
-                                    production-verify.yml
-                                    wait → read-only smoke → tag + GitHub Release
+[⬅️ Docs index](README.md) · [How the pipeline behaves: 08-ci-cd-and-release.md](08-ci-cd-and-release.md)
+
+> This is the **operator runbook**: one-time setup that cannot be done from code, the daily flow, and
+> troubleshooting. For gates, branching and rollback see [08-ci-cd-and-release.md](08-ci-cd-and-release.md).
+
+```mermaid
+flowchart TD
+    F[🌿 feat/xyz] -->|PR| PC{✅ pr-checks<br/>lint · unit tests · build · audit · automation compile}
+    PC --> DEV[(develop)]
+    DEV -->|auto-deploy| T[☁️ Render + Vercel TESTING]
+    T --> SP[⚙️ staging-pipeline.yml]
+    SP --> S1[1 ⏳ wait until testing serves this commit]
+    S1 --> S2[2 🧪 API automation · REST Assured + Cucumber]
+    S2 --> S3[3 🎭 UI automation · Playwright + TypeScript]
+    S3 --> S4[4 ✅ Staging Verified status]
+    S4 --> S5[5 📝 open/update develop → main release PR]
+    S5 -->|👤 approve + merge commit| MAIN[(main)]
+    MAIN -->|auto-deploy| P[☁️ Render + Vercel PRODUCTION]
+    P --> PV[⚙️ production-verify.yml<br/>wait → read-only smoke → tag + GitHub Release]
 ```
 
 Deploys are done by Render and Vercel themselves (auto-deploy on push). The workflows never
@@ -26,14 +28,20 @@ deploy; they wait for the deploy, then test it.
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` and type-checks `automation-ui/` |
+| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `server/automation/` and type-checks `client/automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
 | `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
-| `automation/` | Java API suite (Cucumber + REST Assured) — see `automation/README.md` |
-| `automation-ui/` | TypeScript UI suite (Playwright Test) — see `automation-ui/README.md` |
+| `server/automation/` | Java API suite (Cucumber + REST Assured) — see `server/automation/README.md` and `CLAUDE.md` |
+| `client/automation-ui/` | TypeScript UI suite (Playwright Test) — see `client/automation-ui/README.md` and `CLAUDE.md` |
 | `.github/CODEOWNERS` | Owner is requested on every PR |
+
+The suites live under the tier they test, so a change to `server/automation/` redeploys the testing backend
+(Render's root directory is `server/`) and a change to `client/automation-ui/` redeploys the frontend
+(`client/.vercelignore` keeps the suite out of the upload). `wait-for-backend.sh` treats any `server/` change as a
+backend change and waits for that deploy. If you add a Render build filter that ignores `server/automation/**`,
+exclude the same path in `wait-for-backend.sh`.
 
 ## One-time setup (cannot be done from code)
 

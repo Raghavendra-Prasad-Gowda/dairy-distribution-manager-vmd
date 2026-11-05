@@ -4,9 +4,9 @@
  * JWT edge cases that need the server's signing secret.
  *
  * The role-by-endpoint matrix, dispatcher limits and salesman scoping that used to live here are now
- * checked against the real deployed backend in automation/ (access-control-matrix.feature,
+ * checked against the real deployed backend in server/automation/ (access-control-matrix.feature,
  * security.feature, dispatches.feature, ...), which cannot sign a valid token. These two cases can only be
- * made with the secret, so they stay as mocked tests. See automation/COVERAGE.md.
+ * made with the secret, so they stay as mocked tests. See server/automation/COVERAGE.md.
  */
 
 const { expect } = require('@playwright/test');
