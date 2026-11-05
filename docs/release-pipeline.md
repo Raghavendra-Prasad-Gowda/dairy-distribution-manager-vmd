@@ -87,8 +87,11 @@ Optional repository variables if URLs change: `STAGING_API_URL`, `STAGING_WEB_UR
 ### 5. GitHub App for the release PR (recommended)
 A PR opened by the default `GITHUB_TOKEN` does **not** trigger other workflows, so `pr-checks`
 would not run on the release PR. Create a GitHub App (Settings → Developer settings → GitHub
-Apps) with repository permissions **Pull requests: read & write** and **Contents: read**, install
-it on this repo, then add repository secrets `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY`.
+Apps) with repository permissions **Pull requests: read & write**, **Contents: read & write** and
+**Workflows: read & write**, install it on this repo, then add repository secrets `RELEASE_BOT_APP_ID`
+and `RELEASE_BOT_PRIVATE_KEY`. Contents write lets auto-merge (5b) merge PRs; Workflows write lets it
+merge PRs that change `.github/workflows/`. After changing an app's permissions, accept them on the
+app's installation page — until then the old permissions stay in effect.
 
 ### 5b. Auto-merge into develop
 GitHub's built-in auto-merge needs branch protection, which this private repo's plan does not offer, so
@@ -131,3 +134,9 @@ it ships, open a PR `main → develop` so `develop` gets the fix too.
 - **UI test lands on a Vercel login page** — the bypass secret is missing or wrong.
 - **UI test fails at sign-in** — the testing admin has MFA enabled, or the password changed.
 - **Release PR has no checks** — App secrets are not set (see step 5).
+- **Auto-merge fails with `Resource not accessible by integration (mergePullRequest)`** — the App lacks
+  Contents: read & write, or the new permissions were not accepted on the installation (see step 5).
+- **Auto-merge fails with `GraphQL: Something went wrong` on a PR that edits `.github/workflows/`** —
+  the App lacks Workflows: read & write. The default `GITHUB_TOKEN` can never merge such PRs.
+- **Auto-merge failed before a permission fix** — re-run that `auto-merge-develop` run (Actions → the run →
+  Re-run jobs). Each run mints a fresh App token, so the re-run picks up the new permissions.
