@@ -1,0 +1,2 @@
+# Playwright UI suite - runs from CI against the deployed app, never part of the Vercel build
+automation-ui/

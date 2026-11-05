@@ -1,7 +1,7 @@
 # VMD API automation
 
 Black-box **API** tests against a **deployed** environment: Cucumber (Gherkin) + REST Assured, Java 21,
-Maven. The browser (UI) tests live in [`../automation-ui`](../automation-ui/README.md) (Playwright +
+Maven. The browser (UI) tests live in [`client/automation-ui`](../../client/automation-ui/README.md) (Playwright +
 TypeScript). This suite is separate from `server/tests` (the mocked-Prisma specs that run on every PR):
 those prove the code in isolation, this one proves the **deployed backend with its real database**.
 

@@ -2,7 +2,7 @@
 
 Black-box browser tests against a **deployed** environment: [Playwright Test](https://playwright.dev) +
 TypeScript. Real browser → real frontend → real API → real database; nothing is mocked. The API
-suite lives in [`../automation`](../automation/README.md) (Java).
+suite lives in [`server/automation`](../../server/automation/README.md) (Java).
 
 ```
 playwright.config.ts   projects: setup → signed-in, plus signed-out (login page itself) on iPad
@@ -18,7 +18,7 @@ tests/route-setup.spec.ts   add / edit / delete a route, duplicate rejection, em
 ## Run
 
 ```bash
-cd automation-ui
+cd client/automation-ui     # from the repository root
 npm ci
 npx playwright install --with-deps chromium     # first time only
 

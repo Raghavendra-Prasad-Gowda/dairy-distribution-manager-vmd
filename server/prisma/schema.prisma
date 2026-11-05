@@ -441,8 +441,9 @@ model AppSettings {
 // The cash/credit bill handed to a salesperson for a supply period — the
 // printed pad the dairy has always used, reproduced as a PDF.
 //
-// `lines` is a FROZEN snapshot of the six printed rows (MILK / CURD / GHEE /
-// PANNEER-KOVA / BUTTER / OTHERS) as they read the moment the bill was issued.
+// `lines` is a FROZEN snapshot — brands, each listing the individual products
+// actually dispatched (see utils/billFormat.js) — as it read the moment the bill
+// was issued.
 // A bill is a document given to someone, so a reprint must show exactly what
 // they were handed — recomputing from dispatches later would silently change a
 // bill already in the salesperson's hands if a back-dated dispatch is edited.

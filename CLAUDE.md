@@ -10,7 +10,8 @@
 - Multi-brand stock receipt (Nandini, Jersey, Gowardhan) with per-route entry for Nandini
 - Cascading daily balance ledger per brand (opening + stock + deposits + topUp − payments = closing)
 - Salesperson dispatch and collection tracking with cascading balance ledger
-- Financial reports and outstanding balances
+- Financial reports, outstanding balances, profit & loss (behind a separate P&L PIN) and printed cash/credit bills
+- Admin accounts with optional/required TOTP MFA and automatic lock-out
 
 **Live deployment:**
 - Frontend → Vercel (React 19 + Vite)
@@ -21,122 +22,127 @@
 
 ## 2. Repository Structure
 
+Each tier owns its own tests: the API automation suite lives inside `server/`, the UI automation suite inside
+`client/`. Every folder with its own rules has its own `CLAUDE.md` — read the one closest to the file you change.
+
 ```
 dairy-distribution-manager-vmd/
 ├── CLAUDE.md                          # This file — root engineering contract
+├── README.md
 ├── docker-compose.yml                 # Local dev Postgres
-├── .github/workflows/
-│   ├── pr-checks.yml                  # CI on every PR to develop/main
-│   ├── staging-pipeline.yml           # After merge to develop: wait deploy → API → UI → release PR
-│   └── production-verify.yml          # After merge to main: wait deploy → smoke → tag + release
-├── automation/                        # Java: Cucumber + REST Assured (API) vs deployed env — see automation/README.md
-├── automation-ui/                     # TypeScript: Playwright Test (UI) vs deployed env
-├── docs/release-pipeline.md           # Release flow + one-time setup checklist
+├── docs/
+│   ├── release-pipeline.md            # Release flow + one-time setup checklist
+│   └── openapi.yaml                   # API spec — linted by pr-checks (redocly)
+├── .github/
+│   ├── workflows/
+│   │   ├── pr-checks.yml              # CI on every PR to develop/main
+│   │   ├── auto-merge-develop.yml     # Merges a green PR into develop (opt out: `no-auto-merge` label)
+│   │   ├── staging-pipeline.yml       # After merge to develop: wait deploy → API → UI → release PR
+│   │   └── production-verify.yml      # After merge to main: wait deploy → smoke → tag + release
+│   ├── scripts/                       # wait-for-backend.sh, wait-for-vercel.sh, Slack result cards, UI summary
+│   └── dependabot.yml
 │
-├── server/                            # Express 5 backend
+├── server/                            # Express 5 backend (Render root directory)
 │   ├── CLAUDE.md                      # Backend engineering sub-contract
 │   ├── app.js                         # Middleware stack, route registration, error handler
 │   ├── index.js                       # Entry point: listen → migrate → seed → ready
 │   ├── controllers/                   # Business logic (one file per resource)
-│   │   ├── auth.controller.js
-│   │   ├── brands.controller.js
-│   │   ├── categories.controller.js
-│   │   ├── products.controller.js
-│   │   ├── stockReceipts.controller.js
-│   │   ├── dairyBalance.controller.js
-│   │   ├── dairyPayments.controller.js
-│   │   ├── dairyDepositTopUps.controller.js
-│   │   ├── dispatches.controller.js
-│   │   ├── salespeople.controller.js
-│   │   ├── salespersonPrices.controller.js
-│   │   ├── salespersonProducts.controller.js
-│   │   ├── salespersonBalance.controller.js
-│   │   ├── salespersonPayments.controller.js
-│   │   ├── salespersonStatement.controller.js
-│   │   ├── reports.controller.js
-│   │   ├── bills.controller.js
-│   │   ├── routes.controller.js
-│   │   ├── pin.controller.js
-│   │   ├── adminUsers.controller.js
-│   │   └── clientErrors.controller.js
-│   ├── routes/                        # Thin route definitions only
+│   │   ├── *.controller.js            # auth, adminUsers, brands, categories, products, routes, pin, bills,
+│   │   │                              # stockReceipts, dairyBalance, dairyPayments, dairyDepositTopUps,
+│   │   │                              # salespeople, salespersonPrices, salespersonProducts,
+│   │   │                              # salespersonBalance, salespersonPayments, salespersonStatement,
+│   │   │                              # dispatches, reports
+│   │   ├── dispatches/                # read, write, lockLifecycle, dayFinalization, _shared
+│   │   └── reports/                   # dailyDispatch, dairyStatement, salespersonStatement, stockSummary,
+│   │                                  # depositSummary, outstanding, profitLoss, _shared
+│   ├── routes/                        # Thin route definitions only (clientErrors.js is the one inline handler)
 │   ├── middleware/
-│   │   ├── auth.js                    # JWT: authenticate, requireAdmin, requireSuperAdmin
+│   │   ├── auth.js                    # JWT: authenticate, requireAdmin, requireSuperAdmin, requireAdminOrDispatcher
 │   │   └── asyncHandler.js            # Async error propagation
 │   ├── services/
 │   │   ├── balanceService.js          # Cascading balance recalculation (serializable tx)
+│   │   ├── paymentLedger.js           # Shared dairy/salesperson payment cascade + bulk validation
 │   │   ├── depositRules.js            # qualifiesForDeposit, calculateLineDeposit
-│   │   └── stockGuard.js              # Dispatch stock availability check
+│   │   ├── stockGuard.js              # Dispatch stock availability check
+│   │   ├── dispatchDayFinalization.js # isDayFinalizedForDispatcher (past days auto-finalized)
+│   │   ├── mfaService.js              # TOTP enrolment/verification, backup codes
+│   │   └── accountLockService.js      # Wrong-password / wrong-MFA lock-out
 │   ├── utils/
 │   │   ├── validate.js                # All Zod schemas + validate() + parseId()
 │   │   ├── AppError.js                # Operational error class
-│   │   ├── slack.js                   # notifySlack, SLACK_EVENTS, buildCard
+│   │   ├── authz.js                   # assertRole / assertAdmin — in-controller defence in depth
+│   │   ├── actor.js                   # Acting admin's username for Slack/audit
+│   │   ├── slack.js                   # notifySlack, SLACK_EVENTS, buildCard, escapeSlack
 │   │   ├── dateUtils.js               # getIndiaDateStr, getIndiaTomorrowStr (IST helpers)
+│   │   ├── productLayout.js           # Canonical product sort (catOrder map, `::` key) — use it
 │   │   ├── billFormat.js              # Bill Brand → Product aggregation + rate derivation
-│   │   └── constants.js               # JWT_EXPIRES_IN, BCRYPT_ROUNDS
+│   │   ├── pagination.js              # Opt-in ?page/&limit envelope
+│   │   ├── mfaCrypto.js               # AES-256-GCM for TOTP secrets (key derived from JWT_SECRET)
+│   │   ├── dbUrl.js                   # DATABASE_URL + CA-cert TLS handling
+│   │   ├── version.js                 # Build identity for /health and Slack
+│   │   └── constants.js               # JWT_EXPIRES_IN, BCRYPT_ROUNDS, MFA + lock-out constants
+│   ├── config/
+│   │   ├── env.js                     # Zod-validated env — the ONLY place process.env secrets are read
+│   │   └── logger.js                  # Winston — use instead of console.log
 │   ├── lib/prisma.js                  # Singleton Prisma client — ALWAYS import this
-│   ├── config/logger.js               # Winston — use instead of console.log
-│   └── prisma/
-│       ├── schema.prisma              # Single source of truth for all DB models
-│       ├── migrations/                # Never edit migration files manually
-│       └── seed.js                    # Seeds brands + admin user only
+│   ├── prisma/
+│   │   ├── schema.prisma              # Single source of truth for all DB models
+│   │   ├── migrations/                # Never edit migration files manually
+│   │   └── seed.js                    # Superadmin (from env) + edit PIN / P&L PIN settings only
+│   ├── scripts/                       # check-timezone-safety.js (CI lint), write-version.js (build)
+│   ├── tests/                         # Mocked-Prisma Playwright specs (run on every PR)
+│   │   ├── helpers/                   # test-setup, create-mock-prisma, mock-cascade, ...
+│   │   └── playwright/*.spec.js
+│   └── automation/                    # Java 21: Cucumber + REST Assured API suite vs deployed env
+│       ├── CLAUDE.md                  # API automation sub-contract
+│       ├── README.md / COVERAGE.md    # How to run / mocked-spec → API-scenario map
+│       ├── pom.xml
+│       └── src/test/                  # features/api/*.feature + com.vmd.automation step code
 │
-└── client/                            # React 19 frontend
+└── client/                            # React 19 + Vite frontend (Vercel root directory)
     ├── CLAUDE.md                      # Frontend engineering sub-contract
-    └── src/
-        ├── App.jsx                    # Route tree, lazy loading, ProtectedRoute, ErrorBoundary
-        ├── api/axios.js               # Shared Axios instance — ALWAYS use this
-        ├── context/
-        │   ├── AuthContext.jsx        # Auth state, 2h session, useAuth() hook
-        │   └── NotificationContext.jsx # useNotification() → notify(msg, type)
-        ├── components/
-        │   ├── Layout.jsx             # App shell with sidebar navigation
-        │   ├── ErrorBoundary.jsx      # Catches ChunkLoadError + unexpected crashes
-        │   ├── BrandTabs.jsx          # Brand switcher tabs
-        │   ├── Pagination.jsx         # Shared pagination component
-        │   └── ui/
-        │       └── BrandedLoader.jsx  # VMD's branded tumbler spinner
-        ├── pages/
-        │   ├── Dashboard.jsx
-        │   ├── Login.jsx
-        │   ├── daily/
-        │   │   └── StockReceipt.jsx
-        │   ├── payments/
-        │   │   ├── DairyPayments.jsx
-        │   │   └── SalespersonCollections.jsx
-        │   ├── reports/
-        │   │   ├── DairyStatement.jsx
-        │   │   ├── SalespersonStatement.jsx
-        │   │   ├── StockSummary.jsx
-        │   │   ├── DepositReport.jsx
-        │   │   ├── DailyDispatchSummary.jsx
-        │   │   ├── StockBalanceSummary.jsx
-        │   │   ├── SalesmanDayBalance.jsx
-        │   │   ├── SalesmanProfitLoss.jsx
-        │   │   ├── DairyReports.jsx
-        │   │   ├── BillPrint.jsx
-        │   │   └── *Print.jsx          # Print/PDF variants
-        │   ├── setup/
-        │   │   ├── ProductsSetup.jsx
-        │   │   ├── CategorySetup.jsx
-        │   │   ├── SalesmanUsersSetup.jsx
-        │   │   ├── SalesmanPricesSetup.jsx   # includes Exception Manager
-        │   │   ├── LayoutSettings.jsx
-        │   │   ├── RouteSetup.jsx
-        │   │   ├── BrandsSetup.jsx
-        │   │   ├── DairySettings.jsx
-        │   │   └── AdminUsersSetup.jsx        # superadmin only
-        │   ├── salesman/               # Salesman-role pages
-        │   │   ├── StockEntry.jsx
-        │   │   ├── SalespersonBalance.jsx
-        │   │   ├── MyStatement.jsx
-        │   │   ├── MyStatementPrint.jsx
-        │   │   └── ChangePassword.jsx
-        │   └── SalespersonOutstanding.jsx
-        └── utils/
-            ├── dateUtils.js           # India timezone helpers — ALWAYS use these
-            └── constants.js
+    ├── src/
+    │   ├── App.jsx                    # Route tree, lazy loading, ProtectedRoute, ErrorBoundary
+    │   ├── api/axios.js               # Shared Axios instance — ALWAYS use this
+    │   ├── api/coldStart.js           # Detects a sleeping Render backend → ColdStartScreen
+    │   ├── context/                   # AuthContext (2h session, useAuth), NotificationContext (notify)
+    │   ├── hooks/                     # useApiResource(s), useMutation, useDisclosure, useDebouncedValue, ...
+    │   ├── components/                # Layout, ErrorBoundary, BrandTabs, Pagination, PinModal, BillSheet,
+    │   │   │                          # BalanceLedger, PaymentForm, BulkTopUpModal, VersionTag, ...
+    │   │   └── ui/                    # BrandedLoader (+ TumblerSpinner), Modal, Button, Alert, EmptyState
+    │   ├── pages/
+    │   │   ├── Dashboard.jsx, Login.jsx, SalespersonOutstanding.jsx
+    │   │   ├── daily/StockReceipt.jsx
+    │   │   ├── payments/              # DairyPayments, SalespersonCollections
+    │   │   ├── reports/               # Statements, summaries, dispatch sheet, day balance, P&L,
+    │   │   │                          # deposit, BillPrint and the *Print.jsx print/PDF variants
+    │   │   ├── setup/                 # Products, Categories, Brands, Routes, Layout, DairySettings,
+    │   │   │   │                      # SalesmanUsers, SalesmanPrices, AdminUsers (superadmin)
+    │   │   │   └── salesmanPrices/    # Modals/tables used by SalesmanPricesSetup (incl. ExceptionManagerModal)
+    │   │   ├── salesman/              # StockEntry, SalespersonBalance, MyStatement(+Print), ChangePassword
+    │   │   └── dairy/PriceSetup.jsx   # Dairy rate master — tested but NOT routed in App.jsx yet
+    │   └── utils/                     # dateUtils (IST — ALWAYS), session, productLayout, billPdf,
+    │                                  # billDisplay, numberToWords, appVersion, constants
+    └── automation-ui/                 # TypeScript: Playwright Test UI suite vs deployed env
+        ├── CLAUDE.md                  # UI automation sub-contract
+        ├── README.md
+        ├── playwright.config.ts       # setup → signed-in / signed-out projects; iPad + phone screens
+        ├── src/                       # env.ts, fixtures.ts, pages/ (page objects)
+        └── tests/                     # *.spec.ts (+ tests/salesman/ for phone specs)
 ```
+
+**The two automation suites are not part of the app.** They are separate projects (Maven / their own
+`package.json`) that happen to live under the tier they test. They are excluded from the app's lint, tests,
+coverage and build: `server/eslint.config.js` and `server/.prettierignore` ignore `automation/`;
+`client/eslint.config.js`, the Vitest `exclude` in `client/vite.config.js` and `client/.vercelignore` ignore
+`automation-ui/`. Keep it that way when touching those configs.
+
+**Deploy side effect:** Render deploys from `server/` and Vercel from `client/`, so a change that only touches
+`server/automation/` or `client/automation-ui/` now also triggers a (no-op) redeploy of that tier.
+`.github/scripts/wait-for-backend.sh` counts any file under `server/` as a backend change and waits for that
+deploy, which keeps the API suite running against the build that actually contains the change. If you ever add a
+Render build filter that ignores `server/automation/**`, also exclude that path in `wait-for-backend.sh`, or the
+pipeline will wait for a deploy that never comes.
 
 ---
 
@@ -144,10 +150,13 @@ dairy-distribution-manager-vmd/
 
 | Role | Access |
 |------|--------|
-| `superadmin` | Everything — including Admin Users setup |
-| `admin` | Full access except Admin Users setup |
+| `superadmin` | Everything — including Admin Users setup, brand creation, PIN changes, P&L PIN toggle, bulk dairy/deposit top-ups, salesperson ledger reset, MFA policy and account unlock |
+| `admin` | Full access except the superadmin-only items above |
 | `dispatcher` | Dispatch sheet + Stock Balance report + change password |
 | `salesman` | Stock entry (own), own balance/statement, change password |
+
+Admins, superadmins and dispatchers are `AdminUser` rows; salesmen are `Salesperson` rows with a username.
+Both sign in through `POST /auth/login`.
 
 **Route guards in `App.jsx`:**
 - `ProtectedRoute` — authenticated only
@@ -155,12 +164,17 @@ dairy-distribution-manager-vmd/
 - `ProtectedRoute superAdminOnly` — superadmin only
 - Dispatcher and salesman are conditionally routed to their own route trees
 
-**API guards in `app.js`:**
-- All `/api/v1/*` requires `authenticate` (JWT)
-- Most admin routes: `requireAdmin` middleware
-- Superadmin routes: `requireSuperAdmin` middleware
-- `bulkWriteLimiter`: 30 req/min on bulk endpoints (`salespersonProducts`, `stockReceipts`)
-- Login: 20 attempts/hour rate limit
+**API guards in `app.js` / route files:**
+- All `/api/v1/*` requires `authenticate` (JWT in the `Authorization: Bearer` header — the cookie is not honoured), except `/auth/*` sign-in steps and the public `POST /errors/client` beacon
+- Most admin routes: `requireAdmin` at mount; superadmin-only endpoints: `requireSuperAdmin`; dispatcher reads: `requireAdminOrDispatcher`
+- Controllers re-check with `assertRole` / `assertAdmin` (`utils/authz.js`) as defence in depth
+- Rate limits: global 5000 / 15 min on `/api`; login 20 / hour / IP (`LOGIN_RATE_LIMIT_MAX`); `bulkWriteLimiter` 30 / min on `/stock-receipts`, salesperson products and price bulk routes; PIN verify 20 / 15 min; MFA steps have their own limiters; client-error beacon 30 / hour (always answers 200)
+
+**MFA and lock-out (AdminUser only):**
+- TOTP MFA with 8 bcrypt-hashed backup codes (`services/mfaService.js`). The TOTP secret is AES-256-GCM encrypted with a key derived from `JWT_SECRET` (`utils/mfaCrypto.js`) — **rotating `JWT_SECRET` invalidates every enrolled authenticator**.
+- A password login for an MFA account returns a 5-minute `mfaToken`; `POST /auth/mfa/verify` exchanges it (plus a code) for the session.
+- A superadmin can set `mfaRequired` on an admin/superadmin (never a dispatcher); such accounts are forced through `/auth/mfa/setup-required` → `/auth/mfa/confirm-required` before a session is issued.
+- 5 wrong passwords or 5 wrong MFA codes lock the account (`accountLockService.js`); the lock auto-expires after 30 minutes, or a superadmin unlocks it with `PUT /admin-users/:id/unlock`.
 
 ---
 
@@ -170,25 +184,29 @@ dairy-distribution-manager-vmd/
 
 | Model | Purpose | Key constraints |
 |-------|---------|----------------|
-| `Brand` | Dairy brand (Nandini, Jersey, Gowardhan) | unique `name`, `displayOrder` |
+| `Brand` | Dairy brand (Nandini, Jersey, Gowardhan) | unique `name`, `displayOrder`, `isActive`, `isArchived` (brands are archived, never deleted) |
 | `Category` | Product grouping within a brand | unique `(brandId, name)`, `displayOrder` |
 | `Product` | Sellable item | unique `(brandId, name)`, `category` is String (not a relation), `displayOrder` |
+| `ProductCostPrice` | Effective-dated cost price history | unique `(productId, effectiveFrom)` |
+| `ProductSellingPrice` | Effective-dated default selling price history | unique `(productId, effectiveFrom)` |
 | `Route` | Nandini delivery route | unique `(brandId, routeNumber)`, routeId=0 = no route |
 | `StockReceipt` | Daily stock received from dairy | unique `(productId, receiptDate, routeId)` |
 | `DairyBalance` | Cascading ledger per brand per date | unique `(brandId, balanceDate)` |
 | `DairyPayment` | Payment to dairy (`isTopUp=true` = pre-existing debt load) | |
 | `DairyDepositTopUp` | Crate/container deposit ledger (separate from stock) | |
-| `Salesperson` | Delivery agent | `username`, `passwordHash`, `displayOrder` |
+| `Salesperson` | Delivery agent | unique `username`, `passwordHash`, `displayOrder` |
 | `SalespersonPrice` | Per-salesman selling price (effective-date-aware) | unique `(salespersonId, productId, effectiveFrom)` |
 | `SalespersonProduct` | Per-salesman product exception (`isEnabled`) | unique `(salespersonId, productId)` |
-| `StockDispatch` | Daily dispatch to salesman | unique `(salespersonId, dispatchDate)` |
+| `StockDispatch` | Daily dispatch to salesman (`isSubmitted`, `isAdminUnlocked`) | unique `(salespersonId, dispatchDate)`, index `dispatchDate` |
 | `StockDispatchItem` | Line items in a dispatch | |
 | `SalespersonBalance` | Cascading ledger per salesman per date | unique `(salespersonId, balanceDate)` |
 | `SalespersonPayment` | Collection from salesman (`isTopUp=true` = pre-existing debt) | |
-| `AdminUser` | Admin/superadmin/dispatcher login | roles: admin/superadmin/dispatcher |
+| `AdminUser` | Admin/superadmin/dispatcher login, MFA + lock-out fields | unique `username`; roles: admin/superadmin/dispatcher |
 | `DispatchDayFinalization` | Explicit finalization of a dispatch day | unique `(date)` |
-| `ClientErrorLog` | Frontend crash reports | |
+| `AppSettings` | Key/value app config: `edit_pin`, `pl_pin` (bcrypt hashes), `pl_pin_enabled` | `key` is the id |
 | `Bill` | Cash/credit bill issued to a salesperson | unique `billNumber`; `lines` is a frozen JSON snapshot — an array of brands, each with the individual products actually dispatched (not a generalized bucket, and not further split by category) |
+
+There is no client-error table: crash reports from `POST /errors/client` go to Slack only.
 
 ### Critical: `category` is a String on `Product`
 
@@ -204,6 +222,8 @@ dairy-distribution-manager-vmd/
 - `DairyPayment.isTopUp` — `true` = pre-existing debt added to balance, `false` = real payment subtracted
 - `SalespersonPayment.isTopUp` — same semantics for salesman side
 - `DispatchDayFinalization` — past dates are auto-finalized; today requires an explicit row
+- `AdminUser.mfaSecret` / `mfaEnabled` / `mfaBackupCodes` / `mfaRequired`, `failedPasswordAttempts` / `failedMfaAttempts` / `lockedAt` / `lockedReason` — see Section 3
+- PINs live in `AppSettings`, not env: `EDIT_PIN` only seeds `edit_pin` and `pl_pin` on the first boot; change them in the superadmin UI afterwards
 
 ---
 
@@ -244,60 +264,63 @@ await prisma.$transaction(async (tx) => {
 
 ## 6. Route Map
 
-### Backend API (all under `/api/v1`)
+### Backend API (all under `/api/v1` unless noted)
+
+"JWT" means any signed-in role; the controller then scopes or refuses by role (e.g. a salesman only sees their own rows).
 
 | Route | Auth | Controller |
 |-------|------|-----------|
-| `POST /auth/login` | public | auth |
+| `GET /health`, `GET /health/ready` (no `/api/v1`) | public | `app.js` (liveness + build identity / DB readiness) |
+| `POST /auth/login` | public (20/h) | auth |
+| `POST /auth/mfa/verify` | public, `mfaToken` | auth |
+| `POST /auth/mfa/setup-required`, `POST /auth/mfa/confirm-required` | public, `mfaToken` | auth |
 | `POST /auth/logout` | JWT | auth |
 | `POST /auth/change-password` | JWT | auth |
-| `GET /brands` | JWT | brands |
-| `POST /brands` | admin | brands |
-| `PUT /brands/:id` | admin | brands |
-| `GET /categories` | JWT | categories |
-| `POST /categories` | admin | categories |
-| `PUT /categories/:id` | admin | categories |
-| `DELETE /categories/:id` | admin | categories |
-| `GET /products` | admin | products |
-| `POST /products` | admin | products |
-| `PUT /products/:id` | admin | products |
-| `GET /stock-receipts` | JWT | stockReceipts |
-| `POST /stock-receipts/bulk` | JWT + bulkLimiter | stockReceipts |
-| `GET /dairy-balance` | admin | dairyBalance |
-| `POST /dairy-payments` | admin | dairyPayments |
-| `PUT /dairy-payments/:id` | admin | dairyPayments |
-| `DELETE /dairy-payments/:id` | admin | dairyPayments |
-| `POST /dairy-deposit-topups/bulk` | admin | dairyDepositTopUps |
-| `GET /salespeople` | admin | salespeople |
-| `POST /salespeople` | admin | salespeople |
-| `PUT /salespeople/:id` | admin | salespeople |
+| `POST /errors/client` | public (30/h) | `routes/clientErrors.js` (Slack only) |
+| `GET /brands` | admin | brands |
+| `POST /brands` | superadmin | brands |
+| `PUT /brands/:id`, `PATCH /brands/reorder`, `POST /brands/:id/copy-products` | admin | brands |
+| `GET /categories`, `POST /categories`, `PUT /categories/:id`, `DELETE /categories/:id`, `PATCH /categories/reorder` | admin | categories |
+| `GET /products`, `POST /products`, `PUT /products/:id`, `DELETE /products/:id`, `PATCH /products/reorder` | admin | products |
+| `GET /products/salesperson-global`, `PATCH /products/salesperson-global` | admin | products |
+| `DELETE /products/:id/salesperson-prices` | admin | products |
+| `GET /routes`, `POST /routes`, `PUT /routes/:id`, `DELETE /routes/:id` | admin | routes |
+| `GET /stock-receipts` | admin | stockReceipts |
+| `GET /stock-receipts/availability` | admin or dispatcher | stockReceipts |
+| `POST /stock-receipts/bulk` | admin + bulkLimiter | stockReceipts |
+| `GET /dairy-balance`, `GET /dairy-balance/route-breakdown`, `GET /dairy-balance/:brandId` | admin | dairyBalance |
+| `GET /dairy-payments`, `POST /dairy-payments`, `PUT /dairy-payments/:id`, `DELETE /dairy-payments/:id` | admin | dairyPayments |
+| `POST /dairy-payments/bulk-topup` | superadmin | dairyPayments |
+| `POST /dairy-deposit-topups/bulk`, `DELETE /dairy-deposit-topups/:id` | superadmin | dairyDepositTopUps |
+| `GET /salespeople`, `GET /salespeople/:id`, `POST /salespeople`, `PUT /salespeople/:id`, `DELETE /salespeople/:id`, `PUT /salespeople/reorder` | admin | salespeople |
+| `POST /salespeople/reset-ledger` | superadmin | salespeople |
 | `GET /salespeople/:id/prices` | JWT | salespersonPrices |
-| `POST /salespeople/:id/prices/bulk` | JWT | salespersonPrices |
+| `POST /salespeople/:id/prices/bulk`, `POST /salespeople/:id/prices/copy-from/:sourceId`, `POST /salespeople/bulk-update` | admin + bulkLimiter | salespersonPrices |
 | `GET /salespeople/:id/products` | admin | salespersonProducts |
-| `POST /salespeople/:id/products/bulk` | admin + bulkLimiter | salespersonProducts |
-| `POST /salespeople/products/bulk-multiple` | admin | salespersonProducts |
-| `GET /dispatches` | JWT | dispatches |
-| `POST /dispatches` | JWT | dispatches |
-| `DELETE /dispatches/:id` | JWT | dispatches |
-| `GET /salesperson-balance` | JWT | salespersonBalance |
-| `POST /salesperson-payments` | admin | salespersonPayments |
-| `PUT /salesperson-payments/:id` | admin | salespersonPayments |
-| `DELETE /salesperson-payments/:id` | admin | salespersonPayments |
-| `GET /salesperson-statement` | JWT | salespersonStatement |
-| `GET /reports/*` | JWT (per-route gating inside router) | reports |
-| `GET /bills` | admin | bills |
-| `GET /bills/preview` | admin | bills |
-| `GET /bills/:id` | admin | bills |
-| `POST /bills` | admin | bills |
-| `DELETE /bills/:id` | admin | bills |
-| `POST /pin/verify` | admin | pin |
-| `GET /routes` | admin | routes |
-| `POST /routes` | admin | routes |
-| `PUT /routes/:id` | admin | routes |
-| `GET /admin-users` | superadmin | adminUsers |
-| `POST /admin-users` | superadmin | adminUsers |
-| `PUT /admin-users/:id` | superadmin | adminUsers |
-| `DELETE /admin-users/:id` | superadmin | adminUsers |
+| `POST /salespeople/:id/products/bulk`, `POST /salespeople/products/bulk-update` | admin + bulkLimiter | salespersonProducts |
+| `GET /dispatches` | admin or salesman (own) | dispatches |
+| `GET /dispatches/summary` | admin | dispatches |
+| `POST /dispatches` (empty `items` = delete draft), `DELETE /dispatches/:id` | admin or salesman (own, unlocked) | dispatches |
+| `POST /dispatches/open-for-entry` | admin | dispatches |
+| `PATCH /dispatches/:id/submit` | admin or salesman (own) | dispatches |
+| `PATCH /dispatches/:id/lock`, `PATCH /dispatches/:id/unlock` | admin, or dispatcher until the day is finalized (Section 15) | dispatches |
+| `POST /dispatches/finalize-day` | dispatcher | dispatches |
+| `DELETE /dispatches/finalize-day` | admin | dispatches |
+| `GET /salesperson-balance`, `GET /salesperson-balance/:id`, `GET /salesperson-balance/:id/history` | JWT | salespersonBalance |
+| `GET /salesperson-payments` | JWT | salespersonPayments |
+| `POST /salesperson-payments`, `PUT /salesperson-payments/:id`, `DELETE /salesperson-payments/:id`, `POST /salesperson-payments/bulk-topup` | admin | salespersonPayments |
+| `GET /salesperson-statement/me` | JWT (salesman) | salespersonStatement |
+| `GET /reports/dairy-statement`, `/salesperson-statement`, `/stock-summary`, `/outstanding`, `/deposit-summary`, `/profit-loss` | admin | reports |
+| `GET /reports/daily-dispatch` | admin or dispatcher | reports |
+| `GET /bills`, `GET /bills/preview`, `GET /bills/:id`, `POST /bills`, `DELETE /bills/:id` | admin | bills |
+| `POST /pin/verify`, `POST /pin/verify-pl` | admin (20 / 15 min) | pin |
+| `GET /pin/settings` | admin | pin |
+| `PUT /pin/update`, `PUT /pin/update-pl`, `PUT /pin/settings` | superadmin | pin |
+| `GET /admin-users`, `POST /admin-users`, `PUT /admin-users/:id`, `DELETE /admin-users/:id` | superadmin | adminUsers |
+| `PUT /admin-users/:id/mfa-required`, `PUT /admin-users/:id/unlock` | superadmin | adminUsers |
+| `GET /admin-users/mfa/status`, `POST /admin-users/mfa/setup`, `/mfa/confirm`, `/mfa/disable` | superadmin (own account) | adminUsers |
+
+`docs/openapi.yaml` describes the same API and is linted on every PR — update it when you add or change an endpoint.
 
 ### Frontend routes (from `App.jsx`)
 
@@ -445,7 +468,9 @@ Never swallow errors with empty `catch` blocks. Let `asyncHandler` propagate the
 
 **Canonical sort**: `brand.displayOrder → categoryDisplayOrder → product.displayOrder → product.name`
 
-Because `product.category` is a plain string (not a relation), Prisma cannot sort by `category.displayOrder` in one query. Every place that renders a sorted product list MUST apply this pattern:
+Because `product.category` is a plain string (not a relation), Prisma cannot sort by `category.displayOrder` in one query. Every place that renders a sorted product list MUST apply this pattern.
+
+**On the server, use the shared helpers in `server/utils/productLayout.js`** (`buildCategoryOrderMap`, `getCategoryOrder`, `compareProductsByLayout`, key delimiter `::`) instead of re-writing the map + comparator; the client has the equivalent in `client/src/utils/productLayout.js`. The snippet below shows what they do:
 
 **Backend — catOrder Map pattern**
 ```js
@@ -482,8 +507,9 @@ const sortedGroups = Object.entries(grouped).sort(([a], [b]) => {
 **API responses that serve the Exception Manager** (SalesmanPricesSetup) must include `categoryDisplayOrder` so the client can sort. See `salespersonProducts.controller.js` for the reference implementation.
 
 **Checklist — every place products are shown sorted:**
-- `reports.controller.js` — `dailyDispatch`, `salespersonStatement`
-- `salespersonProducts.controller.js` — `getProducts`
+- `controllers/reports/` — `dailyDispatch`, `salespersonStatement`, `stockSummary`, `profitLoss`
+- `salespersonProducts.controller.js` — `getProducts`; `salespersonPrices.controller.js`; `salespersonStatement.controller.js`
+- `products.controller.js`, `bills.controller.js` (bill lines, via `utils/billFormat.js`)
 - `ProductsSetup.jsx` — `filteredGrouped` useMemo
 - Any new feature that renders a product list
 
@@ -512,6 +538,10 @@ await notifySlack(...);
 
 **Auth:** `LOGIN`, `LOGOUT`, `FAILED_LOGIN`, `PASSWORD_CHANGED`, `PIN_FAILED`
 
+**PIN settings:** `PIN_UPDATED`, `PL_PIN_UPDATED`, `PIN_SETTINGS_UPDATED`
+
+**MFA & lock-out:** `MFA_ENABLED`, `MFA_DISABLED`, `MFA_FAILED`, `MFA_REQUIRED_SET`, `MFA_REQUIRED_UNSET`, `ACCOUNT_LOCKED`, `ACCOUNT_UNLOCKED`
+
 **Salesman self-service (info only):** `SALESPERSON_BALANCE_VIEWED`, `SALESPERSON_STATEMENT_VIEWED`
 
 **Stock Receipts:** `STOCK_RECEIPT_SAVED`
@@ -539,6 +569,10 @@ await notifySlack(...);
 **Bills:** `BILL_GENERATED`, `BILL_DELETED`
 
 **Superadmin:** `ADMIN_USER_CREATED`, `ADMIN_USER_UPDATED`, `ADMIN_USER_DELETED`
+
+EVENT_COLOR palette: `GREEN` (create), `AMBER` (update), `RED` (delete), plus `BLUE` and `TEAL` for informational cards.
+
+Untrusted text in a card (the public client-error beacon, anything a user typed) must go through `escapeSlack`.
 
 ### Adding a new event
 1. Add a key to `SLACK_EVENTS` in `server/utils/slack.js`
@@ -636,7 +670,7 @@ test('returns 200 with data', async ({ request }) => {
 });
 ```
 
-**Minimum coverage per new endpoint** (as an API scenario in `automation/`; use a mocked spec only for logic the
+**Minimum coverage per new endpoint** (as an API scenario in `server/automation/`; use a mocked spec only for logic the
 API cannot reach):
 - 403 (no token)
 - 401 (bad/expired token)
@@ -645,24 +679,36 @@ API cannot reach):
 - 200/201 (happy path)
 - The specific business logic path (e.g. missing field defaults, cascades)
 
-### Backend — API automation against the deployed environment
+### Backend — API automation against the deployed environment (`server/automation/`)
 
 `server/tests/playwright` (above) proves the code with a **mocked** Prisma, and now holds only what the API suite
 cannot test (unit-level logic, MFA/lock-out, rate limits, Slack cards, forged-token cases, finalisation) plus a few
-mixed files; endpoint behaviour is tested in `automation/`. `automation/` proves the
+mixed files; endpoint behaviour is tested in `server/automation/`. That suite proves the
 **deployed backend with its real database**, and runs after every merge to `develop`
 (`staging-pipeline.yml`: `@api and not @known-defect and not @shared-state`) and, read-only, after a merge to `main`
-(`@api and @smoke`).
+(`@api and @smoke`). Its own rules are in `server/automation/CLAUDE.md`.
 
-- Features live in `automation/src/test/resources/features/api/`, grouped by area (access control, auth,
+- Features live in `server/automation/src/test/resources/features/api/`, grouped by area (access control, auth,
   dairy setup, salespeople/pricing, dairy ledger, dispatches, salesperson ledger, reports, bills, PIN).
 - Scenarios use business language, no ids/dates/tokens; entities come from fixtures (`E2E-...` names,
   removed afterwards). Ledger scenarios use a **throwaway brand**, never a real one.
 - Scenarios that create brands, admin users or dispatchers need a superadmin session
   (`E2E_SUPERADMIN_*`); without it they are skipped, or fail when `E2E_STRICT=true`.
 - Unit-level specs, rate-limit exhaustion and account lock-out/full MFA intentionally stay in `server/tests`
-  only; `automation/COVERAGE.md` maps every mocked spec file to its real-API coverage and exceptions.
+  only; `server/automation/COVERAGE.md` maps every mocked spec file to its real-API coverage and exceptions.
 - Behaviour the API gets wrong today lives in `known-defects.feature` (`@known-defect`, excluded from the gate).
+- PR CI only compiles it (`mvn -B -ntp test-compile` in the `compile-automation-suite` job).
+
+### Frontend — UI automation against the deployed environment (`client/automation-ui/`)
+
+Playwright Test + TypeScript, real browser → real frontend → real API → real database. Runs after the API suite in
+`staging-pipeline.yml`; PR CI only type-checks it (`npm run typecheck`). There is no production UI run.
+Its own rules are in `client/automation-ui/CLAUDE.md`.
+
+- Page objects in `src/pages/` hold every selector; specs in `tests/` hold behaviour.
+- Admin/dispatcher specs run on iPad portrait + landscape; specs in `tests/salesman/` run on a phone.
+- The `setup` project signs in once and saves `.auth/admin.json` — specs reuse it (login is limited to 20/hour).
+- Anything a test creates is `E2E-...` named and removed by a fixture (e.g. `trackRoute`).
 
 ### Frontend — Vitest + React Testing Library
 
@@ -721,6 +767,12 @@ All schemas live in `server/utils/validate.js`. Key constraints:
 | `bulkSalespersonPrices` | `effectiveFrom` must be today or later |
 | `bulkSalespersonTopUp` | `entries` array min 1 |
 | `createAdminUser` | `role` enum `admin/superadmin/dispatcher` |
+| `createBill` | `salespersonId`, `from`/`to` dates; optional `partyName` (≤120, defaults to salesperson name), `poNumber` (≤50) |
+| `verifyPin` / `updatePin` / `updatePinSettings` | PIN accepted as string or number; P&L gate toggle |
+| `login`, `verifyMfaLogin`, `confirmMfa`, `disableMfa`, `confirmRequiredMfa`, `setMfaRequired` | auth + MFA flows |
+| `reportClientError` | public crash-beacon payload (`message`, `stack`, `page`, `version`) |
+
+The file holds ~45 schemas — check it before adding a new one; reuse its `dateString` and IST date helpers.
 
 **Usage in controllers:**
 ```js
@@ -737,9 +789,9 @@ const id = parseId(req.params.id, 'Product ID'); // throws AppError(400) if not 
 
 ## 14. Salesperson Product Exception Manager
 
-The Exception Manager (in `SalesmanPricesSetup.jsx`) lets superadmins enable/disable specific products for specific salespeople, overriding the global `product.salespersonEnabled` flag.
+The Exception Manager (`ExceptionManagerModal.jsx`, opened from `SalesmanPricesSetup.jsx`) lets admins enable/disable specific products for specific salespeople, overriding the global `product.salespersonEnabled` flag.
 
-**Resolution logic in `dispatches.controller.js`:**
+**Resolution logic in `controllers/dispatches/_shared.js`:**
 ```js
 // SalespersonProduct.isEnabled ?? product.salespersonEnabled
 // If there's an override row → use its isEnabled
@@ -756,9 +808,11 @@ const isEnabled = enabledMap[item.productId] ?? product.salespersonEnabled;
 ## 15. Dispatch Day Finalization
 
 - **Past dates**: Auto-finalized by `isDayFinalizedForDispatcher()` — no `DispatchDayFinalization` row needed
-- **Today**: Requires an explicit `DispatchDayFinalization` row created when the dispatcher explicitly finalizes the day
+- **Today**: Requires an explicit `DispatchDayFinalization` row created when the dispatcher explicitly finalizes the day (`POST /dispatches/finalize-day` — dispatcher role only)
+- Logic lives in `services/dispatchDayFinalization.js` and `controllers/dispatches/dayFinalization.js` / `lockLifecycle.js`
 - After finalization: Only admin/superadmin can unlock individual dispatches; dispatchers lose the unlock ability
-- Reverting finalization: admin-only, emits `DISPATCH_DAY_UNFINALIZED` Slack event
+- Reverting finalization: admin-only (`DELETE /dispatches/finalize-day`), emits `DISPATCH_DAY_UNFINALIZED` Slack event
+- API scenarios for this are `@shared-state` (finalising locks everyone's entries) — they run on demand, not in the staging gate
 
 ---
 
@@ -790,10 +844,10 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Never force-push `develop` or `main`
 
 ### CI / pipeline
-- PRs to `develop` and `main` run `pr-checks.yml` (lint, Playwright API specs with mocked Prisma, Vitest, build, audit, automation compile). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
-- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `automation/` `@api` then `automation-ui/` (Playwright + TypeScript), sets the `Staging Verified` commit status and opens/updates the release PR.
+- PRs to `develop` and `main` run `pr-checks.yml`: timezone lint, server + client ESLint, server Playwright specs under `c8` coverage (70/80/85/70), client Vitest under v8 coverage (78/68/70/80), client build, OpenAPI lint, `npm audit` (server + client), and `compile-automation-suite` (`server/automation` test-compile + `client/automation-ui` typecheck). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
+- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `server/automation` `@api` then `client/automation-ui` (Playwright + TypeScript), posts one Slack results card per suite, sets the `Staging Verified` commit status and opens/updates the release PR.
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
-- A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
+- A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks from `server/automation`, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
 - After a hotfix to `main`, open a PR `main → develop`.
 - `auto-merge-develop.yml` merges a PR into `develop` once every `pr-checks` job is green (merge commit). It never touches `main`; add the `no-auto-merge` label to a PR to opt out. See `docs/release-pipeline.md` §5b.
 
@@ -804,11 +858,12 @@ git push -u origin feat/short-description   # then open a PR into develop
 Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 
 ### 17.1 Tests
-- **Backend change** → add/update Playwright spec in `server/tests/playwright/`
+- **Backend change** → add/update Playwright spec in `server/tests/playwright/` for logic the API cannot reach, and an API scenario in `server/automation/` for endpoint behaviour (Section 12)
 - **Frontend change** → add/update Vitest spec next to the page file
 - Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
-- Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`
-- A user-facing flow that spans backend + frontend → also add an API scenario in `automation/` (Cucumber `@api`; `@smoke` only if read-only) and/or a UI spec in `automation-ui/tests/` (Playwright + TypeScript). See `automation/README.md` and `automation-ui/README.md`
+- Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`; if you touched an automation suite, also `cd server/automation && mvn -B -ntp test-compile` and/or `cd client/automation-ui && npm run typecheck`
+- A user-facing flow that spans backend + frontend → also add an API scenario in `server/automation/` (Cucumber `@api`; `@smoke` only if read-only) and/or a UI spec in `client/automation-ui/tests/` (Playwright + TypeScript). See their `CLAUDE.md` and `README.md`
+- A renamed endpoint, field or screen text → update the automation suites in the same PR; they run after merge and will turn `Staging Verified` red otherwise
 
 ### 17.2 Slack notification
 - Every write action needs a Slack card
@@ -824,32 +879,50 @@ Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 
 ### 17.4 BrandedLoader
 - Use `BrandedLoader` (not a generic spinner) for page-level and section-level loading states
-- Use `Loader2` from lucide-react only for in-button spinners
+- Use `TumblerSpinner` (from the same file) for in-button and inline spinners — never `Loader2` from lucide-react
 - See Section 11 for the props reference and usage table
 
 ---
 
 ## 18. Environment Variables
 
+All server config is validated in `server/config/env.js` (Zod) at boot. "Prod" means the app refuses to boot in production without it.
+
 ### Server
 | Variable | Required | Purpose |
 |----------|:---:|---------|
-| `DATABASE_URL` | Yes | Prisma connection string |
-| `DIRECT_URL` | Yes | Direct connection for migrations |
+| `DATABASE_URL` | Prod | Prisma connection string |
+| `DIRECT_URL` | No | Direct connection for migrations (`prisma.config.ts`) |
 | `DATABASE_CA_CERT` | No | Managed Postgres CA cert (PEM) — pins TLS verification in production. Unset falls back to unverified TLS with a boot-time warning. See `server/utils/dbUrl.js` |
-| `JWT_SECRET` | Yes | Min 32 chars |
-| `ADMIN_PASSWORD` | Yes | Initial admin password |
-| `EDIT_PIN` | Yes | 6-digit PIN for protected edits |
-| `CLIENT_ORIGIN` | Yes | Comma-separated CORS origins |
-| `NODE_ENV` | Yes | `development` or `production` |
+| `JWT_SECRET` | Prod | Min 32 chars. Also derives the MFA secret encryption key — rotating it invalidates every enrolled authenticator |
+| `ADMIN_PASSWORD` | Prod | Still required by `config/env.js` but no longer read by any code (legacy; the superadmin comes from the two vars below) |
+| `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` | No | When both set, `seed.js` creates/syncs the superadmin on every boot; unset = no superadmin seeding |
+| `EDIT_PIN` | No | Seeds the edit PIN and P&L PIN on the **first** boot only (falls back to `123456` — set it). Afterwards PINs are changed in the superadmin UI and stored hashed in `AppSettings` |
+| `CLIENT_ORIGIN` | No | Comma-separated CORS origins (default `http://localhost:5173`) — set it in every deployed env |
+| `NODE_ENV` | No | `development` (default) / `test` / `production` |
+| `PORT` | No | Default `3001` |
 | `LOGIN_RATE_LIMIT_MAX` | No | Login attempts per IP per hour (default `20`). Raise only on a test environment — never in production |
 | `SLACK_WEBHOOK_URL` | No | Slack incoming webhook — unset = silent |
 | `APP_URL` | No | Added as "Open App" link in Slack card footers |
+| `APP_VERSION` | No | Overrides the build tag shown in `/health` (Section 18a) |
 
 ### Client
 | Variable | Required | Purpose |
 |----------|:---:|---------|
-| `VITE_API_BASE_URL` | Yes | Backend base URL |
+| `VITE_API_BASE_URL` | Yes | Backend base URL including `/api/v1` (default `http://localhost:3001/api/v1`) |
+| `VITE_APP_VERSION` | No | Overrides the build tag shown in the UI |
+
+### Automation suites
+Read by the suites, never by the app. Full tables in `server/automation/CLAUDE.md` and `client/automation-ui/CLAUDE.md`.
+
+| Variable | Suite | Purpose |
+|----------|-------|---------|
+| `API_BASE_URL` | API | Backend origin, no `/api/v1` |
+| `WEB_BASE_URL` | UI | Frontend origin |
+| `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` | both | Admin **without MFA** |
+| `E2E_SUPERADMIN_USERNAME` / `E2E_SUPERADMIN_PASSWORD` | API | Superadmin **without MFA** (optional) |
+| `E2E_STRICT`, `EXPECTED_COMMIT` | API | Fail instead of skip / commit `/health` must report |
+| `VERCEL_BYPASS_SECRET` | UI | Vercel Deployment Protection bypass |
 
 ---
 
@@ -867,7 +940,7 @@ The running build (git tag + short commit) is shown in the sidebar footer (`comp
 ```bash
 # Backend
 cd server && npm install
-cp .env.example .env   # fill DATABASE_URL, JWT_SECRET, ADMIN_PASSWORD, EDIT_PIN
+cp .env.example .env   # fill DATABASE_URL, JWT_SECRET, EDIT_PIN, SUPERADMIN_USERNAME/PASSWORD
 npx prisma migrate deploy
 npm start              # http://localhost:3001
 
@@ -876,11 +949,20 @@ cd client && npm install
 # .env: VITE_API_BASE_URL=http://localhost:3001/api/v1
 npm run dev            # http://localhost:5173
 
-# Run backend tests
-cd server && npx playwright test
+# Run backend tests (mocked Prisma)
+cd server && npx playwright test        # npm run check = lint + timezone lint + tests
 
 # Run frontend tests
 cd client && npm test
+
+# API automation against a running backend (Java 21 + Maven)
+cd server/automation
+API_BASE_URL=http://localhost:3001 E2E_ADMIN_USERNAME=... E2E_ADMIN_PASSWORD=... \
+  mvn test -Dcucumber.filter.tags="@api and not @known-defect and not @shared-state"
+
+# UI automation against a running frontend
+cd client/automation-ui && npm ci && npx playwright install chromium
+WEB_BASE_URL=http://localhost:5173 E2E_ADMIN_USERNAME=... E2E_ADMIN_PASSWORD=... npm test
 ```
 
 ---

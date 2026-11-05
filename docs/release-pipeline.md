@@ -26,14 +26,20 @@ deploy; they wait for the deploy, then test it.
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `automation/` and type-checks `automation-ui/` |
+| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `server/automation/` and type-checks `client/automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
 | `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
-| `automation/` | Java API suite (Cucumber + REST Assured) — see `automation/README.md` |
-| `automation-ui/` | TypeScript UI suite (Playwright Test) — see `automation-ui/README.md` |
+| `server/automation/` | Java API suite (Cucumber + REST Assured) — see `server/automation/README.md` and `CLAUDE.md` |
+| `client/automation-ui/` | TypeScript UI suite (Playwright Test) — see `client/automation-ui/README.md` and `CLAUDE.md` |
 | `.github/CODEOWNERS` | Owner is requested on every PR |
+
+The suites live under the tier they test, so a change to `server/automation/` redeploys the testing backend
+(Render's root directory is `server/`) and a change to `client/automation-ui/` redeploys the frontend
+(`client/.vercelignore` keeps the suite out of the upload). `wait-for-backend.sh` treats any `server/` change as a
+backend change and waits for that deploy. If you add a Render build filter that ignores `server/automation/**`,
+exclude the same path in `wait-for-backend.sh`.
 
 ## One-time setup (cannot be done from code)
 
