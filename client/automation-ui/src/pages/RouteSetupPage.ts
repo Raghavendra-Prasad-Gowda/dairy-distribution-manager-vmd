@@ -27,6 +27,36 @@ export class RouteSetupPage {
     await this.selectBrand(brandName);
   }
 
+  /** Switches to another brand's tab and waits until the page confirms it. */
+  async chooseBrand(brandName: string): Promise<void> {
+    await this.selectBrand(brandName);
+  }
+
+  /** The route-number field of the open add/edit form. */
+  get numberField(): Locator {
+    return this.numberInput;
+  }
+
+  /** Opens the edit form for a route without changing anything. */
+  async openEdit(routeNumber: string): Promise<void> {
+    await this.row(routeNumber).getByTitle('Edit').click();
+  }
+
+  /** Closes the add/edit form with its Cancel button. */
+  async cancelForm(): Promise<void> {
+    await this.form.getByRole('button', { name: 'Cancel' }).click();
+    await this.numberInput.waitFor({ state: 'detached' });
+  }
+
+  /** Opens the delete confirmation and answers Cancel, so nothing is deleted. */
+  async cancelDelete(routeNumber: string): Promise<void> {
+    await this.row(routeNumber).getByTitle('Delete').click();
+    const dialog = this.page.getByRole('dialog');
+    await expect(dialog).toContainText(`Delete route "${routeNumber}"?`);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+
   /** Clicks the brand tab and waits until the page confirms that brand is the active one. */
   private async selectBrand(brandName: string): Promise<void> {
     await this.page.getByRole('button', { name: brandName, exact: true }).click();

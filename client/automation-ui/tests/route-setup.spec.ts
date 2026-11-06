@@ -72,4 +72,55 @@ test.describe('Route Setup', () => {
     await routes.addRouteButton.click();
     await expect(page.getByRole('button', { name: 'Add Route' }).last()).toBeDisabled();
   });
+
+  test('the edit form opens with the current number, and Cancel changes nothing', async ({ page, trackRoute }) => {
+    const routes = new RouteSetupPage(page);
+    await routes.open();
+
+    const number = unique();
+    const created = await routes.addRoute(number);
+    trackRoute(created.url(), (await created.json()).data.id);
+    await routes.acknowledgeNotice('Route added');
+
+    await routes.openEdit(number);
+    await expect(routes.numberField).toHaveValue(number);
+    await routes.numberField.fill(`${number}-X`);
+    await routes.cancelForm();
+
+    await expect(routes.row(number)).toBeVisible();
+    await expect(routes.row(`${number}-X`)).toHaveCount(0);
+  });
+
+  test('cancelling the delete confirmation keeps the route', async ({ page, trackRoute }) => {
+    const routes = new RouteSetupPage(page);
+    await routes.open();
+
+    const number = unique();
+    const created = await routes.addRoute(number);
+    trackRoute(created.url(), (await created.json()).data.id);
+    await routes.acknowledgeNotice('Route added');
+
+    await routes.cancelDelete(number);
+    await expect(routes.row(number)).toBeVisible();
+
+    await routes.reload();
+    await expect(routes.row(number)).toBeVisible();
+  });
+
+  test('a route belongs to its brand: it is not listed under another brand', async ({ page, trackRoute }) => {
+    const routes = new RouteSetupPage(page);
+    await routes.open('Nandini');
+
+    const number = unique();
+    const created = await routes.addRoute(number);
+    trackRoute(created.url(), (await created.json()).data.id);
+    await routes.acknowledgeNotice('Route added');
+    await expect(routes.row(number)).toBeVisible();
+
+    await routes.chooseBrand('Jersey');
+    await expect(routes.row(number)).toHaveCount(0);
+
+    await routes.chooseBrand('Nandini');
+    await expect(routes.row(number)).toBeVisible();
+  });
 });

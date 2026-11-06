@@ -24,6 +24,7 @@ test.describe('Sign in', () => {
     await expect(login.error(/invalid|incorrect|wrong/i)).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
     await expect(login.password).toHaveValue(''); // password is cleared after a rejected attempt
+    await expect(login.username).toHaveValue('e2e-no-such-user'); // ...but the username is kept for a retry
     expect(await page.evaluate(() => localStorage.getItem('token'))).toBeNull();
   });
 

@@ -24,6 +24,7 @@ client/automation-ui/
 └── tests/
     ├── auth.setup.ts      # signs in once through the real form, saves the session
     ├── login.spec.ts      # runs signed out
+    ├── dashboard.spec.ts  # read-only; cards checked against the API's own balances
     ├── route-setup.spec.ts
     └── salesman/          # (create when needed) phone-only salesman specs
 ```

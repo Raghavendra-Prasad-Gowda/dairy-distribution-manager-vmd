@@ -59,7 +59,8 @@ client/automation-ui/
 └── tests/
     ├── auth.setup.ts        # sign in once, save .auth/admin.json
     ├── login.spec.ts        # sign in, wrong credentials, signed-out redirect
-    ├── route-setup.spec.ts  # add / edit / delete a route, duplicate rejection, empty form
+    ├── dashboard.spec.ts    # quick actions, payable cards vs server balances, total badge, day change
+    ├── route-setup.spec.ts  # add / edit / delete a route, duplicate rejection, empty form, cancel paths, brand scoping
     └── salesman/            # phone-only specs (create when needed)
 ```
 
@@ -67,8 +68,9 @@ client/automation-ui/
 
 | Spec | Journeys |
 |---|---|
-| `login.spec.ts` | Successful sign-in lands on the dashboard · wrong credentials show an error (unknown username) · signed-out user is redirected to login |
-| `route-setup.spec.ts` | Add, edit, delete a route and confirm after reload · duplicate route rejected · empty form validation |
+| `login.spec.ts` | Successful sign-in lands on the dashboard · wrong credentials show an error, clear the password and keep the username (unknown username) · signed-out user is redirected to login |
+| `dashboard.spec.ts` | Quick actions open Stock Receipt / Collections / Dairy Payments · one card per brand with the Outstanding / Credit / Cleared status the API balance implies, Pay Now only when owed · total badge sums only owed brands · previous day / Today reload the balances for that day (read-only) |
+| `route-setup.spec.ts` | Add, edit, delete a route and confirm after reload · duplicate route rejected · empty form validation · edit form prefilled and Cancel changes nothing · cancelling delete keeps the route · a route is not listed under another brand |
 
 ## 📚 Documentation
 
