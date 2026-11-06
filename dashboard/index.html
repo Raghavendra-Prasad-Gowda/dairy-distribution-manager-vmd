@@ -96,6 +96,22 @@ tbody tr:hover td{background:var(--soft)}
 .bar{display:inline-block;width:70px;height:6px;border-radius:99px;background:var(--idle-bg);vertical-align:middle;margin-right:8px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ok);border-radius:99px}
 .pc{white-space:nowrap}
+.suite{display:flex;flex-direction:column;gap:12px}
+.suite .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.suite .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.suite .big b{font:600 40px/1 var(--display);letter-spacing:-.02em}
+.suite .big span{color:var(--muted)}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{font-size:12.5px;padding:3px 10px;border-radius:999px;background:var(--idle-bg);color:var(--ink);white-space:nowrap}
+.stat.bad{background:var(--bad-bg);color:var(--bad);font-weight:600}.stat.ok{background:var(--ok-bg);color:var(--ok);font-weight:600}
+.meter{height:8px;border-radius:99px;background:var(--idle-bg);overflow:hidden;display:flex}
+.meter i{display:block;height:100%}
+.hist{display:flex;align-items:flex-end;gap:5px;height:44px}
+.hist span{flex:1;max-width:30px;display:flex;flex-direction:column-reverse;border-radius:4px;overflow:hidden;background:var(--idle-bg);min-height:4px}
+.hist i{display:block;width:100%}
+.fails{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.fails code{display:block;color:var(--muted);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.suite .src{font-size:12px;color:var(--muted)}
 .empty{padding:22px 10px;color:var(--muted);text-align:center;font-size:13px}
 .title{max-width:28rem}
 .timeline{list-style:none;margin:0;padding:0 0 0 6px}
@@ -144,6 +160,8 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     <a class="card tile" id="k-rel-link" target="_blank" rel="noopener"><span class="k">🏷️ Latest release</span><b id="k-rel">—</b><span class="t" id="k-rel-at"></span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
     <div class="card tile"><span class="k">⏱️ Staging run time</span><b id="k-time">—</b><span class="t">Average, finished runs</span></div>
   </section>
+
+  <div class="grid" id="suites" aria-label="Latest test runs"></div>
 
   <section class="card">
     <div class="head"><div><h2>📈 Workflow runs per day</h2><p class="sub">Skipped runs are left out. Cancelled means a newer push replaced the run.</p></div>
@@ -285,6 +303,45 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     });
   }
 
+  var DUR = function (ms) { var s = Math.round(ms / 1000), m = Math.floor(s / 60); return m ? m + 'm ' + String(s % 60).padStart(2, '0') + 's' : s + 's'; };
+  function suite(box, list, emoji, title, tool) {
+    var c = el('section', null, 'card suite'); box.appendChild(c);
+    var top = el('div', null, 'top'); c.appendChild(top);
+    var hd = el('div'); hd.appendChild(el('h2', emoji + ' ' + title)); hd.appendChild(el('p', tool, 'sub')); top.appendChild(hd);
+    var cur = list && list[0];
+    if (!cur) { top.appendChild(el('span', 'No report', 'pill p-idle')); c.appendChild(el('p', 'No test report found yet. Results appear after the next staging run.', 'empty')); return; }
+    top.appendChild(el('span', cur.failed ? '❌ Failed' : '✅ Passed', 'pill ' + (cur.failed ? 'p-bad' : 'p-ok')));
+    var big = el('div', null, 'big'); big.appendChild(el('b', String(cur.passed))); big.appendChild(el('span', 'passed of ' + cur.total + ' ' + cur.unit));
+    var prev = list[1];
+    if (prev) { var dl = cur.total - prev.total; if (dl) big.appendChild(el('span', (dl > 0 ? '▲ +' : '▼ ') + dl + ' vs previous run')); }
+    c.appendChild(big);
+    var st = el('div', null, 'stats');
+    st.appendChild(el('span', cur.failed + ' failed', 'stat' + (cur.failed ? ' bad' : '')));
+    st.appendChild(el('span', cur.skipped + ' skipped', 'stat'));
+    st.appendChild(el('span', '⏱️ ' + DUR(cur.ms), 'stat'));
+    st.appendChild(el('span', (cur.total ? Math.round(cur.passed / cur.total * 100) : 0) + '% pass', 'stat' + (cur.failed ? '' : ' ok')));
+    c.appendChild(st);
+    var m = el('div', null, 'meter'); m.setAttribute('aria-hidden', 'true');
+    [[cur.passed, 'var(--ok)'], [cur.skipped, 'var(--mute)'], [cur.failed, 'var(--bad)']].forEach(function (x) { if (!x[0]) return; var i = el('i'); i.style.width = (x[0] / cur.total * 100) + '%'; i.style.background = x[1]; m.appendChild(i); });
+    c.appendChild(m);
+    var src = el('p', null, 'src'); src.appendChild(document.createTextNode('Staging run ' + ago(cur.created_at) + ' · commit ' + cur.sha + ' · ')); src.appendChild(link('view run', cur.run_url)); c.appendChild(src);
+    if (list.length > 1) {
+      var maxT = Math.max.apply(null, list.map(function (x) { return x.total; })) || 1;
+      var h = el('div', null, 'hist'); h.setAttribute('role', 'img'); h.setAttribute('aria-label', 'Results of the last ' + list.length + ' staging runs, oldest to newest');
+      list.slice().reverse().forEach(function (x) {
+        var col = el('span'); col.style.height = Math.max(8, x.total / maxT * 44) + 'px'; col.title = when(x.created_at) + ': ' + x.passed + ' passed, ' + x.failed + ' failed, ' + x.skipped + ' skipped';
+        [[x.passed, 'var(--ok)'], [x.skipped, 'var(--mute)'], [x.failed, 'var(--bad)']].forEach(function (p) { if (!p[0]) return; var i = el('i'); i.style.height = (p[0] / x.total * 100) + '%'; i.style.background = p[1]; col.appendChild(i); });
+        h.appendChild(col);
+      });
+      c.appendChild(h);
+    }
+    if (cur.failures && cur.failures.length) {
+      var ul = el('ul', null, 'fails');
+      cur.failures.slice(0, 5).forEach(function (f) { var li = el('li'); li.appendChild(el('strong', f.name)); if (f.error) li.appendChild(el('code', f.error)); ul.appendChild(li); });
+      c.appendChild(ul);
+      if (cur.failed > 5) c.appendChild(el('p', 'and ' + (cur.failed - 5) + ' more. Open the run for the full list.', 'src'));
+    }
+  }
   function agePill(created) {
     var days = Math.floor((NOW - Date.parse(created)) / 86400000);
     var p = el('span', days < 1 ? 'today' : days + 'd', 'pill ' + (days >= 7 ? 'p-bad' : days >= 3 ? 'p-warn' : 'p-idle'));
@@ -336,6 +393,10 @@ footer{color:var(--muted);font-size:12px;text-align:center}
         var a = el('td', null, 'n'); a.appendChild(agePill(p.created_at)); tr.appendChild(a);
       }, 'Nothing is waiting to merge into ' + b[0] + '.', 4);
     });
+    var box = $('suites'); box.replaceChildren();
+    var tt = d.tests || {};
+    suite(box, tt.api, '🔌', 'API tests', 'REST Assured + Cucumber, against the testing backend');
+    suite(box, tt.ui, '🖥️', 'UI tests', 'Playwright, against the testing frontend');
     chart(runs);
 
     var by = {};
