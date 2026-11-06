@@ -110,7 +110,7 @@ function buildBillDoc(jsPDF, bill) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(...NAVY);
-  doc.text(DAIRY.proprietor, MARGIN_X + 3, y);
+  if (DAIRY.proprietor) doc.text(DAIRY.proprietor, MARGIN_X + 3, y);
   doc.text('Cash / Credit Bill', PAGE_W - MARGIN_X - 3, y, { align: 'right' });
   y += 7;
 
@@ -132,9 +132,9 @@ function buildBillDoc(jsPDF, bill) {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text(DAIRY.address, PAGE_W / 2, y, { align: 'center' });
+  if (DAIRY.address) doc.text(DAIRY.address, PAGE_W / 2, y, { align: 'center' });
   y += 4;
-  doc.text(`Ph: ${DAIRY.phones}`, PAGE_W / 2, y, { align: 'center' });
+  if (DAIRY.phones) doc.text(`Ph: ${DAIRY.phones}`, PAGE_W / 2, y, { align: 'center' });
   y += 7;
 
   // Inset from the outer box's own edge, so field text/lines never touch it.

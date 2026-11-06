@@ -917,6 +917,7 @@ All server config is validated in `server/config/env.js` (Zod) at boot. "Prod" m
 |----------|:---:|---------|
 | `VITE_API_BASE_URL` | Yes | Backend base URL including `/api/v1` (default `http://localhost:3001/api/v1`) |
 | `VITE_APP_VERSION` | No | Overrides the build tag shown in the UI |
+| `VITE_BILL_PROPRIETOR` / `VITE_BILL_ADDRESS` / `VITE_BILL_PHONES` | No (set in prod) | Bill masthead details (`utils/billDisplay.js`); blank when unset. Keeps personal contact details out of git. `VITE_BILL_NAME` / `VITE_BILL_SIGN_NAME` optionally override the brand name |
 
 ### Automation suites
 Read by the suites, never by the app. Full tables in `server/automation/CLAUDE.md` and `client/automation-ui/CLAUDE.md`.

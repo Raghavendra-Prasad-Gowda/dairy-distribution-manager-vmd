@@ -78,8 +78,8 @@ export default function BillSheet({ bill }) {
         </div>
         <div className="masthead">
           <div className="dairy-name">{DAIRY.name}</div>
-          <div className="address">{DAIRY.address}</div>
-          <div className="phones">☎ {DAIRY.phones}</div>
+          {DAIRY.address && <div className="address">{DAIRY.address}</div>}
+          {DAIRY.phones && <div className="phones">☎ {DAIRY.phones}</div>}
         </div>
 
         <div className="meta">
