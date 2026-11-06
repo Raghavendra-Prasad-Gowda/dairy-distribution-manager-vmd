@@ -1,0 +1,25 @@
+# Controls how "Generate release notes" (used by production-verify.yml) groups merged PRs.
+# Categories match PR labels, which .github/labeler.yml and Dependabot apply automatically.
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - vmd-release-bot # the "Release: develop -> main" PR itself
+  categories:
+    - title: "🚀 Features"
+      labels: [feature, enhancement]
+    - title: "🐛 Bug fixes"
+      labels: [bug, hotfix]
+    - title: "🔐 Security"
+      labels: [security]
+    - title: "📚 Documentation"
+      labels: [documentation]
+    - title: "🧪 Tests & automation"
+      labels: [automation, tests]
+    - title: "⚙️ CI & tooling"
+      labels: [ci]
+    - title: "📦 Dependencies"
+      labels: [dependencies]
+    - title: "🧹 Other changes"
+      labels: ["*"]

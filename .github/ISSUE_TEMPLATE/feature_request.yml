@@ -1,0 +1,26 @@
+name: ✨ Feature request
+description: Suggest an improvement or new capability
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: roles
+    attributes:
+      label: Who uses it?
+      multiple: true
+      options: [Superadmin, Admin, Dispatcher, Salesman]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Alternatives / extra context

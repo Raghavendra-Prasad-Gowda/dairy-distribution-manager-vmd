@@ -31,6 +31,8 @@ deploy; they wait for the deploy, then test it.
 | `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `server/automation/` and type-checks `client/automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
+| `.github/workflows/pipeline-dashboard.yml` | Publishes `dashboard/index.html` + fresh `data.json` (runs, PRs, releases) to GitHub Pages after each staging/production run and hourly |
+| `.github/scripts/build-dashboard-data.js` | Pulls the data the dashboard shows from the GitHub API using the workflow's own token |
 | `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
 | `server/automation/` | Java API suite (Cucumber + REST Assured) — see `server/automation/README.md` and `CLAUDE.md` |
@@ -118,6 +120,13 @@ This is not an enforced gate: anyone with write access can still merge manually.
 - Confirm in Vercel that `…-vmd-testing` deploys `develop` and `dairy-distribution-manager`
   deploys `main`. Both projects were observed in `ERROR` state on their latest deployment —
   fix that first; the pipeline waits for a successful deployment.
+
+### 7. Pipeline dashboard (GitHub Pages)
+- **Settings → Pages → Build and deployment → Source** → "GitHub Actions" (needs a public repo, or a plan with Pages).
+- Run `pipeline-dashboard` once from the Actions tab (`workflow_dispatch`); the URL appears on the run and under
+  Settings → Pages. After that it refreshes by itself.
+- If the deploy is refused, check **Settings → Environments → github-pages → Deployment branches** allows `develop`.
+- The page shows only what the public API already exposes. Keep it that way: do not add anything from secrets or logs.
 
 ## Daily flow
 1. `git checkout -b feat/my-change develop` → commit → push → PR into `develop`.

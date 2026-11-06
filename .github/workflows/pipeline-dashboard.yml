@@ -1,0 +1,48 @@
+name: pipeline-dashboard
+
+# Publishes the pipeline dashboard (dashboard/index.html + a fresh data.json) to GitHub Pages.
+# Refreshes after every staging / production run, hourly, and on demand. Needs the repo to be
+# public (or a plan with Pages) and Settings > Pages > Source = "GitHub Actions" (docs/release-pipeline.md).
+
+on:
+  workflow_run:
+    workflows: [staging-pipeline, production-verify-and-release]
+    types: [completed]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline-dashboard
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  pages: write
+  id-token: write
+
+jobs:
+  publish:
+    name: build-and-deploy-dashboard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build dashboard data
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p site
+          cp dashboard/index.html site/index.html
+          node .github/scripts/build-dashboard-data.js site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

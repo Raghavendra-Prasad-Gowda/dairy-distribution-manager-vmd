@@ -149,3 +149,6 @@ sequenceDiagram
 | `.github/scripts/ui-job-summary.py` | Markdown summary of UI results |
 | `.github/workflows/auto-merge-develop.yml` | Merge green PRs into `develop` |
 | `.github/dependabot.yml` | Weekly npm (server, client) + GitHub Actions updates |
+| `.github/workflows/labeler.yml` + `.github/labeler.yml` | Label PRs from branch name and changed paths |
+| `.github/release.yml` | Groups GitHub Release notes by PR label (Features, Bug fixes, Dependencies, …) |
+| `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/` | PR checklist (CLAUDE.md §17) and bug/feature issue forms |

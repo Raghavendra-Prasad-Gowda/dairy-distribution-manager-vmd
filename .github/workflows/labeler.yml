@@ -1,0 +1,22 @@
+name: labeler
+
+# Labels every PR from its branch name and changed paths (config: .github/labeler.yml).
+# pull_request_target gives Dependabot PRs a write token; it is safe here because the job never
+# checks out or runs PR code - the labeler only reads the config from the base branch and the file list.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: label-pull-request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v6
+        with:
+          sync-labels: true

@@ -29,6 +29,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Fake bill masthead details - the real ones live in the deploy environment (VITE_BILL_*).
+    env: {
+      VITE_BILL_PROPRIETOR: 'Pro: TEST PROPRIETOR',
+      VITE_BILL_ADDRESS: '1 Test Road, Sample Town - 000 000',
+      VITE_BILL_PHONES: '9000000001, 9000000002',
+    },
     setupFiles: ['./src/test/setup.js'],
     // automation-ui/ is the Playwright suite run against the deployed app, not a Vitest suite.
     exclude: [...configDefaults.exclude, 'automation-ui/**'],
