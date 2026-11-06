@@ -2,114 +2,238 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>VMD Pipeline Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d3b2e'/%3E%3Cpath d='M16 6c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z' fill='%23f4f1e8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&display=swap">
 <style>
-:root{--bg:#f6f7f5;--panel:#fff;--fg:#1c2421;--muted:#5d6b64;--line:#dfe4e0;--ok:#1f7a4d;--bad:#c0392b;--warn:#a86a00;--mute:#b9c2bd;--accent:#1f7a4d}
-@media (prefers-color-scheme:dark){:root{--bg:#121714;--panel:#1a211d;--fg:#e8eee9;--muted:#9aa8a0;--line:#2b352f;--ok:#4cc38a;--bad:#ff7b6b;--warn:#e0a84a;--mute:#47524b;--accent:#4cc38a}}
+/* Layout: dark brand band on top, a pipeline flow strip overlapping it, then figures, chart and two-column queues. */
+:root{
+  --bg:#f2f5f2;--panel:#ffffff;--ink:#12201a;--muted:#5a6b62;--line:#e0e7e1;--soft:#f6f9f6;
+  --band:#0d3b2e;--band-ink:#eef5ef;--band-muted:#a8c4b6;
+  --accent:#0b6e4f;--ok:#0b7a4b;--ok-bg:#e2f3ea;--bad:#c8372d;--bad-bg:#fbe8e5;--warn:#a96a00;--warn-bg:#fcf1d9;--idle:#6b7a72;--idle-bg:#eaeeeb;
+  --mute:#c3ccc6;--shadow:0 1px 2px rgba(18,32,26,.05),0 6px 20px -8px rgba(18,32,26,.12);
+  --display:"Fraunces",Georgia,"Times New Roman",serif;--ui:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0c1310;--panel:#151f1a;--ink:#e8f0ea;--muted:#94a69b;--line:#24312a;--soft:#111a15;
+  --band:#0a2a20;--band-ink:#eef5ef;--band-muted:#8fb09f;
+  --accent:#4cc38a;--ok:#4cc38a;--ok-bg:#12301f;--bad:#ff8174;--bad-bg:#3a1b18;--warn:#e6b256;--warn-bg:#352a12;--idle:#93a399;--idle-bg:#1d2822;
+  --mute:#3f4c44;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -10px rgba(0,0,0,.6)}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
-.wrap{max-width:72rem;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right)) 40px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:16px}
-h1{font:400 28px/1.15 Georgia,"Times New Roman",serif;margin:0}
-h2{font-size:15px;font-weight:600;margin:0}
-.sub{color:var(--muted);font-size:12px;margin:0}
-.take{font-size:16px;margin:6px 0 0}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr));gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
-.tile b{font:400 26px/1.1 Georgia,"Times New Roman",serif}
-.tile span{color:var(--muted);font-size:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:12px}
-.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
-.chart{position:relative;min-height:210px}
-.chart svg{display:block;width:100%;height:210px}
-.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:4px 8px;font-size:12px;white-space:nowrap;z-index:2}
-.scroll{overflow:auto;max-height:22rem}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);font-variant-numeric:tabular-nums}
+a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+.pad{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+.inner{max-width:74rem;margin:0 auto;width:100%;min-width:0}
+
+/* band */
+.band{background:radial-gradient(900px 260px at 85% -40%,rgba(120,200,160,.22),transparent 70%),var(--band);color:var(--band-ink);padding-top:max(28px,env(safe-area-inset-top));padding-bottom:84px}
+.band .inner{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.brand{display:flex;gap:14px;align-items:center;min-width:0}
+.logo{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:none}
+h1{font:600 clamp(24px,4vw,34px)/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.meta{margin:6px 0 0;color:var(--band-muted);font-size:12.5px}
+.take{margin:10px 0 0;font-size:15px;color:var(--band-ink)}
+.health{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;font-weight:600;font-size:13px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)}
+.health i{width:9px;height:9px;border-radius:50%;background:var(--idle)}
+.health.good i{background:#5fe0a1;box-shadow:0 0 0 4px rgba(95,224,161,.22)}
+.health.attn i{background:#ffb04a;box-shadow:0 0 0 4px rgba(255,176,74,.22)}
+
+main{margin-top:-56px;display:flex;flex-direction:column;gap:18px;padding-bottom:48px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px;min-width:0}
+.card h2{font:600 17px/1.2 var(--display);margin:0;letter-spacing:-.005em}
+.sub{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.head .sub a{color:var(--accent);font-weight:500}
+
+/* pipeline flow */
+.flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}
+.node{flex:1 0 9.5rem;border:1px solid var(--line);background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.node .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.node .v{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+.node .t{font-size:12px;color:var(--muted)}
+.arrow{flex:0 0 28px;display:grid;place-items:center;color:var(--mute)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--idle);flex:none}
+.s-ok .dot{background:var(--ok)}.s-bad .dot{background:var(--bad)}.s-warn .dot{background:var(--warn)}
+.s-ok{border-color:color-mix(in srgb,var(--ok) 35%,var(--line))}.s-bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:var(--bad-bg)}.s-warn{border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+
+/* figures */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11.5rem),1fr));gap:14px}
+.tile{display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit;position:relative}
+.tile .k{font-size:12px;color:var(--muted);font-weight:500}
+.tile b{font:600 32px/1.1 var(--display);letter-spacing:-.01em}
+.tile .t{font-size:12px;color:var(--muted)}
+a.tile{transition:transform .15s ease,border-color .15s ease}
+a.tile:hover{border-color:var(--accent);transform:translateY(-2px)}
+a.tile .go{position:absolute;right:16px;top:16px;color:var(--mute);transition:color .15s}
+a.tile:hover .go{color:var(--accent)}
+.ring{display:flex;align-items:center;gap:14px}
+.ring svg{flex:none}
+
+/* chart */
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.chart{position:relative;min-height:220px;margin-top:8px}
+.chart svg{display:block;width:100%;height:220px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:8px;padding:6px 10px;font-size:12px;white-space:nowrap;z-index:2;box-shadow:var(--shadow)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:18px}
+.scroll{overflow:auto;max-height:23rem;margin:0 -6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--soft)}
 .n{text-align:right}
-a{color:inherit;text-underline-offset:2px}
-.tile-link{text-decoration:none;color:inherit}.tile-link:hover{border-color:var(--accent)}.tile-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.num{display:inline-block;min-width:3.2em;font-weight:600}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-bad{background:var(--bad-bg);color:var(--bad)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-idle{background:var(--idle-bg);color:var(--idle)}
+.bar{display:inline-block;width:70px;height:6px;border-radius:99px;background:var(--idle-bg);vertical-align:middle;margin-right:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:99px}
+.pc{white-space:nowrap}
+.empty{padding:22px 10px;color:var(--muted);text-align:center;font-size:13px}
+.title{max-width:28rem}
+.timeline{list-style:none;margin:0;padding:0 0 0 6px}
+.timeline li{position:relative;padding:0 0 14px 22px;border-left:2px solid var(--line);margin-left:4px}
+.timeline li:last-child{padding-bottom:0;border-left-color:transparent}
+.timeline li::before{content:"";position:absolute;left:-7px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--panel);border:3px solid var(--accent)}
+.timeline li:first-child::before{background:var(--accent)}
+.timeline a{font-weight:600}
+.timeline small{display:block;color:var(--muted);font-size:12px}
 .err{color:var(--bad)}
-details{color:var(--muted);font-size:12px}details p{margin:6px 0}
+details{color:var(--muted);font-size:12.5px;padding:4px 2px}
+summary{cursor:pointer;font-weight:500}
+details p{margin:8px 0}
+footer{color:var(--muted);font-size:12px;text-align:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:560px){.card{padding:14px}.tile b{font-size:28px}.prs th:nth-child(3),.prs td:nth-child(3),.wf th:nth-child(5),.wf td:nth-child(5){display:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>VMD Pipeline Dashboard</h1>
-    <p class="sub" id="meta">Loading…</p>
-    <p class="take" id="take"></p>
-  </header>
+<header class="band pad">
+  <div class="inner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32"><path d="M16 4c5 6 8 10 8 14a8 8 0 0 1-16 0c0-4 3-8 8-14z" fill="#f4f1e8"/><path d="M12 19a4 4 0 0 0 4 4" stroke="#0d3b2e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>
+      <div>
+        <h1>VMD Pipeline Dashboard</h1>
+        <p class="meta" id="meta">Loading…</p>
+      </div>
+    </div>
+    <span class="health" id="health"><i></i><span>Checking…</span></span>
+  </div>
+  <div class="inner"><p class="take" id="take"></p></div>
+</header>
+
+<main class="pad"><div class="inner" style="display:flex;flex-direction:column;gap:18px">
+  <section class="card" aria-label="Pipeline flow">
+    <div class="head"><div><h2>Pipeline flow</h2><p class="sub">Latest state of each stage, from pull request to production.</p></div></div>
+    <div class="flow" id="flow"></div>
+  </section>
 
   <section class="tiles" aria-label="Headline figures">
-    <div class="card tile"><span>Pass rate, scored runs</span><b id="k-rate">—</b><span>Passed out of passed plus failed</span></div>
-    <div class="card tile"><span>Latest staging run</span><b id="k-stg">—</b><span id="k-stg-at"></span></div>
-    <div class="card tile"><span>Latest production check</span><b id="k-prod">—</b><span id="k-prod-at"></span></div>
-    <div class="card tile"><span>Latest release</span><b id="k-rel">—</b><span id="k-rel-at"></span></div>
-    <a class="card tile tile-link" id="k-dev-link" target="_blank" rel="noopener"><span>Open PRs into develop</span><b id="k-dev">—</b><span>View on GitHub</span></a>
-    <a class="card tile tile-link" id="k-main-link" target="_blank" rel="noopener"><span>Open PRs into main</span><b id="k-main">—</b><span>View on GitHub</span></a>
+    <div class="card tile"><span class="k">Pass rate, scored runs</span>
+      <div class="ring"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="var(--idle-bg)" stroke-width="8"/><circle id="ring" cx="32" cy="32" r="26" fill="none" stroke="var(--ok)" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 164" transform="rotate(-90 32 32)"/></svg><b id="k-rate">—</b></div>
+      <span class="t">Passed out of passed plus failed</span></div>
+    <a class="card tile" id="k-dev-link" target="_blank" rel="noopener"><span class="k">Open PRs into develop</span><b id="k-dev">—</b><span class="t" id="k-dev-t">View on GitHub</span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
+    <a class="card tile" id="k-main-link" target="_blank" rel="noopener"><span class="k">Open PRs into main</span><b id="k-main">—</b><span class="t" id="k-main-t">View on GitHub</span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
+    <a class="card tile" id="k-rel-link" target="_blank" rel="noopener"><span class="k">Latest release</span><b id="k-rel">—</b><span class="t" id="k-rel-at"></span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
+    <div class="card tile"><span class="k">Staging run time</span><b id="k-time">—</b><span class="t">Average, finished runs</span></div>
   </section>
 
   <section class="card">
-    <h2>Workflow runs per day</h2>
-    <p class="sub">Skipped runs are left out. Cancelled means a newer push replaced the run.</p>
-    <div class="legend"><span><i style="background:var(--bad)"></i>Failed</span><span><i style="background:var(--mute)"></i>Cancelled</span><span><i style="background:var(--ok)"></i>Passed</span></div>
+    <div class="head"><div><h2>Workflow runs per day</h2><p class="sub">Skipped runs are left out. Cancelled means a newer push replaced the run.</p></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Passed</span><span><i style="background:var(--mute)"></i>Cancelled</span><span><i style="background:var(--bad)"></i>Failed</span></div></div>
     <div class="chart" id="chart"></div>
   </section>
 
   <div class="grid">
-    <section class="card"><h2>By workflow</h2><p class="sub">Average minutes ignore skipped runs.</p>
-      <div class="scroll"><table><thead><tr><th>Workflow</th><th class="n">Runs</th><th class="n">Passed</th><th class="n">Failed</th><th class="n">Cancelled</th><th class="n">Avg min</th></tr></thead><tbody id="t-wf"></tbody></table></div></section>
-    <section class="card"><h2>Releases</h2><p class="sub">Tagged after each merge to main.</p>
-      <div class="scroll"><table><thead><tr><th>Tag</th><th>Published</th></tr></thead><tbody id="t-rel"></tbody></table></div></section>
+    <section class="card"><div class="head"><div><h2>Waiting to merge into develop</h2><p class="sub"><a id="l-dev" target="_blank" rel="noopener">All open PRs into develop</a> · oldest first</p></div></div>
+      <div class="scroll"><table class="prs"><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-dev"></tbody></table></div></section>
+    <section class="card"><div class="head"><div><h2>Waiting to merge into main</h2><p class="sub"><a id="l-main" target="_blank" rel="noopener">All open PRs into main</a> · these deploy to production</p></div></div>
+      <div class="scroll"><table class="prs"><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-main"></tbody></table></div></section>
   </div>
 
   <div class="grid">
-    <section class="card"><h2>Waiting to merge into develop</h2><p class="sub"><a id="l-dev" target="_blank" rel="noopener">All open PRs into develop</a>. Oldest first.</p>
-      <div class="scroll"><table><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-dev"></tbody></table></div></section>
-    <section class="card"><h2>Waiting to merge into main</h2><p class="sub"><a id="l-main" target="_blank" rel="noopener">All open PRs into main</a>. These deploy to production.</p>
-      <div class="scroll"><table><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-main"></tbody></table></div></section>
+    <section class="card"><div class="head"><div><h2>By workflow</h2><p class="sub">Average minutes ignore skipped runs.</p></div></div>
+      <div class="scroll"><table class="wf"><thead><tr><th>Workflow</th><th class="n">Runs</th><th class="n">Failed</th><th>Pass rate</th><th class="n">Avg min</th></tr></thead><tbody id="t-wf"></tbody></table></div></section>
+    <section class="card"><div class="head"><div><h2>Releases</h2><p class="sub">Tagged after each merge to main.</p></div></div>
+      <ul class="timeline" id="t-rel"></ul></section>
   </div>
 
-  <section class="card"><h2>Failed runs</h2><p class="sub">Most recent first.</p>
+  <section class="card"><div class="head"><div><h2>Failed runs</h2><p class="sub">Most recent first. Open one to see the log.</p></div></div>
     <div class="scroll"><table><thead><tr><th>Workflow</th><th>Branch</th><th>Started</th></tr></thead><tbody id="t-fail"></tbody></table></div></section>
 
   <details><summary>Definitions and what is left out</summary>
     <p>Pass rate is passed runs divided by passed plus failed runs. Cancelled and skipped runs are not scored.</p>
+    <p>Health is "Healthy" when the latest staging and production runs both passed.</p>
     <p>Dependabot updater runs are left out. Times are shown in Indian Standard Time.</p>
     <p>Data is rebuilt after every staging and production run, and every hour.</p></details>
-</div>
+  <footer id="foot"></footer>
+</div></main>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var fmtAt = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
   var fmtDay = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short'});
-  var say = {success: 'Passed', failure: 'Failed', cancelled: 'Superseded', skipped: 'Skipped', in_progress: 'Running', queued: 'Queued'};
-  var cls = {success: 'ok', failure: 'bad', cancelled: 'warn', in_progress: 'warn'};
   var when = function (s) { return s ? fmtAt.format(new Date(s)) : ''; };
+  var NOW = Date.now();
+  function ago(s) {
+    var m = Math.max(0, Math.round((NOW - Date.parse(s)) / 60000));
+    if (m < 2) return 'just now'; if (m < 60) return m + ' min ago';
+    var h = Math.round(m / 60); if (h < 24) return h + ' h ago';
+    return Math.round(h / 24) + ' d ago';
+  }
   var safe = function (u) { return typeof u === 'string' && u.indexOf('https://github.com/') === 0 ? u : null; };
-
   function el(tag, text, className) { var e = document.createElement(tag); if (text != null) e.textContent = text; if (className) e.className = className; return e; }
   function td(tr, text, className) { var c = el('td', text == null ? '' : String(text), className); tr.appendChild(c); return c; }
-  function linkTd(tr, text, url) {
-    var c = el('td'); var u = safe(url);
-    if (u) { var a = el('a', text); a.href = u; a.target = '_blank'; a.rel = 'noopener'; c.appendChild(a); } else c.textContent = text;
-    tr.appendChild(c);
+  function link(text, url, className) {
+    var u = safe(url); if (!u) return el('span', text, className);
+    var a = el('a', text, className); a.href = u; a.target = '_blank'; a.rel = 'noopener'; return a;
   }
-  function rows(id, list, build) {
+  function linkTd(tr, text, url) { var c = el('td'); c.appendChild(link(text, url)); tr.appendChild(c); return c; }
+  function fillRows(id, list, build, emptyText, cols) {
     var body = $(id); body.replaceChildren();
+    if (!list.length) { var tr = el('tr'), c = el('td', emptyText, 'empty'); c.colSpan = cols; tr.appendChild(c); body.appendChild(tr); return; }
     list.forEach(function (r) { var tr = el('tr'); build(tr, r); body.appendChild(tr); });
   }
-  function latest(runs, name) {
-    return runs.filter(function (r) { return r.workflow === name; }).sort(function (a, b) { return b.created_at.localeCompare(a.created_at); })[0];
+  var LABEL = {success: 'Passed', failure: 'Failed', cancelled: 'Superseded', skipped: 'Skipped', in_progress: 'Running', queued: 'Queued'};
+  var TONE = {success: 'ok', failure: 'bad', cancelled: 'idle', in_progress: 'warn', queued: 'warn'};
+  var ARROW = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
+
+  function latestMeaningful(runs, name, event) {
+    return runs.filter(function (r) { return r.workflow === name && r.conclusion !== 'skipped' && r.conclusion !== 'cancelled' && (!event || r.event === event); })
+      .sort(function (a, b) { return b.created_at.localeCompare(a.created_at); })[0];
   }
-  function setStatus(id, atId, run) {
-    var b = $(id); b.textContent = run ? (say[run.conclusion] || run.conclusion) : '—';
-    b.className = run ? (cls[run.conclusion] || '') : '';
-    $(atId).textContent = run ? when(run.created_at) : '';
+  function node(parent, kicker, value, tone, sub, url) {
+    var n = el('div', null, 'node s-' + tone);
+    n.appendChild(el('span', kicker, 'k'));
+    var v = el('span', null, 'v'); v.appendChild(el('i', null, 'dot')); v.appendChild(link(value, url)); n.appendChild(v);
+    n.appendChild(el('span', sub, 't'));
+    parent.appendChild(n);
+  }
+  function flow(d, open) {
+    var box = $('flow'); box.replaceChildren();
+    var pr = latestMeaningful(d.runs, 'pr-checks', 'pull_request');
+    var stg = latestMeaningful(d.runs, 'staging-pipeline');
+    var prod = latestMeaningful(d.runs, 'production-verify-and-release');
+    var rel = d.releases.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
+    var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
+    var steps = [
+      ['Pull request checks', pr ? LABEL[pr.conclusion] || pr.conclusion : 'No runs', pr ? TONE[pr.conclusion] || 'idle' : 'idle', pr ? ago(pr.created_at) : '', pr && pr.url],
+      ['Staging on develop', stg ? LABEL[stg.conclusion] || stg.conclusion : 'No runs', stg ? TONE[stg.conclusion] || 'idle' : 'idle', stg ? ago(stg.created_at) : '', stg && stg.url],
+      ['Release PR into main', relPr ? 'Awaiting approval' : 'None open', relPr ? 'warn' : 'ok', relPr ? '#' + relPr.number + ' · ' + ago(relPr.created_at) : 'main is up to date', relPr && relPr.url],
+      ['Production verify', prod ? LABEL[prod.conclusion] || prod.conclusion : 'No runs', prod ? TONE[prod.conclusion] || 'idle' : 'idle', prod ? ago(prod.created_at) : '', prod && prod.url],
+      ['Latest release', rel ? rel.tag : 'None', rel ? 'ok' : 'idle', rel ? ago(rel.published_at) : '', rel && rel.url]
+    ];
+    steps.forEach(function (s, i) {
+      if (i) { var a = el('div', null, 'arrow'); a.innerHTML = ARROW; box.appendChild(a); }
+      node(box, s[0], s[1], s[2], s[3], s[4]);
+    });
+    return {stg: stg, prod: prod};
   }
 
   function chart(runs) {
@@ -117,86 +241,121 @@ details{color:var(--muted);font-size:12px}details p{margin:6px 0}
     var by = {};
     runs.forEach(function (r) {
       if (r.conclusion === 'skipped') return;
-      var d = new Date(Date.parse(r.created_at) + 19800000).toISOString().slice(0, 10);
-      var o = by[d] = by[d] || {day: d, success: 0, failure: 0, cancelled: 0};
+      var day = new Date(Date.parse(r.created_at) + 19800000).toISOString().slice(0, 10);
+      var o = by[day] = by[day] || {day: day, success: 0, failure: 0, cancelled: 0};
       if (o[r.conclusion] !== undefined) o[r.conclusion] += 1;
     });
     var data = Object.keys(by).sort().map(function (k) { return by[k]; });
-    if (!data.length) return;
-    var NS = 'http://www.w3.org/2000/svg', W = Math.max(box.clientWidth, 280), H = 210, ml = 30, mr = 8, mt = 8, mb = 26;
-    var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); box.appendChild(svg);
-    var max = Math.max.apply(null, data.map(function (d) { return d.success + d.failure + d.cancelled; })) || 1;
-    var step = Math.max(1, Math.ceil(max / 4)); var top = Math.ceil(max / step) * step;
+    if (!data.length) { box.appendChild(el('p', 'No runs in this window.', 'empty')); return; }
+    var NS = 'http://www.w3.org/2000/svg', W = Math.max(box.clientWidth, 280), H = 220, ml = 32, mr = 6, mt = 10, mb = 28;
+    var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Workflow runs per day, stacked by result'); box.appendChild(svg);
+    var max = Math.max.apply(null, data.map(function (x) { return x.success + x.failure + x.cancelled; })) || 1;
+    var step = Math.max(1, Math.ceil(max / 4)), top = Math.ceil(max / step) * step;
     var y = function (v) { return H - mb - (v / top) * (H - mb - mt); };
-    var bw = (W - ml - mr) / data.length, bar = bw * 0.72;
+    var slot = (W - ml - mr) / data.length, bar = Math.min(54, slot * 0.62);
     function add(tag, attrs, text) { var e = document.createElementNS(NS, tag); Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); }); if (text != null) e.textContent = text; svg.appendChild(e); return e; }
     for (var v = 0; v <= top; v += step) {
-      add('line', {x1: ml, x2: W - mr, y1: y(v), y2: y(v), stroke: 'var(--line)'});
-      add('text', {x: ml - 6, y: y(v) + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11}, String(v));
+      add('line', {x1: ml, x2: W - mr, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-dasharray': v ? '3 4' : '0'});
+      add('text', {x: ml - 8, y: y(v) + 4, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11}, String(v));
     }
     var tip = el('div', null, 'tip'); tip.style.display = 'none'; box.appendChild(tip);
     data.forEach(function (d, i) {
-      var x = ml + i * bw + (bw - bar) / 2, acc = 0;
-      [['success', 'var(--ok)'], ['cancelled', 'var(--mute)'], ['failure', 'var(--bad)']].forEach(function (s) {
-        if (!d[s[0]]) return;
-        add('rect', {x: x, width: bar, y: y(acc + d[s[0]]), height: y(acc) - y(acc + d[s[0]]), fill: s[1], rx: 2}); acc += d[s[0]];
+      var x = ml + i * slot + (slot - bar) / 2, acc = 0;
+      var parts = [['success', 'var(--ok)'], ['cancelled', 'var(--mute)'], ['failure', 'var(--bad)']].filter(function (s) { return d[s[0]]; });
+      parts.forEach(function (s, j) {
+        var h = y(acc) - y(acc + d[s[0]]), last = j === parts.length - 1;
+        var r = Math.min(6, h / 2);
+        var yy = y(acc + d[s[0]]);
+        var path = last
+          ? 'M' + x + ',' + (yy + h) + 'V' + (yy + r) + 'Q' + x + ',' + yy + ' ' + (x + r) + ',' + yy + 'H' + (x + bar - r) + 'Q' + (x + bar) + ',' + yy + ' ' + (x + bar) + ',' + (yy + r) + 'V' + (yy + h) + 'Z'
+          : 'M' + x + ',' + yy + 'H' + (x + bar) + 'V' + (yy + h) + 'H' + x + 'Z';
+        add('path', {d: path, fill: s[1], stroke: 'var(--panel)', 'stroke-width': 1}); acc += d[s[0]];
       });
-      add('text', {x: x + bar / 2, y: H - 8, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11}, fmtDay.format(new Date(d.day + 'T00:00:00Z')));
-      var hit = add('rect', {x: x - 4, width: bar + 8, y: mt, height: H - mb - mt, fill: 'transparent'});
+      add('text', {x: x + bar / 2, y: H - 9, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11.5}, fmtDay.format(new Date(d.day + 'T00:00:00Z')));
+      var hit = add('rect', {x: ml + i * slot, width: slot, y: mt, height: H - mb - mt, fill: 'transparent'});
       hit.addEventListener('mousemove', function (ev) {
         var b = box.getBoundingClientRect();
         tip.style.display = 'block';
-        tip.style.left = Math.min(ev.clientX - b.left + 12, box.clientWidth - 200) + 'px';
-        tip.style.top = Math.max(ev.clientY - b.top - 40, 0) + 'px';
-        tip.textContent = fmtDay.format(new Date(d.day + 'T00:00:00Z')) + ': ' + d.success + ' passed, ' + d.failure + ' failed, ' + d.cancelled + ' cancelled';
+        tip.style.left = Math.min(Math.max(ev.clientX - b.left + 12, 0), box.clientWidth - 220) + 'px';
+        tip.style.top = Math.max(ev.clientY - b.top - 44, 0) + 'px';
+        tip.textContent = fmtDay.format(new Date(d.day + 'T00:00:00Z')) + ': ' + d.success + ' passed · ' + d.failure + ' failed · ' + d.cancelled + ' cancelled';
       });
       hit.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
     });
   }
 
+  function agePill(created) {
+    var days = Math.floor((NOW - Date.parse(created)) / 86400000);
+    var p = el('span', days < 1 ? 'today' : days + 'd', 'pill ' + (days >= 7 ? 'p-bad' : days >= 3 ? 'p-warn' : 'p-idle'));
+    return p;
+  }
+
   function render(d) {
+    NOW = Date.parse(d.generated_at) || Date.now();
     var runs = d.runs, prs = d.prs, rels = d.releases;
     var scored = runs.filter(function (r) { return r.conclusion === 'success' || r.conclusion === 'failure'; });
     var passed = scored.filter(function (r) { return r.conclusion === 'success'; }).length;
-    $('k-rate').textContent = scored.length ? Math.round(passed / scored.length * 100) + '%' : '—';
-    setStatus('k-stg', 'k-stg-at', latest(runs, 'staging-pipeline'));
-    setStatus('k-prod', 'k-prod-at', latest(runs, 'production-verify-and-release'));
-    var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
-    $('k-rel').textContent = rel ? rel.tag : '—'; $('k-rel-at').textContent = rel ? when(rel.published_at) : '';
-    var open = prs.filter(function (p) { return p.state === 'open'; }).sort(function (a, b) { return b.number - a.number; });
-    var q = function (base) { return 'https://github.com/' + d.repo + '/pulls?q=' + encodeURIComponent('is:pr is:open base:' + base); };
-    var byBase = function (base) { return open.filter(function (p) { return p.base === base; }).sort(function (a, b) { return a.created_at.localeCompare(b.created_at); }); };
-    var age = function (s) { var days = Math.floor((Date.parse(d.generated_at) - Date.parse(s)) / 86400000); return days < 1 ? 'today' : days + 'd'; };
-    [['develop', 'dev'], ['main', 'main']].forEach(function (b) {
-      var list = byBase(b[0]); var url = q(b[0]);
-      $('k-' + b[1]).textContent = String(list.length);
-      $('k-' + b[1] + '-link').href = url; $('l-' + b[1]).href = url;
-      rows('t-pr-' + b[1], list, function (tr, p) { linkTd(tr, '#' + p.number, p.url); td(tr, p.title); td(tr, p.kind); td(tr, age(p.created_at), 'n'); });
-    });
+    var rate = scored.length ? passed / scored.length : null;
+    $('k-rate').textContent = rate == null ? '—' : Math.round(rate * 100) + '%';
+    if (rate != null) $('ring').setAttribute('stroke-dasharray', (rate * 163.4).toFixed(1) + ' 163.4');
+
+    var open = prs.filter(function (p) { return p.state === 'open'; });
+    var f = flow(d, open);
+    var healthy = f.stg && f.prod && f.stg.conclusion === 'success' && f.prod.conclusion === 'success';
+    var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? 'Healthy' : 'Needs attention';
+
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
     $('take').textContent = relPr ? 'Release PR #' + relPr.number + ' is open and waiting for approval into main.' : 'No release PR is open. Main has everything that passed staging.';
     var days = runs.map(function (r) { return r.created_at; }).sort();
-    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (IST) · updated ' + when(d.generated_at);
+    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (IST)';
+    $('foot').textContent = 'Updated ' + when(d.generated_at) + ' IST · rebuilt after every staging and production run, and hourly.';
+
+    var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
+    $('k-rel').textContent = rel ? rel.tag : '—'; $('k-rel-at').textContent = rel ? when(rel.published_at) : '';
+    if (rel && safe(rel.url)) $('k-rel-link').href = rel.url;
+    var stgRuns = runs.filter(function (r) { return r.workflow === 'staging-pipeline' && r.conclusion === 'success'; });
+    $('k-time').textContent = stgRuns.length ? Math.round(stgRuns.reduce(function (s, r) { return s + r.minutes; }, 0) / stgRuns.length) + ' min' : '—';
+
+    var q = function (base) { return 'https://github.com/' + d.repo + '/pulls?q=' + encodeURIComponent('is:pr is:open base:' + base); };
+    [['develop', 'dev'], ['main', 'main']].forEach(function (b) {
+      var list = open.filter(function (p) { return p.base === b[0]; }).sort(function (a, c) { return a.created_at.localeCompare(c.created_at); });
+      $('k-' + b[1]).textContent = String(list.length);
+      $('k-' + b[1] + '-t').textContent = list.length ? 'Oldest ' + ago(list[0].created_at).replace(' ago', '') : 'Nothing waiting';
+      $('k-' + b[1] + '-link').href = q(b[0]); $('l-' + b[1]).href = q(b[0]);
+      fillRows('t-pr-' + b[1], list, function (tr, p) {
+        linkTd(tr, '#' + p.number, p.url).className = 'num';
+        td(tr, p.title, 'title');
+        var t = el('td'); t.appendChild(el('span', p.kind, 'pill ' + (p.kind === 'release' ? 'p-warn' : p.kind === 'dependency' ? 'p-idle' : 'p-ok'))); tr.appendChild(t);
+        var a = el('td', null, 'n'); a.appendChild(agePill(p.created_at)); tr.appendChild(a);
+      }, 'Nothing is waiting to merge into ' + b[0] + '.', 4);
+    });
     chart(runs);
 
     var by = {};
     runs.forEach(function (r) {
-      var w = by[r.workflow] = by[r.workflow] || {name: r.workflow, runs: 0, success: 0, failure: 0, cancelled: 0, mins: 0, timed: 0};
-      w.runs += 1; if (w[r.conclusion] !== undefined) w[r.conclusion] += 1;
+      var w = by[r.workflow] = by[r.workflow] || {name: r.workflow, runs: 0, success: 0, failure: 0, mins: 0, timed: 0};
+      w.runs += 1; if (r.conclusion === 'success') w.success += 1; if (r.conclusion === 'failure') w.failure += 1;
       if (r.conclusion !== 'skipped') { w.mins += r.minutes; w.timed += 1; }
     });
-    rows('t-wf', Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.runs - a.runs; }), function (tr, w) {
-      td(tr, w.name); td(tr, w.runs, 'n'); td(tr, w.success, 'n'); td(tr, w.failure, 'n'); td(tr, w.cancelled, 'n'); td(tr, w.timed ? (w.mins / w.timed).toFixed(1) : '0.0', 'n');
+    fillRows('t-wf', Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.runs - a.runs; }), function (tr, w) {
+      td(tr, w.name); td(tr, w.runs, 'n'); td(tr, w.failure, 'n');
+      var sc = w.success + w.failure, pct = sc ? Math.round(w.success / sc * 100) : null;
+      var c = el('td', null, 'pc'); var bar = el('span', null, 'bar'); var i = el('i'); i.style.width = (pct || 0) + '%'; bar.appendChild(i); c.appendChild(bar); c.appendChild(document.createTextNode(pct == null ? '—' : pct + '%')); tr.appendChild(c);
+      td(tr, w.timed ? (w.mins / w.timed).toFixed(1) : '0.0', 'n');
+    }, 'No runs.', 5);
+
+    var tl = $('t-rel'); tl.replaceChildren();
+    rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); }).slice(0, 8).forEach(function (r) {
+      var li = el('li'); li.appendChild(link(r.tag, r.url)); li.appendChild(el('small', when(r.published_at) + ' · ' + ago(r.published_at))); tl.appendChild(li);
     });
-    rows('t-rel', rels, function (tr, r) { linkTd(tr, r.tag, r.url); td(tr, when(r.published_at)); });
-    rows('t-fail', runs.filter(function (r) { return r.conclusion === 'failure'; }).sort(function (a, b) { return b.created_at.localeCompare(a.created_at); }), function (tr, r) {
+    fillRows('t-fail', runs.filter(function (r) { return r.conclusion === 'failure'; }).sort(function (a, b) { return b.created_at.localeCompare(a.created_at); }), function (tr, r) {
       linkTd(tr, r.workflow, r.url); td(tr, r.branch); td(tr, when(r.created_at));
-    });
+    }, 'No failed runs in this window.', 3);
   }
 
   fetch('data.json', {cache: 'no-store'}).then(function (r) { if (!r.ok) throw new Error('data.json ' + r.status); return r.json(); })
     .then(function (d) { render(d); var t; window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(function () { chart(d.runs); }, 150); }); })
-    .catch(function (e) { var m = $('meta'); m.textContent = 'Could not load dashboard data: ' + e.message; m.className = 'sub err'; });
+    .catch(function (e) { var m = $('meta'); m.textContent = 'Could not load dashboard data: ' + e.message; m.className = 'meta err'; });
 })();
 </script>
 </body>
