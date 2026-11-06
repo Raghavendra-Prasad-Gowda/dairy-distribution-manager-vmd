@@ -65,6 +65,9 @@ export default defineConfig({
         name: `signed-in-${name}`,
         testMatch: /.*\.spec\.ts/,
         testIgnore: [/login\.spec\.ts/, SALESMAN_SPECS],
+        // Portrait runs everything. Landscape only repeats what depends on the layout (tagged @layout): the
+        // behaviour of a form or a ledger does not change with orientation, but it does hit the backend's rate limits.
+        ...(name === 'ipad-landscape' ? { grep: /@layout/ } : {}),
         dependencies: ['setup'],
         use: { ...use, storageState: ADMIN_STATE },
       },

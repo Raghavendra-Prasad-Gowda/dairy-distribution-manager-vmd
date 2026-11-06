@@ -1,6 +1,13 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { devices, expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { env } from '../env';
 import { BasePage } from './BasePage';
 import { LoginPage } from './LoginPage';
+
+/** A separate signed-out phone, e.g. to check from the salesman's side what an admin just changed. */
+export async function newPhone(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({ ...devices['Pixel 7'], baseURL: env.webBaseUrl, storageState: { cookies: [], origins: [] } });
+  return context.newPage();
+}
 
 /** Signs a salesman in through the real login form and waits for their home screen. */
 export async function signInAsSalesman(page: Page, username: string, password: string): Promise<SalesmanStockEntryPage> {

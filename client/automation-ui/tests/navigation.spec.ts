@@ -31,7 +31,7 @@ const screens: Array<{ path: string; heading: string | RegExp }> = [
   { path: '/salesperson-outstanding', heading: 'Salesperson Outstanding' },
 ];
 
-test.describe('Every admin screen opens cleanly', () => {
+test.describe('Every admin screen opens cleanly', { tag: '@layout' }, () => {
   for (const { path, heading } of screens) {
     test(`${path}`, async ({ page }) => {
       const scriptErrors: string[] = [];
@@ -58,7 +58,7 @@ test.describe('Every admin screen opens cleanly', () => {
   });
 });
 
-test.describe('Navigation', () => {
+test.describe('Navigation', { tag: '@layout' }, () => {
   test('the menu reaches the main areas (sidebar on landscape, drawer on portrait)', async ({ page }) => {
     const shell = new ShellPage(page);
     await page.goto('/');

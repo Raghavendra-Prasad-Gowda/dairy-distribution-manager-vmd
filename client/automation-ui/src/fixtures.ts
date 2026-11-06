@@ -33,7 +33,12 @@ export const test = base.extend<Fixtures>({
     const token = await sessionToken(page).catch(() => null);
     if (!token) return;
     for (const url of created) {
-      const res = await page.request.delete(url, { headers: { Authorization: `Bearer ${token}` } });
+      let res = await page.request.delete(url, { headers: { Authorization: `Bearer ${token}` } });
+      // Bulk-limited routes answer 429 for a minute; wait it out rather than leave test data behind.
+      for (let attempt = 0; res.status() === 429 && attempt < 3; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(Number(res.headers()['retry-after']) || 20, 65) * 1000));
+        res = await page.request.delete(url, { headers: { Authorization: `Bearer ${token}` } });
+      }
       // 404 = the test already deleted it through the UI.
       if (res.status() !== 200 && res.status() !== 404) {
         throw new Error(`cleanup: DELETE ${url} -> ${res.status()} ${await res.text()}`);
