@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VMD Pipeline Dashboard</title>
+<style>
+:root{--bg:#f6f7f5;--panel:#fff;--fg:#1c2421;--muted:#5d6b64;--line:#dfe4e0;--ok:#1f7a4d;--bad:#c0392b;--warn:#a86a00;--mute:#b9c2bd;--accent:#1f7a4d}
+@media (prefers-color-scheme:dark){:root{--bg:#121714;--panel:#1a211d;--fg:#e8eee9;--muted:#9aa8a0;--line:#2b352f;--ok:#4cc38a;--bad:#ff7b6b;--warn:#e0a84a;--mute:#47524b;--accent:#4cc38a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:72rem;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right)) 40px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:16px}
+h1{font:400 28px/1.15 Georgia,"Times New Roman",serif;margin:0}
+h2{font-size:15px;font-weight:600;margin:0}
+.sub{color:var(--muted);font-size:12px;margin:0}
+.take{font-size:16px;margin:6px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.tile b{font:400 26px/1.1 Georgia,"Times New Roman",serif}
+.tile span{color:var(--muted);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:12px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.chart{position:relative;min-height:210px}
+.chart svg{display:block;width:100%;height:210px}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:4px 8px;font-size:12px;white-space:nowrap;z-index:2}
+.scroll{overflow:auto;max-height:22rem}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.n{text-align:right}
+a{color:inherit;text-underline-offset:2px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.err{color:var(--bad)}
+details{color:var(--muted);font-size:12px}details p{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>VMD Pipeline Dashboard</h1>
+    <p class="sub" id="meta">Loading…</p>
+    <p class="take" id="take"></p>
+  </header>
+
+  <section class="tiles" aria-label="Headline figures">
+    <div class="card tile"><span>Pass rate, scored runs</span><b id="k-rate">—</b><span>Passed out of passed plus failed</span></div>
+    <div class="card tile"><span>Latest staging run</span><b id="k-stg">—</b><span id="k-stg-at"></span></div>
+    <div class="card tile"><span>Latest production check</span><b id="k-prod">—</b><span id="k-prod-at"></span></div>
+    <div class="card tile"><span>Latest release</span><b id="k-rel">—</b><span id="k-rel-at"></span></div>
+    <div class="card tile"><span>Open pull requests</span><b id="k-open">—</b><span>Includes dependency bumps</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Workflow runs per day</h2>
+    <p class="sub">Skipped runs are left out. Cancelled means a newer push replaced the run.</p>
+    <div class="legend"><span><i style="background:var(--bad)"></i>Failed</span><span><i style="background:var(--mute)"></i>Cancelled</span><span><i style="background:var(--ok)"></i>Passed</span></div>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <div class="grid">
+    <section class="card"><h2>By workflow</h2><p class="sub">Average minutes ignore skipped runs.</p>
+      <div class="scroll"><table><thead><tr><th>Workflow</th><th class="n">Runs</th><th class="n">Passed</th><th class="n">Failed</th><th class="n">Cancelled</th><th class="n">Avg min</th></tr></thead><tbody id="t-wf"></tbody></table></div></section>
+    <section class="card"><h2>Releases</h2><p class="sub">Tagged after each merge to main.</p>
+      <div class="scroll"><table><thead><tr><th>Tag</th><th>Published</th></tr></thead><tbody id="t-rel"></tbody></table></div></section>
+  </div>
+
+  <section class="card"><h2>Open pull requests</h2><p class="sub">Release PRs come from the release bot; dependency PRs from Dependabot.</p>
+    <div class="scroll"><table><thead><tr><th>PR</th><th>Title</th><th>Type</th><th>Into</th><th>Opened</th></tr></thead><tbody id="t-pr"></tbody></table></div></section>
+
+  <section class="card"><h2>Failed runs</h2><p class="sub">Most recent first.</p>
+    <div class="scroll"><table><thead><tr><th>Workflow</th><th>Branch</th><th>Started</th></tr></thead><tbody id="t-fail"></tbody></table></div></section>
+
+  <details><summary>Definitions and what is left out</summary>
+    <p>Pass rate is passed runs divided by passed plus failed runs. Cancelled and skipped runs are not scored.</p>
+    <p>Dependabot updater runs are left out. Times are shown in Indian Standard Time.</p>
+    <p>Data is rebuilt after every staging and production run, and every hour.</p></details>
+</div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var fmtAt = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+  var fmtDay = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short'});
+  var say = {success: 'Passed', failure: 'Failed', cancelled: 'Superseded', skipped: 'Skipped', in_progress: 'Running', queued: 'Queued'};
+  var cls = {success: 'ok', failure: 'bad', cancelled: 'warn', in_progress: 'warn'};
+  var when = function (s) { return s ? fmtAt.format(new Date(s)) : ''; };
+  var safe = function (u) { return typeof u === 'string' && u.indexOf('https://github.com/') === 0 ? u : null; };
+
+  function el(tag, text, className) { var e = document.createElement(tag); if (text != null) e.textContent = text; if (className) e.className = className; return e; }
+  function td(tr, text, className) { var c = el('td', text == null ? '' : String(text), className); tr.appendChild(c); return c; }
+  function linkTd(tr, text, url) {
+    var c = el('td'); var u = safe(url);
+    if (u) { var a = el('a', text); a.href = u; a.target = '_blank'; a.rel = 'noopener'; c.appendChild(a); } else c.textContent = text;
+    tr.appendChild(c);
+  }
+  function rows(id, list, build) {
+    var body = $(id); body.replaceChildren();
+    list.forEach(function (r) { var tr = el('tr'); build(tr, r); body.appendChild(tr); });
+  }
+  function latest(runs, name) {
+    return runs.filter(function (r) { return r.workflow === name; }).sort(function (a, b) { return b.created_at.localeCompare(a.created_at); })[0];
+  }
+  function setStatus(id, atId, run) {
+    var b = $(id); b.textContent = run ? (say[run.conclusion] || run.conclusion) : '—';
+    b.className = run ? (cls[run.conclusion] || '') : '';
+    $(atId).textContent = run ? when(run.created_at) : '';
+  }
+
+  function chart(runs) {
+    var box = $('chart'); box.replaceChildren();
+    var by = {};
+    runs.forEach(function (r) {
+      if (r.conclusion === 'skipped') return;
+      var d = new Date(Date.parse(r.created_at) + 19800000).toISOString().slice(0, 10);
+      var o = by[d] = by[d] || {day: d, success: 0, failure: 0, cancelled: 0};
+      if (o[r.conclusion] !== undefined) o[r.conclusion] += 1;
+    });
+    var data = Object.keys(by).sort().map(function (k) { return by[k]; });
+    if (!data.length) return;
+    var NS = 'http://www.w3.org/2000/svg', W = Math.max(box.clientWidth, 280), H = 210, ml = 30, mr = 8, mt = 8, mb = 26;
+    var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); box.appendChild(svg);
+    var max = Math.max.apply(null, data.map(function (d) { return d.success + d.failure + d.cancelled; })) || 1;
+    var step = Math.max(1, Math.ceil(max / 4)); var top = Math.ceil(max / step) * step;
+    var y = function (v) { return H - mb - (v / top) * (H - mb - mt); };
+    var bw = (W - ml - mr) / data.length, bar = bw * 0.72;
+    function add(tag, attrs, text) { var e = document.createElementNS(NS, tag); Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); }); if (text != null) e.textContent = text; svg.appendChild(e); return e; }
+    for (var v = 0; v <= top; v += step) {
+      add('line', {x1: ml, x2: W - mr, y1: y(v), y2: y(v), stroke: 'var(--line)'});
+      add('text', {x: ml - 6, y: y(v) + 3, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11}, String(v));
+    }
+    var tip = el('div', null, 'tip'); tip.style.display = 'none'; box.appendChild(tip);
+    data.forEach(function (d, i) {
+      var x = ml + i * bw + (bw - bar) / 2, acc = 0;
+      [['success', 'var(--ok)'], ['cancelled', 'var(--mute)'], ['failure', 'var(--bad)']].forEach(function (s) {
+        if (!d[s[0]]) return;
+        add('rect', {x: x, width: bar, y: y(acc + d[s[0]]), height: y(acc) - y(acc + d[s[0]]), fill: s[1], rx: 2}); acc += d[s[0]];
+      });
+      add('text', {x: x + bar / 2, y: H - 8, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11}, fmtDay.format(new Date(d.day + 'T00:00:00Z')));
+      var hit = add('rect', {x: x - 4, width: bar + 8, y: mt, height: H - mb - mt, fill: 'transparent'});
+      hit.addEventListener('mousemove', function (ev) {
+        var b = box.getBoundingClientRect();
+        tip.style.display = 'block';
+        tip.style.left = Math.min(ev.clientX - b.left + 12, box.clientWidth - 200) + 'px';
+        tip.style.top = Math.max(ev.clientY - b.top - 40, 0) + 'px';
+        tip.textContent = fmtDay.format(new Date(d.day + 'T00:00:00Z')) + ': ' + d.success + ' passed, ' + d.failure + ' failed, ' + d.cancelled + ' cancelled';
+      });
+      hit.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+    });
+  }
+
+  function render(d) {
+    var runs = d.runs, prs = d.prs, rels = d.releases;
+    var scored = runs.filter(function (r) { return r.conclusion === 'success' || r.conclusion === 'failure'; });
+    var passed = scored.filter(function (r) { return r.conclusion === 'success'; }).length;
+    $('k-rate').textContent = scored.length ? Math.round(passed / scored.length * 100) + '%' : '—';
+    setStatus('k-stg', 'k-stg-at', latest(runs, 'staging-pipeline'));
+    setStatus('k-prod', 'k-prod-at', latest(runs, 'production-verify-and-release'));
+    var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
+    $('k-rel').textContent = rel ? rel.tag : '—'; $('k-rel-at').textContent = rel ? when(rel.published_at) : '';
+    var open = prs.filter(function (p) { return p.state === 'open'; }).sort(function (a, b) { return b.number - a.number; });
+    $('k-open').textContent = String(open.length);
+    var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
+    $('take').textContent = relPr ? 'Release PR #' + relPr.number + ' is open and waiting for approval into main.' : 'No release PR is open. Main has everything that passed staging.';
+    var days = runs.map(function (r) { return r.created_at; }).sort();
+    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (IST) · updated ' + when(d.generated_at);
+    chart(runs);
+
+    var by = {};
+    runs.forEach(function (r) {
+      var w = by[r.workflow] = by[r.workflow] || {name: r.workflow, runs: 0, success: 0, failure: 0, cancelled: 0, mins: 0, timed: 0};
+      w.runs += 1; if (w[r.conclusion] !== undefined) w[r.conclusion] += 1;
+      if (r.conclusion !== 'skipped') { w.mins += r.minutes; w.timed += 1; }
+    });
+    rows('t-wf', Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.runs - a.runs; }), function (tr, w) {
+      td(tr, w.name); td(tr, w.runs, 'n'); td(tr, w.success, 'n'); td(tr, w.failure, 'n'); td(tr, w.cancelled, 'n'); td(tr, w.timed ? (w.mins / w.timed).toFixed(1) : '0.0', 'n');
+    });
+    rows('t-rel', rels, function (tr, r) { linkTd(tr, r.tag, r.url); td(tr, when(r.published_at)); });
+    rows('t-pr', open, function (tr, p) { linkTd(tr, '#' + p.number, p.url); td(tr, p.title); td(tr, p.kind); td(tr, p.base); td(tr, when(p.created_at)); });
+    rows('t-fail', runs.filter(function (r) { return r.conclusion === 'failure'; }).sort(function (a, b) { return b.created_at.localeCompare(a.created_at); }), function (tr, r) {
+      linkTd(tr, r.workflow, r.url); td(tr, r.branch); td(tr, when(r.created_at));
+    });
+  }
+
+  fetch('data.json', {cache: 'no-store'}).then(function (r) { if (!r.ok) throw new Error('data.json ' + r.status); return r.json(); })
+    .then(function (d) { render(d); var t; window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(function () { chart(d.runs); }, 150); }); })
+    .catch(function (e) { var m = $('meta'); m.textContent = 'Could not load dashboard data: ' + e.message; m.className = 'sub err'; });
+})();
+</script>
+</body>
+</html>
