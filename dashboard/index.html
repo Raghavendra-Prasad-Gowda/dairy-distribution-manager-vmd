@@ -4,24 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>VMD Pipeline Dashboard</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d3b2e'/%3E%3Cpath d='M16 6c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z' fill='%23f4f1e8'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%20%3Crect%20width=%2232%22%20height=%2232%22%20rx=%227%22%20fill=%22%23065f46%22/%3E%20%3Crect%20x=%2210%22%20y=%2214%22%20width=%2212%22%20height=%2212%22%20rx=%222.5%22%20fill=%22white%22/%3E%20%3Crect%20x=%2212.5%22%20y=%2210%22%20width=%227%22%20height=%225%22%20rx=%221.5%22%20fill=%22white%22/%3E%20%3Crect%20x=%2213.5%22%20y=%227.5%22%20width=%225%22%20height=%223.5%22%20rx=%221.5%22%20fill=%22%236ee7b7%22/%3E%20%3Crect%20x=%2212%22%20y=%2216%22%20width=%222.5%22%20height=%226%22%20rx=%221.25%22%20fill=%22%23065f46%22%20opacity=%220.12%22/%3E%20%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
 /* Layout: dark brand band on top, a pipeline flow strip overlapping it, then figures, chart and two-column queues. */
+/* Theme mirrors the app (client/tailwind.config.js, src/index.css): Inter, slate neutrals, emerald-700 primary,
+   the sidebar gradient #065f46 > #022c22, rounded-2xl cards. Dark mode is for visitors only; the app has none. */
 :root{
-  --bg:#f2f5f2;--panel:#ffffff;--ink:#12201a;--muted:#5a6b62;--line:#e0e7e1;--soft:#f6f9f6;
-  --band:#0d3b2e;--band-ink:#eef5ef;--band-muted:#a8c4b6;
-  --accent:#0b6e4f;--ok:#0b7a4b;--ok-bg:#e2f3ea;--bad:#c8372d;--bad-bg:#fbe8e5;--warn:#a96a00;--warn-bg:#fcf1d9;--idle:#6b7a72;--idle-bg:#eaeeeb;
-  --mute:#c3ccc6;--shadow:0 1px 2px rgba(18,32,26,.05),0 6px 20px -8px rgba(18,32,26,.12);
-  --display:"Fraunces",Georgia,"Times New Roman",serif;--ui:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --bg:#f1f5f9;--panel:#ffffff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--soft:#f8fafc;
+  --band:#065f46;--band2:#022c22;--band-ink:#ecfdf5;--band-muted:#a7f3d0;
+  --accent:#047857;--ok:#047857;--ok-bg:#ecfdf5;--bad:#dc2626;--bad-bg:#fef2f2;--warn:#b45309;--warn-bg:#fffbeb;--idle:#64748b;--idle-bg:#f1f5f9;
+  --mute:#cbd5e1;--shadow:0 1px 2px rgba(15,23,42,.05);
+  --display:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--ui:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#0c1310;--panel:#151f1a;--ink:#e8f0ea;--muted:#94a69b;--line:#24312a;--soft:#111a15;
-  --band:#0a2a20;--band-ink:#eef5ef;--band-muted:#8fb09f;
-  --accent:#4cc38a;--ok:#4cc38a;--ok-bg:#12301f;--bad:#ff8174;--bad-bg:#3a1b18;--warn:#e6b256;--warn-bg:#352a12;--idle:#93a399;--idle-bg:#1d2822;
-  --mute:#3f4c44;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -10px rgba(0,0,0,.6)}}
+  --bg:#0b1220;--panel:#111a2c;--ink:#f1f5f9;--muted:#94a3b8;--line:#1e293b;--soft:#0f172a;
+  --band:#065f46;--band2:#022c22;--band-ink:#ecfdf5;--band-muted:#86efac;
+  --accent:#34d399;--ok:#34d399;--ok-bg:#052e22;--bad:#f87171;--bad-bg:#3b1414;--warn:#fbbf24;--warn-bg:#3a2a08;--idle:#94a3b8;--idle-bg:#1e293b;
+  --mute:#475569;--shadow:0 1px 2px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);font-variant-numeric:tabular-nums}
@@ -31,11 +33,11 @@ a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-of
 .inner{max-width:74rem;margin:0 auto;width:100%;min-width:0}
 
 /* band */
-.band{background:radial-gradient(900px 260px at 85% -40%,rgba(120,200,160,.22),transparent 70%),var(--band);color:var(--band-ink);padding-top:max(28px,env(safe-area-inset-top));padding-bottom:84px}
+.band{background:linear-gradient(135deg,var(--band) 0%,var(--band2) 100%);color:var(--band-ink);padding-top:max(28px,env(safe-area-inset-top));padding-bottom:84px}
 .band .inner{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .brand{display:flex;gap:14px;align-items:center;min-width:0}
 .logo{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:none}
-h1{font:600 clamp(24px,4vw,34px)/1.1 var(--display);margin:0;letter-spacing:-.01em}
+h1{font:800 clamp(24px,4vw,32px)/1.1 var(--display);margin:0;letter-spacing:-.02em}
 .meta{margin:6px 0 0;color:var(--band-muted);font-size:12.5px}
 .take{margin:10px 0 0;font-size:15px;color:var(--band-ink)}
 .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;min-height:20px}.badges img{display:block;height:20px}.badges a{border-radius:4px}
@@ -45,8 +47,8 @@ h1{font:600 clamp(24px,4vw,34px)/1.1 var(--display);margin:0;letter-spacing:-.01
 .health.attn i{background:#ffb04a;box-shadow:0 0 0 4px rgba(255,176,74,.22)}
 
 main{margin-top:-56px;display:flex;flex-direction:column;gap:18px;padding-bottom:48px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px;min-width:0}
-.card h2{font:600 17px/1.2 var(--display);margin:0;letter-spacing:-.005em}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px;min-width:0}
+.card h2{font:700 16px/1.25 var(--display);margin:0;letter-spacing:-.01em}
 .sub{margin:4px 0 0;color:var(--muted);font-size:12.5px}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
 .head .sub a{color:var(--accent);font-weight:500}
@@ -66,7 +68,7 @@ main{margin-top:-56px;display:flex;flex-direction:column;gap:18px;padding-bottom
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11.5rem),1fr));gap:14px}
 .tile{display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit;position:relative}
 .tile .k{font-size:12px;color:var(--muted);font-weight:500}
-.tile b{font:600 32px/1.1 var(--display);letter-spacing:-.01em}
+.tile b{font:700 30px/1.1 var(--display);letter-spacing:-.02em}
 .tile .t{font-size:12px;color:var(--muted)}
 a.tile{transition:transform .15s ease,border-color .15s ease}
 a.tile:hover{border-color:var(--accent);transform:translateY(-2px)}
@@ -85,7 +87,7 @@ a.tile:hover .go{color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:18px}
 .scroll{overflow:auto;max-height:23rem;margin:0 -6px}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:var(--soft)}
@@ -99,7 +101,7 @@ tbody tr:hover td{background:var(--soft)}
 .suite{display:flex;flex-direction:column;gap:12px}
 .suite .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .suite .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.suite .big b{font:600 40px/1 var(--display);letter-spacing:-.02em}
+.suite .big b{font:800 38px/1 var(--display);letter-spacing:-.03em}
 .suite .big span{color:var(--muted)}
 .stats{display:flex;gap:8px;flex-wrap:wrap}
 .stat{font-size:12.5px;padding:3px 10px;border-radius:999px;background:var(--idle-bg);color:var(--ink);white-space:nowrap}
@@ -134,9 +136,9 @@ footer{color:var(--muted);font-size:12px;text-align:center}
 <header class="band pad">
   <div class="inner">
     <div class="brand">
-      <span class="logo" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32"><path d="M16 4c5 6 8 10 8 14a8 8 0 0 1-16 0c0-4 3-8 8-14z" fill="#f4f1e8"/><path d="M12 19a4 4 0 0 0 4 4" stroke="#0d3b2e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>
+      <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8"/><path d="M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2"/><path d="M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0"/></svg></span>
       <div>
-        <h1>🥛 VMD Pipeline Dashboard</h1>
+        <h1>VMD Pipeline Dashboard</h1>
         <p class="meta" id="meta">Loading…</p>
       </div>
     </div>
