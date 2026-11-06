@@ -50,6 +50,8 @@ jobs:
         id: merge
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          FALLBACK_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           CHECKED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -76,17 +78,26 @@ jobs:
           [ "$head" = "$CHECKED_SHA" ] || skip "new commits were pushed after these checks ran; the next pr-checks run will decide."
 
           # --match-head-commit makes GitHub refuse the merge if the branch moved since the checks.
-          gh pr merge "$PR_NUMBER" --repo "$REPO" --merge --match-head-commit "$CHECKED_SHA"
+          via=app
+          [ -n "${APP_TOKEN:-}" ] || via=default
+          if ! gh pr merge "$PR_NUMBER" --repo "$REPO" --merge --match-head-commit "$CHECKED_SHA"; then
+            # The GitHub App token can be refused (e.g. the app only has Contents: read). Retry with the
+            # workflow's own token; its merge does not start staging-pipeline, so the next step does.
+            echo "::warning::Merge with the GitHub App token was refused - retrying with the default token. Give the app Contents: read & write to avoid this."
+            via=default
+            GH_TOKEN="$FALLBACK_TOKEN" gh pr merge "$PR_NUMBER" --repo "$REPO" --merge --match-head-commit "$CHECKED_SHA"
+          fi
           echo "merged=true" >> "$GITHUB_OUTPUT"
+          echo "via=$via" >> "$GITHUB_OUTPUT"
           {
             echo "### Auto-merged #$PR_NUMBER into develop"
             echo "All pr-checks jobs passed on \`${CHECKED_SHA:0:7}\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Only needed without the GitHub App token: the merge above (made by GITHUB_TOKEN) did not
-      # trigger staging-pipeline, but workflow_dispatch is allowed to.
+      # Needed whenever the merge was made with the default token (no GitHub App, or the app was
+      # refused): that merge does not trigger staging-pipeline, but workflow_dispatch is allowed to.
       - name: Start staging-pipeline
-        if: ${{ steps.merge.outputs.merged == 'true' && env.RELEASE_BOT_APP_ID == '' }}
+        if: ${{ steps.merge.outputs.merged == 'true' && steps.merge.outputs.via != 'app' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run staging-pipeline.yml --repo "${{ github.repository }}" --ref develop
