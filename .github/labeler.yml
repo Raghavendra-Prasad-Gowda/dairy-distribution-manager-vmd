@@ -1,0 +1,32 @@
+# Applied by .github/workflows/labeler.yml. Labels feed the release-note categories in release.yml.
+
+# --- by branch name (feat/*, fix/*, hotfix/*) ---
+feature:
+  - head-branch: ['^feat/', '^feature/']
+bug:
+  - head-branch: ['^fix/', '^bugfix/']
+hotfix:
+  - head-branch: ['^hotfix/']
+documentation:
+  - changed-files:
+      - all-globs-to-all-files: ['**/*.md', 'docs/**', '**/docs/**', '!**/CLAUDE.md']
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**']
+
+# --- by area ---
+server:
+  - changed-files:
+      - any-glob-to-any-file: 'server/**'
+client:
+  - changed-files:
+      - any-glob-to-any-file: 'client/**'
+automation:
+  - changed-files:
+      - any-glob-to-any-file: ['server/automation/**', 'client/automation-ui/**']
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['server/tests/**', 'client/src/**/*.test.jsx']
+database:
+  - changed-files:
+      - any-glob-to-any-file: ['server/prisma/**']
