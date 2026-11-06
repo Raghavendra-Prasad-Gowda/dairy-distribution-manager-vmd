@@ -27,13 +27,19 @@ export class ShellPage {
   async signOut(): Promise<void> {
     await this.revealNav();
     await this.page.getByRole('complementary').getByRole('button', { name: 'Sign Out' }).click();
-    await expect(this.page.getByRole('heading', { name: 'Sign out?' })).toBeVisible();
-    await this.page.getByRole('button', { name: 'Sign Out' }).last().click();
+    await this.confirmSignOut();
+  }
+
+  /** The "Sign out?" question; answered through its own button, not the sidebar's. */
+  private async confirmSignOut(): Promise<void> {
+    const question = this.page.getByRole('heading', { name: 'Sign out?' });
+    await expect(question).toBeVisible();
+    await question.locator('xpath=..').getByRole('button', { name: 'Sign Out', exact: true }).click();
   }
 
   /** Salesman phone layout: identity bar with its own sign-out button. */
   async signOutOnPhone(): Promise<void> {
-    await this.page.getByRole('button', { name: 'Sign out' }).click();
-    await this.page.getByRole('button', { name: 'Sign Out' }).last().click();
+    await this.page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await this.confirmSignOut();
   }
 }

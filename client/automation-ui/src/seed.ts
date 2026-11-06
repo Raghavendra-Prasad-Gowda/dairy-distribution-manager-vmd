@@ -12,9 +12,11 @@ type Json = Record<string, unknown>;
 const stamp = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`.toUpperCase();
 export const unique = (prefix = 'E2E'): string => `${prefix}-${stamp()}`;
 
+/** Sign-in is limited to 20/hour/IP, so each role signs in once per worker and the token is shared. */
+const tokens = new Map<Role, string>();
+
 export class Seed {
   private readonly undo: Array<{ label: string; run: () => Promise<void> }> = [];
-  private readonly tokens = new Map<Role, string>();
   private ctx?: APIRequestContext;
 
   private async api(): Promise<APIRequestContext> {
@@ -23,23 +25,32 @@ export class Seed {
   }
 
   private async token(role: Role): Promise<string> {
-    const cached = this.tokens.get(role);
+    const cached = tokens.get(role);
     if (cached) return cached;
     const [username, password] =
       role === 'admin' ? [env.adminUsername(), env.adminPassword()] : [env.superadminUsername, env.superadminPassword];
     const res = await (await this.api()).post('/api/v1/auth/login', { data: { username, password } });
     if (!res.ok()) throw new Error(`seed: ${role} login failed -> ${res.status()} ${await res.text()}`);
     const token = (await res.json()).data.accessToken as string;
-    this.tokens.set(role, token);
+    tokens.set(role, token);
     return token;
   }
 
-  async call(role: Role, method: 'get' | 'post' | 'put' | 'delete', path: string, data?: Json) {
+  /**
+   * One API call. Bulk routes allow 30 requests a minute per IP, so a 429 is waited out (the server says how long)
+   * and retried; nothing else is ever retried, so a write is never repeated after a real failure.
+   */
+  async call(role: Role, method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string, data?: Json) {
     const api = await this.api();
-    return api[method](`/api/v1${path}`, {
-      headers: { Authorization: `Bearer ${await this.token(role)}` },
-      ...(data ? { data } : {}),
-    });
+    for (let attempt = 0; ; attempt++) {
+      const res = await api[method](`/api/v1${path}`, {
+        headers: { Authorization: `Bearer ${await this.token(role)}` },
+        ...(data ? { data } : {}),
+      });
+      if (res.status() !== 429 || attempt >= 3) return res;
+      const waitS = Math.min(Number(res.headers()['retry-after']) || 20, 65);
+      await new Promise((resolve) => setTimeout(resolve, waitS * 1000));
+    }
   }
 
   private async create(role: Role, path: string, body: Json, what: string): Promise<Json> {
@@ -88,6 +99,50 @@ export class Seed {
     );
     this.removeLater('admin', `/products/${product.id}`); // soft delete
     return product as { id: number; name: string; brandId: number };
+  }
+
+  /** Turns a product on for every salesperson, with the default price they are charged. */
+  async enableForSalespeople(productId: number, defaultPrice: number): Promise<void> {
+    const res = await this.call('admin', 'patch', '/products/salesperson-global', {
+      products: [{ productId, isEnabled: true, defaultPrice }],
+    });
+    if (!res.ok()) throw new Error(`seed: enable product for salespeople -> ${res.status()} ${await res.text()}`);
+  }
+
+  /** Sets one salesperson's own selling price for a product, effective today. */
+  async salespersonPrice(salespersonId: number, productId: number, sellingPrice: number): Promise<void> {
+    const res = await this.call('admin', 'post', `/salespeople/${salespersonId}/prices/bulk`, {
+      effectiveFrom: todayIST(),
+      prices: [{ productId, sellingPrice }],
+    });
+    if (!res.ok()) throw new Error(`seed: salesperson price -> ${res.status()} ${await res.text()}`);
+  }
+
+  /** Dispatches stock to a salesperson on behalf of the admin. Removed again with the salesperson. */
+  async dispatch(
+    salespersonId: number,
+    dispatchDate: string,
+    items: Array<{ productId: number; quantity: number; unitPrice: number }>,
+    submit = false,
+  ): Promise<{ id: number }> {
+    const res = await this.call('admin', 'post', '/dispatches', { salespersonId, dispatchDate, items });
+    if (!res.ok()) throw new Error(`seed: dispatch -> ${res.status()} ${await res.text()}`);
+    const dispatch = (await res.json()).data as { id: number };
+    if (submit) {
+      const done = await this.call('admin', 'patch', `/dispatches/${dispatch.id}/submit`);
+      if (!done.ok()) throw new Error(`seed: submit dispatch -> ${done.status()} ${await done.text()}`);
+    }
+    return dispatch;
+  }
+
+  async salespersonPayment(salespersonId: number, amount: number, paymentDate = todayIST()): Promise<{ id: number }> {
+    const payment = await this.create(
+      'admin',
+      '/salesperson-payments',
+      { salespersonId, amount, paymentDate, paymentMode: 'Cash' },
+      'salesperson payment',
+    );
+    return payment as { id: number };
   }
 
   async route(brandId: number): Promise<{ id: number; routeNumber: string }> {

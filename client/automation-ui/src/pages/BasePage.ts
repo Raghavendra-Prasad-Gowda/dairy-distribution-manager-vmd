@@ -13,7 +13,8 @@ export abstract class BasePage {
    * covers the page until dismissed. Asserts the message, then clicks OK like a user would.
    */
   async acknowledgeNotice(text: string | RegExp): Promise<void> {
-    await expect(this.page.getByText(text).first()).toBeVisible();
+    const notice = this.page.getByRole('heading', { name: /^(Success|Error|Something went wrong)$/ }).locator('xpath=..');
+    await expect(notice).toContainText(text);
     await this.ok.click();
     await expect(this.ok).toHaveCount(0);
   }
