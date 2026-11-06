@@ -147,6 +147,7 @@ server/
 - Endpoint behaviour → a scenario in `automation/`. Unit logic, rate-limit exhaustion, lock-out/MFA, Slack card
   shape, forged tokens → a mocked spec in `tests/playwright/`. `automation/COVERAGE.md` maps one to the other —
   update it when you add or remove a mocked spec file.
+- **Every path and branch you add or change must be covered by the API automation** (root `CLAUDE.md` §17.1a): all roles, every validation rule, every `if`/`throw`/default, every data state and side effect. Branches the API cannot reach go in a mocked spec and in `COVERAGE.md`.
 - `npm run check` = lint + timezone lint + mocked specs. Run it before pushing.
 - `automation/` is excluded from `eslint`, Prettier and c8; never import from it in server code (or vice versa).
 

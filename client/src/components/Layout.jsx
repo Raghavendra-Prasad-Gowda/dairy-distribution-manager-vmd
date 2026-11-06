@@ -409,7 +409,7 @@ export default function Layout() {
             </div>
           ) : (
             <>
-              <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
+              <button onClick={() => setMobileOpen(true)} aria-label="Open menu" className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">
                 <Menu size={20} />
               </button>
               <div className="flex items-center gap-2">

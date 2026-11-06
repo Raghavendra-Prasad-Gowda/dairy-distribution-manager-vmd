@@ -1,0 +1,167 @@
+import { request, type APIRequestContext } from '@playwright/test';
+import { env } from './env';
+
+/**
+ * Arrange-by-API helper. Browsers are slow at setting up data and brittle when they have to; the API is fast and
+ * exact. Specs create their world here (an `E2E-...` brand, product, salesperson, ...), drive the UI to act, and
+ * everything is removed afterwards by `dispose()` in reverse order, pass or fail.
+ */
+type Role = 'admin' | 'superadmin';
+type Json = Record<string, unknown>;
+
+const stamp = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`.toUpperCase();
+export const unique = (prefix = 'E2E'): string => `${prefix}-${stamp()}`;
+
+export class Seed {
+  private readonly undo: Array<{ label: string; run: () => Promise<void> }> = [];
+  private readonly tokens = new Map<Role, string>();
+  private ctx?: APIRequestContext;
+
+  private async api(): Promise<APIRequestContext> {
+    this.ctx ??= await request.newContext({ baseURL: env.apiBaseUrl });
+    return this.ctx;
+  }
+
+  private async token(role: Role): Promise<string> {
+    const cached = this.tokens.get(role);
+    if (cached) return cached;
+    const [username, password] =
+      role === 'admin' ? [env.adminUsername(), env.adminPassword()] : [env.superadminUsername, env.superadminPassword];
+    const res = await (await this.api()).post('/api/v1/auth/login', { data: { username, password } });
+    if (!res.ok()) throw new Error(`seed: ${role} login failed -> ${res.status()} ${await res.text()}`);
+    const token = (await res.json()).data.accessToken as string;
+    this.tokens.set(role, token);
+    return token;
+  }
+
+  async call(role: Role, method: 'get' | 'post' | 'put' | 'delete', path: string, data?: Json) {
+    const api = await this.api();
+    return api[method](`/api/v1${path}`, {
+      headers: { Authorization: `Bearer ${await this.token(role)}` },
+      ...(data ? { data } : {}),
+    });
+  }
+
+  private async create(role: Role, path: string, body: Json, what: string): Promise<Json> {
+    const res = await this.call(role, 'post', path, body);
+    if (res.status() !== 201 && res.status() !== 200) {
+      throw new Error(`seed: create ${what} -> ${res.status()} ${await res.text()}`);
+    }
+    return (await res.json()).data as Json;
+  }
+
+  private onDispose(label: string, run: () => Promise<void>): void {
+    this.undo.push({ label, run });
+  }
+
+  private removeLater(role: Role, path: string): void {
+    this.onDispose(`DELETE ${path}`, async () => {
+      const res = await this.call(role, 'delete', path);
+      if (![200, 404].includes(res.status())) throw new Error(`seed cleanup: DELETE ${path} -> ${res.status()} ${await res.text()}`);
+    });
+  }
+
+  /** A throwaway brand (superadmin only). Brands cannot be deleted, so it is archived afterwards. */
+  async brand(): Promise<{ id: number; name: string }> {
+    const brand = await this.create('superadmin', '/brands', { name: unique() }, 'brand');
+    this.onDispose(`archive brand ${brand.id}`, async () => {
+      await this.call('superadmin', 'put', `/brands/${brand.id}`, { isArchived: true });
+    });
+    return brand as { id: number; name: string };
+  }
+
+  async category(brandId: number, name = unique()): Promise<{ id: number; name: string }> {
+    const category = await this.create('admin', '/categories', { brandId, name }, 'category');
+    this.removeLater('admin', `/categories/${category.id}`);
+    return category as { id: number; name: string };
+  }
+
+  async product(
+    brandId: number,
+    overrides: Json = {},
+  ): Promise<{ id: number; name: string; brandId: number }> {
+    const product = await this.create(
+      'admin',
+      '/products',
+      { brandId, name: unique(), unitType: 'piece', costPrice: 10, sellingPrice: 12, ...overrides },
+      'product',
+    );
+    this.removeLater('admin', `/products/${product.id}`); // soft delete
+    return product as { id: number; name: string; brandId: number };
+  }
+
+  async route(brandId: number): Promise<{ id: number; routeNumber: string }> {
+    const route = await this.create('admin', '/routes', { brandId, routeNumber: unique() }, 'route');
+    this.removeLater('admin', `/routes/${route.id}`);
+    return route as { id: number; routeNumber: string };
+  }
+
+  /** A throwaway salesperson. With `canLogIn` it also has a username and password for the phone specs. */
+  async salesperson(canLogIn = false): Promise<{ id: number; name: string; username?: string; password?: string }> {
+    const name = `E2E ${unique('SP')}`;
+    const body: Json = { name };
+    let username: string | undefined;
+    let password: string | undefined;
+    if (canLogIn) {
+      username = `e2e-${stamp().toLowerCase()}`;
+      password = `E2e!${stamp()}aA1`;
+      Object.assign(body, { username, password });
+    }
+    const sp = await this.create('admin', '/salespeople', body, 'salesperson');
+    this.onDispose(`remove salesperson ${sp.id}`, async () => {
+      let del = await this.call('admin', 'delete', `/salespeople/${sp.id}`);
+      if (del.status() === 400 && env.superadminUsername) {
+        await this.call('superadmin', 'post', '/salespeople/reset-ledger', { salespersonIds: [sp.id] });
+        del = await this.call('admin', 'delete', `/salespeople/${sp.id}`);
+      }
+      if (del.status() === 400) {
+        await this.call('admin', 'put', `/salespeople/${sp.id}`, { isActive: false }); // has history: retire it
+      } else if (![200, 404].includes(del.status())) {
+        throw new Error(`seed cleanup: salesperson ${sp.id} -> ${del.status()} ${await del.text()}`);
+      }
+    });
+    return { ...(sp as { id: number; name: string }), username, password };
+  }
+
+  /** Saves stock received for a product on a date (admin). */
+  async stockReceipt(
+    brandId: number,
+    date: string,
+    items: Array<{ productId: number; quantity: number; unitPrice: number }>,
+    routeId = 0,
+  ) {
+    const res = await this.call('admin', 'post', '/stock-receipts/bulk', { brandId, date, routeId, items });
+    if (res.status() !== 200) throw new Error(`seed: stock receipt -> ${res.status()} ${await res.text()}`);
+  }
+
+  async dairyPayment(brandId: number, amount: number, paymentDate: string): Promise<{ id: number }> {
+    const payment = await this.create('admin', '/dairy-payments', { brandId, amount, paymentDate, paymentMode: 'Cash' }, 'dairy payment');
+    this.removeLater('admin', `/dairy-payments/${payment.id}`);
+    return payment as { id: number };
+  }
+
+  /** Reads a JSON resource as admin (for assertions against what the API itself holds). */
+  async get(path: string): Promise<Json> {
+    const res = await this.call('admin', 'get', path);
+    if (!res.ok()) throw new Error(`seed: GET ${path} -> ${res.status()}`);
+    return (await res.json()) as Json;
+  }
+
+  /** Undo everything, newest first. Every step is attempted; failures are reported together. */
+  async dispose(): Promise<void> {
+    const failures: string[] = [];
+    for (const step of this.undo.reverse()) {
+      try {
+        await step.run();
+      } catch (e) {
+        failures.push(`${step.label}: ${(e as Error).message}`);
+      }
+    }
+    await this.ctx?.dispose();
+    if (failures.length) throw new Error(`seed cleanup failed:\n${failures.join('\n')}`);
+  }
+}
+
+/** Today's business date in India (the zone the backend validates in), as YYYY-MM-DD. */
+export const todayIST = (offsetDays = 0): string =>
+  new Date(Date.now() + 5.5 * 3600e3 + offsetDays * 86400e3).toISOString().slice(0, 10);

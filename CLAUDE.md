@@ -684,6 +684,7 @@ API cannot reach):
 - 403 (wrong role, e.g. salesman hitting admin-only)
 - 200/201 (happy path)
 - The specific business logic path (e.g. missing field defaults, cascades)
+- This is the *floor*: §17.1a requires a scenario for every branch the change touches
 
 ### Backend — API automation against the deployed environment (`server/automation/`)
 
@@ -864,12 +865,33 @@ git push -u origin feat/short-description   # then open a PR into develop
 Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 
 ### 17.1 Tests
-- **Backend change** → add/update Playwright spec in `server/tests/playwright/` for logic the API cannot reach, and an API scenario in `server/automation/` for endpoint behaviour (Section 12)
+- **Backend change** → cover **every path and branch you touch** (17.1a), then add/update Playwright spec in `server/tests/playwright/` for logic the API cannot reach, and an API scenario in `server/automation/` for endpoint behaviour (Section 12)
 - **Frontend change** → add/update Vitest spec next to the page file
 - Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
 - Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`; if you touched an automation suite, also `cd server/automation && mvn -B -ntp test-compile` and/or `cd client/automation-ui && npm run typecheck`
 - A user-facing flow that spans backend + frontend → also add an API scenario in `server/automation/` (Cucumber `@api`; `@smoke` only if read-only) and/or a UI spec in `client/automation-ui/tests/` (Playwright + TypeScript). See their `CLAUDE.md` and `README.md`
 - A renamed endpoint, field or screen text → update the automation suites in the same PR; they run after merge and will turn `Staging Verified` red otherwise
+
+### 17.1a API path & branch coverage (mandatory on every backend change)
+Whenever you **add or change** an endpoint, controller, service, validation schema or guard, the API automation
+(`server/automation/`) must exercise **every path and branch the change touches** — not just the happy path and the
+§12 minimum. Before writing code, list them; before pushing, show each one mapped to a scenario:
+
+| Branch kind | Cover with a scenario for… |
+|---|---|
+| Auth & roles | no token, bad/expired/forged token, **every** role (superadmin, admin, dispatcher, salesman own vs another's row) — allowed *and* refused |
+| Input | each Zod rule (missing, wrong type, empty, too long, out of range, bad enum, bad date/IST bound, bad id) and the value just inside each limit |
+| Every `if`/`else`, early `return`, `throw AppError`, `??`/`||` default and `switch` case in the changed code | one scenario per outcome |
+| Data states | not found, already exists/duplicate (`P2002`), FK in use (`P2003`), empty list, one vs many rows, archived/inactive, locked/finalised/submitted |
+| Side effects | ledger cascade (before/after, past + future dates), row written/not written, Slack-only effects stay in the mocked specs |
+| Reads | filters, sorting (product layout), pagination on/off, role-scoped results |
+| Regression | the bug being fixed gets a scenario that fails without the fix |
+
+- Put the matrix in the PR description (`branch → scenario`). A branch that the API genuinely cannot reach (needs a
+  forced DB/Slack failure, rate-limit exhaustion, MFA/lock-out) goes in a mocked spec in `server/tests/playwright/`
+  and is listed in `server/automation/COVERAGE.md`; a branch that is dead code gets removed instead of tested.
+- Behaviour the API gets wrong today is captured as a `@known-defect` scenario, never left uncovered.
+- A change with no new scenarios must say in the PR which existing scenarios already cover each branch.
 
 ### 17.2 Slack notification
 - Every write action needs a Slack card
