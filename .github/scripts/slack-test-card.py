@@ -14,6 +14,7 @@ Environment:
   RESULT                              needs.<job>.result of this suite's job
   TARGET_URL                          the environment the suite ran against
   RUN_URL, REPO, SHA, ACTOR, COMMIT_SUBJECT   run context
+  DASHBOARD_URL                       pipeline dashboard (optional); adds a button to the card
 """
 import json
 import os
@@ -209,9 +210,14 @@ def main():
             blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text":
                 f"{summary['skipped']} scenario(s) skipped - usually missing E2E superadmin secrets."}]})
 
+    buttons = []
     if run_url:
-        blocks.append({"type": "actions", "elements": [
-            {"type": "button", "text": {"type": "plain_text", "text": "View run & report"}, "url": run_url}]})
+        buttons.append({"type": "button", "text": {"type": "plain_text", "text": "View run & report"}, "url": run_url})
+    dashboard_url = env("DASHBOARD_URL", "")
+    if dashboard_url.startswith("https://"):
+        buttons.append({"type": "button", "text": {"type": "plain_text", "text": "📊 Dashboard"}, "url": dashboard_url})
+    if buttons:
+        blocks.append({"type": "actions", "elements": buttons})
 
     print(json.dumps({"text": f"{title}: {context}", "attachments": [{"color": colour, "blocks": blocks}]}))
 

@@ -126,6 +126,8 @@ This is not an enforced gate: anyone with write access can still merge manually.
 - Run `pipeline-dashboard` once from the Actions tab (`workflow_dispatch`); the URL appears on the run and under
   Settings → Pages. After that it refreshes by itself.
 - If the deploy is refused, check **Settings → Environments → github-pages → Deployment branches** allows `develop`.
+- The dashboard URL is `https://<owner>.github.io/<repo>/` (override with the repository variable `DASHBOARD_URL`). The
+  release PR body and the Slack test cards link to it.
 - The page shows only what the public API already exposes. Keep it that way: do not add anything from secrets or logs.
 
 ## Daily flow
