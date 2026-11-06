@@ -53,5 +53,6 @@ sequenceDiagram
 |---|---|---|
 | `VITE_API_BASE_URL` | ✅ | `https://dairy-distribution-manager-vmd.onrender.com/api/v1` |
 | `VITE_APP_VERSION` | — | `1.5.0` |
+| `VITE_BILL_PROPRIETOR` / `VITE_BILL_ADDRESS` / `VITE_BILL_PHONES` | — | Bill masthead; set in Vercel so they stay out of git |
 
 Vite inlines `VITE_*` values at build time — changing one on Vercel requires a redeploy.

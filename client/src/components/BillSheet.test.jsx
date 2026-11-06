@@ -34,8 +34,8 @@ describe('BillSheet', () => {
   it('renders the dairy masthead', () => {
     render(<BillSheet bill={BILL} />);
     expect(screen.getByText('VIKAS MILK DAIRY')).toBeInTheDocument();
-    expect(screen.getByText('15th Cross, M.G.S.Road, NANJANGUD - 571 301')).toBeInTheDocument();
-    expect(screen.getByText('Pro: K.B. NAGARAJU')).toBeInTheDocument();
+    expect(screen.getByText('1 Test Road, Sample Town - 000 000')).toBeInTheDocument();
+    expect(screen.getByText('Pro: TEST PROPRIETOR')).toBeInTheDocument();
     expect(screen.getByText('Cash / Credit Bill')).toBeInTheDocument();
   });
 

@@ -107,6 +107,7 @@ answers.
 |---|:-:|---|
 | `VITE_API_BASE_URL` | ✅ | Backend URL including `/api/v1` |
 | `VITE_APP_VERSION` | — | Override build tag |
+| `VITE_BILL_PROPRIETOR`, `VITE_BILL_ADDRESS`, `VITE_BILL_PHONES` | — | Bill masthead details (blank if unset); set in Vercel |
 
 ### 4.3 CI (GitHub Environments `staging`)
 
