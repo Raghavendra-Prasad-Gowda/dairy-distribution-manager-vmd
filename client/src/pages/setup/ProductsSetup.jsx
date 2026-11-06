@@ -21,7 +21,14 @@ function fmtPriceDate(iso) {
   const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
   return { date, time };
 }
-const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 210, 225, 250, 400, 450, 490, 500, 1000, 2000, 5000, 15000];
+// One list for ml and gram. 425, 440, 475, 950 and 10000 came from Godrej Jersey's 04 Nov 2026 price revision
+// (475 ml milk, 425 g / 440 g / 950 g curd pouches, 10 kg bucket).
+const UNIT_SIZES = [8, 10, 12, 20, 25, 30, 50, 75, 100, 140, 160, 180, 200, 210, 225, 250, 400, 425, 440, 450, 475, 490, 500, 950, 1000, 2000, 5000, 10000, 15000];
+// An existing product may carry a size that is not in the list; keep it selectable so editing never blanks it.
+function sizeOptions(current) {
+  const n = parseInt(current, 10);
+  return Number.isInteger(n) && n > 0 && !UNIT_SIZES.includes(n) ? [...UNIT_SIZES, n].sort((a, b) => a - b) : UNIT_SIZES;
+}
 const EMPTY_FORM = { name: '', categoryId: '', unitType: 'ml', unitSize: '500', containerType: '', unitsPerContainer: '', costPrice: '', sellingPrice: '', effectiveFrom: getIndiaDate() };
 
 export default function ProductsSetup() {
@@ -466,7 +473,7 @@ export default function ProductsSetup() {
                       className="ddm-input bg-white"
                     >
                       <option value="">— Select size —</option>
-                      {UNIT_SIZES.map(s => <option key={s} value={s}>{s} {form.unitType}</option>)}
+                      {sizeOptions(form.unitSize).map(s => <option key={s} value={s}>{s} {form.unitType}</option>)}
                     </select>
                   </div>
                 )}
