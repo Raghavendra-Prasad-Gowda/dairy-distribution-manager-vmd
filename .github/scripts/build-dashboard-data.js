@@ -32,11 +32,14 @@ const minutes = (r) => {
 };
 
 (async () => {
-  const [runsRes, prsRes, releasesRes] = await Promise.all([
+  const [runsRes, recentPrs, openPrs, releasesRes] = await Promise.all([
     gh('actions/runs?per_page=100'),
     gh('pulls?state=all&sort=updated&direction=desc&per_page=50'),
+    gh('pulls?state=open&per_page=100'), // every open PR, even ones not touched recently
     gh('releases?per_page=20'),
   ]);
+  const seen = new Set();
+  const prsRes = [...openPrs, ...recentPrs].filter((p) => !seen.has(p.number) && seen.add(p.number));
 
   const runs = runsRes.workflow_runs
     .filter((r) => r.event !== 'dynamic') // Dependabot updater runs are noise

@@ -30,6 +30,7 @@ th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600
 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .n{text-align:right}
 a{color:inherit;text-underline-offset:2px}
+.tile-link{text-decoration:none;color:inherit}.tile-link:hover{border-color:var(--accent)}.tile-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
 .err{color:var(--bad)}
 details{color:var(--muted);font-size:12px}details p{margin:6px 0}
@@ -48,7 +49,8 @@ details{color:var(--muted);font-size:12px}details p{margin:6px 0}
     <div class="card tile"><span>Latest staging run</span><b id="k-stg">—</b><span id="k-stg-at"></span></div>
     <div class="card tile"><span>Latest production check</span><b id="k-prod">—</b><span id="k-prod-at"></span></div>
     <div class="card tile"><span>Latest release</span><b id="k-rel">—</b><span id="k-rel-at"></span></div>
-    <div class="card tile"><span>Open pull requests</span><b id="k-open">—</b><span>Includes dependency bumps</span></div>
+    <a class="card tile tile-link" id="k-dev-link" target="_blank" rel="noopener"><span>Open PRs into develop</span><b id="k-dev">—</b><span>View on GitHub</span></a>
+    <a class="card tile tile-link" id="k-main-link" target="_blank" rel="noopener"><span>Open PRs into main</span><b id="k-main">—</b><span>View on GitHub</span></a>
   </section>
 
   <section class="card">
@@ -65,8 +67,12 @@ details{color:var(--muted);font-size:12px}details p{margin:6px 0}
       <div class="scroll"><table><thead><tr><th>Tag</th><th>Published</th></tr></thead><tbody id="t-rel"></tbody></table></div></section>
   </div>
 
-  <section class="card"><h2>Open pull requests</h2><p class="sub">Release PRs come from the release bot; dependency PRs from Dependabot.</p>
-    <div class="scroll"><table><thead><tr><th>PR</th><th>Title</th><th>Type</th><th>Into</th><th>Opened</th></tr></thead><tbody id="t-pr"></tbody></table></div></section>
+  <div class="grid">
+    <section class="card"><h2>Waiting to merge into develop</h2><p class="sub"><a id="l-dev" target="_blank" rel="noopener">All open PRs into develop</a>. Oldest first.</p>
+      <div class="scroll"><table><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-dev"></tbody></table></div></section>
+    <section class="card"><h2>Waiting to merge into main</h2><p class="sub"><a id="l-main" target="_blank" rel="noopener">All open PRs into main</a>. These deploy to production.</p>
+      <div class="scroll"><table><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-main"></tbody></table></div></section>
+  </div>
 
   <section class="card"><h2>Failed runs</h2><p class="sub">Most recent first.</p>
     <div class="scroll"><table><thead><tr><th>Workflow</th><th>Branch</th><th>Started</th></tr></thead><tbody id="t-fail"></tbody></table></div></section>
@@ -158,7 +164,15 @@ details{color:var(--muted);font-size:12px}details p{margin:6px 0}
     var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
     $('k-rel').textContent = rel ? rel.tag : '—'; $('k-rel-at').textContent = rel ? when(rel.published_at) : '';
     var open = prs.filter(function (p) { return p.state === 'open'; }).sort(function (a, b) { return b.number - a.number; });
-    $('k-open').textContent = String(open.length);
+    var q = function (base) { return 'https://github.com/' + d.repo + '/pulls?q=' + encodeURIComponent('is:pr is:open base:' + base); };
+    var byBase = function (base) { return open.filter(function (p) { return p.base === base; }).sort(function (a, b) { return a.created_at.localeCompare(b.created_at); }); };
+    var age = function (s) { var days = Math.floor((Date.parse(d.generated_at) - Date.parse(s)) / 86400000); return days < 1 ? 'today' : days + 'd'; };
+    [['develop', 'dev'], ['main', 'main']].forEach(function (b) {
+      var list = byBase(b[0]); var url = q(b[0]);
+      $('k-' + b[1]).textContent = String(list.length);
+      $('k-' + b[1] + '-link').href = url; $('l-' + b[1]).href = url;
+      rows('t-pr-' + b[1], list, function (tr, p) { linkTd(tr, '#' + p.number, p.url); td(tr, p.title); td(tr, p.kind); td(tr, age(p.created_at), 'n'); });
+    });
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
     $('take').textContent = relPr ? 'Release PR #' + relPr.number + ' is open and waiting for approval into main.' : 'No release PR is open. Main has everything that passed staging.';
     var days = runs.map(function (r) { return r.created_at; }).sort();
@@ -175,7 +189,6 @@ details{color:var(--muted);font-size:12px}details p{margin:6px 0}
       td(tr, w.name); td(tr, w.runs, 'n'); td(tr, w.success, 'n'); td(tr, w.failure, 'n'); td(tr, w.cancelled, 'n'); td(tr, w.timed ? (w.mins / w.timed).toFixed(1) : '0.0', 'n');
     });
     rows('t-rel', rels, function (tr, r) { linkTd(tr, r.tag, r.url); td(tr, when(r.published_at)); });
-    rows('t-pr', open, function (tr, p) { linkTd(tr, '#' + p.number, p.url); td(tr, p.title); td(tr, p.kind); td(tr, p.base); td(tr, when(p.created_at)); });
     rows('t-fail', runs.filter(function (r) { return r.conclusion === 'failure'; }).sort(function (a, b) { return b.created_at.localeCompare(a.created_at); }), function (tr, r) {
       linkTd(tr, r.workflow, r.url); td(tr, r.branch); td(tr, when(r.created_at));
     });
