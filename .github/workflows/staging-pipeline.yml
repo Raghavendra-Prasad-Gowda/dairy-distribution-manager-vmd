@@ -23,6 +23,8 @@ env:
   API_URL: ${{ vars.STAGING_API_URL || 'https://dairy-distribution-manager-vmd-testing.onrender.com' }}
   WEB_URL: ${{ vars.STAGING_WEB_URL || 'https://dairy-distribution-manager-vmd-testing.vercel.app' }}
   VERCEL_PROJECT: ${{ vars.STAGING_VERCEL_PROJECT || 'dairy-distribution-manager-vmd-testing' }}
+  # Pipeline dashboard on GitHub Pages (pipeline-dashboard.yml); linked from the Slack cards and the release PR.
+  DASHBOARD_URL: ${{ vars.DASHBOARD_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
 
 jobs:
   wait-for-deploy:
@@ -292,6 +294,7 @@ jobs:
             echo "Staging is verified for \`$short\`: deployed to testing, API automation and UI automation passed."
             echo
             echo "- Run and reports: $RUN_URL"
+            echo "- Pipeline dashboard: $DASHBOARD_URL"
             echo "- Commits not yet on main: $ahead"
             echo
             echo "### Changes"

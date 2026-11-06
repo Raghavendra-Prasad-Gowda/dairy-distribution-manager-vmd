@@ -189,6 +189,34 @@ describe('ProductsSetup — Show in Receipt toggle', () => {
   });
 });
 
+describe('ProductsSetup — size per unit options', () => {
+  const sizeSelect = () => screen.getByText(/Size per unit/).closest('div').querySelector('select');
+  const sizes = () => [...sizeSelect().options].map(o => o.value).filter(Boolean).map(Number);
+
+  it('offers the sizes from the Jersey price revision (475 ml, 425/440/950 g, 10 kg)', async () => {
+    render(<ProductsSetup />);
+    await screen.findByText('Add Product');
+    fireEvent.click(screen.getByText('Add Product'));
+    expect(sizes()).toEqual(expect.arrayContaining([425, 440, 475, 950, 10000]));
+  });
+
+  it('keeps the list in ascending order', async () => {
+    render(<ProductsSetup />);
+    await screen.findByText('Add Product');
+    fireEvent.click(screen.getByText('Add Product'));
+    expect(sizes()).toEqual([...sizes()].sort((a, b) => a - b));
+  });
+
+  it('keeps an existing product\'s unusual size selectable when editing', async () => {
+    mockApi({ products: [product({ id: 7, name: 'Odd Pack', unitSize: 333 })] });
+    render(<ProductsSetup />);
+    await screen.findByText('Odd Pack');
+    fireEvent.click(screen.getByTitle('Edit'));
+    expect(sizeSelect().value).toBe('333');
+    expect(sizes()).toContain(333);
+  });
+});
+
 describe('ProductsSetup — add product', () => {
   async function openAddAndFillBasics() {
     fireEvent.click(screen.getByText('Add Product'));
