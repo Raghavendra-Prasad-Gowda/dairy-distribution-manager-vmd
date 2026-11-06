@@ -38,8 +38,9 @@ a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-of
 h1{font:600 clamp(24px,4vw,34px)/1.1 var(--display);margin:0;letter-spacing:-.01em}
 .meta{margin:6px 0 0;color:var(--band-muted);font-size:12.5px}
 .take{margin:10px 0 0;font-size:15px;color:var(--band-ink)}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;min-height:20px}.badges img{display:block;height:20px}.badges a{border-radius:4px}
 .health{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;font-weight:600;font-size:13px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)}
-.health i{width:9px;height:9px;border-radius:50%;background:var(--idle)}
+.health i{display:none}
 .health.good i{background:#5fe0a1;box-shadow:0 0 0 4px rgba(95,224,161,.22)}
 .health.attn i{background:#ffb04a;box-shadow:0 0 0 4px rgba(255,176,74,.22)}
 
@@ -119,52 +120,52 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     <div class="brand">
       <span class="logo" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32"><path d="M16 4c5 6 8 10 8 14a8 8 0 0 1-16 0c0-4 3-8 8-14z" fill="#f4f1e8"/><path d="M12 19a4 4 0 0 0 4 4" stroke="#0d3b2e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>
       <div>
-        <h1>VMD Pipeline Dashboard</h1>
+        <h1>🥛 VMD Pipeline Dashboard</h1>
         <p class="meta" id="meta">Loading…</p>
       </div>
     </div>
     <span class="health" id="health"><i></i><span>Checking…</span></span>
   </div>
-  <div class="inner"><p class="take" id="take"></p></div>
+  <div class="inner"><p class="take" id="take"></p><div class="badges" id="badges" aria-label="Workflow status badges"></div></div>
 </header>
 
 <main class="pad"><div class="inner" style="display:flex;flex-direction:column;gap:18px">
   <section class="card" aria-label="Pipeline flow">
-    <div class="head"><div><h2>Pipeline flow</h2><p class="sub">Latest state of each stage, from pull request to production.</p></div></div>
+    <div class="head"><div><h2>🔄 Pipeline flow</h2><p class="sub">Latest state of each stage, from pull request to production.</p></div></div>
     <div class="flow" id="flow"></div>
   </section>
 
   <section class="tiles" aria-label="Headline figures">
-    <div class="card tile"><span class="k">Pass rate, scored runs</span>
+    <div class="card tile"><span class="k">✅ Pass rate, scored runs</span>
       <div class="ring"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="var(--idle-bg)" stroke-width="8"/><circle id="ring" cx="32" cy="32" r="26" fill="none" stroke="var(--ok)" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 164" transform="rotate(-90 32 32)"/></svg><b id="k-rate">—</b></div>
       <span class="t">Passed out of passed plus failed</span></div>
-    <a class="card tile" id="k-dev-link" target="_blank" rel="noopener"><span class="k">Open PRs into develop</span><b id="k-dev">—</b><span class="t" id="k-dev-t">View on GitHub</span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
-    <a class="card tile" id="k-main-link" target="_blank" rel="noopener"><span class="k">Open PRs into main</span><b id="k-main">—</b><span class="t" id="k-main-t">View on GitHub</span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
-    <a class="card tile" id="k-rel-link" target="_blank" rel="noopener"><span class="k">Latest release</span><b id="k-rel">—</b><span class="t" id="k-rel-at"></span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
-    <div class="card tile"><span class="k">Staging run time</span><b id="k-time">—</b><span class="t">Average, finished runs</span></div>
+    <a class="card tile" id="k-dev-link" target="_blank" rel="noopener"><span class="k">🌿 Open PRs into develop</span><b id="k-dev">—</b><span class="t" id="k-dev-t">View on GitHub</span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
+    <a class="card tile" id="k-main-link" target="_blank" rel="noopener"><span class="k">🚦 Open PRs into main</span><b id="k-main">—</b><span class="t" id="k-main-t">View on GitHub</span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
+    <a class="card tile" id="k-rel-link" target="_blank" rel="noopener"><span class="k">🏷️ Latest release</span><b id="k-rel">—</b><span class="t" id="k-rel-at"></span><svg class="go" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></a>
+    <div class="card tile"><span class="k">⏱️ Staging run time</span><b id="k-time">—</b><span class="t">Average, finished runs</span></div>
   </section>
 
   <section class="card">
-    <div class="head"><div><h2>Workflow runs per day</h2><p class="sub">Skipped runs are left out. Cancelled means a newer push replaced the run.</p></div>
+    <div class="head"><div><h2>📈 Workflow runs per day</h2><p class="sub">Skipped runs are left out. Cancelled means a newer push replaced the run.</p></div>
       <div class="legend"><span><i style="background:var(--ok)"></i>Passed</span><span><i style="background:var(--mute)"></i>Cancelled</span><span><i style="background:var(--bad)"></i>Failed</span></div></div>
     <div class="chart" id="chart"></div>
   </section>
 
   <div class="grid">
-    <section class="card"><div class="head"><div><h2>Waiting to merge into develop</h2><p class="sub"><a id="l-dev" target="_blank" rel="noopener">All open PRs into develop</a> · oldest first</p></div></div>
+    <section class="card"><div class="head"><div><h2>🌿 Waiting to merge into develop</h2><p class="sub"><a id="l-dev" target="_blank" rel="noopener">All open PRs into develop</a> · oldest first</p></div></div>
       <div class="scroll"><table class="prs"><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-dev"></tbody></table></div></section>
-    <section class="card"><div class="head"><div><h2>Waiting to merge into main</h2><p class="sub"><a id="l-main" target="_blank" rel="noopener">All open PRs into main</a> · these deploy to production</p></div></div>
+    <section class="card"><div class="head"><div><h2>🚀 Waiting to merge into main</h2><p class="sub"><a id="l-main" target="_blank" rel="noopener">All open PRs into main</a> · these deploy to production</p></div></div>
       <div class="scroll"><table class="prs"><thead><tr><th>PR</th><th>Title</th><th>Type</th><th class="n">Age</th></tr></thead><tbody id="t-pr-main"></tbody></table></div></section>
   </div>
 
   <div class="grid">
-    <section class="card"><div class="head"><div><h2>By workflow</h2><p class="sub">Average minutes ignore skipped runs.</p></div></div>
+    <section class="card"><div class="head"><div><h2>⚙️ By workflow</h2><p class="sub">Average minutes ignore skipped runs.</p></div></div>
       <div class="scroll"><table class="wf"><thead><tr><th>Workflow</th><th class="n">Runs</th><th class="n">Failed</th><th>Pass rate</th><th class="n">Avg min</th></tr></thead><tbody id="t-wf"></tbody></table></div></section>
-    <section class="card"><div class="head"><div><h2>Releases</h2><p class="sub">Tagged after each merge to main.</p></div></div>
+    <section class="card"><div class="head"><div><h2>🏷️ Releases</h2><p class="sub">Tagged after each merge to main.</p></div></div>
       <ul class="timeline" id="t-rel"></ul></section>
   </div>
 
-  <section class="card"><div class="head"><div><h2>Failed runs</h2><p class="sub">Most recent first. Open one to see the log.</p></div></div>
+  <section class="card"><div class="head"><div><h2>❌ Failed runs</h2><p class="sub">Most recent first. Open one to see the log.</p></div></div>
     <div class="scroll"><table><thead><tr><th>Workflow</th><th>Branch</th><th>Started</th></tr></thead><tbody id="t-fail"></tbody></table></div></section>
 
   <details><summary>Definitions and what is left out</summary>
@@ -223,11 +224,11 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var rel = d.releases.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
     var steps = [
-      ['Pull request checks', pr ? LABEL[pr.conclusion] || pr.conclusion : 'No runs', pr ? TONE[pr.conclusion] || 'idle' : 'idle', pr ? ago(pr.created_at) : '', pr && pr.url],
-      ['Staging on develop', stg ? LABEL[stg.conclusion] || stg.conclusion : 'No runs', stg ? TONE[stg.conclusion] || 'idle' : 'idle', stg ? ago(stg.created_at) : '', stg && stg.url],
-      ['Release PR into main', relPr ? 'Awaiting approval' : 'None open', relPr ? 'warn' : 'ok', relPr ? '#' + relPr.number + ' · ' + ago(relPr.created_at) : 'main is up to date', relPr && relPr.url],
-      ['Production verify', prod ? LABEL[prod.conclusion] || prod.conclusion : 'No runs', prod ? TONE[prod.conclusion] || 'idle' : 'idle', prod ? ago(prod.created_at) : '', prod && prod.url],
-      ['Latest release', rel ? rel.tag : 'None', rel ? 'ok' : 'idle', rel ? ago(rel.published_at) : '', rel && rel.url]
+      ['🔀 Pull request checks', pr ? LABEL[pr.conclusion] || pr.conclusion : 'No runs', pr ? TONE[pr.conclusion] || 'idle' : 'idle', pr ? ago(pr.created_at) : '', pr && pr.url],
+      ['🧪 Staging on develop', stg ? LABEL[stg.conclusion] || stg.conclusion : 'No runs', stg ? TONE[stg.conclusion] || 'idle' : 'idle', stg ? ago(stg.created_at) : '', stg && stg.url],
+      ['📦 Release PR into main', relPr ? 'Awaiting approval' : 'None open', relPr ? 'warn' : 'ok', relPr ? '#' + relPr.number + ' · ' + ago(relPr.created_at) : 'main is up to date', relPr && relPr.url],
+      ['🚀 Production verify', prod ? LABEL[prod.conclusion] || prod.conclusion : 'No runs', prod ? TONE[prod.conclusion] || 'idle' : 'idle', prod ? ago(prod.created_at) : '', prod && prod.url],
+      ['🏷️ Latest release', rel ? rel.tag : 'None', rel ? 'ok' : 'idle', rel ? ago(rel.published_at) : '', rel && rel.url]
     ];
     steps.forEach(function (s, i) {
       if (i) { var a = el('div', null, 'arrow'); a.innerHTML = ARROW; box.appendChild(a); }
@@ -302,12 +303,18 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var open = prs.filter(function (p) { return p.state === 'open'; });
     var f = flow(d, open);
     var healthy = f.stg && f.prod && f.stg.conclusion === 'success' && f.prod.conclusion === 'success';
-    var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? 'Healthy' : 'Needs attention';
+    var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? '✅ Healthy' : '⚠️ Needs attention';
 
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
-    $('take').textContent = relPr ? 'Release PR #' + relPr.number + ' is open and waiting for approval into main.' : 'No release PR is open. Main has everything that passed staging.';
+    $('take').textContent = relPr ? '⏳ Release PR #' + relPr.number + ' is open and waiting for approval into main.' : '🎉 No release PR is open. Main has everything that passed staging.';
     var days = runs.map(function (r) { return r.created_at; }).sort();
     $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (IST)';
+    var bd = $('badges'); bd.replaceChildren();
+    [['staging-pipeline.yml', 'develop', 'Staging pipeline'], ['production-verify.yml', 'main', 'Production verify'], ['pipeline-dashboard.yml', 'develop', 'Dashboard build']].forEach(function (b) {
+      var base = 'https://github.com/' + d.repo + '/actions/workflows/' + b[0];
+      var a = el('a'); a.href = base; a.target = '_blank'; a.rel = 'noopener';
+      var img = new Image(); img.alt = b[2] + ' status'; img.src = base + '/badge.svg?branch=' + b[1]; a.appendChild(img); bd.appendChild(a);
+    });
     $('foot').textContent = 'Updated ' + when(d.generated_at) + ' IST · rebuilt after every staging and production run, and hourly.';
 
     var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];

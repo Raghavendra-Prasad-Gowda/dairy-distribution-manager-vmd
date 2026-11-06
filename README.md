@@ -3,6 +3,11 @@
 > A production business-management platform for **Vikas Milk Dairy**: multi-brand stock receipt, cascading
 > dairy and salesperson ledgers, daily dispatch and collections, printed bills, and financial reporting.
 
+[![Staging pipeline](https://github.com/Raghavendra-Prasad-Gowda/dairy-distribution-manager-vmd/actions/workflows/staging-pipeline.yml/badge.svg?branch=develop)](https://github.com/Raghavendra-Prasad-Gowda/dairy-distribution-manager-vmd/actions/workflows/staging-pipeline.yml)
+[![Production verify](https://github.com/Raghavendra-Prasad-Gowda/dairy-distribution-manager-vmd/actions/workflows/production-verify.yml/badge.svg?branch=main)](https://github.com/Raghavendra-Prasad-Gowda/dairy-distribution-manager-vmd/actions/workflows/production-verify.yml)
+[![Dashboard build](https://github.com/Raghavendra-Prasad-Gowda/dairy-distribution-manager-vmd/actions/workflows/pipeline-dashboard.yml/badge.svg?branch=develop)](https://github.com/Raghavendra-Prasad-Gowda/dairy-distribution-manager-vmd/actions/workflows/pipeline-dashboard.yml)
+[📊 Live pipeline dashboard](https://raghavendra-prasad-gowda.github.io/dairy-distribution-manager-vmd/)
+
 | | |
 |---|---|
 | **Status** | 🟢 In production |
