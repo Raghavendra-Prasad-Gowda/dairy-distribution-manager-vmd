@@ -60,6 +60,7 @@ client/automation-ui/
     ├── auth.setup.ts        # sign in once, save .auth/admin.json
     ├── login.spec.ts        # sign in, wrong credentials, signed-out redirect
     ├── dashboard.spec.ts    # quick actions, payable cards vs server balances, total badge, day change
+    ├── category-setup.spec.ts # add / edit / delete / search / duplicate / brand scoping
     ├── route-setup.spec.ts  # add / edit / delete a route, duplicate rejection, empty form, cancel paths, brand scoping
     └── salesman/            # phone-only specs (create when needed)
 ```
@@ -70,9 +71,12 @@ client/automation-ui/
 |---|---|
 | `login.spec.ts` | Successful sign-in lands on the dashboard · wrong credentials show an error, clear the password and keep the username (unknown username) · signed-out user is redirected to login |
 | `dashboard.spec.ts` | Quick actions open Stock Receipt / Collections / Dairy Payments · one card per brand with the Outstanding / Credit / Cleared status the API balance implies, Pay Now only when owed · total badge sums only owed brands · previous day / Today reload the balances for that day (read-only) |
+| `category-setup.spec.ts` | Add, edit, delete and reload · name trimmed · duplicate rejected · empty form · edit prefill + Cancel · delete warning + Cancel · search filter · brand scoping |
 | `route-setup.spec.ts` | Add, edit, delete a route and confirm after reload · duplicate route rejected · empty form validation · edit form prefilled and Cancel changes nothing · cancelling delete keeps the route · a route is not listed under another brand |
 
 ## 📚 Documentation
+
+Vitest → Playwright port status: [docs/vitest-migration.md](docs/vitest-migration.md).
 
 | Document | Contents |
 |---|---|

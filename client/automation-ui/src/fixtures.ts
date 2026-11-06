@@ -7,6 +7,9 @@ import { test as base, expect, type Page } from '@playwright/test';
  * signed-in browser — no extra configuration or extra login needed.
  */
 type Fixtures = {
+  /** Registers anything created through the UI (`POST <collection>` -> `DELETE <collection>/<id>`). */
+  trackCreated: (createUrl: string, id: number) => void;
+  /** Same as `trackCreated`; kept so existing route specs read naturally. */
   trackRoute: (createUrl: string, id: number) => void;
 };
 
@@ -15,7 +18,7 @@ async function sessionToken(page: Page): Promise<string | null> {
 }
 
 export const test = base.extend<Fixtures>({
-  trackRoute: async ({ page }, use) => {
+  trackCreated: async ({ page }, use) => {
     const created: string[] = [];
     await use((createUrl, id) => created.push(`${createUrl.replace(/\/$/, '')}/${id}`));
 
@@ -28,6 +31,9 @@ export const test = base.extend<Fixtures>({
         throw new Error(`cleanup: DELETE ${url} -> ${res.status()} ${await res.text()}`);
       }
     }
+  },
+  trackRoute: async ({ trackCreated }, use) => {
+    await use(trackCreated);
   },
 });
 

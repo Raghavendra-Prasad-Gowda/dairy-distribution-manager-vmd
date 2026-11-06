@@ -25,6 +25,7 @@ client/automation-ui/
     ├── auth.setup.ts      # signs in once through the real form, saves the session
     ├── login.spec.ts      # runs signed out
     ├── dashboard.spec.ts  # read-only; cards checked against the API's own balances
+    ├── category-setup.spec.ts
     ├── route-setup.spec.ts
     └── salesman/          # (create when needed) phone-only salesman specs
 ```
@@ -61,8 +62,8 @@ the workflow and scripts.
 1. **Selectors live in `src/pages/`, behaviour in `tests/`.** Specs never contain a locator string.
    Prefer `getByRole` / `getByLabel` / visible text over CSS or test ids.
 2. **Import `test` and `expect` from `src/fixtures`**, not straight from `@playwright/test`, so cleanup
-   fixtures are available.
-3. **Everything a test creates is named `E2E-<unique>` and registered for cleanup** (`trackRoute(url, id)`
+   fixtures are available. Page objects extend `BasePage` (notice + dialog helpers).
+3. **Everything a test creates is named `E2E-<unique>` and registered for cleanup** (`trackCreated(url, id)` (alias `trackRoute`)
    or a new fixture in `src/fixtures.ts` built the same way). Cleanup runs pass or fail and must tolerate 404.
 4. **Assert persistence, not just React state** — reload and re-check after a save.
 5. **Never sign in per test.** Login is limited to 20 attempts/hour/IP and the API suite uses the same budget.
