@@ -42,4 +42,33 @@ export class PricingPage extends BasePage {
     await this.page.getByRole('button', { name: 'Save Price' }).click();
     await editor.waitFor({ state: 'detached' }).catch(() => undefined);
   }
+
+  /** Superadmin only, on the "Global" view: grant or remove a per-salesperson exception to a globally-off product. */
+  async openExceptionManager(): Promise<void> {
+    await this.page.getByRole('complementary').getByRole('button', { name: /Global/ }).click();
+    await this.page.getByRole('button', { name: 'Exception Manager' }).click();
+    await this.page.getByRole('heading', { name: 'Exception Manager' }).waitFor();
+  }
+
+  /** Ticks one product and one salesperson in the open Exception Manager, optionally with a price. */
+  async chooseException(productName: string, salespersonName: string, price?: number): Promise<void> {
+    await this.page.getByPlaceholder('Search disabled products…').fill(productName);
+    await this.page.getByRole('checkbox', { name: new RegExp(productName) }).check();
+    if (price !== undefined) {
+      await this.page.locator('label').filter({ hasText: productName }).getByRole('spinbutton').fill(String(price));
+    }
+    await this.page.getByPlaceholder('Search salespeople…').fill(salespersonName);
+    await this.page.getByRole('checkbox', { name: new RegExp(salespersonName) }).check();
+  }
+
+  /** Switches the Exception Manager to removing the exception again. */
+  async chooseRemoveException(): Promise<void> {
+    await this.page.getByRole('button', { name: /Remove exception/ }).click();
+  }
+
+  /** Applies it ("Enable (1P x 1S)" / "Disable (1P x 1S)") and acknowledges the result. */
+  async applyException(action: 'Enable' | 'Disable', notice: RegExp): Promise<void> {
+    await this.page.getByRole('button', { name: new RegExp(`^${action} \\(1P`) }).click();
+    await this.acknowledgeNotice(notice);
+  }
 }

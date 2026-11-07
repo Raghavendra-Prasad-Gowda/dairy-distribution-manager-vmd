@@ -24,8 +24,8 @@ client/automation-ui/
 │   └── pages/             # page objects (BasePage parent) — every selector lives here
 └── tests/                 # login · navigation · dairy-ledger · salesperson-ledger · catalog-setup · salesman-users ·
     │                      # pricing-and-bills · reports · access-roles · superadmin · opening-balances ·
-    │                      # dispatcher  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
-    └── salesman/          # phone specs: stock-entry · security
+    │                      # dispatcher · exception-manager · deposit-and-stock-balance  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
+    └── salesman/          # phone specs: stock-entry · security · statement
 ```
 
 ## Where it runs

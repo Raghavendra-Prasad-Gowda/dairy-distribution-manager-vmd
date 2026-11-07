@@ -152,6 +152,11 @@ export class SalesmanStatementPage {
   get owed(): Locator {
     return this.card(/^Owed$/i);
   }
+
+  /** Narrows the statement to start on `isoDate` (the "From" box; it opens on the first of the month). */
+  async setFrom(isoDate: string): Promise<void> {
+    await this.page.locator('input[type="date"]').first().fill(isoDate);
+  }
 }
 
 /** /salesman/change-password */
@@ -189,4 +194,14 @@ export async function newIpad(browser: Browser): Promise<Page> {
     storageState: { cookies: [], origins: [] },
   });
   return context.newPage();
+}
+
+/** A separate signed-in superadmin iPad (landscape), for screens only a superadmin sees. */
+export async function newSuperadminIpad(browser: Browser): Promise<Page> {
+  const ipad = await newIpad(browser);
+  const login = new LoginPage(ipad);
+  await login.open();
+  await login.signIn(env.superadminUsername, env.superadminPassword);
+  await expect(ipad.getByRole('heading', { name: 'Dashboard' }).first()).toBeVisible();
+  return ipad;
 }

@@ -201,3 +201,69 @@ export class ProfitLossPage {
     return this.page.getByRole('row').filter({ hasText: /^TOTAL/ });
   }
 }
+
+/** /reports/deposit — crate deposits held with a brand, by day, with a running total. */
+export class DepositReportPage {
+  constructor(private readonly page: Page) {}
+
+  async open(brandName: string): Promise<void> {
+    await this.page.goto('/reports/deposit');
+    await this.page.getByRole('heading', { name: 'Deposit Report' }).waitFor();
+    await this.page.getByRole('button', { name: brandName, exact: true }).click();
+  }
+
+  get totalDeposit(): Locator {
+    return this.page.getByText('Total Deposit', { exact: true }).locator('xpath=following-sibling::p[1]');
+  }
+
+  /** The "Delete" link on a manual deposit top-up row (superadmin only). */
+  get deleteTopUp(): Locator {
+    return this.page.getByRole('button', { name: 'Delete', exact: true });
+  }
+
+  async removeTopUp(): Promise<void> {
+    await this.deleteTopUp.click();
+    const dialog = this.page.getByRole('dialog', { name: 'Delete Deposit Top-up' });
+    await dialog.waitFor();
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    await this.page.getByRole('heading', { name: 'Success' }).waitFor();
+    await this.page.getByRole('button', { name: 'OK', exact: true }).click();
+  }
+}
+
+/** /reports/stock-balance — per brand, what was received against what each salesperson took, for one day. */
+export class StockBalancePage {
+  constructor(private readonly page: Page) {}
+
+  async open(): Promise<void> {
+    await this.page.goto('/reports/stock-balance');
+    await this.page.getByRole('heading', { name: 'Stock Balance' }).waitFor();
+  }
+
+  async selectBrand(name: string): Promise<void> {
+    await this.page.getByRole('button', { name, exact: true }).click();
+  }
+
+  /** A summary chip above the grid: "Supply", "Dispatched" or "Shortage" (received minus dispatched). */
+  chip(label: 'Supply' | 'Dispatched' | 'Shortage'): Locator {
+    return this.page.getByText(label, { exact: true }).locator('xpath=following-sibling::span[1]');
+  }
+
+  /** One salesperson's line in the grid. */
+  row(name: string): Locator {
+    return this.page.getByRole('row').filter({ hasText: name });
+  }
+
+  async previousDay(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Previous day' }).click();
+  }
+
+  /** Jumps to any day through the date box. */
+  async setDate(isoDate: string): Promise<void> {
+    await this.page.locator('input[type="date"]').first().fill(isoDate);
+  }
+
+  get noData(): Locator {
+    return this.page.getByText('No dispatch data for this date');
+  }
+}

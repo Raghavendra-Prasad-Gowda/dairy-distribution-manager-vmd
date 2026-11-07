@@ -17,7 +17,7 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Opening dues loaded as a bulk top-up (superadmin), adds to the balance | ✅ | `opening-balances` |
 | Bulk top-up hidden from plain admins | ✅ | `opening-balances` |
 | Dairy statement, stock summary (route filter) | ✅ | `reports` |
-| Deposit report / deposit top-up | 🟡 | screen opens (`navigation`); figures not asserted |
+| Deposit report: crate deposit from stock (litres x rate), deposit top-up adds to it, delete restores; ledger untouched | ✅ | `deposit-and-stock-balance` |
 
 ## Money path - salesperson side
 
@@ -32,6 +32,9 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Full payment clears the outstanding card | ✅ | `salesperson-ledger` |
 | Salesperson opening dues (bulk top-up) raise the balance on every screen | ✅ | `opening-balances` |
 | Pricing set by admin reaches the phone | ✅ | `pricing-and-bills` |
+| Exception Manager: grant a globally-off product to one salesperson at their price, then remove it | ✅ | `exception-manager` |
+| Stock Balance: supply, dispatched, shortage and the per-salesperson row; empty day | ✅ | `deposit-and-stock-balance` |
+| Salesman's own statement narrowed by date range | ✅ | `salesman/statement` |
 | Bill preview, issue, delete | ✅ | `pricing-and-bills` |
 | Profit & Loss figures (cost, rate, qty, revenue, profit) behind the P&L PIN | ✅ | `reports` |
 | P&L PIN gate (wrong / right PIN) | ✅ | `access-roles` |
@@ -58,9 +61,7 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Print / PDF routes (`/print/*`) | Vitest | open in a new window; no stable assertion on paper output |
 | Brand creation, PIN change, ledger reset | `server/automation` | one-way / destructive on shared data |
 
-## Known remaining gaps (next candidates)
+## Known remaining gaps
 
-1. Exception Manager (per-salesperson product on/off) beyond the global toggle.
-2. Deposit report figures and deposit top-up.
-3. Stock-balance report figures (dispatcher view).
-4. Salesman self-service statement date-range / print.
+None of the business flows above are open. Smaller items still untested in the browser: crate counts on Stock Balance
+(needs a crate-sized product), the dispatch-summary view of the salesman statement, and print/PDF output.
