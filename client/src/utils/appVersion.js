@@ -12,15 +12,22 @@ export function formatVersion(version = APP_VERSION, commit = APP_COMMIT) {
 
 export const APP_VERSION_LABEL = formatVersion();
 
-/** "24 Oct 2026, 3:02 PM IST" from an ISO timestamp; '' when missing or invalid. */
-export function formatBuiltAt(iso = APP_BUILT_AT) {
+/**
+ * "24 Oct 2026, 3:02 PM IST" from an ISO timestamp; '' when missing or invalid.
+ * Shown in the viewer's own time zone (this is a display of one instant, not a business date, so the
+ * IST-only rule for business dates does not apply). `timeZone` is only for tests.
+ */
+export function formatBuiltAt(iso = APP_BUILT_AT, timeZone) {
   const d = iso ? new Date(iso) : null;
   if (!d || Number.isNaN(d.getTime())) return '';
-  const text = new Intl.DateTimeFormat('en-IN', {
+  const parts = new Intl.DateTimeFormat('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
-  }).format(d);
-  return `${text.replace(/\b(am|pm)\b/, (m) => m.toUpperCase())} IST`;
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  }).formatToParts(d);
+  const get = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+  const time = `${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()}`;
+  return `${get('day')} ${get('month')} ${get('year')}, ${time} ${get('timeZoneName')}`;
 }
 
 export const APP_BUILT_AT_LABEL = formatBuiltAt();
