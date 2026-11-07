@@ -841,7 +841,10 @@ feat/* → PR → develop → (auto-deploy testing) → API automation → UI au
 
 ### Branches
 - **`develop`** is the integration branch and the GitHub default. Never push to it directly — open a PR.
-- **`main`** is production. Only the release PR (`develop → main`) or a `hotfix/*` PR lands here.
+- **`main`** is production. Only the release PR (`release/next → main`) or a `hotfix/*` PR lands here.
+  `release/next` is rebuilt by `staging-pipeline` as develop + main + a `chore(release): vX.Y.Z` bump of the
+  `package.json`/lockfile versions, so the deployed build shows the release number (Vercel's clone has no tags);
+  `production-verify` then tags that same number. Never edit `release/next` by hand.
 - Work on a feature branch cut from `develop`:
   - `feat/<description>`, `fix/<description>`, `hotfix/<description>` (hotfix is cut from `main`)
 
@@ -858,8 +861,8 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Never force-push `develop` or `main`
 
 ### CI / pipeline
-- PRs to `develop` and `main` run `pr-checks.yml`: timezone lint, server + client ESLint, server Playwright specs under `c8` coverage (70/80/85/70), client Vitest under v8 coverage (78/68/70/80), client build, OpenAPI lint, `npm audit` (server + client), and `compile-automation-suite` (`server/automation` test-compile + `client/automation-ui` typecheck). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
-- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `server/automation` `@api` then `client/automation-ui` (Playwright + TypeScript), posts one Slack results card per suite, sets the `Staging Verified` commit status and opens/updates the release PR.
+- PRs to `develop` and `main` run `pr-checks.yml`: timezone lint, server + client ESLint, server Playwright specs under `c8` coverage (70/80/85/70), client Vitest under v8 coverage (78/68/70/80), client build, OpenAPI lint, `npm audit` (server + client), and `compile-automation-suite` (`server/automation` test-compile + `client/automation-ui` typecheck). The release PR (`release/next → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
+- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `server/automation` `@api` then `client/automation-ui` (Playwright + TypeScript), posts one Slack results card per suite, sets the `Staging Verified` commit status and opens/updates the release PR (head `release/next`, with the version bump).
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
 - A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks from `server/automation`, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
 - After a hotfix to `main`, open a PR `main → develop`.
