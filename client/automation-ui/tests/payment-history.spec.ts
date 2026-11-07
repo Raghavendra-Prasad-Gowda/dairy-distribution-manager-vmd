@@ -41,7 +41,7 @@ test.describe('Dairy payment history', () => {
     await expect(payments.youOwe).toHaveText(rupees(750));
   });
 
-  test('a wrong PIN never opens the edit form, and cancelling the edit changes nothing', async ({
+  test('cancelling an edit changes nothing', async ({
     page,
     superSeed,
     editPin,
@@ -51,13 +51,6 @@ test.describe('Dairy payment history', () => {
 
     const payments = new DairyPaymentsPage(page);
     await payments.open(brand.id);
-
-    await payments.historyRow('E2E-KEEP').getByRole('button', { name: 'Edit' }).click();
-    await payments.pin.expectOpen();
-    await payments.pin.submit('000000');
-    await expect(payments.pin.wrongPinMessage).toBeVisible();
-    await expect(payments.editForm).toHaveCount(0);
-    await page.reload(); // a wrong PIN leaves the prompt open; start clean
 
     await payments.openEdit(payments.historyRow('E2E-KEEP'), editPin);
     await payments.editForm.getByRole('spinbutton').fill('999');

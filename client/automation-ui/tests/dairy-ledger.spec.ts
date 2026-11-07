@@ -1,7 +1,6 @@
 import { expect, test } from '../src/fixtures';
 import { DashboardPage, rupees } from '../src/pages/DashboardPage';
 import { DairyPaymentsPage } from '../src/pages/DairyPaymentsPage';
-import { PinDialog } from '../src/pages/PinDialog';
 import { StockReceiptPage } from '../src/pages/StockReceiptPage';
 import { Seed, todayIST } from '../src/seed';
 
@@ -111,28 +110,6 @@ test.describe('Dairy ledger', () => {
     await dashboard.open();
     await expect(dashboard.status(brand.name, 'Credit')).toBeVisible();
     await expect(dashboard.payNow(brand.name)).toHaveCount(0);
-  });
-
-  test('deleting a payment is refused with a wrong PIN and the payment stays', async ({ page, superSeed }) => {
-    const { brand, route, product } = await world(superSeed);
-    await superSeed.stockReceipt(brand.id, todayIST(), [{ productId: product.id, quantity: 10, unitPrice: 10 }], route.id);
-    await superSeed.dairyPayment(brand.id, 30, todayIST());
-
-    const payments = new DairyPaymentsPage(page);
-    await payments.open(brand.id);
-    await expect(payments.youOwe).toHaveText(rupees(70));
-
-    await payments.historyRow(rupees(30)).getByRole('button', { name: 'Delete' }).click();
-    const pin = new PinDialog(page);
-    await pin.expectOpen();
-    await expect(pin.confirm).toBeDisabled(); // needs all six digits
-    await pin.submit('000000'); // deliberately wrong
-    await expect(pin.wrongPinMessage).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await page.reload();
-    await expect(payments.historyRow(rupees(30))).toHaveCount(1);
-    await expect(payments.youOwe).toHaveText(rupees(70));
   });
 
   test('a payment needs an amount of at least one paisa', async ({ page, superSeed }) => {

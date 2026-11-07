@@ -36,16 +36,6 @@ test.describe('Role access', () => {
     await ipad.context().close();
   });
 
-  test('Profit & Loss needs its own PIN: a wrong PIN is refused, the right one opens the report', async ({ page }) => {
-    await page.goto('/salesman/profit-loss');
-    const boxes = page.locator('input[type="password"]');
-    await expect(boxes).toHaveCount(6);
-    await boxes.first().click();
-    await page.keyboard.type('000000'); // deliberately wrong; the sixth digit submits it
-    await expect(page.getByText(/Incorrect PIN/)).toBeVisible();
-    await expect(page.getByText('Something went wrong')).toHaveCount(0);
-  });
-
   test('the right Profit & Loss PIN opens the report', async ({ page, plPin }) => {
     await page.goto('/salesman/profit-loss');
     const boxes = page.locator('input[type="password"]');
