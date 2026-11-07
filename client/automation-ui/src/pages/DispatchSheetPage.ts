@@ -20,14 +20,26 @@ export class DispatchSheetPage extends BasePage {
     return this.page.getByRole('complementary').getByRole('button', { name: new RegExp(name) });
   }
 
+  /**
+   * Opens a salesperson's panel. Other people's entries may already be selected (shared environment), so the click
+   * is retried until the panel's own footer names this salesperson.
+   */
   async select(name: string): Promise<void> {
     await this.search.fill(name);
-    await this.entry(name).click();
+    await expect(async () => {
+      await this.entry(name).click();
+      await expect(this.panelFor(name)).toBeVisible({ timeout: 2_000 });
+    }).toPass();
   }
 
   /** The detail panel on the right. */
   get detail(): Locator {
     return this.page.getByRole('main');
+  }
+
+  /** The detail panel's footer, which names the salesperson currently open. */
+  panelFor(name: string): Locator {
+    return this.page.getByText(`${name} · `);
   }
 
   get lockedBadge(): Locator {

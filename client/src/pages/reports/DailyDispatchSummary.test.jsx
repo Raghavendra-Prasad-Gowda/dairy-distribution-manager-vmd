@@ -317,6 +317,32 @@ describe('DailyDispatchSummary — lock / unlock', () => {
   });
 });
 
+describe('DailyDispatchSummary — selection survives a reload', () => {
+  it('keeps the salesperson you were working on open after Lock/Unlock refreshes the sheet', async () => {
+    mockApi({ rows: [
+      row({ salespersonId: 1, salespersonName: 'Ramu K', dispatchId: 501, totalAmount: 800 }),
+      row({ salespersonId: 2, salespersonName: 'Suresh M', dispatchId: 502, totalAmount: 600 }),
+    ] });
+    vi.mocked(api.patch).mockResolvedValue({ data: { success: true } });
+    render(<DailyDispatchSummary />);
+    await screen.findByText('Suresh M');
+
+    fireEvent.click(screen.getByText('Suresh M').closest('button')); // move off the auto-selected first row
+    await waitFor(() => expect(screen.getAllByText('Suresh M').length).toBeGreaterThanOrEqual(2));
+
+    fireEvent.click(screen.getByRole('button', { name: /Lock/i }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByText('Yes, Lock'));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/dispatches/502/lock'));
+
+    // The sheet reloaded, yet Suresh is still the open salesperson (sidebar entry + panel header),
+    // and Ramu — the first row — has not been auto-selected back in.
+    await waitFor(() => expect(vi.mocked(api.get).mock.calls.length).toBeGreaterThanOrEqual(2));
+    expect(screen.getAllByText('Suresh M').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Ramu K')).toHaveLength(1);
+  });
+});
+
 describe('DailyDispatchSummary — open for entry', () => {
   it('offers "Open for Entry" for a past date with no dispatch row, and posts on confirm', async () => {
     mockApi({ rows: [blankRow({ salespersonId: 1, salespersonName: 'Ramu K' })] });

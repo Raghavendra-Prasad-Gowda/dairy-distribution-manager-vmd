@@ -78,29 +78,74 @@ export class Seed {
    */
   async brand(): Promise<{ id: number; name: string }> {
     const brand = await this.create('superadmin', '/brands', { name: unique() }, 'brand');
-    this.onDispose(`empty and archive brand ${brand.id}`, async () => {
-      const receipts = await this.call('admin', 'get', `/stock-receipts?date=${todayIST()}&brandId=${brand.id}`);
-      if (receipts.ok()) {
-        const rows = ((await receipts.json()).data ?? []) as Array<{ productId: number; routeId?: number; unitPrice?: unknown }>;
-        const byRoute = new Map<number, Array<{ productId: number; quantity: number; unitPrice: number }>>();
-        for (const r of rows) {
-          const list = byRoute.get(r.routeId ?? 0) ?? [];
-          list.push({ productId: r.productId, quantity: 0, unitPrice: Number(r.unitPrice ?? 0) });
-          byRoute.set(r.routeId ?? 0, list);
-        }
-        for (const [routeId, items] of byRoute) {
-          await this.call('admin', 'post', '/stock-receipts/bulk', { brandId: brand.id, date: todayIST(), routeId, items });
-        }
-      }
-      const payments = await this.call('admin', 'get', `/dairy-payments?brandId=${brand.id}`);
-      if (payments.ok()) {
-        const body = (await payments.json()).data;
-        const list = (Array.isArray(body) ? body : (body?.items ?? [])) as Array<{ id: number }>;
-        for (const p of list) await this.call('admin', 'delete', `/dairy-payments/${p.id}`);
-      }
-      await this.call('superadmin', 'put', `/brands/${brand.id}`, { isArchived: true });
-    });
+    this.onDispose(`empty and archive brand ${brand.id}`, () => this.emptyAndArchiveBrand(brand.id as number));
     return brand as { id: number; name: string };
+  }
+
+  /** Zeroes a brand's recent stock, deletes its payments and archives it. Safe to repeat. */
+  private async emptyAndArchiveBrand(brandId: number): Promise<void> {
+    for (const date of [todayIST(), todayIST(-1)]) {
+      const receipts = await this.call('admin', 'get', `/stock-receipts?date=${date}&brandId=${brandId}`);
+      if (!receipts.ok()) continue;
+      const rows = ((await receipts.json()).data ?? []) as Array<{ productId: number; routeId?: number; unitPrice?: unknown }>;
+      const byRoute = new Map<number, Array<{ productId: number; quantity: number; unitPrice: number }>>();
+      for (const r of rows) {
+        const list = byRoute.get(r.routeId ?? 0) ?? [];
+        list.push({ productId: r.productId, quantity: 0, unitPrice: Number(r.unitPrice ?? 0) });
+        byRoute.set(r.routeId ?? 0, list);
+      }
+      for (const [routeId, items] of byRoute) {
+        await this.call('admin', 'post', '/stock-receipts/bulk', { brandId, date, routeId, items });
+      }
+    }
+    const payments = await this.call('admin', 'get', `/dairy-payments?brandId=${brandId}`);
+    if (payments.ok()) {
+      const body = (await payments.json()).data;
+      const list = (Array.isArray(body) ? body : (body?.items ?? [])) as Array<{ id: number }>;
+      for (const p of list) await this.call('admin', 'delete', `/dairy-payments/${p.id}`);
+    }
+    await this.call('superadmin', 'put', `/brands/${brandId}`, { isArchived: true });
+  }
+
+  /** Removes a salesperson; one with history is first reset (superadmin) or, failing that, deactivated. */
+  private async removeSalesperson(id: number): Promise<void> {
+    let del = await this.call('admin', 'delete', `/salespeople/${id}`);
+    if (del.status() === 400 && env.superadminUsername) {
+      await this.call('superadmin', 'post', '/salespeople/reset-ledger', { salespersonIds: [id] });
+      del = await this.call('admin', 'delete', `/salespeople/${id}`);
+    }
+    if (del.status() === 400) {
+      await this.call('admin', 'put', `/salespeople/${id}`, { isActive: false });
+    } else if (![200, 404].includes(del.status())) {
+      throw new Error(`seed cleanup: salesperson ${id} -> ${del.status()} ${await del.text()}`);
+    }
+  }
+
+  /**
+   * Janitor, run once at the start of a run: removes `E2E-` data left behind by an earlier run that crashed or timed
+   * out before its own cleanup (throwaway brands, salespeople, office logins). Needs a superadmin; otherwise a no-op.
+   */
+  async sweep(): Promise<void> {
+    if (!env.apiBaseUrl || !env.superadminUsername || !env.superadminPassword) return;
+    const brands = await this.call('superadmin', 'get', '/brands');
+    if (brands.ok()) {
+      for (const b of ((await brands.json()).data ?? []) as Array<{ id: number; name: string }>) {
+        if (b.name.startsWith('E2E-')) await this.emptyAndArchiveBrand(b.id);
+      }
+    }
+    const people = await this.call('admin', 'get', '/salespeople');
+    if (people.ok()) {
+      for (const p of ((await people.json()).data ?? []) as Array<{ id: number; name: string }>) {
+        if (/^E2E[ -]/.test(p.name)) await this.removeSalesperson(p.id);
+      }
+    }
+    const users = await this.call('superadmin', 'get', '/admin-users');
+    if (users.ok()) {
+      for (const u of ((await users.json()).data ?? []) as Array<{ id: number; username: string }>) {
+        if (u.username.startsWith('e2e-')) await this.call('superadmin', 'delete', `/admin-users/${u.id}`);
+      }
+    }
+    await this.ctx?.dispose();
   }
 
   async category(brandId: number, name = unique()): Promise<{ id: number; name: string }> {
@@ -194,18 +239,7 @@ export class Seed {
       Object.assign(body, { username, password });
     }
     const sp = await this.create('admin', '/salespeople', body, 'salesperson');
-    this.onDispose(`remove salesperson ${sp.id}`, async () => {
-      let del = await this.call('admin', 'delete', `/salespeople/${sp.id}`);
-      if (del.status() === 400 && env.superadminUsername) {
-        await this.call('superadmin', 'post', '/salespeople/reset-ledger', { salespersonIds: [sp.id] });
-        del = await this.call('admin', 'delete', `/salespeople/${sp.id}`);
-      }
-      if (del.status() === 400) {
-        await this.call('admin', 'put', `/salespeople/${sp.id}`, { isActive: false }); // has history: retire it
-      } else if (![200, 404].includes(del.status())) {
-        throw new Error(`seed cleanup: salesperson ${sp.id} -> ${del.status()} ${await del.text()}`);
-      }
-    });
+    this.onDispose(`remove salesperson ${sp.id}`, () => this.removeSalesperson(sp.id as number));
     return { ...(sp as { id: number; name: string }), username, password };
   }
 

@@ -174,7 +174,7 @@ Both sign in through `POST /auth/login`.
 - All `/api/v1/*` requires `authenticate` (JWT in the `Authorization: Bearer` header — the cookie is not honoured), except `/auth/*` sign-in steps and the public `POST /errors/client` beacon
 - Most admin routes: `requireAdmin` at mount; superadmin-only endpoints: `requireSuperAdmin`; dispatcher reads: `requireAdminOrDispatcher`
 - Controllers re-check with `assertRole` / `assertAdmin` (`utils/authz.js`) as defence in depth
-- Rate limits: global 5000 / 15 min on `/api`; login 20 / hour / IP (`LOGIN_RATE_LIMIT_MAX`); `bulkWriteLimiter` 30 / min on `/stock-receipts`, salesperson products and price bulk routes; PIN verify 20 / 15 min; MFA steps have their own limiters; client-error beacon 30 / hour (always answers 200)
+- Rate limits: global 5000 / 15 min on `/api`; login 20 / hour / IP (`LOGIN_RATE_LIMIT_MAX`); `bulkWriteLimiter` 30 / min (`BULK_WRITE_RATE_LIMIT_MAX`) on `/stock-receipts`, salesperson products and price bulk routes; PIN verify 20 / 15 min; MFA steps have their own limiters; client-error beacon 30 / hour (always answers 200)
 
 **MFA and lock-out (AdminUser only):**
 - TOTP MFA with 8 bcrypt-hashed backup codes (`services/mfaService.js`). The TOTP secret is AES-256-GCM encrypted with a key derived from `JWT_SECRET` (`utils/mfaCrypto.js`) — **rotating `JWT_SECRET` invalidates every enrolled authenticator**.
@@ -712,10 +712,17 @@ Playwright Test + TypeScript, real browser → real frontend → real API → re
 `staging-pipeline.yml`; PR CI only type-checks it (`npm run typecheck`). There is no production UI run.
 Its own rules are in `client/automation-ui/CLAUDE.md`.
 
+- The suite holds **critical business journeys**, not one test per widget: sign-in/session/sign-out, every admin
+  screen opening cleanly, the dairy money path (stock → balance → payments → dashboard), the salesperson money path
+  (dispatch → collections → outstanding/day balance/statement), catalogue setup, salesman users, pricing reaching the
+  phone, bills, reports, role access (dispatcher, superadmin) and the salesman's phone journey.
+- Data is **arranged through the API** (`src/seed.ts`: throwaway `E2E-` brand/product/salesperson/dispatch) and removed
+  afterwards; the browser acts and asserts. Money specs never touch a real brand.
 - Page objects in `src/pages/` hold every selector; specs in `tests/` hold behaviour.
-- Admin/dispatcher specs run on iPad portrait + landscape; specs in `tests/salesman/` run on a phone.
+- Admin/dispatcher specs run on iPad portrait; only `@layout`-tagged specs also run on landscape; specs in
+  `tests/salesman/` run on a phone.
 - The `setup` project signs in once and saves `.auth/admin.json` — specs reuse it (login is limited to 20/hour).
-- Anything a test creates is `E2E-...` named and removed by a fixture (e.g. `trackRoute`).
+- **A new or changed user-facing flow adds/updates a journey in the same PR** (happy path + the refusal that matters).
 
 ### Frontend — Vitest + React Testing Library
 
@@ -930,6 +937,7 @@ All server config is validated in `server/config/env.js` (Zod) at boot. "Prod" m
 | `NODE_ENV` | No | `development` (default) / `test` / `production` |
 | `PORT` | No | Default `3001` |
 | `LOGIN_RATE_LIMIT_MAX` | No | Login attempts per IP per hour (default `20`). Raise only on a test environment — never in production |
+| `BULK_WRITE_RATE_LIMIT_MAX` | No | Requests per IP per minute on the bulk-write routes (default `30`). Raise only on a test environment (the UI automation drives these routes quickly) — never in production |
 | `SLACK_WEBHOOK_URL` | No | Slack incoming webhook — unset = silent |
 | `APP_URL` | No | Added as "Open App" link in Slack card footers |
 | `APP_VERSION` | No | Overrides the build tag shown in `/health` (Section 18a) |
@@ -949,8 +957,10 @@ Read by the suites, never by the app. Full tables in `server/automation/CLAUDE.m
 | `API_BASE_URL` | API | Backend origin, no `/api/v1` |
 | `WEB_BASE_URL` | UI | Frontend origin |
 | `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` | both | Admin **without MFA** |
-| `E2E_SUPERADMIN_USERNAME` / `E2E_SUPERADMIN_PASSWORD` | API | Superadmin **without MFA** (optional) |
-| `E2E_STRICT`, `EXPECTED_COMMIT` | API | Fail instead of skip / commit `/health` must report |
+| `E2E_SUPERADMIN_USERNAME` / `E2E_SUPERADMIN_PASSWORD` | both | Superadmin **without MFA** (optional; UI: throwaway brands, dispatcher/Admin Users journeys) |
+| `API_BASE_URL` | UI too | UI specs arrange and clean up data through the API |
+| `E2E_EDIT_PIN` / `E2E_PL_PIN` | UI | Edit PIN / Profit & Loss PIN, for the specs that type them |
+| `E2E_STRICT`, `EXPECTED_COMMIT` | both / API | Fail instead of skip / commit `/health` must report |
 | `VERCEL_BYPASS_SECRET` | UI | Vercel Deployment Protection bypass |
 
 ---

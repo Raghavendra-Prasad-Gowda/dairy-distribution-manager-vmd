@@ -28,7 +28,9 @@ export class PricingPage extends BasePage {
     return this.page.getByRole('row').filter({ hasText: productName });
   }
 
-  async find(productName: string): Promise<void> {
+  /** Shows one product: opens its brand's tab first (the page lists one brand at a time), then searches. */
+  async find(productName: string, brandName: string): Promise<void> {
+    await this.page.getByRole('button', { name: brandName, exact: true }).click();
     await this.productSearch.fill(productName);
   }
 

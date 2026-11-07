@@ -25,11 +25,11 @@ test.describe('Pricing and bills', () => {
     browser,
     superSeed,
   }) => {
-    const { product, salesperson } = await world(superSeed, true);
+    const { brand, product, salesperson } = await world(superSeed, true);
     const pricing = new PricingPage(page);
     await pricing.open();
     await pricing.selectSalesperson(salesperson.name);
-    await pricing.find(product.name);
+    await pricing.find(product.name, brand.name);
     await expect(pricing.row(product.name)).toContainText(rupees(15)); // the default until a personal price is set
 
     await pricing.setPrice(product.name, 18);
@@ -37,7 +37,7 @@ test.describe('Pricing and bills', () => {
 
     await page.reload();
     await pricing.selectSalesperson(salesperson.name);
-    await pricing.find(product.name);
+    await pricing.find(product.name, brand.name);
     await expect(pricing.row(product.name)).toContainText(rupees(18));
 
     const phone = await newPhone(browser);

@@ -46,7 +46,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     SPEC["🧪 tests/*.spec.ts<br/>behaviour + assertions"] --> PO["📄 src/pages/*Page.ts<br/>locators + actions"]
-    SPEC --> FX["🧹 src/fixtures.ts<br/>trackRoute cleanup"]
+    SPEC --> FX["🧹 src/fixtures.ts<br/>seed + trackCreated cleanup"]
     PO --> ENV["⚙️ src/env.ts"]
     FX --> API((deployed API<br/>DELETE with session token))
     PO --> APP((deployed SPA))
@@ -56,7 +56,11 @@ flowchart LR
 |---|---|
 | `LoginPage` | `open()` (adds Vercel bypass query when set), `signIn(u, p)`, `error(text)` |
 | `DashboardPage` | `heading` (signed-in landmark) |
-| `RouteSetupPage` | `open(brand)`, `reload()`, `addRoute()` (returns the API response), `editRoute()`, `deleteRoute()`, `row()`, `acknowledgeNotice()` |
+| `RouteSetupPage`, `CategorySetupPage`, `ProductsSetupPage`, `UsersSetupPage`, `PricingPage`, `AdminUsersPage` | setup screens: `open()`, `add…()` (returns the API response), edit / delete, `row()` |
+| `StockReceiptPage`, `DairyPaymentsPage`, `CollectionsPage`, `DispatchSheetPage` | money screens: balances via labelled figures, `record()`, `delete(row, pin)` |
+| `ReportsPages` (`OutstandingPage`, `DayBalancePage`, `StatementsPage`, `BillsPanel`, `DairyStatementPage`, `StockSummaryPage`) | report readers |
+| `SalesmanPages` | phone: `signInAsSalesman`, stock entry, balance, statement, change password; `newPhone` / `newIpad` for a second signed-out device |
+| `ShellPage`, `PinDialog`, `BasePage` | menu / sign-out on sidebar and drawer, the 6-box PIN prompt, success/error notice + dialog helpers |
 
 ## 4. 🧹 Cleanup fixture
 
@@ -64,10 +68,10 @@ flowchart LR
 sequenceDiagram
     autonumber
     participant T as test
-    participant F as trackRoute fixture
+    participant F as trackCreated fixture
     participant P as page (signed in)
     participant API as API
-    T->>F: trackRoute(createUrl, id)
+    T->>F: trackCreated(createUrl, id)
     T->>T: …test body (pass or fail)…
     F->>P: read localStorage.token
     loop each tracked route

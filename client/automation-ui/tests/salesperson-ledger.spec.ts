@@ -53,6 +53,8 @@ test.describe('Salesperson ledger', () => {
 
     await sheet.unlockButton.click();
     await sheet.confirmLockChange(/Unlock/);
+    // Reloading the sheet must keep this salesperson open, not jump to whoever is first in the list.
+    await expect(sheet.panelFor(salesperson.name)).toBeVisible();
     await expect(sheet.lockButton).toBeVisible();
     await expect(sheet.lockedBadge).toHaveCount(0);
 
