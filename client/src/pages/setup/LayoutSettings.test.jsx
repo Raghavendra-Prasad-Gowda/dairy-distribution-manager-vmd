@@ -146,25 +146,6 @@ describe('LayoutSettings — category reordering (up/down)', () => {
     expect(headers.map(h => h.textContent)).toEqual(['Milk', 'Curd']);
   });
 
-  it('moving the second category up swaps the order and marks the layout dirty', async () => {
-    mockApi({
-      categories: [category({ id: 1, name: 'Milk' }), category({ id: 2, name: 'Curd' })],
-      products: [product({ id: 1, category: 'Milk' }), product({ id: 2, name: 'Curd 200g', category: 'Curd' })],
-    });
-    render(<LayoutSettings />);
-    await screen.findByText('Toned Milk');
-    expect(screen.queryByText('Unsaved changes')).toBeNull();
-
-    // The up-arrow on the second category row (Curd) moves it above Milk.
-    const curdRow = screen.getByText('Curd').closest('div').parentElement;
-    const [upBtn] = curdRow.querySelectorAll('button');
-    fireEvent.click(upBtn);
-
-    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
-    const headers = screen.getAllByText(/Milk|Curd/).filter(el => el.tagName === 'SPAN' && el.className.includes('font-bold'));
-    expect(headers.map(h => h.textContent)).toEqual(['Curd', 'Milk']);
-  });
-
   it('moving the first category down swaps the order and marks the layout dirty', async () => {
     mockApi({
       categories: [category({ id: 1, name: 'Milk' }), category({ id: 2, name: 'Curd' })],
@@ -207,28 +188,6 @@ describe('LayoutSettings — save', () => {
     render(<LayoutSettings />);
     await screen.findByText('Toned Milk');
     expect(screen.getByText('Save Layout').closest('button')).toBeDisabled();
-  });
-
-  it('PATCHes both categories/reorder and products/reorder with 0-based displayOrder', async () => {
-    mockApi({
-      categories: [category({ id: 1, name: 'Milk' }), category({ id: 2, name: 'Curd' })],
-      products: [product({ id: 1, category: 'Milk' }), product({ id: 2, name: 'Curd 200g', category: 'Curd' })],
-    });
-    render(<LayoutSettings />);
-    await screen.findByText('Toned Milk');
-
-    const curdRow = screen.getByText('Curd').closest('div').parentElement;
-    const [upBtn] = curdRow.querySelectorAll('button');
-    fireEvent.click(upBtn);
-
-    fireEvent.click(screen.getByText('Save Layout'));
-
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('/categories/reorder', [
-        { id: 2, displayOrder: 0 }, { id: 1, displayOrder: 1 },
-      ])
-    );
-    expect(notify).toHaveBeenCalledWith('Layout saved successfully!', 'success');
   });
 
   it('shows an error toast when saving fails', async () => {

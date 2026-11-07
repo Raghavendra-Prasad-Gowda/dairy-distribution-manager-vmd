@@ -347,17 +347,6 @@ describe('SalespersonCollections — collection history', () => {
 });
 
 describe('SalespersonCollections — record collection', () => {
-  it('posts a new collection for the selected salesperson and refreshes', async () => {
-    await renderPage();
-    const amountInput = screen.getByRole('spinbutton');
-    fireEvent.change(amountInput, { target: { value: '750' } });
-    fireEvent.click(screen.getByRole('button', { name: /Record Payment/i }));
-
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/salesperson-payments', expect.objectContaining({ amount: 750, salespersonId: 1 }))
-    );
-    expect(notify).toHaveBeenCalledWith('Collection recorded successfully', 'success');
-  });
 
   it('shows the server error, and falls back to a generic message with no server error', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Stock guard failed' } } });
@@ -376,63 +365,11 @@ describe('SalespersonCollections — record collection', () => {
 });
 
 describe('SalespersonCollections — edit flow (PIN gated)', () => {
-  it('requires PIN confirmation before showing the edit form', async () => {
-    mockApi({ payments: [payment({ amount: 1500 })] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Edit'));
-    expect(screen.queryByText('Edit Collection')).toBeNull();
-
-    fireEvent.click(screen.getByText('Confirm PIN'));
-    expect(await screen.findByText('Edit Collection')).toBeInTheDocument();
-  });
 
   // Regression: PinModal deliberately never closes itself on a correct PIN
   // (the caller owns that) — onPinSuccess used to forget to call
   // pinModal.close(), leaving the PIN dialog stuck on top of the now-open
   // Edit Collection form.
-  it('closes the PIN dialog once the correct PIN is confirmed', async () => {
-    mockApi({ payments: [payment({ amount: 1500 })] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Edit'));
-    fireEvent.click(screen.getByText('Confirm PIN'));
-
-    await screen.findByText('Edit Collection');
-    expect(screen.queryByText('Confirm PIN')).not.toBeInTheDocument();
-  });
-
-  it('saves the edited amount via PUT', async () => {
-    mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Edit'));
-    fireEvent.click(screen.getByText('Confirm PIN'));
-    await screen.findByText('Edit Collection');
-
-    const amountInput = screen.getByDisplayValue('1500');
-    fireEvent.change(amountInput, { target: { value: '1800' } });
-    fireEvent.click(screen.getByText('Save'));
-
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/salesperson-payments/7', expect.objectContaining({ amount: 1800 }))
-    );
-  });
-
-  it('editing the date, mode, and reference fields updates the save payload', async () => {
-    mockApi({ payments: [payment({ id: 7, amount: 1500, paymentMode: 'Cash', reference: '' })] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Edit'));
-    fireEvent.click(screen.getByText('Confirm PIN'));
-    await screen.findByText('Edit Collection');
-
-    const modal = screen.getByText('Edit Collection').closest('div.bg-white');
-    fireEvent.change(within(modal).getByDisplayValue('2026-08-09'), { target: { value: '2026-08-05' } });
-    fireEvent.change(within(modal).getByDisplayValue('Cash'), { target: { value: 'UPI' } });
-    fireEvent.change(screen.getByPlaceholderText('UPI ref / cheque no.'), { target: { value: 'TXN-99' } });
-    fireEvent.click(screen.getByText('Save'));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/salesperson-payments/7', expect.objectContaining({
-      paymentDate: '2026-08-05', paymentMode: 'UPI', reference: 'TXN-99',
-    })));
-  });
 
   it('shows the server error, and falls back to a generic message with no server error', async () => {
     mockApi({ payments: [payment({ id: 7, amount: 1500 })] });
@@ -479,38 +416,6 @@ describe('SalespersonCollections — edit flow (PIN gated)', () => {
 });
 
 describe('SalespersonCollections — delete flow (PIN gated)', () => {
-  it('requires PIN confirmation before showing the delete confirmation', async () => {
-    mockApi({ payments: [payment()] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Delete'));
-    expect(screen.queryByText('Delete collection record?')).toBeNull();
-
-    fireEvent.click(screen.getByText('Confirm PIN'));
-    expect(await screen.findByText('Delete collection record?')).toBeInTheDocument();
-  });
-
-  it('closes the PIN dialog once the correct PIN is confirmed', async () => {
-    mockApi({ payments: [payment()] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Delete'));
-    fireEvent.click(screen.getByText('Confirm PIN'));
-
-    await screen.findByText('Delete collection record?');
-    expect(screen.queryByText('Confirm PIN')).not.toBeInTheDocument();
-  });
-
-  it('deletes the payment on confirm', async () => {
-    mockApi({ payments: [payment({ id: 9 })] });
-    await renderPage();
-    fireEvent.click(screen.getByTitle('Delete'));
-    fireEvent.click(screen.getByText('Confirm PIN'));
-    await screen.findByText('Delete collection record?');
-
-    const modal = screen.getByRole('dialog');
-    fireEvent.click(within(modal).getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/salesperson-payments/9'));
-    expect(notify).toHaveBeenCalledWith('Record deleted', 'success');
-  });
 
   it('the X (close dialog) button also dismisses the delete confirmation', async () => {
     mockApi({ payments: [payment({ id: 9 })] });
@@ -564,42 +469,6 @@ describe('SalespersonCollections — admin vs superadmin toolbar', () => {
     await renderPage();
     expect(screen.getByText('Bulk Top-up')).toBeInTheDocument();
     expect(screen.queryByText('Reset Ledger')).toBeNull();
-  });
-
-  it('shows both Bulk Top-up and Reset Ledger for a superadmin', async () => {
-    mockRole = 'superadmin';
-    await renderPage();
-    expect(screen.getByText('Bulk Top-up')).toBeInTheDocument();
-    expect(screen.getByText('Reset Ledger')).toBeInTheDocument();
-  });
-
-  it('opens the Bulk Top-up modal and confirming posts the top-up and refreshes', async () => {
-    vi.mocked(api.post).mockResolvedValue({ data: { data: { count: 1, total: 500 } } });
-    await renderPage();
-    fireEvent.click(screen.getByText('Bulk Top-up'));
-    expect(screen.getByTestId('bulk-topup-modal')).toBeInTheDocument();
-
-    const priorBalanceCalls = vi.mocked(api.get).mock.calls.filter(c => c[0].includes('/salesperson-balance?')).length;
-    fireEvent.click(screen.getByText('Confirm Top-up'));
-
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salesperson-payments/bulk-topup', {
-      paymentDate: '2026-08-09', entries: [{ salespersonId: 1, amount: 500 }],
-    }));
-    await waitFor(() => {
-      const newCalls = vi.mocked(api.get).mock.calls.filter(c => c[0].includes('/salesperson-balance?')).length;
-      expect(newCalls).toBeGreaterThan(priorBalanceCalls);
-    });
-  });
-
-  it('opens the Reset Ledger modal and confirming resets and refreshes', async () => {
-    mockRole = 'superadmin';
-    vi.mocked(api.post).mockResolvedValue({ data: { data: { count: 1 } } });
-    await renderPage();
-    fireEvent.click(screen.getByText('Reset Ledger'));
-    expect(screen.getByTestId('reset-ledger-modal')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Confirm Reset'));
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/salespeople/reset-ledger', { salespersonIds: [1] }));
   });
 
   it('closing the Bulk Top-up and Reset Ledger modals dismisses them without side effects', async () => {

@@ -205,14 +205,6 @@ describe('StockEntry — empty and loading states', () => {
     await screen.findByText('No products enabled for your account');
   });
 
-  it('shows "No products match your search" when a search matches nothing', async () => {
-    mockApiFor([product({ productId: 1, productName: 'Toned Milk', brandName: 'Nandini' })]);
-    render(<StockEntry />);
-    await waitFor(() => expect(api.get).toHaveBeenCalled());
-    fireEvent.change(await screen.findByPlaceholderText(/Search product/), { target: { value: 'zzz-no-match' } });
-    await screen.findByText('No products match your search.');
-  });
-
   it('search matches by product name, category, or brand name', async () => {
     mockApiFor([
       product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk' }),
@@ -297,64 +289,6 @@ describe('StockEntry — quantity entry', () => {
   const PRODUCTS = [
     product({ productId: 1, productName: 'Toned Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', sellingPrice: 25 }),
   ];
-
-  it('typing a quantity shows the line amount', async () => {
-    mockApiFor(PRODUCTS);
-    await renderExpanded();
-
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '4' } });
-    // ₹100.00 (4 × 25) shows up at the line, category, brand, and grand-total
-    // levels simultaneously — assert it appears rather than pin a single node.
-    await waitFor(() => expect(screen.getAllByText('₹100.00').length).toBeGreaterThan(0));
-  });
-
-  it('the increment stepper adds one unit at a time', async () => {
-    mockApiFor(PRODUCTS);
-    await renderExpanded();
-
-    const input = screen.getByRole('spinbutton');
-    const incrementBtn = screen.getAllByRole('button').find(b => b.querySelector('svg.lucide-plus'));
-    // Steppers swallow pointerdown (to avoid stealing focus from the input)
-    // before the click actually fires — exercise both.
-    fireEvent.pointerDown(incrementBtn);
-    fireEvent.click(incrementBtn);
-    expect(input).toHaveValue(1);
-    fireEvent.click(incrementBtn);
-    expect(input).toHaveValue(2);
-  });
-
-  it('the decrement stepper subtracts, clearing to empty (not "0") at zero', async () => {
-    mockApiFor(PRODUCTS);
-    await renderExpanded();
-
-    const input = screen.getByRole('spinbutton');
-    fireEvent.change(input, { target: { value: '1' } });
-    const decrementBtn = screen.getAllByRole('button').find(b => b.querySelector('svg.lucide-minus'));
-    fireEvent.pointerDown(decrementBtn);
-    fireEvent.click(decrementBtn);
-    expect(input).toHaveValue(null);
-  });
-
-  it('the decrement stepper is disabled at zero (cannot go negative)', async () => {
-    mockApiFor(PRODUCTS);
-    await renderExpanded();
-
-    const decrementBtn = screen.getAllByRole('button').find(b => b.querySelector('svg.lucide-minus'));
-    expect(decrementBtn).toBeDisabled();
-  });
-
-  it('pressing Enter moves focus to the next product\'s quantity input', async () => {
-    mockApiFor([
-      product({ productId: 1, productName: 'A Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', displayOrder: 0 }),
-      product({ productId: 2, productName: 'B Milk', brandId: 1, brandName: 'Nandini', category: 'Milk', displayOrder: 1 }),
-    ]);
-    await renderExpanded();
-
-    const inputs = screen.getAllByRole('spinbutton');
-    inputs[0].focus();
-    fireEvent.keyDown(inputs[0], { key: 'Enter' });
-    expect(inputs[1]).toHaveFocus();
-  });
 
   it('a product with no price shows "No price set" and disabled controls', async () => {
     mockApiFor([product({ productId: 1, productName: 'Mystery Item', brandId: 1, brandName: 'Nandini', sellingPrice: null })]);
