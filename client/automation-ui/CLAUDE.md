@@ -23,8 +23,10 @@ client/automation-ui/
 │   ├── fixtures.ts        # extended `test`: seed, superSeed, editPin, plPin, trackCreated
 │   └── pages/             # page objects (BasePage parent) — every selector lives here
 └── tests/                 # login · navigation · dairy-ledger · salesperson-ledger · catalog-setup · salesman-users ·
-    │                      # pricing-and-bills · reports · access-roles · superadmin  (+ auth.setup.ts)
-    └── salesman/          # phone specs: stock-entry · security
+    │                      # pricing-and-bills · reports · access-roles · superadmin · opening-balances ·
+    │                      # dispatcher · exception-manager · deposit-and-stock-balance · payment-history · brands-setup · bulk-pricing ·
+    │                      # admin-users · layout-settings  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
+    └── salesman/          # phone specs: stock-entry · stock-entry-controls · security · statement
 ```
 
 ## Where it runs
@@ -65,7 +67,8 @@ the workflow and scripts.
    UI creates is registered with `trackCreated(url, id)`. Cleanup must tolerate 404 and wait out 429.
 4. **Assert persistence, not just React state** — reload and re-check after a save.
 5. **Never sign in per test.** Login is limited to 20 attempts/hour/IP and the API suite uses the same budget.
-   Signed-in specs reuse `.auth/admin.json`; salesman specs sign in once as their own salesman.
+   Signed-in specs reuse `.auth/admin.json`; salesman specs sign in once as their own salesman. The superadmin signs in once in the `setup` project
+   (`.auth/superadmin.json`); use `newSuperadminIpad(browser)` instead of signing in again.
    A wrong-password test must use an **unknown username** — failed attempts against a real account count toward
    its lock-out (5 wrong passwords lock an admin for 30 min).
 6. **The accounts must not have MFA** (`E2E_ADMIN_*`).
@@ -82,7 +85,7 @@ the workflow and scripts.
 13. **Expected numbers are computed from what you seeded**, never read back from the screen under test.
 14. **No fixed sleeps.** Use web-first `expect`, `waitForResponse` set up *before* the click, and `expect.poll`.
 15. **Respect the rate limits**: 30 requests/minute on `/salespeople`, `/stock-receipts` and the bulk price/product
-    routes; 20 sign-ins/hour. Keep journeys few and complete, reuse tokens (`seed` caches them), run layout-independent
+    routes; 20 sign-ins/hour; 20 PIN checks/15 min (a full run uses ~11). Keep journeys few and complete, reuse tokens (`seed` caches them), run layout-independent
     specs once (portrait) and tag only layout-sensitive describes `@layout` so landscape repeats them.
 16. **Every new user-facing flow gets a journey here in the same PR** — happy path plus the refusal that matters
     (wrong PIN, duplicate, locked, wrong role). Specs that need `API_BASE_URL`, a superadmin or a PIN skip when it is

@@ -2,7 +2,7 @@ import { expect, test } from '../src/fixtures';
 import { env } from '../src/env';
 import { AdminUsersPage } from '../src/pages/AdminUsersPage';
 import { LoginPage } from '../src/pages/LoginPage';
-import { newIpad } from '../src/pages/SalesmanPages';
+import { newIpad, newSuperadminIpad } from '../src/pages/SalesmanPages';
 
 /**
  * Superadmin-only duties: creating and retiring office logins and brands. These need a superadmin account
@@ -10,11 +10,7 @@ import { newIpad } from '../src/pages/SalesmanPages';
  */
 test.describe('Superadmin', () => {
   test('creates a dispatcher who can sign in, then disables and deletes that login', async ({ browser, superSeed }) => {
-    const ipad = await newIpad(browser);
-    const login = new LoginPage(ipad);
-    await login.open();
-    await login.signIn(env.superadminUsername, env.superadminPassword);
-    await expect(ipad.getByRole('heading', { name: 'Dashboard' }).first()).toBeVisible();
+    const ipad = await newSuperadminIpad(browser);
 
     const users = new AdminUsersPage(ipad);
     await users.open();
@@ -57,11 +53,7 @@ test.describe('Superadmin', () => {
   });
 
   test('your own account cannot be disabled or deleted from the list', async ({ browser, superSeed: _ }) => {
-    const ipad = await newIpad(browser);
-    const login = new LoginPage(ipad);
-    await login.open();
-    await login.signIn(env.superadminUsername, env.superadminPassword);
-    await expect(ipad.getByRole('heading', { name: 'Dashboard' }).first()).toBeVisible();
+    const ipad = await newSuperadminIpad(browser);
     const users = new AdminUsersPage(ipad);
     await users.open();
     await users.search.fill(env.superadminUsername);

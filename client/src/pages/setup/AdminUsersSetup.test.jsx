@@ -105,20 +105,6 @@ describe('AdminUsersSetup — add user', () => {
     expect(createBtn).not.toBeDisabled();
   });
 
-  it('posts the new user and refreshes the list on success', async () => {
-    await renderPage();
-    fireEvent.click(screen.getByText('Add User'));
-    fireEvent.change(screen.getByPlaceholderText(/john_admin/), { target: { value: 'newadmin' } });
-    fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'secret1' } });
-    fireEvent.click(screen.getByRole('button', { name: /Create/i }));
-
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/admin-users', { username: 'newadmin', password: 'secret1', role: 'admin' })
-    );
-    // ROLE_LABEL['admin'] is 'Admin', so the message is 'Admin created successfully'
-    expect(notify).toHaveBeenCalledWith('Admin created successfully', 'success');
-  });
-
   it('shows the server error on a failed create', async () => {
     vi.mocked(api.post).mockRejectedValue({ response: { data: { error: 'Username already taken' } } });
     await renderPage();
@@ -192,27 +178,6 @@ describe('AdminUsersSetup — toggle active', () => {
     expect(toggleBtn).toBeDisabled();
   });
 
-  it('calls PUT and notifies with role label on enable/disable', async () => {
-    vi.mocked(api.get).mockResolvedValue({
-      data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin', isActive: true })] },
-    });
-    await renderPage();
-    await screen.findByText('raghav');
-    const row = screen.getByText('raghav').closest('tr');
-    const toggleBtn = within(row).getByTitle(/^(Enable|Disable) /);
-    fireEvent.click(toggleBtn);
-
-    // Toggling opens a confirmation dialog first — the PUT only fires once confirmed.
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Disable' }));
-
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/admin-users/5', { username: 'raghav', role: 'admin', isActive: false })
-    );
-    // isActive was true → disabling → 'Admin "raghav" disabled'
-    expect(notify).toHaveBeenCalledWith('Admin "raghav" disabled', 'success');
-  });
-
   it('shows an error notification when the toggle fails', async () => {
     vi.mocked(api.put).mockRejectedValue({ response: { data: { error: 'Cannot disable last admin' } } });
     vi.mocked(api.get).mockResolvedValue({
@@ -281,45 +246,6 @@ describe('AdminUsersSetup — Require MFA toggle (table)', () => {
     expect(within(row).getByTitle(/Require MFA/)).toBeDisabled();
   });
 
-  it('requires confirmation, then calls PUT with required:true for a not-yet-required admin', async () => {
-    vi.mocked(api.get).mockResolvedValue({
-      data: { data: [adminUser({ id: 5, username: 'raghav', mfaRequired: false })] },
-    });
-    vi.mocked(api.put).mockResolvedValue({ data: { data: { id: 5, username: 'raghav', mfaRequired: true } } });
-    await renderPage();
-    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
-    fireEvent.click(within(row).getByTitle('Require MFA for raghav'));
-
-    const dialog = await screen.findByRole('dialog');
-    // Title and confirm button both read "Require MFA" — assert the heading
-    // specifically to avoid an ambiguous text match across the two.
-    expect(within(dialog).getByRole('heading', { name: 'Require MFA' })).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Require MFA' }));
-
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/admin-users/5/mfa-required', { required: true })
-    );
-    expect(notify).toHaveBeenCalledWith('MFA required for "raghav"', 'success');
-  });
-
-  it('calls PUT with required:false to lift an existing requirement', async () => {
-    vi.mocked(api.get).mockResolvedValue({
-      data: { data: [adminUser({ id: 5, username: 'raghav', mfaRequired: true })] },
-    });
-    vi.mocked(api.put).mockResolvedValue({ data: { data: { id: 5, username: 'raghav', mfaRequired: false } } });
-    await renderPage();
-    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
-    fireEvent.click(within(row).getByTitle('Stop requiring MFA for raghav'));
-
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Stop Requiring' }));
-
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/admin-users/5/mfa-required', { required: false })
-    );
-    expect(notify).toHaveBeenCalledWith('MFA no longer required for "raghav"', 'success');
-  });
-
   it('closing the confirmation dialog without confirming does not call PUT', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
     await renderPage();
@@ -375,36 +301,6 @@ describe('AdminUsersSetup — Account lockout', () => {
     expect(within(row).queryByTitle('Unlock raghav')).not.toBeInTheDocument();
   });
 
-  it('shows a "Locked" badge and an unlock button once locked', async () => {
-    vi.mocked(api.get).mockResolvedValue({
-      data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: '2026-08-23T10:00:00Z', lockedReason: 'password' })] },
-    });
-    await renderPage();
-    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
-    expect(within(row).getByText('Locked')).toBeInTheDocument();
-    expect(within(row).getByTitle('Unlock raghav')).toBeInTheDocument();
-  });
-
-  it('clicking unlock calls PUT /admin-users/:id/unlock, notifies, and refetches — no confirmation dialog needed', async () => {
-    vi.mocked(api.get).mockResolvedValue({
-      data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: '2026-08-23T10:00:00Z' })] },
-    });
-    vi.mocked(api.put).mockResolvedValue({ data: { data: { id: 5, username: 'raghav', lockedAt: null } } });
-    await renderPage();
-    const row = await screen.findByText('raghav').then((el) => el.closest('tr'));
-    fireEvent.click(within(row).getByTitle('Unlock raghav'));
-
-    // No ConfirmationModal for unlock — a superadmin calling this is by
-    // definition not locked out themselves, so it's a low-risk recovery
-    // action rather than something that needs a confirm step.
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin-users/5/unlock'));
-    expect(notify).toHaveBeenCalledWith('"raghav" unlocked', 'success');
-    // Refetch after unlocking
-    expect(api.get).toHaveBeenCalledTimes(2);
-  });
-
   it('shows a server error notification when unlock fails, and re-enables the button', async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: { data: [adminUser({ id: 5, username: 'raghav', lockedAt: '2026-08-23T10:00:00Z' })] },
@@ -449,38 +345,6 @@ describe('AdminUsersSetup — edit user', () => {
       expect(api.put).toHaveBeenCalledWith('/admin-users/5', { username: 'raghav', role: 'admin', isActive: true })
     );
     expect(api.put.mock.calls[0][1]).not.toHaveProperty('password');
-  });
-
-  it('includes password in the payload when one is entered', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav' })] } });
-    await renderPage();
-    await screen.findByText('raghav');
-
-    const row = screen.getByText('raghav').closest('tr');
-    const editBtn = within(row).getByTitle('Edit user');
-    fireEvent.click(editBtn);
-    fireEvent.change(screen.getByPlaceholderText(/Min 6 characters/), { target: { value: 'newpass1' } });
-    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
-
-    await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/admin-users/5', {
-        username: 'raghav', role: 'admin', isActive: true, password: 'newpass1',
-      })
-    );
-  });
-
-  it('notifies with role label and username on successful update', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });
-    await renderPage();
-    await screen.findByText('raghav');
-
-    const row = screen.getByText('raghav').closest('tr');
-    const editBtn = within(row).getByTitle('Edit user');
-    fireEvent.click(editBtn);
-
-    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
-    // ROLE_LABEL['admin'] is 'Admin', so the message is 'Admin "raghav" updated'
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Admin "raghav" updated', 'success'));
   });
 
   it('shows the server error, and falls back to a generic message with no server error', async () => {
@@ -550,21 +414,6 @@ describe('AdminUsersSetup — edit user', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
     expect(screen.queryByText('Edit — raghav')).not.toBeInTheDocument();
-  });
-
-  it('editing the username field and role select updates the save payload', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { data: [adminUser({ id: 5, username: 'raghav', role: 'admin' })] } });
-    await renderPage();
-    await screen.findByText('raghav');
-    fireEvent.click(within(screen.getByText('raghav').closest('tr')).getByTitle('Edit user'));
-
-    fireEvent.change(screen.getByDisplayValue('raghav'), { target: { value: 'raghav2' } });
-    fireEvent.change(screen.getByDisplayValue('Admin'), { target: { value: 'superadmin' } });
-    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin-users/5', {
-      username: 'raghav2', role: 'superadmin', isActive: true,
-    }));
   });
 
   it('disables the role select and active toggle when editing your own account', async () => {

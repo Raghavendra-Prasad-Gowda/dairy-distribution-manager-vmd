@@ -69,9 +69,12 @@ test.describe('Pricing and bills', () => {
     expect(created.status()).toBe(201);
     const billId = (await created.json()).data.id as number;
     await expect(bills.issued(1, salesperson.name)).toBeVisible();
+    await bills.acknowledgeGenerated();
 
-    // Clean up: remove the bill so the dairy's bill series is not left with a test bill.
-    const removed = await superSeed.call('admin', 'delete', `/bills/${billId}`);
-    expect([200, 404]).toContain(removed.status());
+    // Deleting is part of the journey: the bill leaves the history and its number is not reused.
+    await bills.remove(billId);
+    await expect(bills.noBills).toBeVisible();
+    const gone = await superSeed.call('admin', 'delete', `/bills/${billId}`); // safety net if the UI delete failed
+    expect([200, 404]).toContain(gone.status());
   });
 });

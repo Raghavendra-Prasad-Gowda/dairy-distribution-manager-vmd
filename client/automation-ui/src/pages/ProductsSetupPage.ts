@@ -17,11 +17,9 @@ export class ProductsSetupPage extends BasePage {
   async open(brandName = 'Nandini'): Promise<void> {
     await this.page.goto('/dairy/setup/products');
     await this.page.getByRole('heading', { name: 'Product Setup' }).waitFor();
-    const loaded = this.page.waitForResponse(
-      (r) => r.request().method() === 'GET' && /\/products$/.test(new URL(r.url()).pathname),
-    );
+    // The page selects the first brand by itself, so clicking that tab sends no request: let the network settle.
     await this.page.getByRole('button', { name: brandName, exact: true }).click();
-    await loaded;
+    await this.page.waitForLoadState('networkidle');
   }
 
   row(name: string): Locator {

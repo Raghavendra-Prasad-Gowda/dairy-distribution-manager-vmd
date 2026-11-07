@@ -128,6 +128,7 @@ client/automation-ui/
 | [✍️ Writing tests](docs/writing-tests.md) | Page-object pattern, selectors, cleanup, salesman specs |
 | [⚙️ Configuration & CI](docs/configuration-and-ci.md) | Variables, Vercel bypass, workflow, reports |
 | [🛟 Troubleshooting](docs/troubleshooting.md) | Common failures and fixes |
+| [🧭 Coverage map](docs/coverage-map.md) | Every business flow → the journey that covers it |
 | [🗺️ Roadmap](docs/roadmap.md) | Journeys to automate next |
 
 ## ⚠️ Rules in one glance

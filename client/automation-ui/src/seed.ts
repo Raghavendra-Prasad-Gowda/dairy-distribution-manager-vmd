@@ -172,6 +172,30 @@ export class Seed {
     return product as { id: number; name: string; brandId: number };
   }
 
+  /**
+   * Makes a throwaway brand collect crate deposits at `perLitre` rupees per litre, and returns a category and a
+   * product that qualify (500 ml bottles in crates of 12). Ten bottles then carry a deposit of 10 x 0.5 x perLitre.
+   */
+  async depositProduct(brandId: number, perLitre: number): Promise<{ id: number; name: string }> {
+    const on = await this.call('superadmin', 'put', `/brands/${brandId}`, { depositEnabled: true, depositPerLitre: perLitre });
+    if (!on.ok()) throw new Error(`seed: enable brand deposit -> ${on.status()} ${await on.text()}`);
+    const category = await this.category(brandId);
+    const cat = await this.call('admin', 'put', `/categories/${category.id}`, { depositEnabled: true });
+    if (!cat.ok()) throw new Error(`seed: enable category deposit -> ${cat.status()} ${await cat.text()}`);
+    const product = await this.product(brandId, {
+      category: category.name,
+      unitType: 'ml',
+      unitSize: 500,
+      containerType: 'crate',
+      unitsPerContainer: 12,
+      costPrice: 10,
+      sellingPrice: 12,
+    });
+    const flag = await this.call('admin', 'put', `/products/${product.id}`, { depositEnabled: true });
+    if (!flag.ok()) throw new Error(`seed: enable product deposit -> ${flag.status()} ${await flag.text()}`);
+    return product;
+  }
+
   /** A throwaway office login (superadmin only), e.g. a dispatcher. Deleted afterwards. */
   async adminUser(role: 'admin' | 'dispatcher'): Promise<{ id: number; username: string; password: string }> {
     const username = `e2e-${stamp().toLowerCase()}`;
@@ -215,11 +239,17 @@ export class Seed {
     return dispatch;
   }
 
-  async salespersonPayment(salespersonId: number, amount: number, paymentDate = todayIST()): Promise<{ id: number }> {
+  async salespersonPayment(
+    salespersonId: number,
+    amount: number,
+    paymentDate = todayIST(),
+    paymentMode = 'Cash',
+    reference?: string,
+  ): Promise<{ id: number }> {
     const payment = await this.create(
       'admin',
       '/salesperson-payments',
-      { salespersonId, amount, paymentDate, paymentMode: 'Cash' },
+      { salespersonId, amount, paymentDate, paymentMode, ...(reference ? { reference } : {}) },
       'salesperson payment',
     );
     return payment as { id: number };
@@ -258,8 +288,19 @@ export class Seed {
     if (res.status() !== 200) throw new Error(`seed: stock receipt -> ${res.status()} ${await res.text()}`);
   }
 
-  async dairyPayment(brandId: number, amount: number, paymentDate: string): Promise<{ id: number }> {
-    const payment = await this.create('admin', '/dairy-payments', { brandId, amount, paymentDate, paymentMode: 'Cash' }, 'dairy payment');
+  async dairyPayment(
+    brandId: number,
+    amount: number,
+    paymentDate: string,
+    paymentMode = 'Cash',
+    reference?: string,
+  ): Promise<{ id: number }> {
+    const payment = await this.create(
+      'admin',
+      '/dairy-payments',
+      { brandId, amount, paymentDate, paymentMode, ...(reference ? { reference } : {}) },
+      'dairy payment',
+    );
     this.removeLater('admin', `/dairy-payments/${payment.id}`);
     return payment as { id: number };
   }

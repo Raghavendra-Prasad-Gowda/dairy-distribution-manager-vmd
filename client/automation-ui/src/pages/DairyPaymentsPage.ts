@@ -6,12 +6,14 @@ export type PaymentMode = 'Cash' | 'UPI' | 'NEFT' | 'RTGS' | 'Cheque';
 
 /** /dairy/payments — what we owe each dairy brand, and the payments we record against it. */
 export class DairyPaymentsPage extends BasePage {
+  readonly pin: PinDialog;
   readonly amount: Locator;
   readonly recordButton: Locator;
   readonly statusPill: Locator;
 
   constructor(page: Page) {
     super(page);
+    this.pin = new PinDialog(page);
     this.amount = page.getByRole('spinbutton');
     this.recordButton = page.getByRole('button', { name: 'Record Payment' });
     this.statusPill = page.getByText(/^(Outstanding|Credit|Cleared)$/);
@@ -67,5 +69,74 @@ export class DairyPaymentsPage extends BasePage {
     await this.confirmDialog('Delete');
     await deleted;
     await this.acknowledgeNotice('Payment deleted');
+  }
+
+  // ── History: search, filters, pages ──────────────────────────────────────────
+
+  get searchBox(): Locator {
+    return this.page.getByPlaceholder('Search by amount, mode, reference, date…');
+  }
+
+  async openFilters(): Promise<void> {
+    await this.page.getByRole('button', { name: /^Filter/ }).click();
+  }
+
+  async filterByMode(mode: PaymentMode): Promise<void> {
+    await this.page.getByRole('combobox').selectOption(mode);
+  }
+
+  async filterByReference(text: string): Promise<void> {
+    await this.page.locator('label', { hasText: 'Reference' }).locator('xpath=following-sibling::div//input').fill(text);
+  }
+
+  async clearFilters(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Clear all filters' }).click();
+  }
+
+  get noMatch(): Locator {
+    return this.page.getByText('No payments match the current filters');
+  }
+
+  /** Rows of the history table (excluding the header). */
+  get historyRows(): Locator {
+    return this.page.getByRole('row').filter({ has: this.page.getByRole('button', { name: 'Delete' }) });
+  }
+
+  get pageIndicator(): Locator {
+    return this.page.getByText(/^\d+ \/ \d+$/);
+  }
+
+  async nextPage(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Next', exact: true }).click();
+  }
+
+  async previousPage(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Prev', exact: true }).click();
+  }
+
+  // ── Edit ─────────────────────────────────────────────────────────────────────
+
+  /** The "Edit Payment" form that opens after the PIN. */
+  get editForm(): Locator {
+    return this.page.getByText('Correct the details below and save').locator('xpath=ancestor::div[contains(@class,"fixed")][1]');
+  }
+
+  /** Pressing Edit asks for the edit PIN first, then opens the form. */
+  async openEdit(row: Locator, pin: string): Promise<void> {
+    await row.getByRole('button', { name: 'Edit' }).click();
+    const pinDialog = new PinDialog(this.page);
+    await pinDialog.expectOpen();
+    await pinDialog.submit(pin);
+    await expect(this.editForm).toBeVisible();
+  }
+
+  async saveEdit(changes: { amount?: number; mode?: PaymentMode; reference?: string }): Promise<void> {
+    if (changes.amount !== undefined) await this.editForm.getByRole('spinbutton').fill(String(changes.amount));
+    if (changes.mode) await this.editForm.getByRole('button', { name: changes.mode, exact: true }).click();
+    if (changes.reference !== undefined) await this.editForm.getByPlaceholder('Txn / cheque no.').fill(changes.reference);
+    const saved = this.nextResponse('PUT', /\/dairy-payments\/\d+$/);
+    await this.editForm.getByRole('button', { name: 'Save Changes' }).click();
+    await saved;
+    await this.acknowledgeNotice('Payment updated successfully');
   }
 }
