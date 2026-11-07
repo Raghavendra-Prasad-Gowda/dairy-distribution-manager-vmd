@@ -93,10 +93,16 @@ export class BillsPanel {
     return this.page.getByText(`${count} bill${count === 1 ? '' : 's'} issued to ${salespersonName}`);
   }
 
+  /** Dismisses the "Bill #N generated" notice that blocks the page after issuing. */
+  async acknowledgeGenerated(): Promise<void> {
+    await this.page.getByRole('heading', { name: 'Success' }).waitFor();
+    await this.page.getByRole('button', { name: 'OK', exact: true }).click();
+  }
+
   /** Deletes an issued bill through its confirmation and waits for the history to refresh. */
   async remove(billId: number): Promise<void> {
     await this.page.getByRole('button', { name: /^Delete bill #\d+$/ }).click();
-    const dialog = this.page.getByRole('dialog', { name: 'Delete Bill' });
+    const dialog = this.page.getByRole('dialog').filter({ hasText: 'Delete Bill' });
     await dialog.waitFor();
     const deleted = this.page.waitForResponse(
       (r) => r.request().method() === 'DELETE' && new URL(r.url()).pathname.endsWith(`/bills/${billId}`),
@@ -222,8 +228,11 @@ export class DepositReportPage {
   }
 
   async removeTopUp(): Promise<void> {
+    // More than one day in view starts with every deposit day collapsed.
+    const expand = this.page.getByRole('button', { name: 'Expand All' });
+    if (await expand.isVisible()) await expand.click();
     await this.deleteTopUp.click();
-    const dialog = this.page.getByRole('dialog', { name: 'Delete Deposit Top-up' });
+    const dialog = this.page.getByRole('dialog').filter({ hasText: 'Delete Deposit Top-up' });
     await dialog.waitFor();
     await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
     await this.page.getByRole('heading', { name: 'Success' }).waitFor();

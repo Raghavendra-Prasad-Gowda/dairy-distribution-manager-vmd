@@ -36,9 +36,10 @@ test.describe('Deposit report', () => {
       await report.open(brand.name);
       await expect(report.totalDeposit).toHaveText(rupees(20)); // back on yesterday only; the top-up is dated today
 
-      // The top-up never reaches the dairy ledger: what we owe is still just the stock.
+      // The top-up never reaches the dairy ledger: we owe the stock (₹100) plus the deposit it earned (₹20), and
+      // the ₹300 top-up adds nothing to that.
       await new DairyPaymentsPage(ipad).open(brand.id);
-      await expect(new DairyPaymentsPage(ipad).youOwe).toHaveText(rupees(100));
+      await expect(new DairyPaymentsPage(ipad).youOwe).toHaveText(rupees(120));
     } finally {
       await ipad.context().close();
     }

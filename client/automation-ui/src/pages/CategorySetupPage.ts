@@ -25,13 +25,14 @@ export class CategorySetupPage extends BasePage {
     await this.chooseBrand(brandName);
   }
 
-  /** Switches brand tab and waits for that brand's categories to arrive, so row assertions are not vacuous. */
+  /**
+   * Switches brand tab and waits for that brand's categories to arrive, so row assertions are not vacuous. The page
+   * selects the first brand by itself, so clicking that tab changes nothing and sends no request: wait for the
+   * network to settle instead of for one particular call.
+   */
   async chooseBrand(brandName: string): Promise<void> {
-    const loaded = this.page.waitForResponse(
-      (r) => r.request().method() === 'GET' && /\/categories$/.test(new URL(r.url()).pathname),
-    );
     await this.page.getByRole('button', { name: brandName, exact: true }).click();
-    await loaded;
+    await this.page.waitForLoadState('networkidle');
     await expect(this.page.getByText('Loading…')).toHaveCount(0);
   }
 

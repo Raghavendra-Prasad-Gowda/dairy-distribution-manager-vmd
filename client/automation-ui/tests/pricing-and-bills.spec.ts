@@ -69,6 +69,7 @@ test.describe('Pricing and bills', () => {
     expect(created.status()).toBe(201);
     const billId = (await created.json()).data.id as number;
     await expect(bills.issued(1, salesperson.name)).toBeVisible();
+    await bills.acknowledgeGenerated();
 
     // Deleting is part of the journey: the bill leaves the history and its number is not reused.
     await bills.remove(billId);

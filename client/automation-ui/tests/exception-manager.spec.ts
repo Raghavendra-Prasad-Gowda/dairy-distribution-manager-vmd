@@ -15,14 +15,21 @@ test.describe('Exception Manager (superadmin)', () => {
   }) => {
     const brand = await superSeed.brand();
     const product = await superSeed.product(brand.id, { costPrice: 10, sellingPrice: 12 }); // off for salespeople by default
-    await superSeed.stockReceipt(brand.id, todayIST(), [{ productId: product.id, quantity: 100, unitPrice: 10 }]);
+    // A product that IS on for everyone, so the phone has a catalogue to search either way.
+    const control = await superSeed.product(brand.id, { costPrice: 10, sellingPrice: 12 });
+    await superSeed.enableForSalespeople(control.id, 15);
+    await superSeed.stockReceipt(brand.id, todayIST(), [
+      { productId: product.id, quantity: 100, unitPrice: 10 },
+      { productId: control.id, quantity: 100, unitPrice: 10 },
+    ]);
     const salesperson = await superSeed.salesperson(true);
 
     const phone = await newPhone(browser);
     const ipad = await newSuperadminIpad(browser);
     try {
       const entry = await signInAsSalesman(phone, salesperson.username!, salesperson.password!);
-      await entry.find(product.name);
+      await entry.find(brand.name);
+      await expect(entry.product(control.name)).toBeVisible();
       await expect(entry.product(product.name)).toHaveCount(0); // off for everyone, so not offered
 
       const pricing = new PricingPage(ipad);
