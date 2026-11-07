@@ -184,7 +184,7 @@ describe('Layout — mobile drawer', () => {
     const drawer = container.querySelectorAll('aside')[1];
     expect(drawer.className).toContain('-translate-x-full');
 
-    fireEvent.click(screen.getByRole('button', { name: '' })); // hamburger (Menu icon, no accessible text)
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' })); // hamburger
     expect(drawer.className).toContain('translate-x-0');
   });
 });

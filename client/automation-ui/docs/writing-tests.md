@@ -61,14 +61,14 @@ import { RouteSetupPage } from '../src/pages/RouteSetupPage';
 
 const unique = () => `E2E-${Date.now()}`;
 
-test('admin can add a route and it survives a reload', async ({ page, trackRoute }) => {
+test('admin can add a route and it survives a reload', async ({ page, trackCreated }) => {
   const routes = new RouteSetupPage(page);
   await routes.open();
 
   const name = unique();
   const created = await routes.addRoute(name);
   expect(created.status()).toBe(201);
-  trackRoute(created.url(), (await created.json()).data.id);   // cleanup even if the test fails
+  trackCreated(created.url(), (await created.json()).data.id);   // cleanup even if the test fails
   await routes.acknowledgeNotice('Route added');
 
   await routes.reload();                                        // persisted, not just React state

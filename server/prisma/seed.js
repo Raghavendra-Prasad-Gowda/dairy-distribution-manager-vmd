@@ -13,6 +13,44 @@ const defaultPrisma = require('../lib/prisma');
 const BCRYPT_ROUNDS = 10;
 
 /**
+ * Brings the superadmin account in line with SUPERADMIN_USERNAME / SUPERADMIN_PASSWORD.
+ *
+ * The account is found by the env USERNAME first, so a deployment that already has that login (possibly with a
+ * second superadmin alongside it) only gets its password synced and can never collide with itself. Only when no
+ * account has that username is the lowest-id superadmin renamed to it, or one created when none exists.
+ * A username held by a non-superadmin is never promoted: that is a configuration mistake, so it stops with a
+ * message that says what to change.
+ */
+async function syncSuperAdmin(prisma, username, password) {
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+  const sameName = await prisma.adminUser.findUnique({ where: { username } });
+  if (sameName) {
+    if (sameName.role !== 'superadmin') {
+      throw new Error(
+        `SUPERADMIN_USERNAME "${username}" already belongs to a ${sameName.role} account. ` +
+        'Set SUPERADMIN_USERNAME to the superadmin\'s own username (or remove the variable) and redeploy.'
+      );
+    }
+    await prisma.adminUser.update({ where: { id: sameName.id }, data: { passwordHash } });
+    logger.info('Synced superadmin password from env vars', { username });
+    return;
+  }
+
+  const firstSuperAdmin = await prisma.adminUser.findFirst({
+    where: { role: 'superadmin' },
+    orderBy: { id: 'asc' }, // deterministic: never depends on physical row order
+  });
+  if (firstSuperAdmin) {
+    await prisma.adminUser.update({ where: { id: firstSuperAdmin.id }, data: { username, passwordHash } });
+    logger.info('Renamed superadmin and synced credentials from env vars', { username });
+  } else {
+    await prisma.adminUser.create({ data: { username, passwordHash, role: 'superadmin' } });
+    logger.info('Created superadmin user', { username });
+  }
+}
+
+/**
  * Bootstraps the superadmin account from env vars on every boot.
  * If SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD are not set, nothing is created.
  */
@@ -20,24 +58,11 @@ async function seedFoundationData(externalPrisma) {
   const prisma = externalPrisma || defaultPrisma;
 
   // ─── Super admin user (AdminUser table) ───────────────────────────────────
-  // Env vars are authoritative — always sync username + password on every boot.
+  // Env vars are authoritative — the superadmin's credentials are synced on every boot.
   const rawSuperUsername = env.SUPERADMIN_USERNAME;
   const rawSuperPassword = env.SUPERADMIN_PASSWORD;
   if (rawSuperUsername && rawSuperPassword) {
-    const existingSuperAdmin = await prisma.adminUser.findFirst({ where: { role: 'superadmin' } });
-    const passwordHash = await bcrypt.hash(rawSuperPassword, BCRYPT_ROUNDS);
-    if (existingSuperAdmin) {
-      await prisma.adminUser.update({
-        where: { id: existingSuperAdmin.id },
-        data: { username: rawSuperUsername, passwordHash },
-      });
-      logger.info('Synced superadmin credentials from env vars', { username: rawSuperUsername });
-    } else {
-      await prisma.adminUser.create({
-        data: { username: rawSuperUsername, passwordHash, role: 'superadmin' },
-      });
-      logger.info('Created superadmin user', { username: rawSuperUsername });
-    }
+    await syncSuperAdmin(prisma, rawSuperUsername, rawSuperPassword);
   } else {
     logger.info('SUPERADMIN_USERNAME/SUPERADMIN_PASSWORD not set — skipping superadmin seed');
   }
@@ -74,7 +99,7 @@ async function seedFoundationData(externalPrisma) {
   }
 }
 
-module.exports = { seedFoundationData };
+module.exports = { seedFoundationData, syncSuperAdmin };
 
 // Allow running standalone: node prisma/seed.js
 if (require.main === module) {

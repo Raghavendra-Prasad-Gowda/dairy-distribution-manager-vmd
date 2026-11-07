@@ -163,6 +163,16 @@ jobs:
           VERCEL_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          # Specs arrange their data (throwaway brand, product, salesperson, ...) through the API and clean it up
+          # the same way; the browser only acts and asserts. Specs that need it skip when it is missing.
+          API_BASE_URL: ${{ env.API_URL }}
+          # Superadmin (no MFA): throwaway brands, dispatcher logins, the Admin Users journey.
+          E2E_SUPERADMIN_USERNAME: ${{ secrets.E2E_SUPERADMIN_USERNAME }}
+          E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
+          # Edit PIN (deleting a payment) and Profit & Loss PIN: the specs that type them skip without them.
+          E2E_EDIT_PIN: ${{ secrets.E2E_EDIT_PIN }}
+          E2E_PL_PIN: ${{ secrets.E2E_PL_PIN }}
+          E2E_STRICT: ${{ vars.E2E_STRICT }}
         run: npm test
       - name: Summarise tests
         if: always()

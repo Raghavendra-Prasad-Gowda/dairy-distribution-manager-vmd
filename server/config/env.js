@@ -77,6 +77,14 @@ const schema = z.object({
     z.coerce.number().int().min(1),
   ),
 
+  // Requests per IP per minute on the bulk-write routes (/stock-receipts, salesperson products and price
+  // bulk saves). Defaults to 30 and must stay there in production; raise it only on a test environment,
+  // where one UI-automation runner drives many of these routes from one address.
+  BULK_WRITE_RATE_LIMIT_MAX: z.preprocess(
+    (val) => (val === undefined || val === '' ? 30 : val),
+    z.coerce.number().int().min(1),
+  ),
+
   // CORS / links
   CLIENT_ORIGIN: z.preprocess(
     (val) => val || 'http://localhost:5173',
