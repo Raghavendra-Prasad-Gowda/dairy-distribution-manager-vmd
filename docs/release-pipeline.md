@@ -15,7 +15,7 @@ flowchart TD
     S1 --> S2[2 🧪 API automation · REST Assured + Cucumber]
     S2 --> S3[3 🎭 UI automation · Playwright + TypeScript]
     S3 --> S4[4 ✅ Staging Verified status]
-    S4 --> S5[5 📝 open/update develop → main release PR]
+    S4 --> S5[5 📝 open/update release PR (`release/next` = develop + main + version bump)]
     S5 -->|👤 approve + merge commit| MAIN[(main)]
     MAIN -->|auto-deploy| P[☁️ Render + Vercel PRODUCTION]
     P --> PV[⚙️ production-verify.yml<br/>wait → read-only smoke → tag + GitHub Release]
@@ -55,7 +55,7 @@ exclude the same path in `wait-for-backend.sh`.
   - `develop`: require a PR; required checks = every `pr-checks` job; no force-push.
   - `main`: require a PR; **1 approval**; require review from Code Owners; dismiss stale
     approvals; required checks = every `pr-checks` job **plus `Staging Verified`**; no force-push.
-    The release PR (`develop → main`) skips the `pr-checks` jobs (each job has an `if:` guard),
+    The release PR (`release/next → main`) skips the `pr-checks` jobs (each job has an `if:` guard),
     since `develop` already passed them and `Staging Verified`; GitHub counts skipped jobs as
     passing. Hotfix PRs into `main` still run every job.
   - To select `Staging Verified` as a required check it must have been reported once — merge
@@ -159,3 +159,13 @@ it ships, open a PR `main → develop` so `develop` gets the fix too.
   the App lacks Workflows: read & write. The default `GITHUB_TOKEN` can never merge such PRs.
 - **Auto-merge failed before a permission fix** — re-run that `auto-merge-develop` run (Actions → the run →
   Re-run jobs). Each run mints a fresh App token, so the re-run picks up the new permissions.
+
+
+## Version numbers
+
+Vercel's clone has no git tags, so a build cannot read `git describe`. The release number is therefore baked in
+before the build: `staging-pipeline` (`open-release-pr`) cuts `release/next` from the verified develop commit,
+merges `main`, runs `npm version <next>` in `server/` and `client/` (next = latest `vX.Y.Z` tag + patch,
+via `.github/scripts/next-version.sh`), copies the `Staging Verified` status onto that commit and opens the PR
+from it. Render/Vercel build `main` with that `package.json` version; `production-verify` tags the same number.
+A manual `workflow_dispatch` (minor/major) or hotfix without a bump falls back to computing the tag, with a warning.

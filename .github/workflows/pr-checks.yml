@@ -9,7 +9,7 @@ jobs:
     name: lint-timezone-safety
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -25,7 +25,7 @@ jobs:
     name: lint-server
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -44,7 +44,7 @@ jobs:
     name: lint-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -63,7 +63,7 @@ jobs:
     name: api-tests-coverage-server
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -88,7 +88,7 @@ jobs:
     name: ui-tests-coverage-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -110,7 +110,7 @@ jobs:
     name: build-client
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -129,7 +129,7 @@ jobs:
     name: lint-openapi-spec
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -142,7 +142,7 @@ jobs:
     name: dependency-vulnerability-scan-${{ matrix.package }}
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -168,7 +168,7 @@ jobs:
     name: compile-automation-suite
     # Release PRs (develop → main) skip: develop already passed these checks and
     # Staging Verified. Skipped jobs count as passing for required checks.
-    if: github.base_ref != 'main' || github.head_ref != 'develop'
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     defaults:
       run:
