@@ -2,10 +2,11 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const controller = require('../controllers/salespersonPrices.controller');
 const { requireAdmin } = require('../middleware/auth');
+const env = require('../config/env');
 
 const bulkWriteLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: env.BULK_WRITE_RATE_LIMIT_MAX, // 30 unless a test environment raises it
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many bulk price updates, please slow down',

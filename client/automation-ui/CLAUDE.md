@@ -16,16 +16,17 @@ Detailed documentation: `docs/` (architecture, writing tests, configuration & CI
 
 ```
 client/automation-ui/
-├── playwright.config.ts   # projects + devices; ADMIN_STATE = .auth/admin.json
+├── playwright.config.ts   # projects + devices; ADMIN_STATE = .auth/admin.json; landscape runs only @layout specs
 ├── src/
 │   ├── env.ts             # every setting, from environment variables (nothing secret hard-coded)
-│   ├── fixtures.ts        # extended `test`: trackRoute (deletes created routes, pass or fail)
-│   └── pages/             # page objects — LoginPage, DashboardPage, RouteSetupPage
-└── tests/
-    ├── auth.setup.ts      # signs in once through the real form, saves the session
-    ├── login.spec.ts      # runs signed out
-    ├── route-setup.spec.ts
-    └── salesman/          # (create when needed) phone-only salesman specs
+│   ├── seed.ts            # Seed: arrange-by-API (brand, category, product, route, salesperson, dispatch, ...) + dispose()
+│   ├── fixtures.ts        # extended `test`: seed, superSeed, editPin, plPin, trackCreated
+│   └── pages/             # page objects (BasePage parent) — every selector lives here
+└── tests/                 # login · navigation · dairy-ledger · salesperson-ledger · catalog-setup · salesman-users ·
+    │                      # pricing-and-bills · reports · access-roles · superadmin · opening-balances ·
+    │                      # dispatcher · exception-manager · deposit-and-stock-balance · payment-history · brands-setup · bulk-pricing ·
+    │                      # admin-users · layout-settings  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
+    └── salesman/          # phone specs: stock-entry · stock-entry-controls · security · statement
 ```
 
 ## Where it runs
@@ -60,12 +61,14 @@ the workflow and scripts.
 1. **Selectors live in `src/pages/`, behaviour in `tests/`.** Specs never contain a locator string.
    Prefer `getByRole` / `getByLabel` / visible text over CSS or test ids.
 2. **Import `test` and `expect` from `src/fixtures`**, not straight from `@playwright/test`, so cleanup
-   fixtures are available.
-3. **Everything a test creates is named `E2E-<unique>` and registered for cleanup** (`trackRoute(url, id)`
-   or a new fixture in `src/fixtures.ts` built the same way). Cleanup runs pass or fail and must tolerate 404.
+   fixtures are available. Page objects extend `BasePage` (notice + dialog helpers).
+3. **Everything a test creates is named `E2E-<unique>` and removed afterwards, pass or fail.** Data a journey merely
+   *needs* is arranged through the API with `seed` / `superSeed` (cleanup is registered by the helper itself); data the
+   UI creates is registered with `trackCreated(url, id)`. Cleanup must tolerate 404 and wait out 429.
 4. **Assert persistence, not just React state** — reload and re-check after a save.
 5. **Never sign in per test.** Login is limited to 20 attempts/hour/IP and the API suite uses the same budget.
-   Signed-in specs reuse `.auth/admin.json`; salesman specs sign in once as their own salesman.
+   Signed-in specs reuse `.auth/admin.json`; salesman specs sign in once as their own salesman. The superadmin signs in once in the `setup` project
+   (`.auth/superadmin.json`); use `newSuperadminIpad(browser)` instead of signing in again.
    A wrong-password test must use an **unknown username** — failed attempts against a real account count toward
    its lock-out (5 wrong passwords lock an admin for 30 min).
 6. **The accounts must not have MFA** (`E2E_ADMIN_*`).
@@ -74,11 +77,24 @@ the workflow and scripts.
    before the next interaction.
 9. Read config only through `src/env.ts`; credentials are read lazily so signed-out specs need none.
 10. Keep `@playwright/test` pinned to an exact version; `npm run typecheck` must pass before pushing.
+11. **Arrange by API, act and assert in the browser.** Do not click through setup screens to prepare data; do not use
+    the API to *assert* what the UI shows when the UI journey is the point.
+12. **Money specs use a throwaway brand** (`superSeed.brand()`), never Nandini/Jersey/Gowardhan — its cleanup zeroes the
+    day's stock, deletes its payments and archives it so shared reports stay clean. Catalogue specs that only create
+    categories/routes/products use Nandini with `E2E-` names and need no superadmin.
+13. **Expected numbers are computed from what you seeded**, never read back from the screen under test.
+14. **No fixed sleeps.** Use web-first `expect`, `waitForResponse` set up *before* the click, and `expect.poll`.
+15. **Respect the rate limits**: 30 requests/minute on `/salespeople`, `/stock-receipts` and the bulk price/product
+    routes; 20 sign-ins/hour; 20 wrong-PIN checks/15 min (correct PINs are not counted once the backend change is deployed). Keep journeys few and complete, reuse tokens (`seed` caches them), run layout-independent
+    specs once (portrait) and tag only layout-sensitive describes `@layout` so landscape repeats them.
+16. **Every new user-facing flow gets a journey here in the same PR** — happy path plus the refusal that matters
+    (duplicate, locked, wrong role). Specs that need `API_BASE_URL`, a superadmin or a PIN skip when it is
+    missing, and fail when `E2E_STRICT=true`.
 
 ## Adding a spec
 
 - Pick the folder by user: `tests/salesman/` for salesman screens (phone), `tests/` for everyone else (iPad).
-- Add or extend a page object in `src/pages/` first; reuse `DashboardPage` for navigation.
+- Add or extend a page object in `src/pages/` first (extend `BasePage`); reuse `ShellPage` for navigation.
 - When the app changes visible text, labels, roles or routes that a page object relies on, update the page
   object **in the same PR** — this suite runs only after merge and a break turns `Staging Verified` red.
 - Run locally against a dev server or the testing URL before pushing (see `README.md`).
@@ -89,6 +105,10 @@ the workflow and scripts.
 |---|---|
 | `WEB_BASE_URL` | frontend origin, no trailing slash (default `http://localhost:5173`) |
 | `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` | admin account **without MFA** |
+| `API_BASE_URL` | backend origin, no `/api/v1` — needed by every data-driven spec (arrange + cleanup) |
+| `E2E_SUPERADMIN_USERNAME` / `E2E_SUPERADMIN_PASSWORD` | superadmin **without MFA** — throwaway brands, dispatcher logins, Admin Users journey |
+| `E2E_EDIT_PIN` / `E2E_PL_PIN` | the edit PIN (delete a payment) and the Profit & Loss PIN |
+| `E2E_STRICT` | `true` = fail instead of skip when a prerequisite above is missing |
 | `VERCEL_BYPASS_SECRET` | Vercel "Protection Bypass for Automation" secret, only if the frontend is protected |
 | `HEADLESS` | `false` to watch the browser |
 | `UI_TIMEOUT_MS` | default `60000` (Render's free plan wakes slowly) |

@@ -983,7 +983,7 @@ paths:
     post:
       tags: [PIN]
       summary: Verify the shared edit PIN for a protected action (admin)
-      description: Rate-limited to 5 attempts per 15 minutes.
+      description: Rate-limited to 20 wrong attempts per 15 minutes per IP. A correct PIN is not counted.
       requestBody:
         required: true
         content:
@@ -995,7 +995,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Success' }
         '400': { description: Incorrect PIN }
-        '429': { description: Rate limited — 5 attempts/15 min }
+        '429': { description: Rate limited — 20 wrong attempts/15 min }
 
   # ── Routes ────────────────────────────────────────────────────────────────
   /routes:

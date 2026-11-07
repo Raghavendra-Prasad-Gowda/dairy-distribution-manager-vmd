@@ -96,8 +96,15 @@ that script saw running; the health scenario asserts `/health` reports it.
     @auth @pin @access @security ...`).
 13. Read config only through `TestConfig`; never hard-code a URL or credential.
 14. Accounts used by the suite must **not have MFA**, and the suite must never trip account lock-out.
+15. **Every path and branch of every change is covered** (root `CLAUDE.md` §17.1a). For each endpoint you add or
+    touch, write a scenario per role (allowed and refused), per validation rule (and the boundary value), per
+    `if`/`else`/`throw`/default in the controller or service, per data state (not found, duplicate, in use, empty,
+    locked) and per ledger/side-effect outcome. Use `Scenario Outline` + `Examples` for role and validation
+    matrices. Put the `branch → scenario` list in the PR; list unreachable branches in `COVERAGE.md`.
 
 ## Adding a scenario
+
+- **First enumerate the branches** of the code you changed (rule 15), then write the scenarios — happy path last.
 
 - Put it in the feature file for its area (see `README.md` → What it covers); create a new feature only for a
   new area, then add it to the README table and `COVERAGE.md`.

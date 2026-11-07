@@ -55,7 +55,11 @@ export default function DailyDispatchSummary() {
       select: ([d]) => {
         const autoId = d.rows.find(row => row.totalAmount > 0)?.salespersonId
                        ?? d.rows[0]?.salespersonId ?? null;
-        setSelectedSpId(autoId);
+        // Keep whoever is open when the sheet reloads (e.g. after Lock/Unlock) — only fall back to the
+        // first salesperson with an entry when nothing is selected yet or they are no longer listed.
+        setSelectedSpId(prev =>
+          prev != null && d.rows.some(row => row.salespersonId === prev) ? prev : autoId
+        );
         setCollapsedBrands({});
         return d;
       },

@@ -1,13 +1,15 @@
 import { expect, type Locator, type Page, type Response } from '@playwright/test';
+import { BasePage } from './BasePage';
 
 /** /dairy/setup/routes — manage delivery route numbers per brand. */
-export class RouteSetupPage {
+export class RouteSetupPage extends BasePage {
   readonly heading: Locator;
   readonly addRouteButton: Locator;
   private readonly form: Locator;
   private readonly numberInput: Locator;
 
-  constructor(private readonly page: Page) {
+  constructor(page: Page) {
+    super(page);
     this.heading = page.getByRole('heading', { name: 'Route Setup' });
     this.addRouteButton = page.getByRole('button', { name: 'Add Route' }).first();
     // The add/edit modal is a plain <form> (no dialog role); find it by its input.
@@ -25,6 +27,36 @@ export class RouteSetupPage {
     await this.page.goto('/dairy/setup/routes');
     await this.heading.waitFor();
     await this.selectBrand(brandName);
+  }
+
+  /** Switches to another brand's tab and waits until the page confirms it. */
+  async chooseBrand(brandName: string): Promise<void> {
+    await this.selectBrand(brandName);
+  }
+
+  /** The route-number field of the open add/edit form. */
+  get numberField(): Locator {
+    return this.numberInput;
+  }
+
+  /** Opens the edit form for a route without changing anything. */
+  async openEdit(routeNumber: string): Promise<void> {
+    await this.row(routeNumber).getByTitle('Edit').click();
+  }
+
+  /** Closes the add/edit form with its Cancel button. */
+  async cancelForm(): Promise<void> {
+    await this.form.getByRole('button', { name: 'Cancel' }).click();
+    await this.numberInput.waitFor({ state: 'detached' });
+  }
+
+  /** Opens the delete confirmation and answers Cancel, so nothing is deleted. */
+  async cancelDelete(routeNumber: string): Promise<void> {
+    await this.row(routeNumber).getByTitle('Delete').click();
+    const dialog = this.page.getByRole('dialog');
+    await expect(dialog).toContainText(`Delete route "${routeNumber}"?`);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
   }
 
   /** Clicks the brand tab and waits until the page confirms that brand is the active one. */
@@ -83,15 +115,5 @@ export class RouteSetupPage {
     );
     await confirm.click();
     await deleted;
-  }
-
-  /**
-   * Saves, deletes and errors are announced in a blocking modal ("Success"/"Error" + OK) that
-   * covers the page until dismissed. Asserts the message, then clicks OK like a user would.
-   */
-  async acknowledgeNotice(text: string | RegExp): Promise<void> {
-    await expect(this.page.getByText(text).first()).toBeVisible();
-    await this.page.getByRole('button', { name: 'OK', exact: true }).click();
-    await expect(this.page.getByRole('button', { name: 'OK', exact: true })).toHaveCount(0);
   }
 }

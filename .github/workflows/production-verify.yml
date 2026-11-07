@@ -96,15 +96,15 @@ jobs:
           fi
 
           latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
-          if [ -z "$latest" ]; then
-            next="v$(node -p "require('./server/package.json').version")"
+          # The release PR already bumped package.json (release/next), and that number is what the
+          # deployed build shows - tag exactly it. Only a hotfix/manual run without a bump falls back.
+          pkg="v$(node -p "require('./server/package.json').version")"
+          if [ -n "$(git tag --list "$pkg")" ]; then
+            next=$(BUMP="$BUMP" .github/scripts/next-version.sh)
+            next="v$next"
+            echo "::warning::package.json is $pkg (already tagged); tagging $next but the deployed build shows $pkg"
           else
-            IFS=. read -r maj min pat <<< "${latest#v}"
-            case "$BUMP" in
-              major) next="v$((maj + 1)).0.0" ;;
-              minor) next="v${maj}.$((min + 1)).0" ;;
-              *)     next="v${maj}.${min}.$((pat + 1))" ;;
-            esac
+            next="$pkg"
           fi
 
           echo "Releasing $next (previous: ${latest:-none})"

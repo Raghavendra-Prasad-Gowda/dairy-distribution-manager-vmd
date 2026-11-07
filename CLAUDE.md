@@ -174,7 +174,7 @@ Both sign in through `POST /auth/login`.
 - All `/api/v1/*` requires `authenticate` (JWT in the `Authorization: Bearer` header — the cookie is not honoured), except `/auth/*` sign-in steps and the public `POST /errors/client` beacon
 - Most admin routes: `requireAdmin` at mount; superadmin-only endpoints: `requireSuperAdmin`; dispatcher reads: `requireAdminOrDispatcher`
 - Controllers re-check with `assertRole` / `assertAdmin` (`utils/authz.js`) as defence in depth
-- Rate limits: global 5000 / 15 min on `/api`; login 20 / hour / IP (`LOGIN_RATE_LIMIT_MAX`); `bulkWriteLimiter` 30 / min on `/stock-receipts`, salesperson products and price bulk routes; PIN verify 20 / 15 min; MFA steps have their own limiters; client-error beacon 30 / hour (always answers 200)
+- Rate limits: global 5000 / 15 min on `/api`; login 20 / hour / IP (`LOGIN_RATE_LIMIT_MAX`); `bulkWriteLimiter` 30 / min (`BULK_WRITE_RATE_LIMIT_MAX`) on `/stock-receipts`, salesperson products and price bulk routes; PIN verify 20 / 15 min; MFA steps have their own limiters; client-error beacon 30 / hour (always answers 200)
 
 **MFA and lock-out (AdminUser only):**
 - TOTP MFA with 8 bcrypt-hashed backup codes (`services/mfaService.js`). The TOTP secret is AES-256-GCM encrypted with a key derived from `JWT_SECRET` (`utils/mfaCrypto.js`) — **rotating `JWT_SECRET` invalidates every enrolled authenticator**.
@@ -319,7 +319,7 @@ await prisma.$transaction(async (tx) => {
 | `GET /reports/dairy-statement`, `/salesperson-statement`, `/stock-summary`, `/outstanding`, `/deposit-summary`, `/profit-loss` | admin | reports |
 | `GET /reports/daily-dispatch` | admin or dispatcher | reports |
 | `GET /bills`, `GET /bills/preview`, `GET /bills/:id`, `POST /bills`, `DELETE /bills/:id` | admin | bills |
-| `POST /pin/verify`, `POST /pin/verify-pl` | admin (20 / 15 min) | pin |
+| `POST /pin/verify`, `POST /pin/verify-pl` | admin (20 wrong / 15 min) | pin |
 | `GET /pin/settings` | admin | pin |
 | `PUT /pin/update`, `PUT /pin/update-pl`, `PUT /pin/settings` | superadmin | pin |
 | `GET /admin-users`, `POST /admin-users`, `PUT /admin-users/:id`, `DELETE /admin-users/:id` | superadmin | adminUsers |
@@ -684,6 +684,7 @@ API cannot reach):
 - 403 (wrong role, e.g. salesman hitting admin-only)
 - 200/201 (happy path)
 - The specific business logic path (e.g. missing field defaults, cascades)
+- This is the *floor*: §17.1a requires a scenario for every branch the change touches
 
 ### Backend — API automation against the deployed environment (`server/automation/`)
 
@@ -711,10 +712,17 @@ Playwright Test + TypeScript, real browser → real frontend → real API → re
 `staging-pipeline.yml`; PR CI only type-checks it (`npm run typecheck`). There is no production UI run.
 Its own rules are in `client/automation-ui/CLAUDE.md`.
 
+- The suite holds **critical business journeys**, not one test per widget: sign-in/session/sign-out, every admin
+  screen opening cleanly, the dairy money path (stock → balance → payments → dashboard), the salesperson money path
+  (dispatch → collections → outstanding/day balance/statement), catalogue setup, salesman users, pricing reaching the
+  phone, bills, reports, role access (dispatcher, superadmin) and the salesman's phone journey.
+- Data is **arranged through the API** (`src/seed.ts`: throwaway `E2E-` brand/product/salesperson/dispatch) and removed
+  afterwards; the browser acts and asserts. Money specs never touch a real brand.
 - Page objects in `src/pages/` hold every selector; specs in `tests/` hold behaviour.
-- Admin/dispatcher specs run on iPad portrait + landscape; specs in `tests/salesman/` run on a phone.
+- Admin/dispatcher specs run on iPad portrait; only `@layout`-tagged specs also run on landscape; specs in
+  `tests/salesman/` run on a phone.
 - The `setup` project signs in once and saves `.auth/admin.json` — specs reuse it (login is limited to 20/hour).
-- Anything a test creates is `E2E-...` named and removed by a fixture (e.g. `trackRoute`).
+- **A new or changed user-facing flow adds/updates a journey in the same PR** (happy path + the refusal that matters).
 
 ### Frontend — Vitest + React Testing Library
 
@@ -833,7 +841,10 @@ feat/* → PR → develop → (auto-deploy testing) → API automation → UI au
 
 ### Branches
 - **`develop`** is the integration branch and the GitHub default. Never push to it directly — open a PR.
-- **`main`** is production. Only the release PR (`develop → main`) or a `hotfix/*` PR lands here.
+- **`main`** is production. Only the release PR (`release/next → main`) or a `hotfix/*` PR lands here.
+  `release/next` is rebuilt by `staging-pipeline` as develop + main + a `chore(release): vX.Y.Z` bump of the
+  `package.json`/lockfile versions, so the deployed build shows the release number (Vercel's clone has no tags);
+  `production-verify` then tags that same number. Never edit `release/next` by hand.
 - Work on a feature branch cut from `develop`:
   - `feat/<description>`, `fix/<description>`, `hotfix/<description>` (hotfix is cut from `main`)
 
@@ -850,8 +861,8 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Never force-push `develop` or `main`
 
 ### CI / pipeline
-- PRs to `develop` and `main` run `pr-checks.yml`: timezone lint, server + client ESLint, server Playwright specs under `c8` coverage (70/80/85/70), client Vitest under v8 coverage (78/68/70/80), client build, OpenAPI lint, `npm audit` (server + client), and `compile-automation-suite` (`server/automation` test-compile + `client/automation-ui` typecheck). The release PR (`develop → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
-- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `server/automation` `@api` then `client/automation-ui` (Playwright + TypeScript), posts one Slack results card per suite, sets the `Staging Verified` commit status and opens/updates the release PR.
+- PRs to `develop` and `main` run `pr-checks.yml`: timezone lint, server + client ESLint, server Playwright specs under `c8` coverage (70/80/85/70), client Vitest under v8 coverage (78/68/70/80), client build, OpenAPI lint, `npm audit` (server + client), and `compile-automation-suite` (`server/automation` test-compile + `client/automation-ui` typecheck). The release PR (`release/next → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.
+- A merge to `develop` triggers `staging-pipeline.yml`. It does not deploy — Render/Vercel auto-deploy; it waits for the new commit, runs `server/automation` `@api` then `client/automation-ui` (Playwright + TypeScript), posts one Slack results card per suite, sets the `Staging Verified` commit status and opens/updates the release PR (head `release/next`, with the version bump).
 - `main` requires `Staging Verified` + 1 approval. Merge the release PR with a **merge commit** (not squash).
 - A merge to `main` triggers `production-verify.yml` (read-only `@api and @smoke` checks from `server/automation`, then a `vX.Y.Z` tag/release). Smoke scenarios must never write to production.
 - After a hotfix to `main`, open a PR `main → develop`.
@@ -864,12 +875,33 @@ git push -u origin feat/short-description   # then open a PR into develop
 Every code change (new feature, bug fix, or refactor) MUST satisfy all four:
 
 ### 17.1 Tests
-- **Backend change** → add/update Playwright spec in `server/tests/playwright/` for logic the API cannot reach, and an API scenario in `server/automation/` for endpoint behaviour (Section 12)
+- **Backend change** → cover **every path and branch you touch** (17.1a), then add/update Playwright spec in `server/tests/playwright/` for logic the API cannot reach, and an API scenario in `server/automation/` for endpoint behaviour (Section 12)
 - **Frontend change** → add/update Vitest spec next to the page file
 - Mock new Prisma calls with `test.beforeEach` to avoid "Cannot read properties of undefined" crashes
 - Run tests before pushing: `cd server && npx playwright test` and `cd client && npm test`; if you touched an automation suite, also `cd server/automation && mvn -B -ntp test-compile` and/or `cd client/automation-ui && npm run typecheck`
 - A user-facing flow that spans backend + frontend → also add an API scenario in `server/automation/` (Cucumber `@api`; `@smoke` only if read-only) and/or a UI spec in `client/automation-ui/tests/` (Playwright + TypeScript). See their `CLAUDE.md` and `README.md`
 - A renamed endpoint, field or screen text → update the automation suites in the same PR; they run after merge and will turn `Staging Verified` red otherwise
+
+### 17.1a API path & branch coverage (mandatory on every backend change)
+Whenever you **add or change** an endpoint, controller, service, validation schema or guard, the API automation
+(`server/automation/`) must exercise **every path and branch the change touches** — not just the happy path and the
+§12 minimum. Before writing code, list them; before pushing, show each one mapped to a scenario:
+
+| Branch kind | Cover with a scenario for… |
+|---|---|
+| Auth & roles | no token, bad/expired/forged token, **every** role (superadmin, admin, dispatcher, salesman own vs another's row) — allowed *and* refused |
+| Input | each Zod rule (missing, wrong type, empty, too long, out of range, bad enum, bad date/IST bound, bad id) and the value just inside each limit |
+| Every `if`/`else`, early `return`, `throw AppError`, `??`/`||` default and `switch` case in the changed code | one scenario per outcome |
+| Data states | not found, already exists/duplicate (`P2002`), FK in use (`P2003`), empty list, one vs many rows, archived/inactive, locked/finalised/submitted |
+| Side effects | ledger cascade (before/after, past + future dates), row written/not written, Slack-only effects stay in the mocked specs |
+| Reads | filters, sorting (product layout), pagination on/off, role-scoped results |
+| Regression | the bug being fixed gets a scenario that fails without the fix |
+
+- Put the matrix in the PR description (`branch → scenario`). A branch that the API genuinely cannot reach (needs a
+  forced DB/Slack failure, rate-limit exhaustion, MFA/lock-out) goes in a mocked spec in `server/tests/playwright/`
+  and is listed in `server/automation/COVERAGE.md`; a branch that is dead code gets removed instead of tested.
+- Behaviour the API gets wrong today is captured as a `@known-defect` scenario, never left uncovered.
+- A change with no new scenarios must say in the PR which existing scenarios already cover each branch.
 
 ### 17.2 Slack notification
 - Every write action needs a Slack card
@@ -908,6 +940,7 @@ All server config is validated in `server/config/env.js` (Zod) at boot. "Prod" m
 | `NODE_ENV` | No | `development` (default) / `test` / `production` |
 | `PORT` | No | Default `3001` |
 | `LOGIN_RATE_LIMIT_MAX` | No | Login attempts per IP per hour (default `20`). Raise only on a test environment — never in production |
+| `BULK_WRITE_RATE_LIMIT_MAX` | No | Requests per IP per minute on the bulk-write routes (default `30`). Raise only on a test environment (the UI automation drives these routes quickly) — never in production |
 | `SLACK_WEBHOOK_URL` | No | Slack incoming webhook — unset = silent |
 | `APP_URL` | No | Added as "Open App" link in Slack card footers |
 | `APP_VERSION` | No | Overrides the build tag shown in `/health` (Section 18a) |
@@ -927,8 +960,10 @@ Read by the suites, never by the app. Full tables in `server/automation/CLAUDE.m
 | `API_BASE_URL` | API | Backend origin, no `/api/v1` |
 | `WEB_BASE_URL` | UI | Frontend origin |
 | `E2E_ADMIN_USERNAME` / `E2E_ADMIN_PASSWORD` | both | Admin **without MFA** |
-| `E2E_SUPERADMIN_USERNAME` / `E2E_SUPERADMIN_PASSWORD` | API | Superadmin **without MFA** (optional) |
-| `E2E_STRICT`, `EXPECTED_COMMIT` | API | Fail instead of skip / commit `/health` must report |
+| `E2E_SUPERADMIN_USERNAME` / `E2E_SUPERADMIN_PASSWORD` | both | Superadmin **without MFA** (optional; UI: throwaway brands, dispatcher/Admin Users journeys) |
+| `API_BASE_URL` | UI too | UI specs arrange and clean up data through the API |
+| `E2E_EDIT_PIN` / `E2E_PL_PIN` | UI | Edit PIN / Profit & Loss PIN, for the specs that type them |
+| `E2E_STRICT`, `EXPECTED_COMMIT` | both / API | Fail instead of skip / commit `/health` must report |
 | `VERCEL_BYPASS_SECRET` | UI | Vercel Deployment Protection bypass |
 
 ---

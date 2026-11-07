@@ -112,6 +112,34 @@ test.describe('POST /api/v1/pin/verify', () => {
     expect(res.status()).toBe(400);
   });
 
+  test('correct PINs do not count towards the rate limit', async ({ request }) => {
+    ctx.mockBcrypt.compare = async () => true;
+    for (let i = 0; i < 25; i++) {
+      const res = await request.post('/api/v1/pin/verify', {
+        headers: { Authorization: `Bearer ${makeAuthToken()}` },
+        data: { pin: '123456' },
+      });
+      expect(res.status(), `correct PIN #${i + 1}`).toBe(200); // 25 > the limit of 20, none blocked
+    }
+  });
+
+  test('correct PINs do not use up the quota for wrong ones', async ({ request }) => {
+    ctx.mockPrisma.adminUser.findUnique.mockResolvedValue({ username: 'admin', role: 'admin' });
+    ctx.mockBcrypt.compare = async () => true;
+    for (let i = 0; i < 10; i++) {
+      await request.post('/api/v1/pin/verify', {
+        headers: { Authorization: `Bearer ${makeAuthToken()}` },
+        data: { pin: '123456' },
+      });
+    }
+    ctx.mockBcrypt.compare = async () => false;
+    const first = await request.post('/api/v1/pin/verify', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+      data: { pin: '000000' },
+    });
+    expect(first.status()).toBe(400); // a wrong PIN is still counted and still refused, not rate-limited
+  });
+
   // Placed last: rate limiter is shared across the whole file (one server instance
   // per file). This test deliberately exhausts the remaining quota so nothing
   // after it can call /pin/verify successfully.

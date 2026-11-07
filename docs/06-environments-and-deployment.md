@@ -97,6 +97,7 @@ answers.
 | `NODE_ENV` | — | `development` · `test` · `production` |
 | `PORT` | — | Default `3001` |
 | `LOGIN_RATE_LIMIT_MAX` | — | Default 20; raise only on testing |
+| `BULK_WRITE_RATE_LIMIT_MAX` | — | Default 30 requests/min on bulk-write routes; raise only on testing (UI automation) |
 | `SLACK_WEBHOOK_URL` | — | Unset = silent |
 | `APP_URL` | — | "Open App" link in Slack cards |
 | `APP_VERSION` | — | Override build tag |

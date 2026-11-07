@@ -115,7 +115,7 @@ server/
 - `seedFoundationData` must be idempotent (upsert / create-if-missing, never insert-only).
 
 ### Security
-- PIN endpoints: rate-limited to 20 attempts per 15 min (express-rate-limit). PINs are bcrypt hashes in
+- PIN endpoints: rate-limited to 20 *wrong* attempts per 15 min (express-rate-limit with `skipSuccessfulRequests`, so correct PINs don't count). PINs are bcrypt hashes in
   `AppSettings` — never compare against `env.EDIT_PIN` at runtime.
 - MFA: TOTP secrets are encrypted with `utils/mfaCrypto.js` (key derived from `JWT_SECRET`); backup codes are
   bcrypt-hashed and consumed on use. Never log or return a secret after enrolment.
@@ -147,6 +147,7 @@ server/
 - Endpoint behaviour → a scenario in `automation/`. Unit logic, rate-limit exhaustion, lock-out/MFA, Slack card
   shape, forged tokens → a mocked spec in `tests/playwright/`. `automation/COVERAGE.md` maps one to the other —
   update it when you add or remove a mocked spec file.
+- **Every path and branch you add or change must be covered by the API automation** (root `CLAUDE.md` §17.1a): all roles, every validation rule, every `if`/`throw`/default, every data state and side effect. Branches the API cannot reach go in a mocked spec and in `COVERAGE.md`.
 - `npm run check` = lint + timezone lint + mocked specs. Run it before pushing.
 - `automation/` is excluded from `eslint`, Prettier and c8; never import from it in server code (or vice versa).
 

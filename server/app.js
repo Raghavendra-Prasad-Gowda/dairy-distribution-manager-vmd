@@ -78,7 +78,7 @@ app.use('/api/v1/auth/login', rateLimit({
 // Tighter limit on bulk endpoints that fan out large payload work
 const bulkWriteLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: env.BULK_WRITE_RATE_LIMIT_MAX, // 30 unless a test environment raises it
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many bulk requests, please slow down',

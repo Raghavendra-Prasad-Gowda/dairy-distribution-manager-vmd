@@ -163,6 +163,16 @@ jobs:
           VERCEL_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          # Specs arrange their data (throwaway brand, product, salesperson, ...) through the API and clean it up
+          # the same way; the browser only acts and asserts. Specs that need it skip when it is missing.
+          API_BASE_URL: ${{ env.API_URL }}
+          # Superadmin (no MFA): throwaway brands, dispatcher logins, the Admin Users journey.
+          E2E_SUPERADMIN_USERNAME: ${{ secrets.E2E_SUPERADMIN_USERNAME }}
+          E2E_SUPERADMIN_PASSWORD: ${{ secrets.E2E_SUPERADMIN_PASSWORD }}
+          # Edit PIN (deleting a payment) and Profit & Loss PIN: the specs that type them skip without them.
+          E2E_EDIT_PIN: ${{ secrets.E2E_EDIT_PIN }}
+          E2E_PL_PIN: ${{ secrets.E2E_PL_PIN }}
+          E2E_STRICT: ${{ vars.E2E_STRICT }}
         run: npm test
       - name: Summarise tests
         if: always()
@@ -256,8 +266,9 @@ jobs:
     needs: [ui-e2e, finalize]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
+      statuses: write
     env:
       # Job-level: the `secrets` context is not allowed in a step `if`, `env` is.
       RELEASE_BOT_APP_ID: ${{ secrets.RELEASE_BOT_APP_ID }}
@@ -276,16 +287,50 @@ jobs:
           app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
-      - name: Open or update the release PR
+      # The release PR head is `release/next` = develop + main + a version bump. The bump lands in
+      # package.json BEFORE Render/Vercel build production, so the footer/health show the release
+      # number that production-verify then tags (Vercel's clone has no tags to read).
+      - name: Prepare release branch with version bump
+        id: prep
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          git fetch --tags --force origin
           ahead=$(git rev-list --count origin/main..origin/develop)
           if [ "$ahead" -eq 0 ]; then
             echo "develop has nothing that main lacks - no release PR needed"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          next=$(.github/scripts/next-version.sh)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B release/next "$GITHUB_SHA"
+          git merge --no-edit origin/main
+          for dir in server client; do
+            (cd "$dir" && npm version "$next" --no-git-tag-version --allow-same-version >/dev/null)
+          done
+          git add server/package.json server/package-lock.json client/package.json client/package-lock.json
+          git commit -m "chore(release): v$next" || echo "version already $next"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" release/next
+          sha=$(git rev-parse HEAD)
+          # The bump touches only package*.json; staging already verified the code of $GITHUB_SHA.
+          # Use the workflow's own GITHUB_TOKEN (job `statuses: write`): the release-bot App token
+          # only carries the permissions granted to the App, and may lack "Commit statuses".
+          GH_TOKEN="${{ github.token }}" gh api -X POST "repos/${{ github.repository }}/statuses/$sha" \
+            -f state=success -f context="Staging Verified" \
+            -f description="Verified on $GITHUB_SHA; release/next only adds the v$next version bump" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the release PR
+        if: ${{ steps.prep.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RELEASE_VERSION: ${{ steps.prep.outputs.version }}
+        run: |
+          ahead=$(git rev-list --count origin/main..origin/develop)
 
           short="${GITHUB_SHA:0:7}"
           {
@@ -295,6 +340,7 @@ jobs:
             echo
             echo "- Run and reports: $RUN_URL"
             echo "- Pipeline dashboard: $DASHBOARD_URL"
+            echo "- Release version: \`v$RELEASE_VERSION\` (bumped on \`release/next\`; production-verify tags the same number)"
             echo "- Commits not yet on main: $ahead"
             echo
             echo "### Changes"
@@ -304,10 +350,10 @@ jobs:
             echo "Merging this PR deploys to production. Use **Create a merge commit** (not squash) to keep develop and main aligned."
           } > "$RUNNER_TEMP/release-body.md"
 
-          title="Release: develop -> main ($short)"
-          existing=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number // empty')
+          title="Release v$RELEASE_VERSION: develop -> main ($short)"
+          existing=$(gh pr list --base main --head release/next --state open --json number --jq '.[0].number // empty')
           if [ -z "$existing" ]; then
-            gh pr create --base main --head develop --title "$title" --body-file "$RUNNER_TEMP/release-body.md"
+            gh pr create --base main --head release/next --title "$title" --body-file "$RUNNER_TEMP/release-body.md"
           else
             gh pr edit "$existing" --title "$title" --body-file "$RUNNER_TEMP/release-body.md"
             echo "Updated release PR #$existing"

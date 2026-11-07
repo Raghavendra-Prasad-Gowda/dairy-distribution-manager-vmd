@@ -76,8 +76,9 @@ stateDiagram-v2
 |---|---|---|
 | Global | `app.js` | 15 min / 5 000 |
 | Login | `app.js` | 1 h / `LOGIN_RATE_LIMIT_MAX` (20) |
+| Bulk writes | `app.js`, `routes/salespersonPrices.js` | 1 min / `BULK_WRITE_RATE_LIMIT_MAX` (30) |
 | MFA verify / setup / confirm | `routes/auth.js` | dedicated limiters (15 code guesses, 30 setup) |
-| PIN | `routes/pin.js` | 15 min / 20 |
+| PIN | `routes/pin.js` | 15 min / 20 wrong PINs (`skipSuccessfulRequests`) |
 | Bulk writes | `app.js` (`bulkWriteLimiter`) + `routes/salespersonPrices.js` | 1 min / 30 |
 | Crash beacon | `routes/clientErrors.js` | 1 h / 30, answers 200 |
 

@@ -61,6 +61,7 @@ check compared UTC dates. Compare IST dates instead.
 | 🗃️ Schema | New migration (never edit old ones); reviewed for backward compatibility |
 | 📘 Contract | `docs/openapi.yaml` updated for API changes |
 | 📚 Docs | Affected `README`/`docs` and `CLAUDE.md` updated |
+| 🌿 API branches | `branch → scenario` matrix in the PR: every role, validation rule, `if`/`throw`/default and data state touched by the change is covered in `server/automation/` (root `CLAUDE.md` §17.1a) |
 | 🤖 Automation | Page objects / scenarios updated when routes, fields or labels change |
 
 > 🏷️ PRs are labelled automatically (branch `feat/`→`feature`, `fix/`→`bug`, changed paths → `server`/`client`/…). Labels decide the section a PR lands in on the release notes; add `skip-changelog` to leave one out.

@@ -32,7 +32,8 @@ To avoid testing the same behaviour twice, the mocked suite was cut from 1,450 t
 
 | Spec file | Tests | Why it cannot or should not run against a deployed backend |
 |---|---:|---|
-| `validate`, `billFormat`, `depositRules`, `paymentLedger`, `pagination`, `authz`, `productLayout`, `logger`, `env`, `dbUrl`, `balanceServiceStandalone` | 117 | Unit tests that call a function directly. There is no HTTP surface to reach them through. Their behaviour is exercised indirectly: validation rules, bill lines, deposit maths, ledger cascades, paging and category ordering all have scenarios. |
+| `validate`, `billFormat`, `depositRules`, `paymentLedger`, `pagination`, `authz`, `productLayout`, `logger`, `env` (incl. the rate-limit settings), `dbUrl`, `balanceServiceStandalone` | 117 | Unit tests that call a function directly. There is no HTTP surface to reach them through. Their behaviour is exercised indirectly: validation rules, bill lines, deposit maths, ledger cascades, paging and category ordering all have scenarios. |
+| `seed` | 6 | Superadmin sync at boot (`prisma/seed.js`): runs before the server accepts requests, so there is no HTTP surface. The "two superadmins" case that crashed a deploy cannot be created on a live environment without breaking it. Covered: create, password-only sync, either of two superadmins named by the env, deterministic rename, refusal to take over an admin/dispatcher username. |
 | `version` (6 of its 7) | 6 | Unit tests of version detection and Slack card text. The 7th (oversized `version` field is refused) is covered in `client-errors.feature`. |
 | `mfa`, `mfaService`, `accountLock` | 104 | Every sign-in attempt counts toward the 20-an-hour limit, and a lock-out locks a real account. Only the token-level behaviour is covered (`authentication.feature`). |
 | `slack`, `securityHardening` | 50 | Test the Slack card builder and escaping, which has no HTTP output. (Every write that fires a card is exercised by the other features.) |
@@ -49,7 +50,7 @@ To avoid testing the same behaviour twice, the mocked suite was cut from 1,450 t
 | `products` | 46 | `products`, `salesperson-pricing` | none |
 | `adminUsers` | 46 | `admin-users`, `authentication`, matrix | Demoting an MFA-enabled account clears MFA fields, and "cannot delete the last superadmin": both need MFA enrolment or removing the only superadmin. |
 | `routes` | 40 | `routes`, `route-management`, matrix | none |
-| `pin` | 40 | `pin`, matrix | Correct-PIN success paths, changing a PIN and the PIN rate limit: the real PIN is a secret and the limiter would block PIN checks for 15 minutes. |
+| `pin` | 40 | `pin`, matrix | Correct-PIN success paths, changing a PIN and the PIN rate limit: the real PIN is a secret and exhausting the limiter (20 wrong PINs) would block PIN checks for 15 minutes. Correct PINs are not counted (mocked spec `pin`). |
 | `salespersonPrices` | 39 | `salesperson-pricing`, `salesperson-ledger`, `dispatches` | none |
 | `bills` | 39 | `bills`, matrix | Bill-number series start taken from an app setting (changing it would renumber real bills). |
 | `brands` | 38 | `brands`, matrix | none |

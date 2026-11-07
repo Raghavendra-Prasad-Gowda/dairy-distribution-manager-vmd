@@ -115,4 +115,19 @@ test.describe('config/env.js', () => {
       expect(() => loadEnv({ NODE_ENV: 'development', LOGIN_RATE_LIMIT_MAX: bad })).toThrow(/Invalid environment configuration/);
     }
   });
+
+  test('BULK_WRITE_RATE_LIMIT_MAX defaults to 30 when unset or empty', () => {
+    expect(loadEnv({ NODE_ENV: 'development', BULK_WRITE_RATE_LIMIT_MAX: undefined }).BULK_WRITE_RATE_LIMIT_MAX).toBe(30);
+    expect(loadEnv({ NODE_ENV: 'development', BULK_WRITE_RATE_LIMIT_MAX: '' }).BULK_WRITE_RATE_LIMIT_MAX).toBe(30);
+  });
+
+  test('BULK_WRITE_RATE_LIMIT_MAX can be raised for a test environment', () => {
+    expect(loadEnv({ NODE_ENV: 'development', BULK_WRITE_RATE_LIMIT_MAX: '1000' }).BULK_WRITE_RATE_LIMIT_MAX).toBe(1000);
+  });
+
+  test('BULK_WRITE_RATE_LIMIT_MAX rejects zero, negative, fractional and non-numeric values', () => {
+    for (const bad of ['0', '-5', 'abc', '2.5']) {
+      expect(() => loadEnv({ NODE_ENV: 'development', BULK_WRITE_RATE_LIMIT_MAX: bad })).toThrow(/Invalid environment configuration/);
+    }
+  });
 });

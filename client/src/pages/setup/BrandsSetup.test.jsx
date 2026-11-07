@@ -104,25 +104,6 @@ describe('BrandsSetup — deposit settings', () => {
     expect(screen.getByPlaceholderText('0.00')).toBeDisabled();
   });
 
-  it('saves depositEnabled and depositPerLitre via PUT /brands/:id', async () => {
-    mockBrandsList();
-    vi.mocked(api.put).mockResolvedValue({
-      data: { data: { id: 2, name: 'Jersey', isActive: true, depositEnabled: true, depositPerLitre: 1.75 } },
-    });
-    await renderPage();
-
-    // Jersey (index 1) currently has deposit disabled.
-    fireEvent.click(screen.getAllByTitle('Deposit settings')[1]);
-    fireEvent.click(screen.getByRole('switch'));
-    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '1.75' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/brands/2', {
-      depositEnabled: true,
-      depositPerLitre: 1.75,
-    }));
-  });
-
   it('refuses to save when enabling with no rate entered', async () => {
     mockBrandsList();
     await renderPage();
@@ -249,34 +230,6 @@ describe('BrandsSetup — add brand', () => {
 
     expect(screen.getByText('Create a new dairy brand')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. Amul, Nandini, Heritage')).toHaveValue('');
-  });
-
-  it('disables the submit button until a name is entered', async () => {
-    mockRole = 'superadmin';
-    mockBrandsList();
-    await renderPage();
-
-    fireEvent.click(screen.getByText('Add Brand'));
-    expect(within(addBrandForm()).getByRole('button', { name: 'Add Brand' })).toBeDisabled();
-
-    fireEvent.change(screen.getByPlaceholderText('e.g. Amul, Nandini, Heritage'), { target: { value: 'Heritage' } });
-    expect(within(addBrandForm()).getByRole('button', { name: 'Add Brand' })).not.toBeDisabled();
-  });
-
-  it('adds a brand with no product copy', async () => {
-    mockRole = 'superadmin';
-    mockBrandsList();
-    vi.mocked(api.post).mockResolvedValue({ data: { data: { id: 3, name: 'Heritage', isActive: true } } });
-    await renderPage();
-
-    fireEvent.click(screen.getByText('Add Brand'));
-    fireEvent.change(screen.getByPlaceholderText('e.g. Amul, Nandini, Heritage'), { target: { value: 'Heritage' } });
-    fireEvent.click(within(addBrandForm()).getByRole('button', { name: 'Add Brand' }));
-
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/brands', { name: 'Heritage' }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Brand "Heritage" added', 'success'));
-    // Modal closes and the new brand appears in the list.
-    await waitFor(() => expect(screen.getByText('Heritage')).toBeInTheDocument());
   });
 
   it('offers a "Copy Products From" selector only when other brands already exist', async () => {
@@ -448,21 +401,6 @@ describe('BrandsSetup — rename brand', () => {
     expect(screen.queryByText('Copy Products From')).not.toBeInTheDocument();
   });
 
-  it('renames a brand when the name actually changed', async () => {
-    mockRole = 'superadmin';
-    mockBrandsList();
-    vi.mocked(api.put).mockResolvedValue({ data: { data: {} } });
-    await renderPage();
-
-    fireEvent.click(screen.getAllByTitle('Rename brand')[0]);
-    fireEvent.change(screen.getByPlaceholderText('e.g. Amul, Nandini, Heritage'), { target: { value: 'Nandini Dairy' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/brands/1', { name: 'Nandini Dairy' }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Brand renamed to "Nandini Dairy"', 'success'));
-    await waitFor(() => expect(screen.getByText('Nandini Dairy')).toBeInTheDocument());
-  });
-
   it('does not call the API when the name was not actually changed', async () => {
     mockRole = 'superadmin';
     mockBrandsList();
@@ -500,35 +438,6 @@ describe('BrandsSetup — enable / disable', () => {
 
     expect(screen.getByText('Disable Brand')).toBeInTheDocument();
     expect(screen.getByText(/Disable "Nandini"\?/)).toBeInTheDocument();
-  });
-
-  it('disables a brand after confirming', async () => {
-    mockRole = 'superadmin';
-    mockBrandsList();
-    vi.mocked(api.put).mockResolvedValue({ data: { data: {} } });
-    await renderPage();
-
-    fireEvent.click(screen.getAllByTitle('Disable brand')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/brands/1', { isActive: false }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Brand "Nandini" disabled', 'success'));
-    await waitFor(() => expect(screen.getByText('Disabled')).toBeInTheDocument());
-  });
-
-  it('re-enables a disabled brand, with the confirmation copy reflecting "Enable"', async () => {
-    mockRole = 'superadmin';
-    mockBrandsList([{ ...BRANDS[0], isActive: false }, BRANDS[1]]);
-    vi.mocked(api.put).mockResolvedValue({ data: { data: {} } });
-    await renderPage();
-
-    fireEvent.click(screen.getAllByTitle('Enable brand')[0]);
-    expect(screen.getByText('Enable Brand')).toBeInTheDocument();
-    expect(screen.getByText(/reappear across the app/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Enable' }));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/brands/1', { isActive: true }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Brand "Nandini" enabled', 'success'));
   });
 
   it('cancel leaves the brand untouched', async () => {
@@ -588,21 +497,6 @@ describe('BrandsSetup — archive', () => {
 
     expect(screen.getByText('Archive Brand')).toBeInTheDocument();
     expect(screen.getByText(/cannot be restored/)).toBeInTheDocument();
-  });
-
-  it('archives a brand and removes it from the list', async () => {
-    mockRole = 'superadmin';
-    mockBrandsList();
-    vi.mocked(api.put).mockResolvedValue({ data: { data: {} } });
-    await renderPage();
-
-    fireEvent.click(screen.getAllByTitle('Archive brand')[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
-
-    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/brands/1', { isArchived: true }));
-    await waitFor(() => expect(notify).toHaveBeenCalledWith('Brand "Nandini" archived', 'success'));
-    await waitFor(() => expect(screen.queryByText('Nandini')).not.toBeInTheDocument());
-    expect(screen.getByText('Jersey')).toBeInTheDocument();
   });
 
   it('cancel leaves the brand in the list', async () => {

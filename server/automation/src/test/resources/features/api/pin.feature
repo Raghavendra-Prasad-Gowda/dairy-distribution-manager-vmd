@@ -3,7 +3,7 @@ Feature: Edit and P&L PINs
   Protected edits ask for a 6-digit PIN. The real PINs are secrets the suite does not know, so it only
   checks that wrong or malformed input is refused and that PINs cannot be changed by mistake: every
   "current PIN" used here is deliberately not a PIN. Each wrong guess counts toward the PIN
-  rate limit (20 per 15 minutes), so there are only a few.
+  rate limit (20 wrong per 15 minutes; correct PINs are not counted), so there are only a few.
 
   Scenario Outline: A wrong PIN is refused
     When admin calls "POST /api/v1/<endpoint>" with:
