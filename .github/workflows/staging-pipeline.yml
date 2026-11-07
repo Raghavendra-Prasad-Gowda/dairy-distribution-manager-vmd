@@ -315,7 +315,9 @@ jobs:
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" release/next
           sha=$(git rev-parse HEAD)
           # The bump touches only package*.json; staging already verified the code of $GITHUB_SHA.
-          gh api -X POST "repos/${{ github.repository }}/statuses/$sha" \
+          # Use the workflow's own GITHUB_TOKEN (job `statuses: write`): the release-bot App token
+          # only carries the permissions granted to the App, and may lack "Commit statuses".
+          GH_TOKEN="${{ github.token }}" gh api -X POST "repos/${{ github.repository }}/statuses/$sha" \
             -f state=success -f context="Staging Verified" \
             -f description="Verified on $GITHUB_SHA; release/next only adds the v$next version bump" \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
