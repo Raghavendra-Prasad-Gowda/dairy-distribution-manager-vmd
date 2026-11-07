@@ -31,7 +31,7 @@ deploy; they wait for the deploy, then test it.
 | `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `server/automation/` and type-checks `client/automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
-| `.github/workflows/pipeline-dashboard.yml` | Publishes `dashboard/index.html` + fresh `data.json` (runs, PRs, releases) to GitHub Pages after each staging/production run and hourly |
+| `.github/workflows/pipeline-dashboard.yml` | Publishes `dashboard/index.html` + fresh `data.json` (runs, PRs, releases) to GitHub Pages after each staging/production run, hourly and on demand, with a live health check of production + testing (frontend + backend) |
 | `.github/scripts/build-dashboard-data.js` | Pulls the data the dashboard shows from the GitHub API using the workflow's own token |
 | `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
