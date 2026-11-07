@@ -142,7 +142,11 @@ export class Seed {
     const users = await this.call('superadmin', 'get', '/admin-users');
     if (users.ok()) {
       for (const u of ((await users.json()).data ?? []) as Array<{ id: number; username: string }>) {
-        if (u.username.startsWith('e2e-')) await this.call('superadmin', 'delete', `/admin-users/${u.id}`);
+        // Never touch the accounts the suite itself signs in with, whatever they are called.
+        const own = [env.adminUsername(), env.superadminUsername].map((n) => n.toLowerCase());
+        if (u.username.startsWith('e2e-') && !own.includes(u.username.toLowerCase())) {
+          await this.call('superadmin', 'delete', `/admin-users/${u.id}`);
+        }
       }
     }
     await this.ctx?.dispose();
