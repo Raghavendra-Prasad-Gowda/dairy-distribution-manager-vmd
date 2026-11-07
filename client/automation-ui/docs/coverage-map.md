@@ -92,9 +92,10 @@ so remove further Vitest tests only after re-running `npm run test:coverage`.
 ## Budgets worth knowing
 
 - **Sign-ins:** 20 per hour per IP. The admin and the superadmin each sign in once (setup project) and are reused.
-- **PIN checks:** 20 per 15 minutes per IP (`/pin/verify`, `/pin/verify-pl`). A full run uses about 8 (payment
-  deletes and edits, Reset Ledger, Profit & Loss). Rerunning PIN specs repeatedly locally can hit the limit and fail
-  with a missing prompt; wait for the window to reset.
+- **PIN checks:** the backend limits *wrong* PINs to 20 per 15 minutes per IP (`/pin/verify`, `/pin/verify-pl`);
+  correct PINs are not counted, so the suite's PIN steps (about 8 a run) never use the budget. This applies once the
+  backend change (`skipSuccessfulRequests` on the PIN limiter) is deployed; against an older backend the limit counted
+  every check and rerunning PIN specs repeatedly could trip it (the prompt then never opens).
 
 ## Known remaining gaps
 

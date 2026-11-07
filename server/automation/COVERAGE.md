@@ -50,7 +50,7 @@ To avoid testing the same behaviour twice, the mocked suite was cut from 1,450 t
 | `products` | 46 | `products`, `salesperson-pricing` | none |
 | `adminUsers` | 46 | `admin-users`, `authentication`, matrix | Demoting an MFA-enabled account clears MFA fields, and "cannot delete the last superadmin": both need MFA enrolment or removing the only superadmin. |
 | `routes` | 40 | `routes`, `route-management`, matrix | none |
-| `pin` | 40 | `pin`, matrix | Correct-PIN success paths, changing a PIN and the PIN rate limit: the real PIN is a secret and the limiter would block PIN checks for 15 minutes. |
+| `pin` | 40 | `pin`, matrix | Correct-PIN success paths, changing a PIN and the PIN rate limit: the real PIN is a secret and exhausting the limiter (20 wrong PINs) would block PIN checks for 15 minutes. Correct PINs are not counted (mocked spec `pin`). |
 | `salespersonPrices` | 39 | `salesperson-pricing`, `salesperson-ledger`, `dispatches` | none |
 | `bills` | 39 | `bills`, matrix | Bill-number series start taken from an app setting (changing it would renumber real bills). |
 | `brands` | 38 | `brands`, matrix | none |

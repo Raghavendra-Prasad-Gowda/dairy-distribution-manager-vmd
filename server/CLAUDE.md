@@ -115,7 +115,7 @@ server/
 - `seedFoundationData` must be idempotent (upsert / create-if-missing, never insert-only).
 
 ### Security
-- PIN endpoints: rate-limited to 20 attempts per 15 min (express-rate-limit). PINs are bcrypt hashes in
+- PIN endpoints: rate-limited to 20 *wrong* attempts per 15 min (express-rate-limit with `skipSuccessfulRequests`, so correct PINs don't count). PINs are bcrypt hashes in
   `AppSettings` — never compare against `env.EDIT_PIN` at runtime.
 - MFA: TOTP secrets are encrypted with `utils/mfaCrypto.js` (key derived from `JWT_SECRET`); backup codes are
   bcrypt-hashed and consumed on use. Never log or return a secret after enrolment.
