@@ -1,4 +1,6 @@
 import { devices, expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { existsSync } from 'node:fs';
+import { SUPERADMIN_STATE } from '../../playwright.config';
 import { env } from '../env';
 import { BasePage } from './BasePage';
 import { LoginPage } from './LoginPage';
@@ -62,6 +64,31 @@ export class SalesmanStockEntryPage extends BasePage {
 
   quantity(name: string): Locator {
     return this.product(name).getByRole('spinbutton');
+  }
+
+  /** The − and + buttons of a product's stepper (icon-only, so by position around the quantity box). */
+  minus(name: string): Locator {
+    return this.product(name).getByRole('button').first();
+  }
+
+  plus(name: string): Locator {
+    return this.product(name).getByRole('button').last();
+  }
+
+  get noMatch(): Locator {
+    return this.page.getByText('No products match your search.');
+  }
+
+  async clearSearch(): Promise<void> {
+    await this.search.fill('');
+  }
+
+  async collapseAll(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Collapse All' }).click();
+  }
+
+  async expandAll(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Expand All' }).click();
   }
 
   /** The running summary above the Save button, e.g. "1 product · 4 units · ₹72.00". */
@@ -196,12 +223,25 @@ export async function newIpad(browser: Browser): Promise<Page> {
   return context.newPage();
 }
 
-/** A separate signed-in superadmin iPad (landscape), for screens only a superadmin sees. */
+/**
+ * A separate signed-in superadmin iPad (landscape), for screens only a superadmin sees. Reuses the session the setup
+ * project saved, so it costs no sign-in; it signs in itself only when no saved session exists.
+ */
 export async function newSuperadminIpad(browser: Browser): Promise<Page> {
-  const ipad = await newIpad(browser);
-  const login = new LoginPage(ipad);
-  await login.open();
-  await login.signIn(env.superadminUsername, env.superadminPassword);
+  const saved = existsSync(SUPERADMIN_STATE);
+  const context = await browser.newContext({
+    ...devices['iPad (gen 7) landscape'],
+    baseURL: env.webBaseUrl,
+    storageState: saved ? SUPERADMIN_STATE : { cookies: [], origins: [] },
+  });
+  const ipad = await context.newPage();
+  if (!saved) {
+    const login = new LoginPage(ipad);
+    await login.open();
+    await login.signIn(env.superadminUsername, env.superadminPassword);
+  } else {
+    await ipad.goto('/');
+  }
   await expect(ipad.getByRole('heading', { name: 'Dashboard' }).first()).toBeVisible();
   return ipad;
 }

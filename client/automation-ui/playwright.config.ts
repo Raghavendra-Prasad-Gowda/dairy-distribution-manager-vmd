@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { env } from './src/env';
 
 export const ADMIN_STATE = '.auth/admin.json';
+export const SUPERADMIN_STATE = '.auth/superadmin.json';
 
 /**
  * Screens, by who uses them. Salesmen work from a phone; superadmins, admins and dispatchers

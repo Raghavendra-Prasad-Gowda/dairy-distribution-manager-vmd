@@ -47,4 +47,34 @@ export class AdminUsersPage extends BasePage {
     await this.row(username).getByRole('button', { name: 'Delete user' }).click();
     await this.confirmDialog(/Delete/);
   }
+
+  /** Edits a login: a new password and/or a new role. */
+  async edit(username: string, changes: { password?: string; role?: OfficeRole }): Promise<void> {
+    await this.row(username).getByRole('button', { name: 'Edit user' }).click();
+    if (changes.password) await this.dialog.getByPlaceholder('Min 6 characters').fill(changes.password);
+    if (changes.role) await this.dialog.getByRole('combobox').selectOption({ label: changes.role });
+    const saved = this.nextResponse('PUT', /\/admin-users\/\d+$/);
+    await this.dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await saved;
+  }
+
+  /** Forces (or, if already forced, lifts) the authenticator requirement for another login. */
+  async toggleMfaRequired(username: string, now: 'require' | 'lift'): Promise<void> {
+    const title = now === 'require' ? `Require MFA for ${username}` : `Stop requiring MFA for ${username}`;
+    await this.row(username).getByRole('button', { name: title }).click();
+    await this.confirmDialog(now === 'require' ? 'Require MFA' : 'Stop Requiring');
+  }
+
+  /** The MFA column's badge for a login: "Off", "Required" or "On". */
+  mfaBadge(username: string, text: 'Off' | 'Required' | 'On'): Locator {
+    return this.row(username).getByText(text, { exact: true });
+  }
+
+  lockedBadge(username: string): Locator {
+    return this.row(username).getByText('Locked', { exact: true });
+  }
+
+  async unlock(username: string): Promise<void> {
+    await this.row(username).getByRole('button', { name: `Unlock ${username}` }).click();
+  }
 }

@@ -239,11 +239,17 @@ export class Seed {
     return dispatch;
   }
 
-  async salespersonPayment(salespersonId: number, amount: number, paymentDate = todayIST()): Promise<{ id: number }> {
+  async salespersonPayment(
+    salespersonId: number,
+    amount: number,
+    paymentDate = todayIST(),
+    paymentMode = 'Cash',
+    reference?: string,
+  ): Promise<{ id: number }> {
     const payment = await this.create(
       'admin',
       '/salesperson-payments',
-      { salespersonId, amount, paymentDate, paymentMode: 'Cash' },
+      { salespersonId, amount, paymentDate, paymentMode, ...(reference ? { reference } : {}) },
       'salesperson payment',
     );
     return payment as { id: number };
@@ -282,8 +288,19 @@ export class Seed {
     if (res.status() !== 200) throw new Error(`seed: stock receipt -> ${res.status()} ${await res.text()}`);
   }
 
-  async dairyPayment(brandId: number, amount: number, paymentDate: string): Promise<{ id: number }> {
-    const payment = await this.create('admin', '/dairy-payments', { brandId, amount, paymentDate, paymentMode: 'Cash' }, 'dairy payment');
+  async dairyPayment(
+    brandId: number,
+    amount: number,
+    paymentDate: string,
+    paymentMode = 'Cash',
+    reference?: string,
+  ): Promise<{ id: number }> {
+    const payment = await this.create(
+      'admin',
+      '/dairy-payments',
+      { brandId, amount, paymentDate, paymentMode, ...(reference ? { reference } : {}) },
+      'dairy payment',
+    );
     this.removeLater('admin', `/dairy-payments/${payment.id}`);
     return payment as { id: number };
   }

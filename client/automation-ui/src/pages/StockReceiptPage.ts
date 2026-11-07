@@ -52,4 +52,12 @@ export class StockReceiptPage extends BasePage {
   get noRoutesMessage(): Locator {
     return this.page.getByText(/No routes configured for/);
   }
+
+  /** The given categories in the order the stock grid lists them (each is a header row; only the first is open). */
+  async categoryOrder(categoryNames: string[]): Promise<string[]> {
+    const rows = await this.page.getByRole('row').allInnerTexts();
+    return rows
+      .map((text) => categoryNames.find((name) => text.includes(name)))
+      .filter((name): name is string => name !== undefined);
+  }
 }

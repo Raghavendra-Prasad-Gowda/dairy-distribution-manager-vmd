@@ -71,4 +71,44 @@ export class PricingPage extends BasePage {
     await this.page.getByRole('button', { name: new RegExp(`^${action} \\(1P`) }).click();
     await this.acknowledgeNotice(notice);
   }
+
+  // ── Bulk tools ───────────────────────────────────────────────────────────────
+
+  /** The "Global" view (all salespeople, brand-wide switches and bulk tools). */
+  async openGlobal(brandName: string): Promise<void> {
+    await this.page.getByRole('complementary').getByRole('button', { name: /Global/ }).click();
+    await this.page.getByRole('button', { name: brandName, exact: true }).click();
+  }
+
+  /** Bulk Update Prices: one price for one product, for the chosen salespeople. */
+  async bulkUpdatePrice(productName: string, price: number, salespersonName: string): Promise<void> {
+    await this.page.getByRole('button', { name: 'Bulk Update Prices' }).click();
+    await this.page.getByPlaceholder('Search products to add…').fill(productName);
+    await this.page.getByRole('button', { name: new RegExp(productName) }).click();
+    await this.page.getByPlaceholder('0.00').fill(String(price)); // the selected product's salesperson price
+    await this.page.getByPlaceholder('Search salespeople…').fill(salespersonName);
+    await this.page.getByRole('checkbox', { name: new RegExp(salespersonName) }).check();
+    await this.page.getByRole('button', { name: /^Update \(1 salesmen, 1 products\)$/ }).click();
+    await this.acknowledgeNotice('Prices updated for 1 salesmen and 1 products');
+  }
+
+  /** Bulk Enable/Disable Products for the chosen salespeople. */
+  async bulkProductAccess(productName: string, salespersonName: string, action: 'enable' | 'disable'): Promise<void> {
+    await this.page.getByRole('button', { name: 'Bulk Product Access' }).click();
+    await this.page.getByRole('checkbox', { name: new RegExp(salespersonName) }).check();
+    await this.page.getByPlaceholder('Search products...').fill(productName);
+    await this.page.getByRole('checkbox', { name: new RegExp(productName) }).check();
+    await this.page.getByRole('combobox').selectOption(action);
+    await this.page.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await this.acknowledgeNotice(`Products ${action}d for 1 salesman(men)`);
+  }
+
+  /** On one salesperson's view: copy every price of this brand from another salesperson. */
+  async copyPricesFrom(sourceName: string): Promise<void> {
+    await this.page.getByRole('button', { name: 'Copy Prices' }).click();
+    await this.page.getByPlaceholder('Search salespeople…').fill(sourceName);
+    await this.page.getByRole('button', { name: new RegExp(sourceName) }).last().click();
+    await this.page.getByRole('button', { name: 'Copy Prices' }).last().click();
+    await this.acknowledgeNotice('Prices copied successfully');
+  }
 }

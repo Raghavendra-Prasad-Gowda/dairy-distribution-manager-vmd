@@ -1,11 +1,9 @@
-import { env } from '../src/env';
 import { expect, test } from '../src/fixtures';
 import { CollectionsPage } from '../src/pages/CollectionsPage';
 import { DairyPaymentsPage } from '../src/pages/DairyPaymentsPage';
 import { DashboardPage, rupees } from '../src/pages/DashboardPage';
-import { LoginPage } from '../src/pages/LoginPage';
 import { OutstandingPage, StatementsPage } from '../src/pages/ReportsPages';
-import { newIpad } from '../src/pages/SalesmanPages';
+import { newSuperadminIpad } from '../src/pages/SalesmanPages';
 import { TopUpDialog } from '../src/pages/TopUpDialog';
 import { todayIST } from '../src/seed';
 
@@ -52,13 +50,8 @@ test.describe('Opening balances (top-ups)', () => {
 
   test('a dairy top-up adds to what we owe the brand (superadmin)', async ({ browser, superSeed }) => {
     const brand = await superSeed.brand();
-    const ipad = await newIpad(browser);
+    const ipad = await newSuperadminIpad(browser);
     try {
-      const login = new LoginPage(ipad);
-      await login.open();
-      await login.signIn(env.superadminUsername, env.superadminPassword);
-      await expect(ipad.getByRole('heading', { name: 'Dashboard' }).first()).toBeVisible();
-
       const payments = new DairyPaymentsPage(ipad);
       await payments.open(brand.id);
       await expect(payments.youOwe).toHaveText(rupees(0));
@@ -97,5 +90,33 @@ test.describe('Opening balances (top-ups)', () => {
 
     await new DairyPaymentsPage(page).open(brand.id);
     await expect(page.getByRole('button', { name: 'Bulk Top-up', exact: true })).toHaveCount(0);
+  });
+
+  test('Reset Ledger (superadmin, behind the PIN) wipes a salesperson\'s dues', async ({ browser, superSeed, editPin }) => {
+    const brand = await superSeed.brand();
+    const product = await superSeed.product(brand.id, { costPrice: 10, sellingPrice: 12 });
+    await superSeed.enableForSalespeople(product.id, 15);
+    await superSeed.stockReceipt(brand.id, todayIST(), [{ productId: product.id, quantity: 100, unitPrice: 10 }]);
+    const salesperson = await superSeed.salesperson();
+    await superSeed.dispatch(salesperson.id, todayIST(), [{ productId: product.id, quantity: 4, unitPrice: 15 }], true); // ₹60
+    await superSeed.salespersonPayment(salesperson.id, 20); // ₹40 still owed
+
+    const ipad = await newSuperadminIpad(browser);
+    try {
+      const collections = new CollectionsPage(ipad);
+      await collections.open();
+      await collections.select(salesperson.name);
+      await expect(collections.account).toContainText(rupees(40));
+
+      await collections.resetLedger(salesperson.name, editPin);
+      await expect(collections.account).not.toContainText(rupees(40));
+      await expect(collections.account).not.toContainText(rupees(60));
+
+      const outstanding = new OutstandingPage(ipad);
+      await outstanding.open();
+      await expect(outstanding.card(salesperson.name)).not.toContainText(rupees(40));
+    } finally {
+      await ipad.context().close();
+    }
   });
 });
