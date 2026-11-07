@@ -105,3 +105,50 @@ export class BillsPanel {
     return created;
   }
 }
+
+/** /reports/dairy — the account statement of one dairy brand. */
+export class DairyStatementPage {
+  constructor(private readonly page: Page) {}
+
+  async open(): Promise<void> {
+    await this.page.goto('/reports/dairy');
+    await this.page.getByRole('heading', { name: 'Dairy Statement' }).waitFor();
+  }
+
+  async selectBrand(name: string): Promise<void> {
+    await this.page.getByRole('button', { name, exact: true }).click();
+  }
+
+  get balanceBadge(): Locator {
+    return this.page.getByText(/^Balance: /);
+  }
+
+  /** The row of a day, labelled like "07 Nov". */
+  dayRow(isoDate: string): Locator {
+    const [, month, day] = isoDate.split('-');
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return this.page.getByRole('row').filter({ hasText: `${day} ${names[Number(month) - 1]}` });
+  }
+
+  get totalRow(): Locator {
+    return this.page.getByRole('row').filter({ hasText: /^Total/ });
+  }
+}
+
+/** /reports/stock — stock received by product for a date range, optionally for one route. */
+export class StockSummaryPage {
+  constructor(private readonly page: Page) {}
+
+  async open(): Promise<void> {
+    await this.page.goto('/reports/stock');
+    await this.page.getByRole('heading', { name: 'Stock Summary' }).waitFor();
+  }
+
+  productRow(name: string): Locator {
+    return this.page.getByRole('row').filter({ hasText: name });
+  }
+
+  async chooseRoute(label: string): Promise<void> {
+    await this.page.getByRole('combobox').selectOption({ label });
+  }
+}

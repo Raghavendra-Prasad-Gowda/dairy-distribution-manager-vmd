@@ -19,6 +19,8 @@ type Fixtures = {
   superSeed: Seed;
   /** The edit PIN (E2E_EDIT_PIN). Skips the test when it is not configured. */
   editPin: string;
+  /** The Profit & Loss PIN (E2E_PL_PIN). Skips the test when it is not configured. */
+  plPin: string;
 };
 
 async function sessionToken(page: Page): Promise<string | null> {
@@ -63,6 +65,11 @@ export const test = base.extend<Fixtures>({
     if (!env.editPin && env.strict) throw new Error('E2E_EDIT_PIN is required (E2E_STRICT=true)');
     testInfo.skip(!env.editPin, 'E2E_EDIT_PIN is not set');
     await use(env.editPin);
+  },
+  plPin: async ({}, use, testInfo) => {
+    if (!env.plPin && env.strict) throw new Error('E2E_PL_PIN is required (E2E_STRICT=true)');
+    testInfo.skip(!env.plPin, 'E2E_PL_PIN is not set');
+    await use(env.plPin);
   },
   superSeed: async ({ seed }, use, testInfo) => {
     const missing = !env.superadminUsername || !env.superadminPassword;

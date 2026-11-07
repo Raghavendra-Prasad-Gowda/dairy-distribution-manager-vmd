@@ -72,10 +72,32 @@ export class Seed {
     });
   }
 
-  /** A throwaway brand (superadmin only). Brands cannot be deleted, so it is archived afterwards. */
+  /**
+   * A throwaway brand (superadmin only). Brands cannot be deleted, so on cleanup it is emptied first - the day's
+   * stock is zeroed and its payments deleted, so shared reports and totals are not left polluted - and then archived.
+   */
   async brand(): Promise<{ id: number; name: string }> {
     const brand = await this.create('superadmin', '/brands', { name: unique() }, 'brand');
-    this.onDispose(`archive brand ${brand.id}`, async () => {
+    this.onDispose(`empty and archive brand ${brand.id}`, async () => {
+      const receipts = await this.call('admin', 'get', `/stock-receipts?date=${todayIST()}&brandId=${brand.id}`);
+      if (receipts.ok()) {
+        const rows = ((await receipts.json()).data ?? []) as Array<{ productId: number; routeId?: number; unitPrice?: unknown }>;
+        const byRoute = new Map<number, Array<{ productId: number; quantity: number; unitPrice: number }>>();
+        for (const r of rows) {
+          const list = byRoute.get(r.routeId ?? 0) ?? [];
+          list.push({ productId: r.productId, quantity: 0, unitPrice: Number(r.unitPrice ?? 0) });
+          byRoute.set(r.routeId ?? 0, list);
+        }
+        for (const [routeId, items] of byRoute) {
+          await this.call('admin', 'post', '/stock-receipts/bulk', { brandId: brand.id, date: todayIST(), routeId, items });
+        }
+      }
+      const payments = await this.call('admin', 'get', `/dairy-payments?brandId=${brand.id}`);
+      if (payments.ok()) {
+        const body = (await payments.json()).data;
+        const list = (Array.isArray(body) ? body : (body?.items ?? [])) as Array<{ id: number }>;
+        for (const p of list) await this.call('admin', 'delete', `/dairy-payments/${p.id}`);
+      }
       await this.call('superadmin', 'put', `/brands/${brand.id}`, { isArchived: true });
     });
     return brand as { id: number; name: string };
@@ -99,6 +121,15 @@ export class Seed {
     );
     this.removeLater('admin', `/products/${product.id}`); // soft delete
     return product as { id: number; name: string; brandId: number };
+  }
+
+  /** A throwaway office login (superadmin only), e.g. a dispatcher. Deleted afterwards. */
+  async adminUser(role: 'admin' | 'dispatcher'): Promise<{ id: number; username: string; password: string }> {
+    const username = `e2e-${stamp().toLowerCase()}`;
+    const password = `E2e!${stamp()}aA1`;
+    const user = await this.create('superadmin', '/admin-users', { username, password, role }, 'admin user');
+    this.removeLater('superadmin', `/admin-users/${user.id}`);
+    return { id: user.id as number, username, password };
   }
 
   /** Turns a product on for every salesperson, with the default price they are charged. */

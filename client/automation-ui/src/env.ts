@@ -35,6 +35,8 @@ export const env = {
   superadminPassword: optional('E2E_SUPERADMIN_PASSWORD'),
   /** The edit PIN that guards editing/deleting back-dated records. Specs that need it skip when unset. */
   editPin: optional('E2E_EDIT_PIN'),
+  /** The Profit & Loss PIN (a separate PIN from the edit PIN). Specs that need it skip when unset. */
+  plPin: optional('E2E_PL_PIN'),
   /** Account **without MFA**. Read lazily so specs that don't log in don't need credentials. */
   adminUsername: () => required('E2E_ADMIN_USERNAME'),
   adminPassword: () => required('E2E_ADMIN_PASSWORD'),

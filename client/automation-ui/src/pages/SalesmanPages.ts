@@ -180,3 +180,13 @@ export class ChangePasswordPage extends BasePage {
     await this.confirm.fill(confirm);
   }
 }
+
+/** A separate signed-out iPad (landscape), e.g. to sign in as an office user other than the shared admin. */
+export async function newIpad(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({
+    ...devices['iPad (gen 7) landscape'],
+    baseURL: env.webBaseUrl,
+    storageState: { cookies: [], origins: [] },
+  });
+  return context.newPage();
+}
