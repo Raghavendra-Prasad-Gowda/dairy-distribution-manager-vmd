@@ -28,6 +28,8 @@ test.describe('Layout settings', () => {
 
     const stock = new StockReceiptPage(page, brand.name);
     await stock.open();
-    expect(await stock.categoryOrder([first.name, second.name])).toEqual([second.name, first.name]);
+    await expect
+      .poll(() => stock.categoryOrder([first.name, second.name])) // the grid fills in after the heading
+      .toEqual([second.name, first.name]);
   });
 });

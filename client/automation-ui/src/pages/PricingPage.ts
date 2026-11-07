@@ -17,6 +17,9 @@ export class PricingPage extends BasePage {
   async open(): Promise<void> {
     await this.page.goto('/salesman/setup/prices');
     await this.page.getByRole('heading', { name: 'Products & Prices' }).waitFor();
+    // The first data load selects the first salesperson when it lands, overriding any click made before it: let it
+    // finish, or a slow API makes a "Global" click vanish.
+    await this.page.waitForLoadState('networkidle');
   }
 
   async selectSalesperson(name: string): Promise<void> {
@@ -78,6 +81,7 @@ export class PricingPage extends BasePage {
   async openGlobal(brandName: string): Promise<void> {
     await this.page.getByRole('complementary').getByRole('button', { name: /Global/ }).click();
     await this.page.getByRole('button', { name: brandName, exact: true }).click();
+    await this.page.getByRole('button', { name: 'Bulk Update Prices' }).waitFor(); // the Global toolbar is showing
   }
 
   /** Bulk Update Prices: one price for one product, for the chosen salespeople. */
