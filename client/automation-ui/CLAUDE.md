@@ -23,7 +23,8 @@ client/automation-ui/
 │   ├── fixtures.ts        # extended `test`: seed, superSeed, editPin, plPin, trackCreated
 │   └── pages/             # page objects (BasePage parent) — every selector lives here
 └── tests/                 # login · navigation · dairy-ledger · salesperson-ledger · catalog-setup · salesman-users ·
-    │                      # pricing-and-bills · reports · access-roles · superadmin  (+ auth.setup.ts)
+    │                      # pricing-and-bills · reports · access-roles · superadmin · opening-balances ·
+    │                      # dispatcher  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
     └── salesman/          # phone specs: stock-entry · security
 ```
 
