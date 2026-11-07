@@ -153,6 +153,11 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     <div class="flow" id="flow"></div>
   </section>
 
+  <section class="card" aria-label="Live health">
+    <div class="head"><div><h2>🩺 Live health</h2><p class="sub" id="hc-sub">Checked when the dashboard was last rebuilt (hourly).</p></div><a id="run-now" target="_blank" rel="noopener" class="pill p-idle" title="Opens the workflow page: Run workflow">↻ Run now</a></div>
+    <div class="scroll"><table><thead><tr><th>Environment</th><th>Service</th><th>Status</th><th class="n">Response</th><th>Version</th><th>Detail</th></tr></thead><tbody id="t-health"></tbody></table></div>
+  </section>
+
   <section class="tiles" aria-label="Headline figures">
     <div class="card tile"><span class="k">✅ Pass rate, scored runs</span>
       <div class="ring"><svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="var(--idle-bg)" stroke-width="8"/><circle id="ring" cx="32" cy="32" r="26" fill="none" stroke="var(--ok)" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 164" transform="rotate(-90 32 32)"/></svg><b id="k-rate">—</b></div>
@@ -366,8 +371,20 @@ footer{color:var(--muted);font-size:12px;text-align:center}
 
     var open = prs.filter(function (p) { return p.state === 'open'; });
     var f = flow(d, open);
-    var healthy = f.stg && f.prod && f.stg.conclusion === 'success' && f.prod.conclusion === 'success';
-    var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? '✅ Healthy' : '⚠️ Needs attention';
+    var hc = d.health || [];
+    var down = hc.filter(function (x) { return !x.ok; });
+    var healthy = f.stg && f.prod && f.stg.conclusion === 'success' && f.prod.conclusion === 'success' && !down.length;
+    var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? '✅ Healthy' : down.length ? '🔴 ' + down.length + ' service' + (down.length > 1 ? 's' : '') + ' down' : '⚠️ Needs attention';
+    $('run-now').href = 'https://github.com/' + d.repo + '/actions/workflows/pipeline-dashboard.yml';
+    $('hc-sub').textContent = 'Probed ' + when(d.generated_at) + ' IST · rebuilt hourly, after each pipeline run, or on demand.';
+    fillRows('t-health', hc.slice().sort(function (a, b) { return (a.env === b.env ? 0 : a.env === 'production' ? -1 : 1) || (a.kind === 'frontend' ? -1 : 1); }), function (tr, x) {
+      td(tr, x.env === 'production' ? 'Production' : 'Testing');
+      td(tr, x.kind === 'frontend' ? '🖥️ Frontend' : '⚙️ Backend');
+      var st = el('td'); st.appendChild(el('span', x.ok ? 'Up' : 'Down', 'pill ' + (x.ok ? 'p-ok' : 'p-bad'))); tr.appendChild(st);
+      td(tr, x.ms != null ? x.ms + ' ms' : '—', 'n');
+      td(tr, x.version ? 'v' + x.version + (x.commit ? ' · ' + x.commit : '') : '—');
+      td(tr, x.error || (x.kind === 'backend' ? (x.db === false ? 'API up, database not ready' : x.db ? 'API + database OK' : '') : 'HTTP ' + x.status));
+    }, 'No health data in this build.', 6);
 
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
     $('take').textContent = relPr ? '⏳ Release PR #' + relPr.number + ' is open and waiting for approval into main.' : '🎉 No release PR is open. Main has everything that passed staging.';
