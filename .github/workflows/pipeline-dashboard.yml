@@ -1,7 +1,8 @@
 name: pipeline-dashboard
 
 # Publishes the pipeline dashboard (dashboard/index.html + a fresh data.json) to GitHub Pages.
-# Refreshes after every staging / production run, hourly, and on demand. Needs the repo to be
+# Refreshes after every staging / production run, hourly (cron below) and on demand (Run workflow button, or
+# the dashboard's "Run now" link), and probes the live health of production + testing (frontend and backend). Needs the repo to be
 # public (or a plan with Pages) and Settings > Pages > Source = "GitHub Actions" (docs/release-pipeline.md).
 
 on:
@@ -36,6 +37,12 @@ jobs:
       - name: Build dashboard data
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Live health probes (production + testing, backend + frontend). Same overrides as the other workflows.
+          PROD_API_URL: ${{ vars.PROD_API_URL }}
+          PROD_WEB_URL: ${{ vars.PROD_WEB_URL }}
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+          STAGING_WEB_URL: ${{ vars.STAGING_WEB_URL }}
+          VERCEL_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           mkdir -p site
           cp dashboard/index.html site/index.html
