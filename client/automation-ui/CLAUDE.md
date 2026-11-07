@@ -85,10 +85,10 @@ the workflow and scripts.
 13. **Expected numbers are computed from what you seeded**, never read back from the screen under test.
 14. **No fixed sleeps.** Use web-first `expect`, `waitForResponse` set up *before* the click, and `expect.poll`.
 15. **Respect the rate limits**: 30 requests/minute on `/salespeople`, `/stock-receipts` and the bulk price/product
-    routes; 20 sign-ins/hour; 20 PIN checks/15 min (a full run uses ~11). Keep journeys few and complete, reuse tokens (`seed` caches them), run layout-independent
+    routes; 20 sign-ins/hour; 20 wrong-PIN checks/15 min (correct PINs are not counted once the backend change is deployed). Keep journeys few and complete, reuse tokens (`seed` caches them), run layout-independent
     specs once (portrait) and tag only layout-sensitive describes `@layout` so landscape repeats them.
 16. **Every new user-facing flow gets a journey here in the same PR** — happy path plus the refusal that matters
-    (wrong PIN, duplicate, locked, wrong role). Specs that need `API_BASE_URL`, a superadmin or a PIN skip when it is
+    (duplicate, locked, wrong role). Specs that need `API_BASE_URL`, a superadmin or a PIN skip when it is
     missing, and fail when `E2E_STRICT=true`.
 
 ## Adding a spec

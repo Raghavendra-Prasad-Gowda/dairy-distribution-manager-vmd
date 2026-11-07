@@ -117,7 +117,7 @@ flowchart LR
 | All `/api` | 15 min | 5 000 | 429 |
 | `POST /auth/login` | 1 h / IP | 20 (`LOGIN_RATE_LIMIT_MAX`) | 429 |
 | MFA verify / setup / confirm | per limiter in `routes/auth.js` | 15–30 | 429 |
-| `POST /pin/verify`, `/pin/verify-pl` | 15 min | 20 | 429 |
+| `POST /pin/verify`, `/pin/verify-pl` | 15 min | 20 wrong PINs (correct ones are not counted) | 429 |
 | Bulk writes (stock receipts, prices, product access) | 1 min | 30 | 429 |
 | `POST /errors/client` (public) | 1 h / IP | 30 | **200** (silent drop) |
 

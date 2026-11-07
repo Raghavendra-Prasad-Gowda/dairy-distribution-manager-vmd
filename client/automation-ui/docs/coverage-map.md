@@ -13,10 +13,10 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Dashboard shows the brand's outstanding / credit and a Pay Now link | ✅ | `dairy-ledger` |
 | Record payment, balance drops everywhere, delete it (edit PIN) restores | ✅ | `dairy-ledger` |
 | Full payment clears, overpayment shows credit | ✅ | `dairy-ledger` |
-| Wrong PIN refused; zero amount refused | ✅ | `dairy-ledger` |
+| Zero amount refused | ✅ | `dairy-ledger` |
 | Opening dues loaded as a bulk top-up (superadmin), adds to the balance | ✅ | `opening-balances` |
 | Bulk top-up hidden from plain admins | ✅ | `opening-balances` |
-| Edit a payment behind the PIN (amount, mode, reference); wrong PIN refused; cancel changes nothing | ✅ | `payment-history` |
+| Edit a payment behind the PIN (amount, mode, reference); cancel changes nothing | ✅ | `payment-history` |
 | Payment history: search, mode/reference filters, clear, 15-per-page paging | ✅ | `payment-history` |
 | Dairy statement, stock summary (route filter) | ✅ | `reports` |
 | Deposit report: crate deposit from stock (litres x rate), deposit top-up adds to it, delete restores; ledger untouched | ✅ | `deposit-and-stock-balance` |
@@ -41,7 +41,7 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Salesman's own statement narrowed by date range | ✅ | `salesman/statement` |
 | Bill preview, issue, delete | ✅ | `pricing-and-bills` |
 | Profit & Loss figures (cost, rate, qty, revenue, profit) behind the P&L PIN | ✅ | `reports` |
-| P&L PIN gate (wrong / right PIN) | ✅ | `access-roles` |
+| P&L PIN gate: the right PIN opens the report | ✅ | `access-roles` |
 
 ## Setup, accounts and security
 
@@ -68,6 +68,7 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | MFA enrolment, lock-out after 5 wrong passwords | `server/tests` (mocked) | would lock the shared E2E accounts |
 | Print / PDF routes (`/print/*`) | Vitest | open in a new window; no stable assertion on paper output |
 | Brand creation, PIN change, ledger reset | `server/automation` | one-way / destructive on shared data |
+| Wrong-PIN refusals | `server/automation`, Vitest `PinModal` | no longer exercised in the browser; keeps the PIN-check budget free |
 
 ## Vitest tests retired because a journey now covers them
 
@@ -91,9 +92,10 @@ so remove further Vitest tests only after re-running `npm run test:coverage`.
 ## Budgets worth knowing
 
 - **Sign-ins:** 20 per hour per IP. The admin and the superadmin each sign in once (setup project) and are reused.
-- **PIN checks:** 20 per 15 minutes per IP (`/pin/verify`, `/pin/verify-pl`). A full run uses about 11 (payment
-  deletes and edits, Reset Ledger, Profit & Loss). Rerunning PIN specs repeatedly locally can hit the limit and fail
-  with a missing prompt; wait for the window to reset.
+- **PIN checks:** the backend limits *wrong* PINs to 20 per 15 minutes per IP (`/pin/verify`, `/pin/verify-pl`);
+  correct PINs are not counted, so the suite's PIN steps (about 8 a run) never use the budget. This applies once the
+  backend change (`skipSuccessfulRequests` on the PIN limiter) is deployed; against an older backend the limit counted
+  every check and rerunning PIN specs repeatedly could trip it (the prompt then never opens).
 
 ## Known remaining gaps
 

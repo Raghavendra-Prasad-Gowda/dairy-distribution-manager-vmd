@@ -319,7 +319,7 @@ await prisma.$transaction(async (tx) => {
 | `GET /reports/dairy-statement`, `/salesperson-statement`, `/stock-summary`, `/outstanding`, `/deposit-summary`, `/profit-loss` | admin | reports |
 | `GET /reports/daily-dispatch` | admin or dispatcher | reports |
 | `GET /bills`, `GET /bills/preview`, `GET /bills/:id`, `POST /bills`, `DELETE /bills/:id` | admin | bills |
-| `POST /pin/verify`, `POST /pin/verify-pl` | admin (20 / 15 min) | pin |
+| `POST /pin/verify`, `POST /pin/verify-pl` | admin (20 wrong / 15 min) | pin |
 | `GET /pin/settings` | admin | pin |
 | `PUT /pin/update`, `PUT /pin/update-pl`, `PUT /pin/settings` | superadmin | pin |
 | `GET /admin-users`, `POST /admin-users`, `PUT /admin-users/:id`, `DELETE /admin-users/:id` | superadmin | adminUsers |

@@ -34,7 +34,14 @@ export class ShellPage {
   private async confirmSignOut(): Promise<void> {
     const question = this.page.getByRole('heading', { name: 'Sign out?' });
     await expect(question).toBeVisible();
+    // The app clears the session only after the logout call returns; navigating away sooner leaves the token behind.
+    const loggedOut = this.page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/auth\/logout$/.test(new URL(r.url()).pathname),
+    );
     await question.locator('xpath=..').getByRole('button', { name: 'Sign Out', exact: true }).click();
+    await loggedOut;
+    await expect(this.page).toHaveURL(/\/login/);
+    await expect.poll(() => this.page.evaluate(() => localStorage.getItem('token'))).toBeNull();
   }
 
   /** Salesman phone layout: identity bar with its own sign-out button. */

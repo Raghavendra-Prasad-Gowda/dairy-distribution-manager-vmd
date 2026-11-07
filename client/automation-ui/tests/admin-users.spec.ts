@@ -88,7 +88,7 @@ test.describe('Admin users (superadmin)', () => {
       const login = new LoginPage(other);
       await login.open();
       await login.signIn(user.username, user.password); // the right password is refused while locked
-      await expect(other).not.toHaveURL(/\/dashboard|\/salesman\//);
+      await expect(login.error(/Account locked/)).toBeVisible(); // refused, and finished, before anyone unlocks
 
       await users.unlock(user.username);
       await users.acknowledgeNotice(`"${user.username}" unlocked`);

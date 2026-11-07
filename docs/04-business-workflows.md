@@ -258,7 +258,7 @@ flowchart LR
 ```
 
 PINs are rotated by the superadmin (`PUT /pin/update`, `/pin/update-pl`); the P&L gate is toggled with
-`PUT /pin/settings`. Verification is limited to 20 attempts per 15 minutes.
+`PUT /pin/settings`. Verification is limited to 20 wrong attempts per 15 minutes; a correct PIN does not count.
 
 ## 10. Reporting
 

@@ -35,6 +35,7 @@ export class DayBalancePage {
 
   /** Cell texts of a row, in column order: bill, outstanding, bill+outstanding, paid, balance today, total balance. */
   async cells(name: string): Promise<string[]> {
+    await this.row(name).first().waitFor(); // the table fills in after the heading
     return this.row(name).getByRole('cell').allInnerTexts();
   }
 }

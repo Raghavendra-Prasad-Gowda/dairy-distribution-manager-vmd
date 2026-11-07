@@ -25,7 +25,4 @@ export class PinDialog {
     await this.enter(pin);
   }
 
-  get wrongPinMessage(): Locator {
-    return this.page.getByText(/Incorrect PIN/);
-  }
 }

@@ -95,13 +95,13 @@ client/automation-ui/
 |---|---|
 | `login.spec.ts` | admin signs in, reload keeps the session · wrong credentials keep the username, clear the password · button disabled until filled · protected pages redirect · sign-out ends the session |
 | `navigation.spec.ts` | all 21 admin screens open with no crash, script error or 5xx · P&L is PIN-gated · menu reaches the main areas on sidebar and drawer · legacy URLs redirect · unknown URL → dashboard · Admin Users guarded by role |
-| `dairy-ledger.spec.ts` | stock raises what we owe (stock page, reload, dashboard) · re-saving re-prices · a payment lowers it everywhere and delete (edit PIN) restores it · full pay → Settled, overpay → Credit · wrong PIN refused · zero amount refused |
+| `dairy-ledger.spec.ts` | stock raises what we owe (stock page, reload, dashboard) · re-saving re-prices · a payment lowers it everywhere and delete (edit PIN) restores it · full pay → Settled, overpay → Credit · zero amount refused |
 | `salesperson-ledger.spec.ts` | submitted dispatch on the sheet, locked, correct total · admin unlock / lock · a collection lowers the balance on collections, outstanding, day balance and statement, delete restores it · full payment clears outstanding |
 | `catalog-setup.spec.ts` | categories (trim, duplicate, edit, search, delete warning) · routes (duplicate, edit, delete) · products (required name, prices shown, edit price, archive) |
 | `salesman-users.spec.ts` | add with login (validation, duplicate, persists, can sign in) · disable → locked out, enable, credentials replace the old password, mismatch refused · delete |
 | `pricing-and-bills.spec.ts` | a price saved for a salesperson is what they see on the phone · bill preview matches the dispatch, issue and remove it |
 | `reports.spec.ts` | dairy statement bill / paid / closing · stock summary by product and route |
-| `access-roles.spec.ts` | dispatcher: only dispatch screens, office URLs bounce · P&L wrong PIN refused, right PIN opens |
+| `access-roles.spec.ts` | dispatcher: only dispatch screens, office URLs bounce · P&L right PIN opens the report |
 | `superadmin.spec.ts` | create a dispatcher who can sign in, disable (blocked), delete · own account cannot be disabled or deleted |
 | `salesman/stock-entry.spec.ts` | phone home and office URLs bounce · bottom bar · own price + draft survives reload · only enabled products · finalize locks, balance and statement show the bill |
 | `salesman/security.spec.ts` | password rules · wrong current password refused · change replaces the password |

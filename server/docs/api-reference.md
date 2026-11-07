@@ -183,8 +183,8 @@ flowchart LR
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/verify` | 🧑‍💼 (20/15 min) | Edit PIN |
-| POST | `/verify-pl` | 🧑‍💼 (20/15 min) | P&L PIN |
+| POST | `/verify` | 🧑‍💼 (20 wrong/15 min) | Edit PIN |
+| POST | `/verify-pl` | 🧑‍💼 (20 wrong/15 min) | P&L PIN |
 | GET | `/settings` | 🧑‍💼 | `{ plPinEnabled }` |
 | PUT | `/settings` | 👑 | Toggle P&L gate |
 | PUT | `/update` · `/update-pl` | 👑 | `{ currentPin, newPin }` |
