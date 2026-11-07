@@ -203,12 +203,8 @@ footer{color:var(--muted);font-size:12px;text-align:center}
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  // Everything is shown in the viewer's own time zone (the browser's), labelled with its short name.
-  var fmtAt = new Intl.DateTimeFormat('en-IN', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
-  var fmtDay = new Intl.DateTimeFormat('en-IN', {timeZone: 'UTC', day: 'numeric', month: 'short'}); // for 'YYYY-MM-DD' day keys
-  var fmtLocalDay = new Intl.DateTimeFormat('en-IN', {day: 'numeric', month: 'short'});
-  var fmtKey = new Intl.DateTimeFormat('en-CA', {year: 'numeric', month: '2-digit', day: '2-digit'}); // local YYYY-MM-DD
-  var TZ = (new Intl.DateTimeFormat('en-IN', {timeZoneName: 'short'}).formatToParts(new Date()).filter(function (p) { return p.type === 'timeZoneName'; })[0] || {}).value || '';
+  var fmtAt = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+  var fmtDay = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short'});
   var when = function (s) { return s ? fmtAt.format(new Date(s)) : ''; };
   var NOW = Date.now();
   function ago(s) {
@@ -271,7 +267,7 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var by = {};
     runs.forEach(function (r) {
       if (r.conclusion === 'skipped') return;
-      var day = fmtKey.format(new Date(r.created_at));
+      var day = new Date(Date.parse(r.created_at) + 19800000).toISOString().slice(0, 10);
       var o = by[day] = by[day] || {day: day, success: 0, failure: 0, cancelled: 0};
       if (o[r.conclusion] !== undefined) o[r.conclusion] += 1;
     });
@@ -375,7 +371,7 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var healthy = f.stg && f.prod && f.stg.conclusion === 'success' && f.prod.conclusion === 'success' && !down.length;
     var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? '✅ Healthy' : down.length ? '🔴 ' + down.length + ' service' + (down.length > 1 ? 's' : '') + ' down' : '⚠️ Needs attention';
     $('run-now').href = 'https://github.com/' + d.repo + '/actions/workflows/pipeline-dashboard.yml';
-    $('hc-sub').textContent = 'Probed ' + when(d.generated_at) + ' ' + TZ + ' · rebuilt hourly, after each pipeline run, or on demand.';
+    $('hc-sub').textContent = 'Probed ' + when(d.generated_at) + ' IST · rebuilt hourly, after each pipeline run, or on demand.';
     fillRows('t-health', hc.slice().sort(function (a, b) { return (a.env === b.env ? 0 : a.env === 'production' ? -1 : 1) || (a.kind === 'frontend' ? -1 : 1); }), function (tr, x) {
       td(tr, x.env === 'production' ? 'Production' : 'Testing');
       td(tr, x.kind === 'frontend' ? '🖥️ Frontend' : '⚙️ Backend');
@@ -388,14 +384,14 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
     $('take').textContent = relPr ? '⏳ Release PR #' + relPr.number + ' is open and waiting for approval into main.' : '🎉 No release PR is open. Main has everything that passed staging.';
     var days = runs.map(function (r) { return r.created_at; }).sort();
-    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtLocalDay.format(new Date(days[0])) + ' to ' + fmtLocalDay.format(new Date(days[days.length - 1])) : 'none') + (TZ ? ' (' + TZ + ')' : '');
+    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (IST)';
     var bd = $('badges'); bd.replaceChildren();
     [['staging-pipeline.yml', 'develop', 'Staging pipeline'], ['production-verify.yml', 'main', 'Production verify'], ['pipeline-dashboard.yml', 'develop', 'Dashboard build']].forEach(function (b) {
       var base = 'https://github.com/' + d.repo + '/actions/workflows/' + b[0];
       var a = el('a'); a.href = base; a.target = '_blank'; a.rel = 'noopener';
       var img = new Image(); img.alt = b[2] + ' status'; img.src = base + '/badge.svg?branch=' + b[1]; a.appendChild(img); bd.appendChild(a);
     });
-    $('foot').textContent = 'Updated ' + when(d.generated_at) + ' ' + TZ + ' · rebuilt after every staging and production run, and hourly.';
+    $('foot').textContent = 'Updated ' + when(d.generated_at) + ' IST · rebuilt after every staging and production run, and hourly.';
 
     var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
     $('k-rel').textContent = rel ? rel.tag : '—'; $('k-rel-at').textContent = rel ? when(rel.published_at) : '';
