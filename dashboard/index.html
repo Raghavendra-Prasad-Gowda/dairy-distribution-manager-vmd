@@ -376,7 +376,7 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var healthy = f.stg && f.prod && f.stg.conclusion === 'success' && f.prod.conclusion === 'success' && !down.length;
     var h = $('health'); h.className = 'health ' + (healthy ? 'good' : 'attn'); h.lastChild.textContent = healthy ? '✅ Healthy' : down.length ? '🔴 ' + down.length + ' service' + (down.length > 1 ? 's' : '') + ' down' : '⚠️ Needs attention';
     $('run-now').href = 'https://github.com/' + d.repo + '/actions/workflows/pipeline-dashboard.yml';
-    $('hc-sub').textContent = 'Probed ' + when(d.generated_at) + ' IST · rebuilt hourly, after each pipeline run, or on demand.';
+    $('hc-sub').textContent = 'Probed ' + when(d.generated_at) + ' ' + tzName(d.generated_at) + ' · rebuilt hourly, after each pipeline run, or on demand.';
     fillRows('t-health', hc.slice().sort(function (a, b) { return (a.env === b.env ? 0 : a.env === 'production' ? -1 : 1) || (a.kind === 'frontend' ? -1 : 1); }), function (tr, x) {
       td(tr, x.env === 'production' ? 'Production' : 'Testing');
       td(tr, x.kind === 'frontend' ? '🖥️ Frontend' : '⚙️ Backend');
