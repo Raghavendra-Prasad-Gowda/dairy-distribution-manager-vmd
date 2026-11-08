@@ -62,11 +62,12 @@ jobs:
             exit 0
           fi
 
-          pr=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,isDraft,baseRefName,headRefOid,labels)
+          pr=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,labels)
           state=$(jq -r .state <<<"$pr")
           draft=$(jq -r .isDraft <<<"$pr")
           base=$(jq -r .baseRefName <<<"$pr")
           head=$(jq -r .headRefOid <<<"$pr")
+          branch=$(jq -r .headRefName <<<"$pr")
           optout=$(jq -r '[.labels[].name] | index("no-auto-merge") != null' <<<"$pr")
 
           skip() { echo "Skipping PR #$PR_NUMBER: $1"; echo "### Auto-merge skipped for #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
@@ -89,10 +90,26 @@ jobs:
           fi
           echo "merged=true" >> "$GITHUB_OUTPUT"
           echo "via=$via" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
           {
             echo "### Auto-merged #$PR_NUMBER into develop"
             echo "All pr-checks jobs passed on \`${CHECKED_SHA:0:7}\`."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The branch the work was done on is no longer needed once it is in develop. Best-effort: a failed
+      # delete never turns a successful merge red. Long-lived branches are never touched.
+      - name: Delete the merged branch
+        if: ${{ steps.merge.outputs.merged == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+        run: |
+          case "$BRANCH" in
+            ""|develop|main|release/next) echo "Keeping branch '$BRANCH'."; exit 0 ;;
+          esac
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${BRANCH}" \
+            && echo "Deleted branch $BRANCH" >> "$GITHUB_STEP_SUMMARY"
 
       # Needed whenever the merge was made with the default token (no GitHub App, or the app was
       # refused): that merge does not trigger staging-pipeline, but workflow_dispatch is allowed to.

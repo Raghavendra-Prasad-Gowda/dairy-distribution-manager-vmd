@@ -859,6 +859,7 @@ git push -u origin feat/short-description   # then open a PR into develop
 - Imperative mood, present tense: "add", "fix", "update" — not "added", "fixed"
 - Max 72 chars in the subject line
 - Never force-push `develop` or `main`
+- **Delete the working branch once it is merged into `develop`.** `auto-merge-develop` does it for PRs it merges; for a manual merge use GitHub's "Delete branch" button (or the repo's *Automatically delete head branches* setting). Never delete `develop`, `main` or `release/next`.
 
 ### CI / pipeline
 - PRs to `develop` and `main` run `pr-checks.yml`: timezone lint, server + client ESLint, server Playwright specs under `c8` coverage (70/80/85/70), client Vitest under v8 coverage (78/68/70/80), client build, OpenAPI lint, `npm audit` (server + client), and `compile-automation-suite` (`server/automation` test-compile + `client/automation-ui` typecheck). The release PR (`release/next → main`) skips these jobs — develop already passed them and `Staging Verified`; hotfix PRs into `main` still run them.

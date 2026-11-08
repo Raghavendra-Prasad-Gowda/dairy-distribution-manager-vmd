@@ -112,6 +112,7 @@ anything other than `develop` (the `develop → main` release PR stays manual), 
 It runs from the default branch, so it takes effect once it is merged into `develop`.
 With the GitHub App from section 5 (give it **Contents: read & write** as well) the merge triggers
 `staging-pipeline` normally; without it, or if the app is refused (for example it only has Contents: read), the workflow merges with the default token and starts `staging-pipeline` itself via `workflow_dispatch`.
+After a successful auto-merge the workflow deletes the PR's source branch (never `develop`, `main` or `release/next`). For PRs merged by hand, turn on **Settings → General → Pull Requests → Automatically delete head branches** so GitHub does the same.
 This is not an enforced gate: anyone with write access can still merge manually.
 
 ### 6. Render / Vercel branch wiring (verified 2026-10-30)
