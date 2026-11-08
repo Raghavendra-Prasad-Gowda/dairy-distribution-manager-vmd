@@ -15,6 +15,7 @@ Environment:
   TARGET_URL                          the environment the suite ran against
   RUN_URL, REPO, SHA, ACTOR, COMMIT_SUBJECT   run context
   DASHBOARD_URL                       pipeline dashboard (optional); adds a button to the card
+  APP_VERSION_LABEL                   deployed build, e.g. "v1.0.8 · a3f9c21" (optional); adds a Version field
 """
 import json
 import os
@@ -191,6 +192,7 @@ def main():
         fields = [
             f"*Tool:*\n{tool}",
             f"*Environment:*\n{env('TARGET_URL') or '–'}",
+            f"*Version:*\n{env('APP_VERSION_LABEL') or '–'}",
             f"*Total {summary['unit']}:*\n{total}",
             f"*Pass rate:*\n{rate}",
             f"*Passed:*\n{summary['passed']}",

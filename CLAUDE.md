@@ -970,8 +970,8 @@ Read by the suites, never by the app. Full tables in `server/automation/CLAUDE.m
 
 ## 18a. Build Version
 
-The running build (git tag + short commit) is shown in the sidebar footer (`components/VersionTag.jsx`), on the login page, in `GET /health` (`version`, `commit`, `builtAt`), in the "Server Online" Slack card and on frontend crash cards.
-- **Server:** `utils/version.js` (tag → `package.json` version if untagged) reads `server/version.json` (written by `npm run build` via `scripts/write-version.js`, gitignored), else detects live from `RENDER_GIT_COMMIT` / git. `APP_VERSION` env overrides the tag.
+The running build (git tag + short commit, plus the build time in the **viewer's own time zone** — display only; business dates stay IST) is shown in the sidebar footer (`components/VersionTag.jsx`), on the login page, in `GET /health` (`version`, `commit`, `builtAt`), in the "Server Online" Slack card and on frontend crash cards.
+- **Server:** `utils/version.js` (tag → `package.json` version if untagged) reads `server/version.json` (written by `npm run build` via `scripts/write-version.js`, gitignored), else detects live from `RENDER_GIT_COMMIT` / git. `APP_VERSION` env overrides the tag. At build time `write-version.js` also takes the higher of that and the latest published GitHub release, so the testing build shows the same version as production (production already carries the bump in `package.json`; `RELEASE_REPO` / `GITHUB_TOKEN` are optional).
 - **Client:** `vite.config.js` injects `__APP_VERSION__`, `__APP_COMMIT__`, `__APP_BUILT_AT__`; read them only through `utils/appVersion.js`. `VITE_APP_VERSION` overrides the tag.
 - To release: create a git tag (`git tag v1.4.0 && git push origin v1.4.0`) on `main` before deploying. If a host's clone has no tags, only the commit is shown.
 

@@ -50,3 +50,20 @@ test.describe('detectVersion', () => {
     expect(typeof v.builtAt).toBe('string');
   });
 });
+
+test.describe('maxVersion', () => {
+  const { maxVersion } = require('../../utils/version');
+  test('picks the higher release, ignoring a leading v', () => {
+    expect(maxVersion('1.0.0', 'v1.0.8')).toBe('1.0.8');
+    expect(maxVersion('1.2.0', 'v1.0.8')).toBe('1.2.0');
+    expect(maxVersion('1.0.10', '1.0.9')).toBe('1.0.10');
+  });
+  test('keeps the first when equal or when the other is not a version', () => {
+    expect(maxVersion('1.0.8', 'v1.0.8')).toBe('1.0.8');
+    expect(maxVersion('1.0.8', null)).toBe('1.0.8');
+    expect(maxVersion('1.0.8', 'latest')).toBe('1.0.8');
+  });
+  test('takes the other when the first is missing', () => {
+    expect(maxVersion(null, 'v1.0.8')).toBe('1.0.8');
+  });
+});

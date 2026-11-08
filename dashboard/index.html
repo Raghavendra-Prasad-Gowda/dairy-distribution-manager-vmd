@@ -198,8 +198,13 @@ footer{color:var(--muted);font-size:12px;text-align:center}
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var fmtAt = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
-  var fmtDay = new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short'});
+  // All times render in the viewer's own time zone (browser default), with its abbreviation in the footer/meta.
+  var fmtAt = new Intl.DateTimeFormat('en-IN', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+  var fmtDay = new Intl.DateTimeFormat('en-IN', {day: 'numeric', month: 'short'});
+  var fmtTz = new Intl.DateTimeFormat('en-IN', {timeZoneName: 'short'});
+  var tzName = function (s) { var p = fmtTz.formatToParts(s ? new Date(s) : new Date()).filter(function (x) { return x.type === 'timeZoneName'; })[0]; return p ? p.value : ''; };
+  // Local calendar day (YYYY-MM-DD) of an ISO timestamp, for the per-day chart buckets.
+  var localDay = function (s) { var d = new Date(s), m = d.getMonth() + 1, n = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (n < 10 ? '0' : '') + n; };
   var when = function (s) { return s ? fmtAt.format(new Date(s)) : ''; };
   var NOW = Date.now();
   function ago(s) {
@@ -262,7 +267,7 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var by = {};
     runs.forEach(function (r) {
       if (r.conclusion === 'skipped') return;
-      var day = new Date(Date.parse(r.created_at) + 19800000).toISOString().slice(0, 10);
+      var day = localDay(r.created_at);
       var o = by[day] = by[day] || {day: day, success: 0, failure: 0, cancelled: 0};
       if (o[r.conclusion] !== undefined) o[r.conclusion] += 1;
     });
@@ -292,14 +297,14 @@ footer{color:var(--muted);font-size:12px;text-align:center}
           : 'M' + x + ',' + yy + 'H' + (x + bar) + 'V' + (yy + h) + 'H' + x + 'Z';
         add('path', {d: path, fill: s[1], stroke: 'var(--panel)', 'stroke-width': 1}); acc += d[s[0]];
       });
-      add('text', {x: x + bar / 2, y: H - 9, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11.5}, fmtDay.format(new Date(d.day + 'T00:00:00Z')));
+      add('text', {x: x + bar / 2, y: H - 9, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11.5}, fmtDay.format(new Date(d.day + 'T12:00:00')));
       var hit = add('rect', {x: ml + i * slot, width: slot, y: mt, height: H - mb - mt, fill: 'transparent'});
       hit.addEventListener('mousemove', function (ev) {
         var b = box.getBoundingClientRect();
         tip.style.display = 'block';
         tip.style.left = Math.min(Math.max(ev.clientX - b.left + 12, 0), box.clientWidth - 220) + 'px';
         tip.style.top = Math.max(ev.clientY - b.top - 44, 0) + 'px';
-        tip.textContent = fmtDay.format(new Date(d.day + 'T00:00:00Z')) + ': ' + d.success + ' passed · ' + d.failure + ' failed · ' + d.cancelled + ' cancelled';
+        tip.textContent = fmtDay.format(new Date(d.day + 'T12:00:00')) + ': ' + d.success + ' passed · ' + d.failure + ' failed · ' + d.cancelled + ' cancelled';
       });
       hit.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
     });
@@ -367,14 +372,14 @@ footer{color:var(--muted);font-size:12px;text-align:center}
     var relPr = open.filter(function (p) { return p.kind === 'release'; })[0];
     $('take').textContent = relPr ? '⏳ Release PR #' + relPr.number + ' is open and waiting for approval into main.' : '🎉 No release PR is open. Main has everything that passed staging.';
     var days = runs.map(function (r) { return r.created_at; }).sort();
-    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (IST)';
+    $('meta').textContent = (d.repo || '') + ' · runs from ' + (days.length ? fmtDay.format(new Date(days[0])) + ' to ' + fmtDay.format(new Date(days[days.length - 1])) : 'none') + ' (' + tzName() + ')';
     var bd = $('badges'); bd.replaceChildren();
     [['staging-pipeline.yml', 'develop', 'Staging pipeline'], ['production-verify.yml', 'main', 'Production verify'], ['pipeline-dashboard.yml', 'develop', 'Dashboard build']].forEach(function (b) {
       var base = 'https://github.com/' + d.repo + '/actions/workflows/' + b[0];
       var a = el('a'); a.href = base; a.target = '_blank'; a.rel = 'noopener';
       var img = new Image(); img.alt = b[2] + ' status'; img.src = base + '/badge.svg?branch=' + b[1]; a.appendChild(img); bd.appendChild(a);
     });
-    $('foot').textContent = 'Updated ' + when(d.generated_at) + ' IST · rebuilt after every staging and production run, and hourly.';
+    $('foot').textContent = 'Updated ' + when(d.generated_at) + ' ' + tzName(d.generated_at) + ' · rebuilt after every staging and production run, and hourly.';
 
     var rel = rels.slice().sort(function (a, b) { return b.published_at.localeCompare(a.published_at); })[0];
     $('k-rel').textContent = rel ? rel.tag : '—'; $('k-rel-at').textContent = rel ? when(rel.published_at) : '';
