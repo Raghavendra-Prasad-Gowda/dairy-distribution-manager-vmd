@@ -41,7 +41,7 @@ jobs:
           cp dashboard/index.html site/index.html
           node .github/scripts/build-dashboard-data.js site
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
       - id: deploy
