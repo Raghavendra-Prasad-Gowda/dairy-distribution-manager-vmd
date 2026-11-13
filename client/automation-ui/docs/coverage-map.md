@@ -56,6 +56,7 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Salesman password change | ✅ | `salesman/security` |
 | Brands: add, rename, deposit rate, disable/enable, archive; name required | ✅ | `brands-setup` |
 | Admin users: edit (password + role take effect), require/lift MFA, locked login unlocked | ✅ | `admin-users` |
+| Printable sheets (`/print/*`): dairy statement, stock summary, deposit, salesperson statement (both views), salesman's own statement; content and print request (the dialog itself is not asserted) | ✅ | `print-reports`, `salesman/print-statement` |
 | Layout: move a category, save, survives reload, stock grid follows | ✅ | `layout-settings` |
 | Salesman stock entry: +/- steppers, Enter to next, search, collapse/expand | ✅ | `salesman/stock-entry-controls` |
 
@@ -66,7 +67,6 @@ Status: ✅ covered by a UI journey · 🟡 partly · ⏭️ left to another sui
 | Finalize the day | `server/automation` (`@shared-state`) | locks every salesperson's entry on a shared environment |
 | Dispatch above available stock is refused | none | `stockGuard` is intentionally not wired in (accepted risk in `controllers/dispatches/write.js`) |
 | MFA enrolment, lock-out after 5 wrong passwords | `server/tests` (mocked) | would lock the shared E2E accounts |
-| Print / PDF routes (`/print/*`) | Vitest | open in a new window; no stable assertion on paper output |
 | Brand creation, PIN change, ledger reset | `server/automation` | one-way / destructive on shared data |
 | Wrong-PIN refusals | `server/automation`, Vitest `PinModal` | no longer exercised in the browser; keeps the PIN-check budget free |
 
@@ -101,4 +101,4 @@ so remove further Vitest tests only after re-running `npm run test:coverage`.
 
 Smaller items still untested in the browser: crate counts on Stock Balance (needs a crate-sized product), the
 dispatch-summary view of the salesman statement, collections history filters and paging (covered for dairy payments),
-changing the Edit PIN / P&L PIN (would change the shared PIN), and print/PDF output.
+changing the Edit PIN / P&L PIN (would change the shared PIN), and the paper output of the print dialog itself (the sheets' content is covered by `print-reports`).
