@@ -113,7 +113,8 @@ export default function StockReceipt() {
   const { data, loading, setData } = useApiResources(dataUrls, {
     initialData: { products: [], routeQty: {}, savedRouteIds: new Set() },
     select: ([prodPayload, receiptPayload]) => {
-      const prods    = (prodPayload ?? []).filter(p => p.showInStockReceipt !== false);
+      // A product hidden from entry today must still show on a date it was bought on (hasReceiptOnDate).
+      const prods    = (prodPayload ?? []).filter(p => p.showInStockReceipt !== false || p.hasReceiptOnDate);
       const receipts = receiptPayload ?? [];
 
       // Map saved receipts back into routeQty (keyed by actual route DB id)

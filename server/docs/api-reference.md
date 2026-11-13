@@ -90,7 +90,7 @@ flowchart LR
 | GET · POST | `/categories` | 🧑‍💼 | `?brandId` |
 | PUT · DELETE | `/categories/:id` | 🧑‍💼 | |
 | PATCH | `/categories/reorder` | 🧑‍💼 | |
-| GET · POST | `/products` | 🧑‍💼 | `?brandId`, `?all`; effective-dated prices |
+| GET · POST | `/products` | 🧑‍💼 | `?brandId`, `?all`, `?date` (list follows the date: bought-then-disabled products stay, newer products are not listed earlier — `hasReceiptOnDate`); effective-dated prices |
 | PUT · DELETE | `/products/:id` | 🧑‍💼 | |
 | PATCH | `/products/reorder` | 🧑‍💼 | |
 | GET · PATCH | `/products/salesperson-global` | 🧑‍💼 | Global salesperson access |

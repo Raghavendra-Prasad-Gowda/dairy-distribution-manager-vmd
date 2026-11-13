@@ -12,12 +12,41 @@ const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLay
 // When ?date= is supplied, costPrice on each product reflects the price effective on that date.
 // Always returns upcomingCostPrice / upcomingSellingPrice (+ their dates) for any
 // future-scheduled change, so the UI can render the "Upcoming" columns.
+//
+// The list is also date-aware (the stock receipt screen), because isActive / showInStockReceipt only
+// describe a product *today*, not on the date being viewed:
+//   - a product that has stock receipts on that date is always listed, even if it has since been
+//     disabled or hidden, so a past day keeps showing what was actually bought (hasReceiptOnDate);
+//   - an active product is listed only from the IST day it was created, so a product added today
+//     does not appear on earlier dates.
+// ?all=true (setup screens) is unchanged: every product, no date logic.
 const getAll = asyncHandler(async (req, res) => {
   const where = { isActive: true };
   if (req.query.brandId) where.brandId = parseId(req.query.brandId, 'Brand ID');
   if (req.query.all === 'true') delete where.isActive;
+
+  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date ?? '') ? req.query.date : null;
+  let receivedIds = null;
+  let listWhere = where;
+  if (dateStr && req.query.all !== 'true') {
+    const receiptRows = await prisma.stockReceipt.findMany({
+      where: { receiptDate: new Date(dateStr), ...(where.brandId ? { brandId: where.brandId } : {}) },
+      select: { productId: true },
+      distinct: ['productId'],
+    });
+    receivedIds = new Set((receiptRows ?? []).map(r => r.productId));
+    const endOfBusinessDayIST = new Date(`${dateStr}T23:59:59.999+05:30`);
+    listWhere = {
+      ...(where.brandId ? { brandId: where.brandId } : {}),
+      OR: [
+        { isActive: true, createdAt: { lte: endOfBusinessDayIST } },
+        { id: { in: [...receivedIds] } },
+      ],
+    };
+  }
+
   const products = await prisma.product.findMany({
-    where,
+    where: listWhere,
     include: {
       brand:         { select: { id: true, name: true } },
       costPrices:    { orderBy: { effectiveFrom: 'desc' }, take: 1, select: { effectiveFrom: true, updatedAt: true } },
@@ -25,6 +54,9 @@ const getAll = asyncHandler(async (req, res) => {
     },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
+  if (receivedIds) {
+    for (const p of products) p.hasReceiptOnDate = receivedIds.has(p.id);
+  }
 
   if (req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
     const targetDate = new Date(req.query.date);

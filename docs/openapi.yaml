@@ -262,7 +262,9 @@ paths:
         - name: date
           in: query
           schema: { type: string, format: date }
-          description: When set, costPrice reflects the price effective on this date. Response always includes upcomingCostPrice/upcomingSellingPrice for any future-scheduled change.
+          description: |
+            When set, costPrice reflects the price effective on this date. Response always includes upcomingCostPrice/upcomingSellingPrice for any future-scheduled change.
+            The list also follows that date: a product with stock receipts on it is listed even if it has since been disabled or hidden (`hasReceiptOnDate: true`), and an active product is listed only from the (IST) day it was created. Ignored for the product list when `all=true`.
         - name: all
           in: query
           schema: { type: boolean }

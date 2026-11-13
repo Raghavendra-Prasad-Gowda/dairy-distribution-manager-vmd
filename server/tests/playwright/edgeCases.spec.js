@@ -253,6 +253,94 @@ test.describe('Soft-delete filtering', () => {
     expect(res.status()).toBe(200);
     expect(findManyArgs.where.isActive).toBeUndefined();
   });
+
+  // The list follows the date being viewed: a past day keeps what was bought on it, and a product
+  // created later is not listed on earlier dates.
+  test.describe('GET /products?date= (date-aware list)', () => {
+    const headers = () => ({ Authorization: `Bearer ${makeAuthToken()}` });
+
+    test.beforeEach(() => {
+      ctx.mockPrisma.productCostPrice.findMany.mockResolvedValue([]);
+      ctx.mockPrisma.productSellingPrice.findMany.mockResolvedValue([]);
+    });
+
+    test('lists active products created by that IST day, plus any product bought on it', async ({ request }) => {
+      let receiptArgs = null;
+      let productArgs = null;
+      ctx.mockPrisma.stockReceipt.findMany.mockImplementation(async (args) => {
+        receiptArgs = args;
+        return [{ productId: 7 }];
+      });
+      ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
+        productArgs = args;
+        return [{ id: 7, name: 'Old', isActive: false, costPrice: 1 }, { id: 8, name: 'Live', isActive: true, costPrice: 1 }];
+      });
+
+      const res = await request.get('/api/v1/products?brandId=3&date=2026-11-12', { headers: headers() });
+      expect(res.status()).toBe(200);
+
+      expect(receiptArgs.where).toEqual({ receiptDate: new Date('2026-11-12'), brandId: 3 });
+      expect(productArgs.where.brandId).toBe(3);
+      expect(productArgs.where.isActive).toBeUndefined();
+      const [activeByThen, boughtThen] = productArgs.where.OR;
+      expect(activeByThen.isActive).toBe(true);
+      // end of 12 Nov in IST = 18:29:59.999 UTC the same day: created later that day still counts
+      expect(activeByThen.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
+      expect(boughtThen).toEqual({ id: { in: [7] } });
+
+      const body = await res.json();
+      expect(body.data.find(p => p.id === 7).hasReceiptOnDate).toBe(true);
+      expect(body.data.find(p => p.id === 8).hasReceiptOnDate).toBe(false);
+    });
+
+    test('a date with no receipts lists only products that already existed', async ({ request }) => {
+      ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([]);
+      let productArgs = null;
+      ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
+        productArgs = args;
+        return [];
+      });
+      const res = await request.get('/api/v1/products?date=2026-11-12', { headers: headers() });
+      expect(res.status()).toBe(200);
+      expect(productArgs.where.brandId).toBeUndefined();
+      expect(productArgs.where.OR[1]).toEqual({ id: { in: [] } });
+    });
+
+    test('an unreadable stock receipt result is treated as no receipts', async ({ request }) => {
+      ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue(undefined);
+      ctx.mockPrisma.product.findMany.mockResolvedValue([{ id: 1, name: 'A', isActive: true, costPrice: 1 }]);
+      const res = await request.get('/api/v1/products?date=2026-11-12', { headers: headers() });
+      expect(res.status()).toBe(200);
+      expect((await res.json()).data[0].hasReceiptOnDate).toBe(false);
+    });
+
+    test('a malformed date falls back to the plain active list (no receipt lookup)', async ({ request }) => {
+      let productArgs = null;
+      let receiptLookups = 0;
+      ctx.mockPrisma.stockReceipt.findMany.mockImplementation(async () => { receiptLookups += 1; return []; });
+      ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
+        productArgs = args;
+        return [];
+      });
+      const res = await request.get('/api/v1/products?date=12-11-2026', { headers: headers() });
+      expect(res.status()).toBe(200);
+      expect(productArgs.where).toEqual({ isActive: true });
+      expect(receiptLookups).toBe(0);
+    });
+
+    test('all=true ignores the date (setup screens see every product)', async ({ request }) => {
+      let productArgs = null;
+      ctx.mockPrisma.product.findMany.mockImplementation(async (args) => {
+        productArgs = args;
+        return [{ id: 1, name: 'A', isActive: false, costPrice: 1 }];
+      });
+      const res = await request.get('/api/v1/products?all=true&date=2026-11-12', { headers: headers() });
+      expect(res.status()).toBe(200);
+      expect(productArgs.where.OR).toBeUndefined();
+      expect(productArgs.where.isActive).toBeUndefined();
+      expect((await res.json()).data[0].hasReceiptOnDate).toBeUndefined();
+    });
+  });
 });
 
 // ─── Idempotent state-machine transitions ────────────────────────────────────
