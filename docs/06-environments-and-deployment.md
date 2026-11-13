@@ -152,6 +152,8 @@ flowchart LR
     C --> CR[crash reports]
 ```
 
+The testing and production builds report the same release number: at build time both tiers take the higher of the detected version and the latest published GitHub release (`server/scripts/write-version.js`, `client/vite.config.js`; `RELEASE_REPO` / `GITHUB_TOKEN` optional). The build time next to the version is displayed in the viewer's time zone, and the pipeline Slack cards show the version the deployed backend reports. Business dates stay IST.
+
 Semantic version tags are created automatically after a successful production smoke run (patch by default; minor
 or major via a manual `workflow_dispatch`).
 

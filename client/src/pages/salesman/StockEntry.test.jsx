@@ -582,3 +582,33 @@ describe('StockEntry — locked entries', () => {
     await screen.findByText('Past date — locked');
   });
 });
+
+// ─── The product list follows the day being viewed ─────────────────────────────
+// The server lists products for the viewed date: one disabled since (but dispatched that day) comes back
+// flagged hasDispatchOnDate at the price saved on that day. The screen must ask for that date and show it.
+
+describe('StockEntry — product list for the viewed date', () => {
+  it('asks for the prices of the viewed date', async () => {
+    mockApiFor([product({ productId: 1, productName: 'Milk 500ml', brandId: 1, brandName: 'Nandini' })]);
+    render(<StockEntry />);
+    await screen.findByText('Expand All');
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/salespeople/1/prices?date=2026-08-09');
+  });
+
+  it('shows a product that was dispatched that day (since disabled) with its quantity and saved price', async () => {
+    const retired = product({
+      productId: 7, productName: 'Retired Curd', brandId: 1, brandName: 'Nandini',
+      sellingPrice: 17, hasDispatchOnDate: true,
+    });
+    vi.mocked(api.get).mockImplementation((url) => {
+      if (url.includes('/prices'))             return Promise.resolve({ data: { data: [retired] } });
+      if (url.includes('/dispatches'))         return Promise.resolve({ data: { data: [{ id: 1, isLocked: true, items: [{ productId: 7, quantity: 3, unitPrice: 17 }] }] } });
+      if (url.includes('/salesperson-balance')) return Promise.resolve({ data: { data: null } });
+      return Promise.resolve({ data: { data: [] } });
+    });
+    await renderExpanded();
+
+    expect(screen.getByText('Retired Curd')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('3')).toBeInTheDocument();
+  });
+});

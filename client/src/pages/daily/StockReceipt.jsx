@@ -73,17 +73,33 @@ export default function StockReceipt() {
       .catch(() => notify('Failed to load brands', 'error'));
   }, [brandName, notify]);
 
-  // ─── Routes (all brands) ──────────────────────────────────────────────────
+  // ─── Routes ───────────────────────────────────────────────────────────────
+  // The list follows the viewed date: a route that had stock on a past day stays even if deactivated
+  // since, and a route created later is not shown before it existed. Refetched when the date changes,
+  // but the "Loading routes…" state and the reset to the first route only happen on a brand change.
+  const routesRef = useRef([]);
+  const activeRouteIdxRef = useRef(0);
+  const routesBrandRef = useRef(null);
+  useEffect(() => { routesRef.current = routes; activeRouteIdxRef.current = activeRouteIdx; }, [routes, activeRouteIdx]);
   // Genuine fetch-on-dependency-change effect, not state derived from render.
   useEffect(() => {
     if (!activeBrand) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRoutesLoading(true);
-    api.get(`/routes?brandId=${activeBrand.id}`)
-      .then(r => { setRoutes(r.data.data ?? []); setActiveRouteIdx(0); })
-      .catch(() => setRoutes([]))
-      .finally(() => setRoutesLoading(false));
-  }, [activeBrand]);
+    const brandChanged = routesBrandRef.current !== activeBrand.id;
+    routesBrandRef.current = activeBrand.id;
+    const keepRouteId = brandChanged ? null : routesRef.current[activeRouteIdxRef.current]?.id;
+    let cancelled = false;
+    if (brandChanged) setRoutesLoading(true);
+    api.get(`/routes?brandId=${activeBrand.id}&date=${date}`)
+      .then(r => {
+        if (cancelled) return;
+        const list = r.data.data ?? [];
+        setRoutes(list);
+        setActiveRouteIdx(Math.max(0, list.findIndex(x => x.id === keepRouteId)));
+      })
+      .catch(() => { if (!cancelled) setRoutes([]); })
+      .finally(() => { if (!cancelled) setRoutesLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeBrand, date]);
 
   // ─── Balance ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -113,7 +129,8 @@ export default function StockReceipt() {
   const { data, loading, setData } = useApiResources(dataUrls, {
     initialData: { products: [], routeQty: {}, savedRouteIds: new Set() },
     select: ([prodPayload, receiptPayload]) => {
-      const prods    = (prodPayload ?? []).filter(p => p.showInStockReceipt !== false);
+      // A product hidden from entry today must still show on a date it was bought on (hasReceiptOnDate).
+      const prods    = (prodPayload ?? []).filter(p => p.showInStockReceipt !== false || p.hasReceiptOnDate);
       const receipts = receiptPayload ?? [];
 
       // Map saved receipts back into routeQty (keyed by actual route DB id)

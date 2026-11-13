@@ -443,3 +443,95 @@ Feature: Stock entries (dispatches)
     When dispatcher calls "PATCH /api/v1/dispatches/${dispatch.id}/lock"
     Then the response status is 403
     And the error message contains "today"
+
+  # --- The product list on the stock entry screen follows the day being viewed -----------------------
+  # GET /salespeople/:id/prices?date= : products are listed from the day they were created; on a PAST day
+  # everything the salesperson was dispatched is listed (at the saved price) even if switched off since.
+
+  Scenario: A product disabled after it was dispatched is still listed on that past day at its saved price
+    Given a salesperson with a clean ledger "sp"
+    And admin enables "milk" for everyone at price 22
+    And admin dispatches 3 of "milk" at 17 to "sp" on "${today-3}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=${today-3}"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    And the JSON amount "data.find { it.productId == ${milk.id} }.sellingPrice" equals "17"
+    And the JSON field "data.find { it.productId == ${milk.id} }.hasDispatchOnDate" equals "true"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=${today}"
+    Then the JSON list "data" has no item whose "productId" is "${milk.id}"
+
+  Scenario: A salesman viewing a past day still sees a product that was switched off for everyone since
+    Given admin enables "milk" for everyone at price 22
+    And admin dispatches 2 of "milk" at 22 to "me" on "${today-6}" remembered as "dispatch"
+    And afterwards admin cleans up with "DELETE /api/v1/dispatches/${dispatch.id}"
+    And admin calls "PATCH /api/v1/products/salesperson-global" with:
+      """
+      { "products": [ { "productId": ${milk.id}, "isEnabled": false } ] }
+      """
+    When salesman calls "GET /api/v1/salespeople/${me.id}/prices?date=${today-6}"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.hasDispatchOnDate" equals "true"
+    When salesman calls "GET /api/v1/salespeople/${me.id}/prices?date=${today}"
+    Then the JSON list "data" has no item whose "productId" is "${milk.id}"
+
+  Scenario: A product created today is not offered on an earlier day, and only listed as undispatched on a day it exists
+    Given a salesperson with a clean ledger "sp"
+    And admin enables "milk" for everyone at price 22
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=${today-3}"
+    Then the JSON list "data" has no item whose "productId" is "${milk.id}"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=${today}"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.hasDispatchOnDate" is absent
+
+  Scenario: Without a date, or with an unreadable one, the list is today's as before
+    Given a salesperson with a clean ledger "sp"
+    And admin enables "milk" for everyone at price 22
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=12-11-2026"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+
+  Scenario: A salesman who was opted out of a product since still sees it on a day they were dispatched it
+    Given admin enables "milk" for everyone at price 22
+    And admin dispatches 2 of "milk" at 22 to "me" on "${today-6}" remembered as "dispatch"
+    And afterwards admin cleans up with "DELETE /api/v1/dispatches/${dispatch.id}"
+    And admin calls "POST /api/v1/salespeople/${me.id}/products/bulk" with:
+      """
+      { "products": [ { "productId": ${milk.id}, "isEnabled": false } ] }
+      """
+    When salesman calls "GET /api/v1/salespeople/${me.id}/prices?date=${today-6}"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.hasDispatchOnDate" equals "true"
+    When salesman calls "GET /api/v1/salespeople/${me.id}/prices?date=${today}"
+    Then the JSON list "data" has no item whose "productId" is "${milk.id}"
+
+  Scenario: A free sample keeps its price of zero when the past day is viewed
+    Given a salesperson with a clean ledger "sp"
+    And admin enables "milk" for everyone at price 22
+    And admin dispatches 1 of "milk" at 0 to "sp" on "${today-3}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=${today-3}"
+    Then the JSON amount "data.find { it.productId == ${milk.id} }.sellingPrice" equals "0"
+    And the JSON field "data.find { it.productId == ${milk.id} }.hasDispatchOnDate" equals "true"
+
+  Scenario: Only what this salesperson was dispatched is kept, not what someone else was
+    Given a salesperson with a clean ledger "sp"
+    And a salesperson with a clean ledger "other"
+    And admin enables "milk" for everyone at price 22
+    And admin dispatches 2 of "milk" at 22 to "sp" on "${today-3}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When admin calls "GET /api/v1/salespeople/${sp.id}/prices?date=${today-3}"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    When admin calls "GET /api/v1/salespeople/${other.id}/prices?date=${today-3}"
+    Then the JSON list "data" has no item whose "productId" is "${milk.id}"
+
+  Scenario: Tomorrow's list offers a product created today, and a bad id or another salesman's list is refused
+    Given a salesperson with a clean ledger "other"
+    And admin enables "milk" for everyone at price 22
+    When admin calls "GET /api/v1/salespeople/${other.id}/prices?date=${today+1}"
+    Then the JSON list "data" contains an item whose "productId" is "${milk.id}"
+    And the JSON field "data.find { it.productId == ${milk.id} }.hasDispatchOnDate" is absent
+    When admin calls "GET /api/v1/salespeople/abc/prices?date=${today}"
+    Then the response status is 400
+    When salesman calls "GET /api/v1/salespeople/${other.id}/prices?date=${today-3}"
+    Then the response status is 403

@@ -323,3 +323,119 @@ Feature: Product setup
       { "products": [ { "productId": ${milk.id}, "isEnabled": true, "defaultPrice": -5 } ] }
       """
     Then the response status is 400
+
+  # --- The product list follows the date being viewed (stock receipt screen) -------------------------
+  # isActive / showInStockReceipt only describe a product today. A past day must keep showing what was
+  # bought on it, and a product created today must not appear on earlier dates.
+
+  Scenario: A product disabled later is still listed on a date it was bought, but not afterwards
+    Given a throwaway product "milk" in brand "brand"
+    And admin receives 6 of "milk" at 20 into "brand" on "${today-1}"
+    When admin calls "DELETE /api/v1/products/${milk.id}"
+    Then the call succeeds
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-1}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "true"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today}"
+    Then the JSON list "data" has no item whose "name" is "${milk.name}"
+
+  Scenario: A product created today is not listed on an earlier date
+    Given a throwaway product "milk" in brand "brand"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-1}"
+    Then the JSON list "data" has no item whose "name" is "${milk.name}"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "false"
+
+  Scenario: A new product that was back-dated stock on an earlier date is listed on that date
+    Given a throwaway product "milk" in brand "brand"
+    And admin receives 4 of "milk" at 20 into "brand" on "${today-2}"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-2}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "true"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-1}"
+    Then the JSON list "data" has no item whose "name" is "${milk.name}"
+
+  Scenario: The setup list with all=true ignores the date and still shows disabled products
+    Given a throwaway product "milk" in brand "brand"
+    When admin calls "DELETE /api/v1/products/${milk.id}"
+    Then the call succeeds
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&all=true&date=${today-5}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" is absent
+
+  Scenario: Without a date the list is the active products, as before
+    Given a throwaway product "milk" in brand "brand"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" is absent
+
+  Scenario: Without a brand, the date-aware list covers every brand's products bought that day
+    Given a throwaway brand "other"
+    And a throwaway product "milk" in brand "brand"
+    And a throwaway product "curd" in brand "other"
+    And admin receives 2 of "milk" at 20 into "brand" on "${today-1}"
+    And admin receives 3 of "curd" at 20 into "other" on "${today-1}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    And admin calls "DELETE /api/v1/products/${curd.id}"
+    When admin calls "GET /api/v1/products?date=${today-1}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON list "data" contains an item whose "name" is "${curd.name}"
+    When admin calls "GET /api/v1/products?brandId=${other.id}&date=${today-1}"
+    Then the JSON list "data" contains an item whose "name" is "${curd.name}"
+    And the JSON list "data" has no item whose "name" is "${milk.name}"
+
+  Scenario: A product hidden from stock entry since is still listed, flagged, on a day it was bought
+    Given a throwaway product "milk" in brand "brand"
+    And admin receives 6 of "milk" at 20 into "brand" on "${today-1}"
+    When admin calls "PUT /api/v1/products/${milk.id}" with:
+      """
+      { "showInStockReceipt": false }
+      """
+    Then the call succeeds
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-1}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.showInStockReceipt" equals "false"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "true"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-2}"
+    Then the JSON list "data" has no item whose "name" is "${milk.name}"
+
+  Scenario: A product received on two routes the same day is listed once
+    Given a throwaway product "milk" in brand "brand"
+    And a throwaway route "north" in brand "brand"
+    And a throwaway route "south" in brand "brand"
+    And admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${brand.id}, "date": "${today-1}", "routeId": ${north.id},
+        "items": [ { "productId": ${milk.id}, "quantity": 2, "unitPrice": 20 } ] }
+      """
+    And admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${brand.id}, "date": "${today-1}", "routeId": ${south.id},
+        "items": [ { "productId": ${milk.id}, "quantity": 3, "unitPrice": 20 } ] }
+      """
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today-1}"
+    Then the JSON field "data.findAll { it.id == ${milk.id} }.size()" equals "1"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "true"
+
+  Scenario: A product disabled today still shows today when stock for today was already saved
+    Given a throwaway product "milk" in brand "brand"
+    And admin receives 4 of "milk" at 20 into "brand" on "${today}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "true"
+
+  Scenario: A product created today is listed for tomorrow, the last day stock can be entered
+    Given a throwaway product "milk" in brand "brand"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=${today+1}"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" equals "false"
+
+  Scenario: An unreadable date is ignored and a bad brand id is refused
+    Given a throwaway product "milk" in brand "brand"
+    When admin calls "GET /api/v1/products?brandId=${brand.id}&date=12-11-2026"
+    Then the JSON list "data" contains an item whose "name" is "${milk.name}"
+    And the JSON field "data.find { it.id == ${milk.id} }.hasReceiptOnDate" is absent
+    When admin calls "GET /api/v1/products?brandId=abc&date=${today-1}"
+    Then the response status is 400

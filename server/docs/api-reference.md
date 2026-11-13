@@ -90,12 +90,12 @@ flowchart LR
 | GET · POST | `/categories` | 🧑‍💼 | `?brandId` |
 | PUT · DELETE | `/categories/:id` | 🧑‍💼 | |
 | PATCH | `/categories/reorder` | 🧑‍💼 | |
-| GET · POST | `/products` | 🧑‍💼 | `?brandId`, `?all`; effective-dated prices |
+| GET · POST | `/products` | 🧑‍💼 | `?brandId`, `?all`, `?date` (list follows the date: bought-then-disabled products stay, newer products are not listed earlier — `hasReceiptOnDate`); effective-dated prices |
 | PUT · DELETE | `/products/:id` | 🧑‍💼 | |
 | PATCH | `/products/reorder` | 🧑‍💼 | |
 | GET · PATCH | `/products/salesperson-global` | 🧑‍💼 | Global salesperson access |
 | DELETE | `/products/:id/salesperson-prices` | 🧑‍💼 | Clear all per-salesperson prices |
-| GET · POST | `/routes` | 🧑‍💼 | `?brandId` |
+| GET · POST | `/routes` | 🧑‍💼 | `?brandId`, `?date` (list follows the day: a route that had stock stays even if deactivated since; newer routes not listed earlier) |
 | PUT · DELETE | `/routes/:id` | 🧑‍💼 | |
 
 ## 6. 🏭 Dairy side
@@ -103,7 +103,7 @@ flowchart LR
 | Method | Path | Auth | Notes |
 |---|---|---|---|
 | GET | `/stock-receipts` | 🧑‍💼 | `?date&brandId` |
-| GET | `/stock-receipts/availability` | 🧑‍💼 📋 | `?date` — received vs dispatched |
+| GET | `/stock-receipts/availability` | 🧑‍💼 📋 | `?date` — received vs dispatched; lists products that existed by then plus any received/dispatched that day |
 | POST | `/stock-receipts/bulk` | 🧑‍💼 (30/min) | Upsert + dairy cascade |
 | GET | `/dairy-balance` | 🧑‍💼 | `?date` |
 | GET | `/dairy-balance/route-breakdown` | 🧑‍💼 | `?date` |
@@ -122,7 +122,7 @@ flowchart LR
 | GET · PUT · DELETE | `/salespeople/:id` | 🧑‍💼 | |
 | PUT | `/salespeople/reorder` | 🧑‍💼 | |
 | POST | `/salespeople/reset-ledger` | 👑 | ⚠️ Deletes dispatches, collections, balances |
-| GET | `/salespeople/:id/prices` | 🔑 | Salesman: own id only |
+| GET | `/salespeople/:id/prices` | 🔑 | Salesman: own id only. `?date` — list follows the day: past days include what was dispatched (even if disabled since) at the saved price |
 | POST | `/salespeople/:id/prices/bulk` | 🧑‍💼 (30/min) | `effectiveFrom` ≥ today |
 | POST | `/salespeople/:id/prices/copy-from/:sourceId` | 🧑‍💼 (30/min) | |
 | POST | `/salespeople/bulk-update` | 🧑‍💼 (30/min) | Many salespeople at once |
@@ -148,7 +148,7 @@ flowchart LR
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/salesperson-balance` | 🔑 | `?date` |
+| GET | `/salesperson-balance` | 🔑 | `?date` — active salespeople who had joined by then, plus anyone with a dispatch/payment that day |
 | GET | `/salesperson-balance/:id` | 🔑 (own for salesman) | `?date` |
 | GET | `/salesperson-balance/:id/history` | 🔑 (own for salesman) | `?page&limit&from&to` |
 | GET | `/salesperson-payments` | 🔑 | `?salespersonId&from&to` |
@@ -166,7 +166,7 @@ flowchart LR
 | `/stock-summary` | 🧑‍💼 | `from, to, brandId, date, routeId` |
 | `/outstanding` | 🧑‍💼 | — |
 | `/deposit-summary` | 🧑‍💼 | `brandId, from, to` |
-| `/daily-dispatch` | 🧑‍💼 📋 | `date` |
+| `/daily-dispatch` | 🧑‍💼 📋 | `date`; columns follow the date (anything dispatched that day stays, even if disabled since) |
 | `/profit-loss` | 🧑‍💼 | `from, to` (UI gates with P&L PIN) |
 
 ## 11. 🧾 Bills — `/bills` (🧑‍💼)

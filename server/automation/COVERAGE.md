@@ -51,7 +51,7 @@ To avoid testing the same behaviour twice, the mocked suite was cut from 1,450 t
 | `adminUsers` | 46 | `admin-users`, `authentication`, matrix | Demoting an MFA-enabled account clears MFA fields, and "cannot delete the last superadmin": both need MFA enrolment or removing the only superadmin. |
 | `routes` | 40 | `routes`, `route-management`, matrix | none |
 | `pin` | 40 | `pin`, matrix | Correct-PIN success paths, changing a PIN and the PIN rate limit: the real PIN is a secret and exhausting the limiter (20 wrong PINs) would block PIN checks for 15 minutes. Correct PINs are not counted (mocked spec `pin`). |
-| `salespersonPrices` | 39 | `salesperson-pricing`, `salesperson-ledger`, `dispatches` | none |
+| `salespersonPrices` | 45 | `salesperson-pricing`, `salesperson-ledger`, `dispatches` | none |
 | `bills` | 39 | `bills`, matrix | Bill-number series start taken from an app setting (changing it would renumber real bills). |
 | `brands` | 38 | `brands`, matrix | none |
 | `auth` | 37 | `authentication`, `salespeople`, sign-in checks inside `AuthManager` | "Forwarded IP header", "user record no longer exists" 404s and "token with a role the app never issues": need a forged valid token. |
@@ -62,12 +62,12 @@ To avoid testing the same behaviour twice, the mocked suite was cut from 1,450 t
 | `salespersonGlobalSettings` + `-e2e` | 30 | `products`, `salesperson-pricing`, `dispatches` | Slack-card enrichment details. |
 | `categories` | 24 | `categories`, matrix | none |
 | `salespersonPricesBulk` | 23 | `salesperson-pricing`, matrix | none |
-| `edgeCases` | 22 | `dairy-ledger`, `dispatches`, `salespeople`, `products` | The 3 time-zone helper tests (unit). |
+| `edgeCases` | 37 | `dairy-ledger`, `dispatches`, `salespeople`, `products` | The 3 time-zone helper tests (unit). |
 | `salespersonStatement` | 19 | `salesman-self-service`, `reports-detail` | none |
 | `salespersonBalanceHistory` | 19 | `salesperson-ledger` | Assertions about which database queries run. |
 | `salespersonProducts` + `Bulk` | 29 | `salesperson-pricing`, matrix | Assertions about "an upsert per product inside a transaction" (implementation detail). |
 | `security` | 15 | `security`, `dairy-ledger`, `salesperson-ledger`, `known-defects` | Rate-limit exhaustion (login, PIN) and CORS: they lock the shared address / depend on environment configuration. The 10 KB body limit is in `known-defects` because the API answers 500. |
-| `salespersonBalance` | 15 | `salesperson-ledger`, matrix | "Computed fallback adds top-ups" (same reason as `dairyBalance`). |
+| `salespersonBalance` | 16 | `salesperson-ledger`, matrix | "Computed fallback adds top-ups" (same reason as `dairyBalance`). |
 | `dairyDepositTopUps` | 15 | `dairy-ledger`, `deposit-summary`, matrix | none |
 | `statementTopUps` | 14 | `reports`, `dairy-ledger`, `salesperson-ledger` | none |
 | `salespersonResetLedger` | 13 | `salesperson-ledger`, `salespeople`, matrix | none |

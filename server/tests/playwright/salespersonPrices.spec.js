@@ -129,6 +129,97 @@ test.describe('GET /api/v1/salespeople/:id/prices', () => {
   });
 });
 
+// ─── GET /api/v1/salespeople/:id/prices?date= (stock entry for a given day) ───
+
+test.describe('GET /api/v1/salespeople/:id/prices?date=', () => {
+  const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const daysAgo = (n) => {
+    const d = new Date(today()); d.setUTCDate(d.getUTCDate() - n);
+    return d.toISOString().slice(0, 10);
+  };
+  let productArgs;
+  let dispatchItemArgs;
+  let dispatchedRows;
+
+  test.beforeEach(() => {
+    productArgs = null;
+    dispatchItemArgs = null;
+    dispatchedRows = [];
+    ctx.mockPrisma.product.findMany.mockImplementation(async (args) => { productArgs = args; return [PRODUCT]; });
+    ctx.mockPrisma.stockDispatchItem.findMany.mockImplementation(async (args) => { dispatchItemArgs = args; return dispatchedRows; });
+    ctx.mockPrisma.salespersonProduct.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salespersonPrice.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+  });
+
+  const get = (request, token, date) =>
+    request.get(`/api/v1/salespeople/1/prices${date ? `?date=${date}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+  test('no date: today\'s list, unchanged', async ({ request }) => {
+    const res = await get(request, makeAuthToken());
+    expect(res.status()).toBe(200);
+    expect(productArgs.where).toEqual({ isActive: true, showInStockReceipt: true, brand: { isActive: true } });
+    expect(dispatchItemArgs).toBeNull();
+    expect((await res.json()).data[0].hasDispatchOnDate).toBeUndefined();
+  });
+
+  test('a malformed date is ignored', async ({ request }) => {
+    const res = await get(request, makeAuthToken(), '12-11-2026');
+    expect(res.status()).toBe(200);
+    expect(productArgs.where.OR).toBeUndefined();
+    expect(dispatchItemArgs).toBeNull();
+  });
+
+  test('today: products existing by today, and no dispatch lookup (a disabled product cannot be dispatched)', async ({ request }) => {
+    const res = await get(request, makeAuthToken(), today());
+    expect(res.status()).toBe(200);
+    expect(productArgs.where.brand).toEqual({ isActive: true });
+    expect(productArgs.where.OR).toHaveLength(1);
+    expect(productArgs.where.OR[0]).toMatchObject({ isActive: true, showInStockReceipt: true });
+    expect(dispatchItemArgs).toBeNull();
+    expect((await res.json()).data[0].hasDispatchOnDate).toBeUndefined();
+  });
+
+  test('a past date adds what this salesperson was dispatched that day, even if disabled since', async ({ request }) => {
+    const day = daysAgo(3);
+    dispatchedRows = [{ productId: 1, unitPrice: 17 }];
+    const res = await get(request, makeAuthToken(), day);
+    expect(res.status()).toBe(200);
+    expect(dispatchItemArgs.where).toEqual({ dispatch: { salespersonId: 1, dispatchDate: new Date(day) } });
+    expect(productArgs.where.OR).toHaveLength(2);
+    expect(productArgs.where.OR[0].createdAt.lte.toISOString()).toBe(`${day}T18:29:59.999Z`);
+    expect(productArgs.where.OR[1]).toEqual({ id: { in: [1] } });
+    const row = (await res.json()).data[0];
+    expect(row.sellingPrice).toBe(17); // the price saved on that day's dispatch, not today's
+    expect(row.hasDispatchOnDate).toBe(true);
+  });
+
+  test('a past date with no dispatch adds nothing and flags the product as not dispatched', async ({ request }) => {
+    const res = await get(request, makeAuthToken(), daysAgo(3));
+    expect(res.status()).toBe(200);
+    expect(productArgs.where.OR).toHaveLength(1);
+    expect((await res.json()).data[0].hasDispatchOnDate).toBe(false);
+  });
+
+  test('a salesman sees a dispatched product that is off for them today; an undispatched one stays hidden', async ({ request }) => {
+    // salespersonEnabled=false and no per-salesman opt-in -> hidden today
+    const offProduct = { ...PRODUCT, salespersonEnabled: false };
+    const other = { ...PRODUCT, id: 2, name: 'Curd', salespersonEnabled: false };
+    ctx.mockPrisma.product.findMany.mockResolvedValue([offProduct, other]);
+    dispatchedRows = [{ productId: 1, unitPrice: 17 }];
+
+    const res = await get(request, makeSalesmanToken(1), daysAgo(3));
+    expect(res.status()).toBe(200);
+    const ids = (await res.json()).data.map(r => r.productId);
+    expect(ids).toEqual([1]);
+
+    const today_ = await get(request, makeSalesmanToken(1), today());
+    expect((await today_.json()).data).toHaveLength(0);
+  });
+});
+
 // ─── POST /api/v1/salespeople/:id/prices/bulk ────────────────────────────────
 
 test.describe('POST /api/v1/salespeople/:id/prices/bulk', () => {

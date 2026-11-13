@@ -52,10 +52,32 @@ function loadVersion() {
 
 const appVersion = Object.freeze(loadVersion());
 
+/** Parses "v1.2.3" / "1.2.3" into [1,2,3]; null when it is not a plain semver. */
+function parseSemver(v) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(v || '').trim());
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+/**
+ * The higher of two versions (no leading "v" in the result). Used so a testing build, whose
+ * package.json lags behind, still reports the latest released version like production does.
+ * An unparseable side loses; with neither parseable the first argument is returned.
+ */
+function maxVersion(a, b) {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  if (!pb) return a ? String(a).replace(/^v/, '') : a;
+  if (!pa) return String(b).replace(/^v/, '');
+  for (let i = 0; i < 3; i += 1) {
+    if (pa[i] !== pb[i]) return String(pa[i] > pb[i] ? a : b).replace(/^v/, '');
+  }
+  return String(a).replace(/^v/, '');
+}
+
 /** Human label, e.g. "v1.4.0 · a3f9c21", "a3f9c21" or "unknown". */
 function versionLabel(v = appVersion) {
   const parts = [v.version && `v${v.version}`, v.commit].filter(Boolean);
   return parts.length ? parts.join(' · ') : 'unknown';
 }
 
-module.exports = { appVersion, versionLabel, detectVersion, VERSION_FILE };
+module.exports = { appVersion, versionLabel, detectVersion, maxVersion, VERSION_FILE };

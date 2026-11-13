@@ -20,4 +20,12 @@ function getIndiaTomorrowStr() {
   ].join('-');
 }
 
-module.exports = { getIndiaDateStr, getIndiaTomorrowStr };
+/**
+ * The last instant of an IST business day (YYYY-MM-DD). Used to ask "did this row exist by that day?"
+ * of a createdAt timestamp: a product created at any time during that IST day counts as existing.
+ */
+function getIndiaDayEnd(dateStr) {
+  return new Date(`${dateStr}T23:59:59.999+05:30`);
+}
+
+module.exports = { getIndiaDateStr, getIndiaTomorrowStr, getIndiaDayEnd };

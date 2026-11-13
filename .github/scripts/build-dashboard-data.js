@@ -103,6 +103,66 @@ async function testHistory(stagingRuns, limit) {
   return out;
 }
 
+// ---- Live health of the four deployed instances (production + testing, backend + frontend) ------
+// Render's free tier sleeps, so allow a cold start (60 s) and retry once before reporting "down".
+const ENV_URLS = {
+  production: {
+    api: process.env.PROD_API_URL || 'https://dairy-distribution-manager-vmd.onrender.com',
+    web: process.env.PROD_WEB_URL || 'https://dairy-distribution-manager-vmd.vercel.app',
+  },
+  testing: {
+    api: process.env.STAGING_API_URL || 'https://dairy-distribution-manager-vmd-testing.onrender.com',
+    web: process.env.STAGING_WEB_URL || 'https://dairy-distribution-manager-vmd-testing.vercel.app',
+  },
+};
+
+async function probe(url, headers = {}) {
+  let last;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const t0 = Date.now();
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'vmd-pipeline-dashboard', ...headers }, signal: AbortSignal.timeout(60000), redirect: 'follow' });
+      const body = await res.text();
+      last = { status: res.status, ms: Date.now() - t0, body };
+      if (res.ok) return last;
+    } catch (e) {
+      last = { status: 0, ms: Date.now() - t0, error: e.name === 'TimeoutError' ? 'timed out after 60 s' : e.message };
+    }
+  }
+  return last;
+}
+
+async function healthChecks() {
+  const bypass = process.env.VERCEL_BYPASS_SECRET ? { 'x-vercel-protection-bypass': process.env.VERCEL_BYPASS_SECRET } : {};
+  const jobs = [];
+  for (const [env, urls] of Object.entries(ENV_URLS)) {
+    jobs.push((async () => {
+      const base = urls.api.replace(/\/$/, '');
+      const live = await probe(`${base}/health`);
+      let info = {};
+      try { info = JSON.parse(live.body || '{}'); } catch { /* not JSON = not our backend */ }
+      const ready = live.status === 200 ? await probe(`${base}/health/ready`) : null;
+      return {
+        env, kind: 'backend', url: base,
+        ok: live.status === 200 && info.status === 'ok',
+        status: live.status, ms: live.ms, error: live.error || (live.status === 200 && info.status !== 'ok' ? 'unexpected /health body' : undefined),
+        version: info.version || null, commit: info.commit || null,
+        db: ready ? ready.status === 200 : null,
+      };
+    })());
+    jobs.push((async () => {
+      const base = urls.web.replace(/\/$/, '');
+      const r = await probe(`${base}/`, bypass);
+      const html = r.status === 200 && /<div id="root"|<title>/i.test(r.body || '');
+      return {
+        env, kind: 'frontend', url: base, ok: html, status: r.status, ms: r.ms,
+        error: r.error || (r.status === 200 && !html ? 'page did not look like the app' : r.status === 401 ? 'blocked by Vercel protection (set VERCEL_AUTOMATION_BYPASS_SECRET)' : undefined),
+      };
+    })());
+  }
+  return Promise.all(jobs);
+}
+
 const minutes = (r) => {
   const start = Date.parse(r.run_started_at || r.created_at);
   return Math.round(((Date.parse(r.updated_at) - start) / 60000) * 10) / 10;
@@ -147,17 +207,19 @@ async function main() {
   const stagingRuns = runsRes.workflow_runs.filter((r) => r.name === 'staging-pipeline' && (r.conclusion === 'success' || r.conclusion === 'failure'));
   const tests = await testHistory(stagingRuns, 6);
 
+  const health = await healthChecks();
+
   const releases = releasesRes.map((r) => ({ tag: r.tag_name, published_at: r.published_at, url: r.html_url }));
 
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(
     path.join(outDir, 'data.json'),
-    JSON.stringify({ generated_at: new Date().toISOString(), repo, runs, prs, releases, tests }),
+    JSON.stringify({ generated_at: new Date().toISOString(), repo, runs, prs, releases, tests, health }),
   );
-  console.log(`runs=${runs.length} prs=${prs.length} releases=${releases.length} api=${tests.api.length} ui=${tests.ui.length}`);
+  console.log(`runs=${runs.length} prs=${prs.length} releases=${releases.length} health=${health.filter((h) => h.ok).length}/${health.length} api=${tests.api.length} ui=${tests.ui.length}`);
 }
 
-module.exports = { apiSummary, uiSummary };
+module.exports = { apiSummary, uiSummary, healthChecks };
 
 if (require.main === module) {
   main().catch((err) => {
