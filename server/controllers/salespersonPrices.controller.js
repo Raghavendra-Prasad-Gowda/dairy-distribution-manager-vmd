@@ -2,16 +2,23 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
-const { getIndiaDateStr } = require('../utils/dateUtils');
+const { getIndiaDateStr, getIndiaDayEnd } = require('../utils/dateUtils');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { getActingUsername } = require('../utils/actor');
 const { assertAdmin } = require('../utils/authz');
 const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
 
-// GET /salespeople/:id/prices
+// GET /salespeople/:id/prices[?date=YYYY-MM-DD]
 // - Salesman: only enabled products with their allocated prices
 // - Admin: all active products with prices + isEnabled status (for price management)
 // - Dispatcher: blocked — pricing data is not needed for dispatch operations
+// With ?date= (the stock-entry screen) the list follows the day being viewed, because isActive /
+// showInStockReceipt / the salesperson flags only describe a product TODAY:
+//   - an active product is listed only from the (IST) day it was created;
+//   - for a PAST date, every product this salesperson was dispatched that day is listed even if it has
+//     been disabled or hidden since, priced at the unitPrice saved on that dispatch, so the day's
+//     quantities and amount still add up. (Today and later keep today's rules: a disabled product
+//     cannot be dispatched, so it is not offered.)
 const getPrices = asyncHandler(async (req, res) => {
   const salespersonId = parseId(req.params.id, 'Salesperson ID');
 
@@ -22,11 +29,34 @@ const getPrices = asyncHandler(async (req, res) => {
 
   const isSalesman = req.user.role === 'salesman';
 
-  const todayIST = new Date(getIndiaDateStr());
+  const todayStr = getIndiaDateStr();
+  const todayIST = new Date(todayStr);
+
+  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date ?? '') ? req.query.date : null;
+  const isPastDate = !!dateStr && dateStr < todayStr;
+  // productId -> unitPrice saved on this salesperson's dispatch of that past date
+  const dispatchedPrices = new Map();
+  if (isPastDate) {
+    const dispatchedRows = await prisma.stockDispatchItem.findMany({
+      where: { dispatch: { salespersonId, dispatchDate: new Date(dateStr) } },
+      select: { productId: true, unitPrice: true },
+    });
+    for (const row of dispatchedRows ?? []) dispatchedPrices.set(row.productId, Number(row.unitPrice));
+  }
+  const listedToday = { isActive: true, showInStockReceipt: true };
+  const productWhere = dateStr
+    ? {
+        brand: { isActive: true },
+        OR: [
+          { ...listedToday, createdAt: { lte: getIndiaDayEnd(dateStr) } },
+          ...(dispatchedPrices.size ? [{ id: { in: [...dispatchedPrices.keys()] } }] : []),
+        ],
+      }
+    : { ...listedToday, brand: { isActive: true } };
 
   const [products, enabledRows, priceRows, categories] = await Promise.all([
     prisma.product.findMany({
-      where: { isActive: true, showInStockReceipt: true, brand: { isActive: true } },
+      where: productWhere,
       include: {
         brand: {
           select: { id: true, name: true, displayOrder: true },
@@ -86,8 +116,9 @@ const getPrices = asyncHandler(async (req, res) => {
     ? (enabledMap[p.id] ?? true)   // default on — off only if row says so
     : (enabledMap[p.id] === true);  // default off — on only if row explicitly opts in
 
+  // A product dispatched on the past date being viewed is always visible, whatever today's flags say.
   const visibleProducts = isSalesman
-    ? products.filter(isProductVisibleForSp)
+    ? products.filter(p => dispatchedPrices.has(p.id) || isProductVisibleForSp(p))
     : products;
 
   const result = visibleProducts.map((p) => ({
@@ -112,7 +143,10 @@ const getPrices = asyncHandler(async (req, res) => {
                                : (enabledMap[p.id] === true),
     dairyCostPrice:          Number(p.costPrice),
     dairySellingPrice:       Number(p.sellingPrice),
-    sellingPrice:            priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : Number(p.salespersonDefaultPrice),
+    sellingPrice:            dispatchedPrices.has(p.id)
+                               ? dispatchedPrices.get(p.id)
+                               : priceMap[p.id] ? Number(priceMap[p.id].sellingPrice) : Number(p.salespersonDefaultPrice),
+    hasDispatchOnDate:       isPastDate ? dispatchedPrices.has(p.id) : undefined,
     effectiveFrom:           priceMap[p.id]?.effectiveFrom ?? null,
     upcomingSellingPrice:    upcomingMap[p.id] ? Number(upcomingMap[p.id].sellingPrice) : null,
     upcomingEffectiveFrom:   upcomingMap[p.id]?.effectiveFrom ?? null,

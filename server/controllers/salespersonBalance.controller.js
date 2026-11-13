@@ -5,6 +5,7 @@ const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
 const { computeSalespersonBalance } = require('../services/balanceService');
 const { assertAdmin } = require('../utils/authz');
+const { getIndiaDayEnd } = require('../utils/dateUtils');
 
 /** Serialize a persisted SalespersonBalance row to the numeric snapshot shape. */
 function serializeBalance(existing) {
@@ -46,8 +47,18 @@ const getAll = asyncHandler(async (req, res) => {
   const { date } = req.query;
   if (!date) throw new AppError('date query param is required', 400);
 
+  // isActive only describes a salesperson TODAY. For the date asked: anyone active who had joined by
+  // that (IST) day, plus anyone with a dispatch or a payment on it even if deactivated since, so a past
+  // day keeps what actually happened on it.
+  const balanceDay = new Date(date);
   const salespeople = await prisma.salesperson.findMany({
-    where: { isActive: true },
+    where: {
+      OR: [
+        { isActive: true, createdAt: { lte: getIndiaDayEnd(date) } },
+        { dispatches: { some: { dispatchDate: balanceDay } } },
+        { payments: { some: { paymentDate: balanceDay } } },
+      ],
+    },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
 

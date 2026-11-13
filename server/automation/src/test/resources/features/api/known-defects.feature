@@ -57,3 +57,15 @@ Feature: Behaviour the API should have but does not yet
       | DELETE | routes    | .5     |
       | DELETE | dispatches| abc    |
       | DELETE | dairy-payments | abc |
+
+  Scenario: A route that stock was received on cannot be deleted, so that day's receipts stay attributable
+    Given a throwaway brand "brand"
+    And a throwaway product "milk" in brand "brand"
+    And a throwaway route "north" in brand "brand"
+    And admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${brand.id}, "date": "${today-1}", "routeId": ${north.id},
+        "items": [ { "productId": ${milk.id}, "quantity": 5, "unitPrice": 20 } ] }
+      """
+    When admin calls "DELETE /api/v1/routes/${north.id}"
+    Then the response status is 400

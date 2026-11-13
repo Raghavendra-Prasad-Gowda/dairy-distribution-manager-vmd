@@ -66,6 +66,24 @@ test.describe('GET /api/v1/salesperson-balance', () => {
     expect(body.data[0]).toHaveProperty('closingBalance', 0);
   });
 
+  test('lists salespeople active by that IST day, plus anyone with a dispatch or payment on it', async ({ request }) => {
+    let args = null;
+    ctx.mockPrisma.salesperson.findMany.mockImplementation(async (a) => { args = a; return []; });
+    ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/salesperson-balance?date=2026-11-12', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    expect(args.where.isActive).toBeUndefined();
+    const [joined, dispatched, paid] = args.where.OR;
+    expect(joined.isActive).toBe(true);
+    // end of 12 Nov in IST: someone added any time that IST day was already on the team
+    expect(joined.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
+    expect(dispatched).toEqual({ dispatches: { some: { dispatchDate: new Date('2026-11-12') } } });
+    expect(paid).toEqual({ payments: { some: { paymentDate: new Date('2026-11-12') } } });
+  });
+
   test('returns 200 with empty list when no active salespeople', async ({ request }) => {
     ctx.mockPrisma.salesperson.findMany.mockResolvedValue([]);
     ctx.mockPrisma.salespersonBalance.findMany.mockResolvedValue([]);

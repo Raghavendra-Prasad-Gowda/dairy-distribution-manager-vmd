@@ -134,7 +134,7 @@ Feature: Reports
       """
     And admin enables "inFirst" for everyone at price 10
     And admin enables "inSecond" for everyone at price 10
-    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today}"
     Then the JSON list "data.brands.find { it.brandId == ${brand.id} }.products" is ordered by "productName" as "${inFirst.name}, ${inSecond.name}"
 
   Scenario: The profit and loss report prices stock at cost for each salesperson

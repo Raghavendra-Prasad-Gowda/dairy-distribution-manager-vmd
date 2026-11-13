@@ -17,9 +17,9 @@ flowchart LR
 
 | Build constant | Source | Read via |
 |---|---|---|
-| `__APP_VERSION__` | `VITE_APP_VERSION` › latest git tag › `package.json` | `utils/appVersion.js` |
+| `__APP_VERSION__` | `VITE_APP_VERSION` › the higher of latest git tag / `package.json` / latest GitHub release (build only; best-effort) | `utils/appVersion.js` |
 | `__APP_COMMIT__` | `VERCEL_GIT_COMMIT_SHA` › `git rev-parse HEAD` (7 chars) | `utils/appVersion.js` |
-| `__APP_BUILT_AT__` | build time (ISO) | `utils/appVersion.js` |
+| `__APP_BUILT_AT__` | build time (ISO); shown in the viewer's time zone | `utils/appVersion.js` |
 
 ## 2. ☁️ Vercel
 

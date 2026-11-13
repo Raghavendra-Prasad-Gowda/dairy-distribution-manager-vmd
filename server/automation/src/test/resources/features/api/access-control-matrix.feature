@@ -28,9 +28,11 @@ Feature: Access control matrix
       | GET /api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30 | 403 |
       | GET /api/v1/reports/daily-dispatch?date=2026-04-30 | 403 |
       | GET /api/v1/routes | 403 |
+      | GET /api/v1/routes?brandId=1&date=2026-04-30 | 403 |
       | DELETE /api/v1/routes/1 | 403 |
       | GET /api/v1/salespeople/1/products | 403 |
       | GET /api/v1/products | 403 |
+      | GET /api/v1/products?brandId=1&date=2026-04-30 | 403 |
       | DELETE /api/v1/products/1 | 403 |
       | GET /api/v1/products/salesperson-global | 403 |
       | DELETE /api/v1/products/1/salesperson-prices | 403 |
@@ -54,8 +56,10 @@ Feature: Access control matrix
       | DELETE /api/v1/dispatches/1 | 403 |
       | POST /api/v1/dispatches/finalize-day | 403 |
       | GET /api/v1/salesperson-balance/1?date=2026-04-30 | 403 |
+      | GET /api/v1/salesperson-balance?date=2026-04-30 | 403 |
       | GET /api/v1/salesperson-balance/1/history | 403 |
       | GET /api/v1/salespeople/1/prices | 403 |
+      | GET /api/v1/salespeople/1/prices?date=2026-04-30 | 403 |
       | GET /api/v1/salesperson-statement/me?from=2026-04-01&to=2026-04-30 | 403 |
       | POST /api/v1/auth/logout | 403 |
       | GET /api/v1/admin-users | 403 |
@@ -136,9 +140,11 @@ Feature: Access control matrix
       | GET /api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30 | 401 |
       | GET /api/v1/reports/daily-dispatch?date=2026-04-30 | 401 |
       | GET /api/v1/routes | 401 |
+      | GET /api/v1/routes?brandId=1&date=2026-04-30 | 401 |
       | DELETE /api/v1/routes/1 | 401 |
       | GET /api/v1/salespeople/1/products | 401 |
       | GET /api/v1/products | 401 |
+      | GET /api/v1/products?brandId=1&date=2026-04-30 | 401 |
       | DELETE /api/v1/products/1 | 401 |
       | GET /api/v1/products/salesperson-global | 401 |
       | DELETE /api/v1/products/1/salesperson-prices | 401 |
@@ -162,8 +168,10 @@ Feature: Access control matrix
       | DELETE /api/v1/dispatches/1 | 401 |
       | POST /api/v1/dispatches/finalize-day | 401 |
       | GET /api/v1/salesperson-balance/1?date=2026-04-30 | 401 |
+      | GET /api/v1/salesperson-balance?date=2026-04-30 | 401 |
       | GET /api/v1/salesperson-balance/1/history | 401 |
       | GET /api/v1/salespeople/1/prices | 401 |
+      | GET /api/v1/salespeople/1/prices?date=2026-04-30 | 401 |
       | GET /api/v1/salesperson-statement/me?from=2026-04-01&to=2026-04-30 | 401 |
       | POST /api/v1/auth/logout | 401 |
       | GET /api/v1/admin-users | 401 |
@@ -244,9 +252,12 @@ Feature: Access control matrix
       | GET /api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30 | 403 |
       | GET /api/v1/reports/daily-dispatch?date=2026-04-30 | 403 |
       | GET /api/v1/routes | 403 |
+      | GET /api/v1/routes?brandId=1&date=2026-04-30 | 403 |
+      | GET /api/v1/salesperson-balance?date=2026-04-30 | 403 |
       | DELETE /api/v1/routes/1 | 403 |
       | GET /api/v1/salespeople/1/products | 403 |
       | GET /api/v1/products | 403 |
+      | GET /api/v1/products?brandId=1&date=2026-04-30 | 403 |
       | DELETE /api/v1/products/1 | 403 |
       | GET /api/v1/products/salesperson-global | 403 |
       | DELETE /api/v1/products/1/salesperson-prices | 403 |
@@ -340,9 +351,11 @@ Feature: Access control matrix
       | GET /api/v1/reports/outstanding | 403 |
       | GET /api/v1/reports/deposit-summary?brandId=1&from=2026-04-01&to=2026-04-30 | 403 |
       | GET /api/v1/routes | 403 |
+      | GET /api/v1/routes?brandId=1&date=2026-04-30 | 403 |
       | DELETE /api/v1/routes/1 | 403 |
       | GET /api/v1/salespeople/1/products | 403 |
       | GET /api/v1/products | 403 |
+      | GET /api/v1/products?brandId=1&date=2026-04-30 | 403 |
       | DELETE /api/v1/products/1 | 403 |
       | GET /api/v1/products/salesperson-global | 403 |
       | DELETE /api/v1/products/1/salesperson-prices | 403 |
@@ -367,8 +380,10 @@ Feature: Access control matrix
       | PATCH /api/v1/dispatches/1/submit | 403 |
       | DELETE /api/v1/dispatches/1 | 403 |
       | GET /api/v1/salesperson-balance/1?date=2026-04-30 | 403 |
+      | GET /api/v1/salesperson-balance?date=2026-04-30 | 403 |
       | GET /api/v1/salesperson-balance/1/history | 403 |
       | GET /api/v1/salespeople/1/prices | 403 |
+      | GET /api/v1/salespeople/1/prices?date=2026-04-30 | 403 |
       | GET /api/v1/salesperson-statement/me?from=2026-04-01&to=2026-04-30 | 403 |
 
   @superadmin

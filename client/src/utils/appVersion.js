@@ -12,15 +12,19 @@ export function formatVersion(version = APP_VERSION, commit = APP_COMMIT) {
 
 export const APP_VERSION_LABEL = formatVersion();
 
-/** "24 Oct 2026, 3:02 PM IST" from an ISO timestamp; '' when missing or invalid. */
+/**
+ * "24 Oct 2026, 3:02 PM IST" from an ISO timestamp, in the viewer's own time zone
+ * (the abbreviation comes from the browser, e.g. IST, GMT+1, PST); '' when missing or invalid.
+ * Display only - business dates elsewhere stay on IST (dateUtils.js).
+ */
 export function formatBuiltAt(iso = APP_BUILT_AT) {
   const d = iso ? new Date(iso) : null;
   if (!d || Number.isNaN(d.getTime())) return '';
   const text = new Intl.DateTimeFormat('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short',
   }).format(d);
-  return `${text.replace(/\b(am|pm)\b/, (m) => m.toUpperCase())} IST`;
+  return text.replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
 }
 
 export const APP_BUILT_AT_LABEL = formatBuiltAt();

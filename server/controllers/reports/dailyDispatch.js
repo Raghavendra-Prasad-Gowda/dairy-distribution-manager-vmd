@@ -3,7 +3,7 @@
 const asyncHandler = require('../../middleware/asyncHandler');
 const AppError = require('../../utils/AppError');
 const prisma = require('../../lib/prisma');
-const { getIndiaDateStr } = require('../../utils/dateUtils');
+const { getIndiaDateStr, getIndiaDayEnd } = require('../../utils/dateUtils');
 const { isDayFinalizedForDispatcher } = require('../../services/dispatchDayFinalization');
 const { buildCategoryOrderMap, getCategoryOrder } = require('../../utils/productLayout');
 const { assertAdminOrDispatcher } = require('./_shared');
@@ -24,21 +24,25 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     dispatchWhere.salespersonId = req.user.salespersonId;
   }
 
-  // The Stock Balance view (includeReceipts=1) must surface EVERY product that
-  // had stock received that day — not only salesperson-dispatchable ones —
-  // otherwise its "Received" total silently drops products that were received
-  // but aren't salespersonEnabled, disagreeing with the Stock Summary report.
+  // Which products are columns for this date. isActive / showInStockReceipt / salespersonEnabled only
+  // describe a product TODAY, so they must not decide what a past day shows:
+  //   - a product dispatched on this date is always a column (even if disabled since), otherwise its
+  //     quantities vanish from the rows and totals while totalAmount still includes them;
+  //   - the Stock Balance view (includeReceipts=1) also surfaces EVERY product that had stock received
+  //     that day, dispatchable or not and active or not, so its "Received" total agrees with the
+  //     Stock Summary report;
+  //   - otherwise a product is a column only from the (IST) day it was created, so one added today
+  //     does not appear on earlier dates.
   const includeReceipts = req.query.includeReceipts === '1' || req.query.includeReceipts === 'true';
-  const productWhere = includeReceipts
-    ? {
-        isActive: true,
-        brand: { isActive: true },
-        OR: [
-          { showInStockReceipt: true, salespersonEnabled: true },
-          { stockReceipts: { some: { receiptDate: dispatchDate } } },
-        ],
-      }
-    : { isActive: true, showInStockReceipt: true, salespersonEnabled: true, brand: { isActive: true } };
+  const dispatchedThatDay = { dispatchItems: { some: { dispatch: dispatchWhere } } };
+  const productWhere = {
+    brand: { isActive: true },
+    OR: [
+      { isActive: true, showInStockReceipt: true, salespersonEnabled: true, createdAt: { lte: getIndiaDayEnd(date) } },
+      dispatchedThatDay,
+      ...(includeReceipts ? [{ stockReceipts: { some: { receiptDate: dispatchDate } } }] : []),
+    ],
+  };
 
   // Salespeople with no dispatch row for this date need to surface as blank
   // "No entry" rows so the sidebar reflects who is still pending — for every
@@ -69,7 +73,8 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     req.user.role === 'salesman'
       ? Promise.resolve([])
       : prisma.salesperson.findMany({
-          where: { isActive: true },
+          // Active, and already on the team by that (IST) day - not someone added later.
+          where: { isActive: true, createdAt: { lte: getIndiaDayEnd(date) } },
           orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
           select: { id: true, name: true },
         }),

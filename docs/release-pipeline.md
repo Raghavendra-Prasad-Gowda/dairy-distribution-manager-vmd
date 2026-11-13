@@ -31,7 +31,7 @@ deploy; they wait for the deploy, then test it.
 | `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `server/automation/` and type-checks `client/automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
-| `.github/workflows/pipeline-dashboard.yml` | Publishes `dashboard/index.html` + fresh `data.json` (runs, PRs, releases) to GitHub Pages after each staging/production run and hourly |
+| `.github/workflows/pipeline-dashboard.yml` | Publishes `dashboard/index.html` + fresh `data.json` (runs, PRs, releases) to GitHub Pages after each staging/production run, hourly and on demand, with a live health check of production + testing (frontend + backend) |
 | `.github/scripts/build-dashboard-data.js` | Pulls the data the dashboard shows from the GitHub API using the workflow's own token |
 | `.github/scripts/wait-for-backend.sh` | Polls `/health` until `commit` equals the pushed SHA, or the running commit has identical `server/` code (Render skips deploys for commits that don't touch `server/`) |
 | `.github/scripts/wait-for-vercel.sh` | Waits for the GitHub Deployment of the Vercel project |
@@ -111,7 +111,8 @@ anything other than `develop` (the `develop → main` release PR stays manual), 
 `no-auto-merge` label, or that got new commits after the checks ran (`--match-head-commit`).
 It runs from the default branch, so it takes effect once it is merged into `develop`.
 With the GitHub App from section 5 (give it **Contents: read & write** as well) the merge triggers
-`staging-pipeline` normally; without it the workflow starts `staging-pipeline` itself via `workflow_dispatch`.
+`staging-pipeline` normally; without it, or if the app is refused (for example it only has Contents: read), the workflow merges with the default token and starts `staging-pipeline` itself via `workflow_dispatch`.
+After a successful auto-merge the workflow deletes the PR's source branch (never `develop`, `main` or `release/next`). For PRs merged by hand, turn on **Settings → General → Pull Requests → Automatically delete head branches** so GitHub does the same.
 This is not an enforced gate: anyone with write access can still merge manually.
 
 ### 6. Render / Vercel branch wiring (verified 2026-10-30)
@@ -132,7 +133,7 @@ This is not an enforced gate: anyone with write access can still merge manually.
 
 ## Daily flow
 1. `git checkout -b feat/my-change develop` → commit → push → PR into `develop`.
-2. `pr-checks` pass → merge.
+2. `pr-checks` pass → the PR merges itself (`auto-merge-develop`). Add the `no-auto-merge` label to keep a PR for a manual merge.
 3. Testing deploys; `staging-pipeline` runs. Red = look at the run's reports (Actions artifacts).
 4. Green = a `Release: develop -> main` PR appears. Review, approve, **merge with a merge commit**.
 5. Production deploys; `production-verify-and-release` smoke-tests it and publishes `vX.Y.Z`.

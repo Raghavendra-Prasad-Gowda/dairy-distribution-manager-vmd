@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { recalculateDairyBalance } = require('../services/balanceService');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
+const { getIndiaDayEnd } = require('../utils/dateUtils');
 
 const getAll = asyncHandler(async (req, res) => {
   const { date, brandId } = req.query;
@@ -29,8 +30,18 @@ const getAvailability = asyncHandler(async (req, res) => {
 
   const receiptDate = new Date(date);
 
+  // Same rule as the date-aware GET /products: a product with stock received or dispatched on this date is
+  // always listed (even if disabled since), otherwise its Received/Dispatched drop out of the balance;
+  // an active product is listed only from the (IST) day it was created.
   const products = await prisma.product.findMany({
-    where: { isActive: true, brand: { isActive: true } },
+    where: {
+      brand: { isActive: true },
+      OR: [
+        { isActive: true, createdAt: { lte: getIndiaDayEnd(date) } },
+        { stockReceipts: { some: { receiptDate } } },
+        { dispatchItems: { some: { dispatch: { dispatchDate: receiptDate } } } },
+      ],
+    },
     include: { brand: { select: { id: true, name: true } } },
     orderBy: [{ brandId: 'asc' }, { name: 'asc' }],
   });
