@@ -1,6 +1,6 @@
 {
   "name": "dairy-distribution-manager-server",
-  "version": "1.0.0",
+  "version": "1.0.9",
   "description": "Dairy Distribution Manager — Backend API",
   "main": "index.js",
   "type": "commonjs",
