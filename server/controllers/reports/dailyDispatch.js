@@ -73,7 +73,8 @@ const dailyDispatch = asyncHandler(async (req, res) => {
     req.user.role === 'salesman'
       ? Promise.resolve([])
       : prisma.salesperson.findMany({
-          where: { isActive: true },
+          // Active, and already on the team by that (IST) day - not someone added later.
+          where: { isActive: true, createdAt: { lte: getIndiaDayEnd(date) } },
           orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
           select: { id: true, name: true },
         }),

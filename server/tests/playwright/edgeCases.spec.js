@@ -363,6 +363,63 @@ test.describe('Soft-delete filtering', () => {
   });
 });
 
+// ─── Routes follow the date being viewed ──────────────────────────────────────
+
+test.describe('GET /routes?date= (date-aware list)', () => {
+  const headers = () => ({ Authorization: `Bearer ${makeAuthToken()}` });
+  let routeArgs;
+  let receiptArgs;
+
+  test.beforeEach(() => {
+    routeArgs = null;
+    receiptArgs = null;
+    ctx.mockPrisma.route.findMany.mockImplementation(async (args) => { routeArgs = args; return [{ id: 4, routeNumber: 'R9', isActive: false }]; });
+    ctx.mockPrisma.stockReceipt.findMany.mockImplementation(async (args) => { receiptArgs = args; return [{ routeId: 4 }]; });
+  });
+
+  test('lists active routes created by that IST day, plus any route stock came in on', async ({ request }) => {
+    const res = await request.get('/api/v1/routes?brandId=3&date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(200);
+    expect(receiptArgs.where).toEqual({ receiptDate: new Date('2026-11-12'), routeId: { not: 0 }, brandId: 3 });
+    expect(routeArgs.where.brandId).toBe(3);
+    expect(routeArgs.where.isActive).toBeUndefined();
+    const [activeByThen, receivedThen] = routeArgs.where.OR;
+    expect(activeByThen.isActive).toBe(true);
+    expect(activeByThen.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
+    expect(receivedThen).toEqual({ id: { in: [4] } });
+  });
+
+  test('without a brand the receipt lookup is not scoped to one', async ({ request }) => {
+    const res = await request.get('/api/v1/routes?date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(200);
+    expect(receiptArgs.where.brandId).toBeUndefined();
+    expect(routeArgs.where.brandId).toBeUndefined();
+  });
+
+  test('an unreadable result from the receipt lookup is treated as no receipts', async ({ request }) => {
+    ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue(undefined);
+    const res = await request.get('/api/v1/routes?date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(200);
+    expect(routeArgs.where.OR[1]).toEqual({ id: { in: [] } });
+  });
+
+  test('no date, or a malformed one: the active routes, with no receipt lookup', async ({ request }) => {
+    for (const q of ['', '?date=12-11-2026']) {
+      routeArgs = null; receiptArgs = null;
+      const res = await request.get(`/api/v1/routes${q}`, { headers: headers() });
+      expect(res.status()).toBe(200);
+      expect(routeArgs.where).toEqual({ isActive: true });
+      expect(receiptArgs).toBeNull();
+    }
+  });
+
+  test('a bad brand id is refused before anything is queried', async ({ request }) => {
+    const res = await request.get('/api/v1/routes?brandId=abc&date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(400);
+    expect(routeArgs).toBeNull();
+  });
+});
+
 // ─── Dispatch sheet: which products are columns for a date ───────────────────
 
 test.describe('GET /reports/daily-dispatch product columns follow the date', () => {
@@ -387,6 +444,15 @@ test.describe('GET /reports/daily-dispatch product columns follow the date', () 
     expect(dispatchable.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
     expect(dispatched).toEqual({ dispatchItems: { some: { dispatch: { dispatchDate: new Date('2026-11-12') } } } });
     expect(more).toEqual([]); // receipts only count for the stock balance view
+  });
+
+  test('"no entry" rows are only for active salespeople who had joined by that IST day', async ({ request }) => {
+    let spArgs = null;
+    ctx.mockPrisma.salesperson.findMany.mockImplementation(async (args) => { spArgs = args; return []; });
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(200);
+    expect(spArgs.where.isActive).toBe(true);
+    expect(spArgs.where.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
   });
 
   test('includeReceipts=1 also lists any product received on the date, active or not', async ({ request }) => {

@@ -169,6 +169,28 @@ describe('StockReceipt', () => {
     expect(screen.queryByText('Curd 200g')).not.toBeInTheDocument();
   });
 
+  it('asks for the routes of the viewed date and shows a route that had stock that day (deactivated since)', async () => {
+    // Regression: a route deactivated later vanished from past days it had received stock on.
+    const product = {
+      id: 1, name: 'Milk 500ml', brandId: 1, costPrice: '22', sellingPrice: '25',
+      category: 'Milk', unitType: 'ml', unitSize: 500, isActive: true,
+      showInStockReceipt: true, displayOrder: 0, depositEnabled: false,
+      containerType: 'crate', unitsPerContainer: 20,
+      brand: { id: 1, name: 'Nandini' }, costPrices: [], sellingPrices: [],
+    };
+    const retiredRoute = { id: 4, routeNumber: 'R9', displayOrder: 0, isActive: false };
+    makeApiResponses({
+      brands: [BRAND], routes: [retiredRoute], products: [product],
+      receipts: [{ productId: 1, routeId: 4, quantity: 6 }],
+    });
+    render(<StockReceipt />);
+
+    expect(await screen.findByText('Milk 500ml')).toBeInTheDocument();
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/routes?brandId=1&date=2026-05-03');
+    expect(screen.getAllByText(/R9/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/No routes configured/i)).not.toBeInTheDocument();
+  });
+
   it('still shows a hidden product on a date it was bought (hasReceiptOnDate)', async () => {
     // Regression: a product disabled today vanished from earlier days it had stock on.
     const route = { id: 1, routeNumber: 'R1', displayOrder: 0 };

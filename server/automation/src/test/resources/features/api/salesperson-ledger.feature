@@ -396,3 +396,42 @@ Feature: Salesperson ledger
     When admin calls "GET /api/v1/salespeople/${first.id}/prices"
     Then the JSON amount "data.find { it.productId == ${milk.id} }.sellingPrice" equals "31"
     And the JSON field "data.find { it.productId == ${milk.id} }.isEnabled" equals "true"
+
+  Scenario: Someone added today is not listed on an earlier day's balances
+    Given a throwaway salesperson "fresh"
+    When admin calls "GET /api/v1/salesperson-balance?date=${today-2}"
+    Then the JSON list "data" has no item whose "salespersonId" is "${fresh.id}"
+    When admin calls "GET /api/v1/salesperson-balance?date=${today}"
+    Then the JSON list "data" contains an item whose "salespersonId" is "${fresh.id}"
+
+  Scenario: A salesperson deactivated since is still listed on a day they were dispatched stock
+    Given a throwaway salesperson "gone"
+    And admin dispatches 10 of "milk" at 22 to "gone" on "${today-2}"
+    And admin calls "PUT /api/v1/salespeople/${gone.id}" with:
+      """
+      { "isActive": false }
+      """
+    When admin calls "GET /api/v1/salesperson-balance?date=${today-2}"
+    Then the JSON amount "data.find { it.salespersonId == ${gone.id} }.closingBalance" equals "220"
+    When admin calls "GET /api/v1/salesperson-balance?date=${today-3}"
+    Then the JSON list "data" has no item whose "salespersonId" is "${gone.id}"
+
+  Scenario: A salesperson deactivated since is still listed on a day they only paid
+    Given a throwaway salesperson "gone"
+    And admin collects 50 from "gone" on "${today-2}"
+    And admin calls "PUT /api/v1/salespeople/${gone.id}" with:
+      """
+      { "isActive": false }
+      """
+    When admin calls "GET /api/v1/salesperson-balance?date=${today-2}"
+    Then the JSON list "data" contains an item whose "salespersonId" is "${gone.id}"
+    And the JSON amount "data.find { it.salespersonId == ${gone.id} }.amountPaid" equals "50"
+
+  Scenario: A deactivated salesperson with nothing on a day is not listed for it
+    Given a throwaway salesperson "gone"
+    And admin calls "PUT /api/v1/salespeople/${gone.id}" with:
+      """
+      { "isActive": false }
+      """
+    When admin calls "GET /api/v1/salesperson-balance?date=${today-2}"
+    Then the JSON list "data" has no item whose "salespersonId" is "${gone.id}"

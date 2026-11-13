@@ -827,7 +827,8 @@ paths:
   /salesperson-balance:
     get:
       tags: [Salesperson Balance]
-      summary: All active salespeople's balance snapshot for a date (admin)
+      summary: Salespeople's balance snapshot for a date (admin)
+      description: Active salespeople who had joined by that (IST) day, plus anyone with a dispatch or a payment on it even if deactivated since.
       parameters: [{ $ref: '#/components/parameters/DateQueryRequired' }]
       responses:
         '200': { $ref: '#/components/responses/SuccessList' }
@@ -1010,8 +1011,10 @@ paths:
     get:
       tags: [Routes]
       summary: List Nandini delivery routes for a brand (admin)
+      description: With `date` (stock receipt screen) the list follows that day - a route that stock was received on is listed even if deactivated since, and an active route is listed only from the (IST) day it was created. An unreadable `date` is ignored.
       parameters:
         - { name: brandId, in: query, schema: { type: integer } }
+        - { name: date, in: query, schema: { type: string, format: date } }
       responses:
         '200': { $ref: '#/components/responses/SuccessList' }
     post:

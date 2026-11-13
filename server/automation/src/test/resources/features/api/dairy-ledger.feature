@@ -470,3 +470,56 @@ Feature: Dairy ledger
     And the dairy ledger of "brand" shows:
       | date       | topUp | closing |
       | ${today-2} | 0     | 0       |
+
+  # --- Routes follow the day being viewed (stock receipt screen) ----------------------------------------
+
+  Scenario: A route deactivated since is still listed on a day stock came in on it, but not on other days
+    Given a throwaway route "north" in brand "brand"
+    And admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${brand.id}, "date": "${today-1}", "routeId": ${north.id},
+        "items": [ { "productId": ${milk.id}, "quantity": 5, "unitPrice": 20 } ] }
+      """
+    When admin calls "PUT /api/v1/routes/${north.id}" with:
+      """
+      { "isActive": false }
+      """
+    Then the call succeeds
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=${today-1}"
+    Then the JSON list "data" contains an item whose "routeNumber" is "${north.routeNumber}"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=${today}"
+    Then the JSON list "data" has no item whose "routeNumber" is "${north.routeNumber}"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}"
+    Then the JSON list "data" has no item whose "routeNumber" is "${north.routeNumber}"
+
+  Scenario: A route created today is not listed on an earlier day, and is listed today, tomorrow and without a date
+    Given a throwaway route "north" in brand "brand"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=${today-2}"
+    Then the JSON list "data" has no item whose "routeNumber" is "${north.routeNumber}"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=${today}"
+    Then the JSON list "data" contains an item whose "routeNumber" is "${north.routeNumber}"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=${today+1}"
+    Then the JSON list "data" contains an item whose "routeNumber" is "${north.routeNumber}"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}"
+    Then the JSON list "data" contains an item whose "routeNumber" is "${north.routeNumber}"
+
+  Scenario: Another brand's routes and stock without a route add nothing to a brand's route list
+    Given a throwaway brand "other"
+    And a throwaway route "theirs" in brand "other"
+    And admin calls "POST /api/v1/stock-receipts/bulk" with:
+      """
+      { "brandId": ${other.id}, "date": "${today-1}", "routeId": ${theirs.id},
+        "items": [ { "productId": ${milk.id}, "quantity": 1, "unitPrice": 20 } ] }
+      """
+    And admin receives 3 of "milk" at 20 into "brand" on "${today-1}"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=${today-1}"
+    Then the JSON list "data" has 0 items
+    When admin calls "GET /api/v1/routes?brandId=${other.id}&date=${today-1}"
+    Then the JSON list "data" has 1 item
+
+  Scenario: An unreadable date is ignored and a bad brand id is refused for the route list
+    Given a throwaway route "north" in brand "brand"
+    When admin calls "GET /api/v1/routes?brandId=${brand.id}&date=12-11-2026"
+    Then the JSON list "data" contains an item whose "routeNumber" is "${north.routeNumber}"
+    When admin calls "GET /api/v1/routes?brandId=abc&date=${today-1}"
+    Then the response status is 400

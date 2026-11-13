@@ -176,3 +176,85 @@ Feature: Report details
     When dispatcher calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
     Then the call succeeds
     And the JSON field "data.rows.find { it.salespersonId == ${sp.id} }.dispatchId" equals "null"
+
+  Scenario: A dispatcher sees the same kept product on the dispatch sheet
+    Given admin enables "milk" for everyone at price 22
+    And admin dispatches 3 of "milk" at 22 to "sp" on "${today-2}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When dispatcher calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
+    Then the call succeeds
+    And the JSON amount "data.rows.find { it.salespersonId == ${sp.id} }.items['${milk.id}'].qty" equals "3"
+    And the JSON amount "data.totals['${milk.id}']" equals "3"
+
+  Scenario: A product switched off for salespeople since is still on the day it was dispatched
+    Given admin enables "milk" for everyone at price 22
+    And admin dispatches 2 of "milk" at 22 to "sp" on "${today-2}"
+    And admin switches "milk" off for everyone
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
+    Then the JSON amount "data.rows.find { it.salespersonId == ${sp.id} }.items['${milk.id}'].qty" equals "2"
+    And the JSON list "data.brands.find { it.brandId == ${brand.id} }.products" contains an item whose "productId" is "${milk.id}"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today}"
+    Then the JSON list "data.brands" has no item whose "brandId" is "${brand.id}"
+
+  Scenario: A product hidden from stock entry since is still on the day it was dispatched
+    Given admin enables "milk" for everyone at price 22
+    And admin dispatches 2 of "milk" at 22 to "sp" on "${today-2}"
+    And admin calls "PUT /api/v1/products/${milk.id}" with:
+      """
+      { "showInStockReceipt": false }
+      """
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
+    Then the JSON amount "data.totals['${milk.id}']" equals "2"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today}"
+    Then the JSON list "data.brands" has no item whose "brandId" is "${brand.id}"
+
+  Scenario: A product dispatched on one day is not a column on another day
+    Given admin enables "milk" for everyone at price 22
+    And admin dispatches 2 of "milk" at 22 to "sp" on "${today-2}"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today-3}"
+    Then the JSON list "data.brands" has no item whose "brandId" is "${brand.id}"
+
+  Scenario: Someone added today is not listed as "no entry" on an earlier day's sheet
+    Given a throwaway salesperson "fresh"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
+    Then the JSON list "data.rows" has no item whose "salespersonId" is "${fresh.id}"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today}"
+    Then the JSON list "data.rows" contains an item whose "salespersonId" is "${fresh.id}"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today+1}"
+    Then the JSON list "data.rows" contains an item whose "salespersonId" is "${fresh.id}"
+
+  Scenario: A salesperson deactivated since keeps the row of a day they were dispatched stock
+    Given a throwaway salesperson "gone"
+    And admin dispatches 2 of "milk" at 22 to "gone" on "${today-2}"
+    And admin calls "PUT /api/v1/salespeople/${gone.id}" with:
+      """
+      { "isActive": false }
+      """
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today-2}"
+    Then the JSON list "data.rows" contains an item whose "salespersonId" is "${gone.id}"
+    And the JSON amount "data.rows.find { it.salespersonId == ${gone.id} }.totalAmount" equals "44"
+    When admin calls "GET /api/v1/reports/daily-dispatch?date=${today}"
+    Then the JSON list "data.rows" has no item whose "salespersonId" is "${gone.id}"
+
+  Scenario: Stock availability does not list an active product on a day before it existed, even when stock was received on a later day
+    Given admin receives 5 of "milk" at 20 into "brand" on "${today-2}"
+    When admin calls "GET /api/v1/stock-receipts/availability?date=${today-3}"
+    Then the JSON list "data" has no item whose "productId" is "${milk.id}"
+    When admin calls "GET /api/v1/stock-receipts/availability?date=${today-2}"
+    Then the JSON amount "data.find { it.productId == ${milk.id} }.received" equals "5"
+
+  Scenario: A dispatcher sees stock that was received on a day for a product disabled since
+    Given admin receives 5 of "milk" at 20 into "brand" on "${today-2}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When dispatcher calls "GET /api/v1/stock-receipts/availability?date=${today-2}"
+    Then the call succeeds
+    And the JSON amount "data.find { it.productId == ${milk.id} }.received" equals "5"
+
+  Scenario: Stock availability keeps a product that was received and dispatched on a day, with both figures
+    Given admin receives 10 of "milk" at 20 into "brand" on "${today-2}"
+    And admin dispatches 4 of "milk" at 22 to "sp" on "${today-2}"
+    And admin calls "DELETE /api/v1/products/${milk.id}"
+    When admin calls "GET /api/v1/stock-receipts/availability?date=${today-2}"
+    Then the JSON amount "data.find { it.productId == ${milk.id} }.received" equals "10"
+    And the JSON amount "data.find { it.productId == ${milk.id} }.dispatched" equals "4"
+    And the JSON amount "data.find { it.productId == ${milk.id} }.available" equals "6"

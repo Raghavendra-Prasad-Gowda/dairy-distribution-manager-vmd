@@ -95,7 +95,7 @@ flowchart LR
 | PATCH | `/products/reorder` | 🧑‍💼 | |
 | GET · PATCH | `/products/salesperson-global` | 🧑‍💼 | Global salesperson access |
 | DELETE | `/products/:id/salesperson-prices` | 🧑‍💼 | Clear all per-salesperson prices |
-| GET · POST | `/routes` | 🧑‍💼 | `?brandId` |
+| GET · POST | `/routes` | 🧑‍💼 | `?brandId`, `?date` (list follows the day: a route that had stock stays even if deactivated since; newer routes not listed earlier) |
 | PUT · DELETE | `/routes/:id` | 🧑‍💼 | |
 
 ## 6. 🏭 Dairy side
@@ -148,7 +148,7 @@ flowchart LR
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/salesperson-balance` | 🔑 | `?date` |
+| GET | `/salesperson-balance` | 🔑 | `?date` — active salespeople who had joined by then, plus anyone with a dispatch/payment that day |
 | GET | `/salesperson-balance/:id` | 🔑 (own for salesman) | `?date` |
 | GET | `/salesperson-balance/:id/history` | 🔑 (own for salesman) | `?page&limit&from&to` |
 | GET | `/salesperson-payments` | 🔑 | `?salespersonId&from&to` |
