@@ -3,7 +3,7 @@ const { validate, parseId, schemas } = require('../utils/validate');
 const AppError = require('../utils/AppError');
 const prisma = require('../lib/prisma');
 const { notifySlack, SLACK_EVENTS } = require('../utils/slack');
-const { getIndiaDateStr } = require('../utils/dateUtils');
+const { getIndiaDateStr, getIndiaDayEnd } = require('../utils/dateUtils');
 const { getActingUsername } = require('../utils/actor');
 const { assertAdmin } = require('../utils/authz');
 const { buildCategoryOrderMap, getCategoryOrder } = require('../utils/productLayout');
@@ -35,11 +35,10 @@ const getAll = asyncHandler(async (req, res) => {
       distinct: ['productId'],
     });
     receivedIds = new Set((receiptRows ?? []).map(r => r.productId));
-    const endOfBusinessDayIST = new Date(`${dateStr}T23:59:59.999+05:30`);
     listWhere = {
       ...(where.brandId ? { brandId: where.brandId } : {}),
       OR: [
-        { isActive: true, createdAt: { lte: endOfBusinessDayIST } },
+        { isActive: true, createdAt: { lte: getIndiaDayEnd(dateStr) } },
         { id: { in: [...receivedIds] } },
       ],
     };

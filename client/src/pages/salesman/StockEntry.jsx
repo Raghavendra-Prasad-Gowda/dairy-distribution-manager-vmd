@@ -158,7 +158,7 @@ export default function SalespersonStockEntry() {
 
   // ─── Load products + dispatch ─────────────────────────────────────────────
   const dataUrls = salespersonId
-    ? [`/salespeople/${salespersonId}/prices`, `/dispatches?date=${date}`]
+    ? [`/salespeople/${salespersonId}/prices?date=${date}`, `/dispatches?date=${date}`]
     : [];
   const { data, loading, setData } = useApiResources(dataUrls, {
     initialData: { products: [], dispatch: null, qty: {} },

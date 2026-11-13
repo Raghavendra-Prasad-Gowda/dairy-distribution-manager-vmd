@@ -359,6 +359,7 @@ paths:
     get:
       tags: [Stock Receipts]
       summary: Stock-on-hand availability for a date (admin or dispatcher)
+      description: Lists products that existed by that (IST) day, plus any received or dispatched on it even if disabled since.
       parameters:
         - { name: date, in: query, required: true, schema: { type: string, format: date } }
       responses:
@@ -584,7 +585,11 @@ paths:
     get:
       tags: [Salesperson Prices]
       summary: Get a salesperson's product prices (salesman sees own enabled products; admin sees all)
-      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      description: |
+        With `date`, the list follows that day (stock entry screen): an active product is listed only from the (IST) day it was created, and for a PAST date every product this salesperson was dispatched that day is listed even if disabled since, priced at the unitPrice saved on that dispatch and flagged `hasDispatchOnDate`. An unreadable `date` is ignored.
+      parameters:
+        - { $ref: '#/components/parameters/IdPath' }
+        - { name: date, in: query, schema: { type: string, format: date } }
       responses:
         '200': { $ref: '#/components/responses/SuccessList' }
   /salespeople/{id}/prices/bulk:
@@ -965,9 +970,10 @@ paths:
     get:
       tags: [Reports]
       summary: Dispatch matrix (salesperson × product) for a date (admin or dispatcher)
+      description: Product columns follow the date - a product dispatched on it is always a column (even if disabled since); otherwise only dispatchable products that existed by that (IST) day.
       parameters:
         - { $ref: '#/components/parameters/DateQueryRequired' }
-        - { name: includeReceipts, in: query, schema: { type: boolean }, description: 'Also surface every product with stock received that day (Stock Balance view)' }
+        - { name: includeReceipts, in: query, schema: { type: boolean }, description: 'Also surface every product with stock received that day (Stock Balance view), active or not' }
       responses:
         '200': { $ref: '#/components/responses/Success' }
   /reports/profit-loss:

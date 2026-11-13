@@ -182,6 +182,26 @@ test.describe('Multi-route Nandini receipts', () => {
     expect(body.data[0].available).toBe(110);
   });
 
+  test('availability lists products that existed by the date, plus any received or dispatched on it', async ({ request }) => {
+    let productArgs = null;
+    ctx.mockPrisma.product.findMany.mockImplementation(async (args) => { productArgs = args; return []; });
+    ctx.mockPrisma.stockReceipt.groupBy.mockResolvedValue([]);
+    ctx.mockPrisma.stockDispatchItem.groupBy.mockResolvedValue([]);
+
+    const res = await request.get('/api/v1/stock-receipts/availability?date=2026-11-12', {
+      headers: { Authorization: `Bearer ${makeAuthToken()}` },
+    });
+    expect(res.status()).toBe(200);
+    expect(productArgs.where.brand).toEqual({ isActive: true });
+    expect(productArgs.where.isActive).toBeUndefined();
+    const [existedByThen, received, dispatched] = productArgs.where.OR;
+    expect(existedByThen.isActive).toBe(true);
+    // end of 12 Nov in IST: a product created any time that IST day already existed
+    expect(existedByThen.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
+    expect(received).toEqual({ stockReceipts: { some: { receiptDate: new Date('2026-11-12') } } });
+    expect(dispatched).toEqual({ dispatchItems: { some: { dispatch: { dispatchDate: new Date('2026-11-12') } } } });
+  });
+
   test('stock-summary aggregates same-product-multiple-routes into one product card', async ({ request }) => {
     ctx.mockPrisma.stockReceipt.findMany.mockResolvedValue([
       { receiptDate: new Date('2026-04-30'), quantity: 100, unitPrice: 22, routeId: 1, product: { name: 'Toned', unitsPerContainer: 20, costPrice: 22, displayOrder: 0 }, brand: { name: 'Nandini' } },
@@ -340,6 +360,57 @@ test.describe('Soft-delete filtering', () => {
       expect(productArgs.where.isActive).toBeUndefined();
       expect((await res.json()).data[0].hasReceiptOnDate).toBeUndefined();
     });
+  });
+});
+
+// ─── Dispatch sheet: which products are columns for a date ───────────────────
+
+test.describe('GET /reports/daily-dispatch product columns follow the date', () => {
+  const headers = () => ({ Authorization: `Bearer ${makeAuthToken()}` });
+  let productArgs;
+
+  test.beforeEach(() => {
+    productArgs = null;
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.category.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.salesperson.findMany.mockResolvedValue([]);
+    ctx.mockPrisma.product.findMany.mockImplementation(async (args) => { productArgs = args; return []; });
+  });
+
+  test('columns: dispatchable products created by that day, or anything dispatched on it', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(200);
+    expect(productArgs.where.brand).toEqual({ isActive: true });
+    expect(productArgs.where.isActive).toBeUndefined();
+    const [dispatchable, dispatched, ...more] = productArgs.where.OR;
+    expect(dispatchable).toMatchObject({ isActive: true, showInStockReceipt: true, salespersonEnabled: true });
+    expect(dispatchable.createdAt.lte.toISOString()).toBe('2026-11-12T18:29:59.999Z');
+    expect(dispatched).toEqual({ dispatchItems: { some: { dispatch: { dispatchDate: new Date('2026-11-12') } } } });
+    expect(more).toEqual([]); // receipts only count for the stock balance view
+  });
+
+  test('includeReceipts=1 also lists any product received on the date, active or not', async ({ request }) => {
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-11-12&includeReceipts=1', { headers: headers() });
+    expect(res.status()).toBe(200);
+    expect(productArgs.where.OR).toHaveLength(3);
+    expect(productArgs.where.OR[2]).toEqual({ stockReceipts: { some: { receiptDate: new Date('2026-11-12') } } });
+  });
+
+  test('a dispatched product that is disabled since keeps its quantities in the rows and totals', async ({ request }) => {
+    ctx.mockPrisma.product.findMany.mockResolvedValue([
+      { id: 5, brandId: 1, name: 'Retired', category: null, displayOrder: 0, unitsPerContainer: null, brand: { id: 1, name: 'B', displayOrder: 0 } },
+    ]);
+    ctx.mockPrisma.stockDispatch.findMany.mockResolvedValue([{
+      id: 9, isSubmitted: true, isAdminUnlocked: false, totalAmount: 10,
+      salesperson: { id: 2, name: 'Sp' },
+      items: [{ productId: 5, quantity: 2, unitPrice: 5, product: { id: 5, brandId: 1 } }],
+    }]);
+    const res = await request.get('/api/v1/reports/daily-dispatch?date=2026-11-12', { headers: headers() });
+    expect(res.status()).toBe(200);
+    const body = (await res.json()).data;
+    expect(body.rows[0].items['5'].qty).toBe(2);
+    expect(body.totals['5']).toBe(2);
+    expect(body.brands[0].products[0].productId).toBe(5);
   });
 });
 
