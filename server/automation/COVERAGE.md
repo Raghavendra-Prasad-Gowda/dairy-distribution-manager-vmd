@@ -3,7 +3,7 @@
 Every test in `server/tests/playwright` (**1,450 tests in 54 spec files**) was reviewed against this
 suite. This page says, file by file, where each one is covered and what is deliberately not.
 
-The suite has **886 scenarios** in 26 features (outline rows counted). Of those, 872 run in the staging
+The suite has **908 scenarios** in 27 features (outline rows counted). Of those, 894 run in the staging
 gate; 10 are `@known-defect` and 4 are `@shared-state` (see the README).
 
 Legend: **Covered** = the behaviour is exercised against the real database. **Not ported** = see the
@@ -48,7 +48,7 @@ To avoid testing the same behaviour twice, the mocked suite was cut from 1,450 t
 | `salespersonPayments` | 51 | `salesperson-ledger`, matrix | none |
 | `dairyPayments` | 48 | `dairy-ledger`, matrix | none |
 | `products` | 46 | `products`, `salesperson-pricing` | none |
-| `adminUsers` | 46 | `admin-users`, `authentication`, matrix | Demoting an MFA-enabled account clears MFA fields, and "cannot delete the last superadmin": both need MFA enrolment or removing the only superadmin. |
+| `adminUsers` | 46 | `admin-users`, `admin-account-security`, `authentication`, matrix | Demoting an MFA-enabled account clears MFA fields, and "cannot delete the last superadmin": both need MFA enrolment or removing the only superadmin. Also not run for real: a successful unlock (needs a real 5-wrong-password lock-out; covered in the UI `admin-users` journey) and a successful MFA setup/confirm/disable (would enrol the shared superadmin); their refusals and validation are in `admin-account-security`. |
 | `routes` | 40 | `routes`, `route-management`, matrix | none |
 | `pin` | 40 | `pin`, matrix | Correct-PIN success paths, changing a PIN and the PIN rate limit: the real PIN is a secret and exhausting the limiter (20 wrong PINs) would block PIN checks for 15 minutes. Correct PINs are not counted (mocked spec `pin`). |
 | `salespersonPrices` | 45 | `salesperson-pricing`, `salesperson-ledger`, `dispatches` | none |
