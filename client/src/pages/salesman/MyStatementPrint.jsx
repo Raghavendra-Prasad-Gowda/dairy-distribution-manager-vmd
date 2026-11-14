@@ -33,7 +33,10 @@ export default function MyStatementPrint() {
   }, [from, to]);
 
   useEffect(() => {
-    if (rows) setTimeout(() => window.print(), 400);
+    if (!rows) return undefined;
+    // Cleared on unmount so leaving the page (or a torn-down test window) never opens a stray print dialog.
+    const timer = setTimeout(() => window.print(), 400);
+    return () => clearTimeout(timer);
   }, [rows]);
 
   const spName         = user?.salespersonName ?? '';

@@ -128,6 +128,18 @@ describe('DairyStatementPrint — printing', () => {
     expect(window.print).toHaveBeenCalledTimes(1);
   });
 
+  it('does not open the print dialog if the page is left before the 400ms delay', async () => {
+    vi.useFakeTimers();
+    mockApi({ rows: [row()] });
+    const { unmount } = renderWithParams('brandId=1&from=2026-08-05&to=2026-08-05');
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    unmount();
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(window.print).not.toHaveBeenCalled();
+  });
+
   it('the manual Print button calls window.print() immediately', async () => {
     mockApi({ rows: [row()] });
     renderWithParams('brandId=1&from=2026-08-05&to=2026-08-05');
