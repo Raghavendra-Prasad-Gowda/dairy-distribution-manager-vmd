@@ -164,6 +164,44 @@ jobs:
       # so this stays green.
       - run: npm audit --audit-level=moderate
 
+  secret-scan:
+    name: secret-scan
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # Fails the PR if a commit it adds contains a committed credential (keys, tokens, passwords).
+      # Free for personal accounts; an organisation repo also needs a GITLEAKS_LICENSE secret.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  dependency-review:
+    name: dependency-review
+    # Release PRs (develop → main) skip: develop already passed these checks and
+    # Staging Verified. Skipped jobs count as passing for required checks.
+    if: github.base_ref != 'main' || github.head_ref != 'release/next'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      # Blocks a PR that ADDS a dependency with a known moderate+ vulnerability
+      # (npm audit above covers what is already installed). Needs the repo's dependency graph enabled.
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure
+
   automation-compile:
     name: compile-automation-suite
     # Release PRs (develop → main) skip: develop already passed these checks and

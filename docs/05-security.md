@@ -152,6 +152,9 @@ Client IP is `req.ip` with `trust proxy = 1`; `X-Forwarded-For` is never read di
 | Forged / unsigned / not-yet-valid tokens, headers, no internals | `security.feature`, `server/tests/playwright/security*.spec.js` |
 | MFA and lock-out flows | `server/tests/playwright/mfa*.spec.js`, `accountLock.spec.js` |
 | Dependency vulnerabilities | `npm audit --audit-level=moderate` on every PR, Dependabot weekly |
+| Static code analysis (injection, XSS, weak crypto…) | CodeQL `security-extended` (`.github/workflows/codeql.yml`) on PRs, pushes to `develop`/`main`, weekly |
+| Committed secrets | gitleaks (`secret-scan` job in `pr-checks`) scans the PR's commits |
+| Newly added vulnerable dependency | `dependency-review` job in `pr-checks` (moderate+) |
 | Timezone-unsafe date filters | `server/scripts/check-timezone-safety.js` in CI |
 
 ## 8. ⚠️ Known risks & accepted decisions

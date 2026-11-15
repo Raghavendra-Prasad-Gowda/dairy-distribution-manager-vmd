@@ -28,7 +28,8 @@ deploy; they wait for the deploy, then test it.
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/pr-checks.yml` | Existing PR gate; now also compiles `server/automation/` and type-checks `client/automation-ui/` |
+| `.github/workflows/codeql.yml` | CodeQL static analysis (PR, push, weekly) |
+| `.github/workflows/pr-checks.yml` | Existing PR gate (now includes gitleaks `secret-scan` and `dependency-review`); now also compiles `server/automation/` and type-checks `client/automation-ui/` |
 | `.github/workflows/staging-pipeline.yml` | After a merge to `develop`: wait → API → UI → verified → release PR |
 | `.github/workflows/production-verify.yml` | After a merge to `main`: wait → smoke → tag/release |
 | `.github/workflows/pipeline-dashboard.yml` | Publishes `dashboard/index.html` + fresh `data.json` (runs, PRs, releases) to GitHub Pages after each staging/production run, hourly and on demand, with a live health check of production + testing (frontend + backend) |

@@ -19,14 +19,14 @@ flowchart TB
         P[Playwright API specs · server/tests/playwright<br/>mocked Prisma · every PR]
     end
     subgraph STATIC["🔍 Static"]
-        L[ESLint · timezone lint · OpenAPI lint · tsc · mvn compile · npm audit]
+        L[ESLint · timezone lint · OpenAPI lint · tsc · mvn compile · npm audit · CodeQL · gitleaks · dependency review]
     end
     E2E --> API --> COMP --> STATIC
 ```
 
 | Layer | Tool | Location | Runs on | Proves |
 |---|---|---|---|---|
-| 🔍 Static | ESLint, `check-timezone-safety.js`, Redocly, `tsc`, `mvn test-compile`, `npm audit` | all | every PR | style, IST-safety, contract syntax, compile, CVEs |
+| 🔍 Static | ESLint, `check-timezone-safety.js`, Redocly, `tsc`, `mvn test-compile`, `npm audit`, CodeQL, gitleaks, dependency-review | all | every PR | style, IST-safety, contract syntax, compile, CVEs, code vulnerabilities, leaked secrets |
 | 🧩 Server | Playwright test runner + mocked Prisma, c8 | `server/tests/playwright` | every PR | unit logic, MFA, lock-out, rate limits, Slack cards, forged tokens |
 | 🧩 Client | Vitest + React Testing Library, v8 | `client/src/**/*.test.jsx` | every PR | pages and components with a mocked API |
 | 🧪 API | Cucumber 7 + REST Assured 5 (Java 21) | `server/automation` | merge to `develop`; `@smoke` on `main` | real endpoints, roles, ledgers, reports |
