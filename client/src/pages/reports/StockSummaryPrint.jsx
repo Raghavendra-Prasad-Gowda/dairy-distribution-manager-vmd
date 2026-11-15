@@ -37,7 +37,10 @@ export default function StockSummaryPrint() {
   }, [brandId, from, routeId, to]);
 
   useEffect(() => {
-    if (data) setTimeout(() => window.print(), 400);
+    if (!data) return undefined;
+    // Cleared on unmount so leaving the page (or a torn-down test window) never opens a stray print dialog.
+    const timer = setTimeout(() => window.print(), 400);
+    return () => clearTimeout(timer);
   }, [data]);
 
   const productSummary = useMemo(() => {

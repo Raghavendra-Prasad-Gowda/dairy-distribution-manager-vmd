@@ -25,8 +25,8 @@ client/automation-ui/
 └── tests/                 # login · navigation · dairy-ledger · salesperson-ledger · catalog-setup · salesman-users ·
     │                      # pricing-and-bills · reports · access-roles · superadmin · opening-balances ·
     │                      # dispatcher · exception-manager · deposit-and-stock-balance · payment-history · brands-setup · bulk-pricing ·
-    │                      # admin-users · layout-settings  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
-    └── salesman/          # phone specs: stock-entry · stock-entry-controls · security · statement
+    │                      # admin-users · layout-settings · print-reports  (+ auth.setup.ts). Flow-by-flow map: docs/coverage-map.md
+    └── salesman/          # phone specs: stock-entry · stock-entry-controls · security · statement · print-statement
 ```
 
 ## Where it runs
