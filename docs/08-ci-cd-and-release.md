@@ -82,7 +82,13 @@ flowchart TD
 | `build-client` | `vite build` | build error |
 | `lint-openapi-spec` | Redocly on `docs/openapi.yaml` | invalid spec |
 | `dependency-vulnerability-scan-{server,client}` | `npm audit --audit-level=moderate` | moderate+ CVE |
+| `secret-scan` | gitleaks over the PR's commits | a credential is committed |
+| `dependency-review` | `actions/dependency-review-action` | the PR adds a moderate+ vulnerable dependency |
 | `compile-automation-suite` | `mvn test-compile` (server/automation) + `tsc` (client/automation-ui) | compile/type error |
+
+A separate workflow, `codeql.yml`, runs CodeQL static analysis (`security-extended`) on PRs, on pushes to `develop`/`main`
+and weekly; findings appear under Security → Code scanning. It is not a `pr-checks` job, so `auto-merge-develop` does not
+wait for it — add `codeql-analyze` to the required checks in branch protection if you want it to block merges.
 
 The release PR (`develop → main`) skips these jobs — the same commit already passed them and `Staging Verified`.
 
