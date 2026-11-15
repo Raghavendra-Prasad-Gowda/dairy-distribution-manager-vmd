@@ -1,0 +1,48 @@
+name: codeql
+
+# Static analysis (SAST) of our own JavaScript for injection, XSS, unsafe regex, weak crypto, etc.
+# Findings show up under Security → Code scanning. Requires code scanning to be available for the repo
+# (free for public repos; private repos need GitHub Code Security).
+on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  push:
+    branches: [develop, main]
+  schedule:
+    # Weekly, so newly published query rules and advisories are applied to code that has not changed.
+    - cron: '17 3 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: codeql-analyze
+    # Release PRs (develop → main) skip: the same commit was already analysed on develop.
+    if: github.event_name != 'pull_request' || github.base_ref != 'main' || github.head_ref != 'release/next'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          # The automation suites are test harnesses, not the app; keep them out of the scan.
+          config: |
+            paths-ignore:
+              - server/automation
+              - client/automation-ui
+              - '**/node_modules'
+              - '**/*.test.jsx'
+              - server/tests
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript
