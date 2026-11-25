@@ -197,7 +197,7 @@ jobs:
       - uses: actions/checkout@v7
       # Blocks a PR that ADDS a dependency with a known moderate+ vulnerability
       # (npm audit above covers what is already installed). Needs the repo's dependency graph enabled.
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: on-failure
